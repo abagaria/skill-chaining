@@ -92,7 +92,7 @@ class GridWorldMDP(MDP):
         '''
         if self._is_goal_state_action(state, action):
             return 1.0 - self.step_cost
-        elif (int(state.x), int(state.y)) in self.lava_locs:
+        elif self._is_lava_state_action(state, action):
             return -self.lava_cost
         else:
             return 0 - self.step_cost
@@ -117,6 +117,30 @@ class GridWorldMDP(MDP):
         elif action == "down" and (state.x, state.y - 1) in self.goal_locs:
             return True
         elif action == "up" and (state.x, state.y + 1) in self.goal_locs:
+            return True
+        else:
+            return False
+
+    def _is_lava_state_action(self, state, action):
+        '''
+        Args:
+            state (State)
+            action (str)
+
+        Returns:
+            (bool): True iff the state-action pair send the agent to the goal state.
+        '''
+        if state.is_terminal():
+            # Already at terminal.
+            return False
+
+        if action == "left" and (state.x - 1, state.y) in self.lava_locs:
+            return True
+        elif action == "right" and (state.x + 1, state.y) in self.lava_locs:
+            return True
+        elif action == "down" and (state.x, state.y - 1) in self.lava_locs:
+            return True
+        elif action == "up" and (state.x, state.y + 1) in self.lava_locs:
             return True
         else:
             return False
@@ -157,6 +181,9 @@ class GridWorldMDP(MDP):
             next_state = GridWorldState(state.x, state.y)
 
         if (next_state.x, next_state.y) in self.goal_locs and self.is_goal_terminal:
+            next_state.set_terminal(True)
+
+        if (next_state.x, next_state.y) in self.lava_locs and self.is_goal_terminal:
             next_state.set_terminal(True)
 
         return next_state
