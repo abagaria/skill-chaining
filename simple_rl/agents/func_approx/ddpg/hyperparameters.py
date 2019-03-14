@@ -10,6 +10,5 @@ HIDDEN_2 = 300
 
 MAX_EPISODES = 50000
 MAX_STEPS = 200
-buffer_start = 100
 epsilon_decay = 1. / 100000
 PRINT_EVERY = 10

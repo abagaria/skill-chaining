@@ -3,11 +3,13 @@ import random
 import numpy as np
 from copy import deepcopy
 from collections import deque
+import argparse
 
 # PyTorch imports.
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+from tensorboardX import SummaryWriter
 
 # Other imports.
 from simple_rl.agents.AgentClass import Agent
@@ -17,11 +19,15 @@ from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 
 class DDPGAgent(Agent):
-    def __init__(self, state_size, action_size, seed, device, name="DDPG-Agent"):
+    def __init__(self, state_size, action_size, seed, device, tensor_log=False, name="DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
+
+        # TODO: Set the random seed for torch, random and numpy
         self.seed = random.seed(seed)
+        
         self.device = device
+        self.tensor_log = tensor_log
         self.name = name
 
         self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
@@ -44,6 +50,10 @@ class DDPGAgent(Agent):
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
 
+        # Tensorboard logging
+        self.writer = SummaryWriter() if tensor_log else None
+        self.n_learning_iterations = 0
+
         Agent.__init__(self, name, [], gamma=GAMMA)
 
     def act(self, state, epsilon):
@@ -63,7 +73,7 @@ class DDPGAgent(Agent):
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.FloatTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
-        next_states = torch.FloatTensor(next_states).to(self.evice)
+        next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
 
         next_actions = self.target_actor(next_states)
@@ -86,6 +96,15 @@ class DDPGAgent(Agent):
         self.soft_update(self.actor, self.target_actor, tau=TAU)
         self.soft_update(self.critic, self.target_critic, tau=TAU)
 
+        # Tensorboard logging
+        if self.writer is not None:
+            self.n_learning_iterations = self.n_learning_iterations + 1
+            self.writer.add_scalar("critic_loss", critic_loss.item(), self.n_learning_iterations)
+            self.writer.add_scalar("actor_loss", actor_loss.item(), self.n_learning_iterations)
+            self.writer.add_scalar("critic_grad_norm", self._compute_gradient_norm(self.critic), self.n_learning_iterations)
+            self.writer.add_scalar("actor_grad_norm", self._compute_gradient_norm(self.actor), self.n_learning_iterations)
+            self.writer.add_scalar("sampled_q_values", Q_expected.mean().item(), self.n_learning_iterations)
+
     def soft_update(self, local_model, target_model, tau):
         """
         Soft update of target network from policy network.
@@ -98,6 +117,15 @@ class DDPGAgent(Agent):
         """
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+
+    @staticmethod
+    def _compute_gradient_norm(model):
+        total_norm = 0.
+        for p in model.parameters():
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+        total_norm = total_norm ** (1. / 2)
+        return total_norm
 
 
 def train(agent, mdp, episodes, steps):
@@ -127,19 +155,32 @@ def train(agent, mdp, episodes, steps):
         per_episode_scores.append(score)
 
         if score > best_episodic_reward:
-            torch.save(agent.actor.state_dict(), "best_actor_{}_{}.pkl".format(mdp.name, episode))
-            torch.save(agent.critic.state_dict(), "best_critic_{}_{}.pkl".format(mdp.name, episode))
+            torch.save(agent.actor.state_dict(), "best_actor_{}_{}.pkl".format(mdp.env_name, episode))
+            torch.save(agent.critic.state_dict(), "best_critic_{}_{}.pkl".format(mdp.env_name, episode))
             best_episodic_reward = score
 
         print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)), end="")
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)))
 
+    return per_episode_scores
+
 
 if __name__ == "__main__":
-    overall_mdp = GymMDP("Pendulum-v0")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
+    parser.add_argument("--render", type=bool, help="render environment training", default=False)
+    parser.add_argument("--log", type=bool, help="enable tensorboard logging", default=True)
+    parser.add_argument("--episodes", type=int, help="number of training episodes", default=200)
+    parser.add_argument("--steps", type=int, help="number of steps per episode", default=200)
+    parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
+    parser.add_argument("--seed", type=int, help="random seed", default=0)
+    args = parser.parse_args()
+    
+    overall_mdp = GymMDP(args.env, render=args.render)
     state_dim = overall_mdp.env.observation_space.shape[0]
     action_dim = overall_mdp.env.action_space.shape[0]
-    print("State dim: {}, Action dim: {}".format(state_dim, action_dim))
-    ddpg_agent = DDPGAgent(state_dim, action_dim, 0, torch.device("cpu"))
-    train(ddpg_agent, overall_mdp, 1000, 200)
+    print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
+    ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log)
+    episodic_scores = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
+
