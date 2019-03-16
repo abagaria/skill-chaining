@@ -7,11 +7,15 @@ import numpy as np
 from simple_rl.agents.func_approx.ddpg.hyperparameters import BUFFER_SIZE, BATCH_SIZE
 
 class ReplayBuffer(object):
-    def __init__(self, buffer_size=BUFFER_SIZE, name_buffer=''):
+    def __init__(self, buffer_size=BUFFER_SIZE, name_buffer='', seed=0):
         self.buffer_size = buffer_size
         self.num_exp = 0
         self.buffer = deque(maxlen=buffer_size)
         self.name = name_buffer
+
+        self.seed = seed
+        random.seed(seed)
+        np.random.seed(seed)
 
     def add(self, state, action, reward, next_state, terminal):
         experience = state, action, reward, next_state, terminal

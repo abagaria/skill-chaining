@@ -4,6 +4,7 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 import argparse
+import os
 
 # PyTorch imports.
 import torch
@@ -14,17 +15,20 @@ from tensorboardX import SummaryWriter
 # Other imports.
 from simple_rl.agents.AgentClass import Agent
 from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlenbeckActionNoise
-from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
+from simple_rl.agents.func_approx.ddpg.hyperparameters import *
+from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
+from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, tensor_log=False, name="DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
 
-        # TODO: Set the random seed for torch, random and numpy
         self.seed = random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
         
         self.device = device
         self.tensor_log = tensor_log
@@ -56,9 +60,10 @@ class DDPGAgent(Agent):
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
-    def act(self, state, epsilon):
+    def act(self, state, epsilon, evaluation_mode=False):
         action = self.actor.get_action(state)
-        action += (self.noise() * max(0.0, epsilon))
+        if not evaluation_mode:
+            action += (self.noise() * max(0.0, epsilon))
         return np.clip(action, -1., 1.)
 
     def step(self, state, action, reward, next_state, done):
@@ -79,7 +84,7 @@ class DDPGAgent(Agent):
         next_actions = self.target_actor(next_states)
         Q_targets_next = self.target_critic(next_states, next_actions)
 
-        Q_targets = rewards + (1.0 - dones) * GAMMA * Q_targets_next.detach()
+        Q_targets = rewards + (1.0 - dones) * gamma * Q_targets_next.detach()
         Q_expected = self.critic(states, actions)
 
         self.critic_optimizer.zero_grad()
@@ -101,8 +106,8 @@ class DDPGAgent(Agent):
             self.n_learning_iterations = self.n_learning_iterations + 1
             self.writer.add_scalar("critic_loss", critic_loss.item(), self.n_learning_iterations)
             self.writer.add_scalar("actor_loss", actor_loss.item(), self.n_learning_iterations)
-            self.writer.add_scalar("critic_grad_norm", self._compute_gradient_norm(self.critic), self.n_learning_iterations)
-            self.writer.add_scalar("actor_grad_norm", self._compute_gradient_norm(self.actor), self.n_learning_iterations)
+            self.writer.add_scalar("critic_grad_norm", compute_gradient_norm(self.critic), self.n_learning_iterations)
+            self.writer.add_scalar("actor_grad_norm", compute_gradient_norm(self.actor), self.n_learning_iterations)
             self.writer.add_scalar("sampled_q_values", Q_expected.mean().item(), self.n_learning_iterations)
 
     def soft_update(self, local_model, target_model, tau):
@@ -118,28 +123,42 @@ class DDPGAgent(Agent):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
-    @staticmethod
-    def _compute_gradient_norm(model):
-        total_norm = 0.
-        for p in model.parameters():
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        return total_norm
+
+def trained_forward_pass(agent, mdp, render=False):
+    mdp.reset()
+    state = deepcopy(mdp.init_state)
+    overall_reward = 0.
+    original_render = deepcopy(mdp.render)
+    mdp.render = render
+
+    while not state.is_terminal():
+        action = agent.act(state.features(),  epsilon=0., evaluation_mode=True)
+        reward, next_state = mdp.execute_agent_action(action)
+        overall_reward += reward
+        state = next_state
+
+    mdp.render = original_render
+    return overall_reward
 
 
 def train(agent, mdp, episodes, steps):
     epsilon = 1.0
     best_episodic_reward = -np.inf
     per_episode_scores = []
+    per_episode_durations = []
     last_10_scores = deque(maxlen=50)
+    last_10_durations = deque(maxlen=50)
+
+    # We are decaying epsilon linearly from 1 to 0 during
+    # (nearly) the training lifetime of the agent
+    epsilon_decay = 1. / ((episodes - 100) * 200)
 
     for episode in range(episodes):
         mdp.reset()
         state = deepcopy(mdp.init_state)
         score = 0.
         for step in range(steps):
-            epsilon -= epsilon_decay
+            epsilon = np.clip(epsilon - epsilon_decay, 0., 1.)
 
             action = agent.act(state.features(), epsilon)
             reward, next_state = mdp.execute_agent_action(action)
@@ -153,34 +172,51 @@ def train(agent, mdp, episodes, steps):
 
         last_10_scores.append(score)
         per_episode_scores.append(score)
+        last_10_durations.append(step)
+        per_episode_durations.append(step)
 
         if score > best_episodic_reward:
-            torch.save(agent.actor.state_dict(), "best_actor_{}_{}.pkl".format(mdp.env_name, episode))
-            torch.save(agent.critic.state_dict(), "best_critic_{}_{}.pkl".format(mdp.env_name, episode))
+            save_model(agent, episode)
             best_episodic_reward = score
 
-        print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)), end="")
+        print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
+            episode, np.mean(last_10_scores), np.mean(last_10_durations), epsilon), end="")
         if episode % PRINT_EVERY == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)))
+            print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
+            episode, np.mean(last_10_scores), np.mean(last_10_durations), epsilon))
 
-    return per_episode_scores
+    return per_episode_scores, per_episode_durations
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
     parser.add_argument("--render", type=bool, help="render environment training", default=False)
-    parser.add_argument("--log", type=bool, help="enable tensorboard logging", default=True)
+    parser.add_argument("--log", type=bool, help="enable tensorboard logging", default=False)
     parser.add_argument("--episodes", type=int, help="number of training episodes", default=200)
     parser.add_argument("--steps", type=int, help="number of steps per episode", default=200)
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--seed", type=int, help="random seed", default=0)
     args = parser.parse_args()
-    
-    overall_mdp = GymMDP(args.env, render=args.render)
-    state_dim = overall_mdp.env.observation_space.shape[0]
-    action_dim = overall_mdp.env.action_space.shape[0]
-    print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
-    ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log)
-    episodic_scores = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
+    if "reacher" in args.env.lower():
+        overall_mdp = FixedReacherMDP(seed=args.seed, render=args.render)
+        state_dim = overall_mdp.init_state.features().shape[0]
+        action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+    else:
+        overall_mdp = GymMDP(args.env, render=args.render)
+        state_dim = overall_mdp.env.observation_space.shape[0]
+        action_dim = overall_mdp.env.action_space.shape[0]
+        overall_mdp.env.seed(args.seed)
+
+    print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
+
+    agent_name = overall_mdp.env_name + "_ddpg_agent"
+    ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
+    episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
+
+    save_model(ddpg_agent, episode_number=args.episodes, best=False)
+
+    best_ep, best_agent = load_model(ddpg_agent)
+    print("loaded {} from episode {}".format(best_agent.name, best_ep))
+    trained_forward_pass(best_agent, overall_mdp)
