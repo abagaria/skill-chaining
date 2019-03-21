@@ -16,6 +16,13 @@ class FixedReacherState(State):
 
         State.__init__(self, data=data, is_terminal=is_terminal)
 
+    def __str__(self):
+        return "position: {}\tvelocity: {}\tto_target: {}\tterminal: {}".format(self.position, self.velocity,
+                                                                                self.to_target, self.is_terminal())
+
+    def __repr__(self):
+        return str(self)
+
     def to_rgb(self, x_dim, y_dim):
 
         # 3 by x_length by y_length array with values 0 (0) --> 1 (255)

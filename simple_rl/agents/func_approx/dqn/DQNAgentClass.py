@@ -48,7 +48,7 @@ class GlobalEpsilonSchedule(EpsilonSchedule):
     def __init__(self, eps_start):
         EPS_END = 0.05
         EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 400000
+        EPS_LINEAR_DECAY_LENGTH = 10000
         super(GlobalEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
 
     def update_epsilon(self, current_epsilon, num_executions):
@@ -151,12 +151,11 @@ class QNetwork(nn.Module):
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, num_original_actions, trained_options, seed, name="DQN-Agent",
+    def __init__(self, state_size, action_size, trained_options, seed, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05):
         self.state_size = state_size
         self.action_size = action_size
-        self.num_original_actions = num_original_actions
         self.trained_options = trained_options
         self.learning_rate = lr
         self.use_ddqn = use_double_dqn
@@ -174,7 +173,6 @@ class DQNAgent(Agent):
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
         # Replay memory
-        buffer_size = BUFFER_SIZE if "global" not in name.lower() else 3 * BUFFER_SIZE
         self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
@@ -195,8 +193,8 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer = SummaryWriter(name)
 
-        print("\nCreating {} with lr={} and ddqn={} buffer_sz={}\n".format(name, self.learning_rate,
-                                                                           self.use_ddqn, buffer_size))
+        print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
+                                                                               self.use_ddqn, BUFFER_SIZE))
 
         Agent.__init__(self, name, range(action_size), GAMMA)
 
@@ -208,6 +206,29 @@ class DQNAgent(Agent):
     def reduce_learning_rate(self):
         new_learning_rate = self.learning_rate / 100.
         self.set_new_learning_rate(new_learning_rate)
+
+    def get_impossible_option_idx(self, state):
+
+        # Arg-max only over actions that can be executed from the current state
+        # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
+        # -- However, in the case of the goal option we just need to ensure that we are in its initiation set since
+        # -- its termination set is terminal anyway and we are thus not in the risk of executing og from its
+        # -- termination set.
+
+        impossible_option_idx = []
+        for idx, option in enumerate(self.trained_options):
+            np_state = state.cpu().data.numpy()[0]
+
+            if option.parent is None:
+                assert option.name == "overall_goal_policy" or option.name == "global_option"
+                impossible = not option.is_init_true(np_state)
+            else:
+                impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
+
+            if impossible:
+                impossible_option_idx.append(idx)
+
+        return impossible_option_idx
 
     def act(self, state, train_mode=True):
         """
@@ -228,26 +249,9 @@ class DQNAgent(Agent):
             action_values = self.policy_network(state)
         self.policy_network.train()
 
-        # Arg-max only over actions that can be executed from the current state
-        # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
-        # -- However, in the case of the goal option we just need to ensure that we are in its initiation set since
-        # -- its termination set is terminal anyway and we are thus not in the risk of executing og from its
-        # -- termination set.
-        impossible_option_idx = []
-        for idx, option in enumerate(self.trained_options):
-            np_state = state.cpu().data.numpy()[0]
+        impossible_option_idx = self.get_impossible_option_idx(state)
 
-            if idx == 0:  # overall_goal_policy og
-                assert option.name == "overall_goal_policy", "should be og, got {}".format(option.name)
-                impossible = not option.is_init_true(np_state)
-            else:  # Every other option
-                impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
-
-            if impossible:
-                impossible_option_idx.append(idx)
-
-        impossible_action_idx = map(lambda x: x + self.num_original_actions, impossible_option_idx)
-        for impossible_idx in impossible_action_idx:
+        for impossible_idx in impossible_option_idx:
             action_values[0][impossible_idx] = torch.min(action_values, dim=1)[0] - 1.
 
         action_values = action_values.cpu().data.numpy()
@@ -255,15 +259,11 @@ class DQNAgent(Agent):
         if random.random() > epsilon:
             return np.argmax(action_values)
 
-        # pdb.set_trace()
-        original_actions = list(range(self.num_original_actions))
         all_option_idx = list(range(len(self.trained_options)))
         possible_option_idx = list(set(all_option_idx).difference(impossible_option_idx))
-        all_possible_action_idx = original_actions + list(map(lambda x: x + self.num_original_actions, possible_option_idx))
-        randomly_chosen_action = random.choice(all_possible_action_idx)
+        randomly_chosen_option = random.choice(possible_option_idx)
 
-        # Not allowing epsilon-greedy to select an option as a random action
-        return randomly_chosen_action
+        return randomly_chosen_option
 
     def get_best_actions_batched(self, states):
         q_values = self.get_batched_qvalues(states)
@@ -273,10 +273,8 @@ class DQNAgent(Agent):
         action_values = self.get_qvalues(state)
 
         # Argmax only over actions that can be implemented from the current state
-        impossible_option_idx = [idx for idx, option in enumerate(self.trained_options) if
-                                 (not option.is_init_true(state)) or option.is_term_true(state)]
-        impossible_action_idx = map(lambda x: x + self.num_original_actions, impossible_option_idx)
-        for impossible_idx in impossible_action_idx:
+        impossible_option_idx = self.get_impossible_option_idx(state)
+        for impossible_idx in impossible_option_idx:
             action_values[0][impossible_idx] = torch.min(action_values).item() - 1.
 
         return np.max(action_values.cpu().data.numpy())
@@ -317,14 +315,13 @@ class DQNAgent(Agent):
             states = states.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
 
-            # Lunar lander: init sets are over the continuous state variables only
-            continuous_states = states[:, :-2]
-
-            # TODO: Change this to batched_is_init_true
             for idx, option in enumerate(self.trained_options): # type: Option
-                inits = option.batched_is_init_true(continuous_states)
-                terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(continuous_states)
-                action_values[(inits != 1) | (terms == 1), idx + self.num_original_actions] = np.min(action_values) - 1.
+                try:
+                    inits = option.batched_is_init_true(states)
+                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
+                    action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
+                except:
+                    pdb.set_trace()
 
             # Move the q-values back the GPU
             action_values = torch.from_numpy(action_values).float().to(device)
@@ -500,7 +497,6 @@ class ReplayBuffer:
         return len(self.memory)
 
 def train(agent, mdp, episodes, steps):
-    from simple_rl.skill_chaining.skill_chaining_utils import render_value_function
     per_episode_scores = []
     last_10_scores = deque(maxlen=10)
     iteration_counter = 0
@@ -527,8 +523,6 @@ def train(agent, mdp, episodes, steps):
         print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)), end="")
         if episode % 10 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)))
-        # if episode % 5 == 0:
-        #     render_value_function(agent, device, episode=episode)
     return per_episode_scores
 
 def test_forward_pass(dqn_agent, mdp):
@@ -581,7 +575,7 @@ if __name__ == '__main__':
 
     overall_mdp = GymMDP(env_name="LunarLander-v2", render=args.render)
     ddqn_agent = DQNAgent(state_size=overall_mdp.init_state.features().shape[0], action_size=len(overall_mdp.actions),
-                          num_original_actions=len(overall_mdp.actions), trained_options=[], seed=args.seed,
+                          trained_options=[], seed=args.seed,
                           name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True)
     ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
     save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)

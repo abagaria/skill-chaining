@@ -1,5 +1,6 @@
 # Python imports.
 import numpy as np
+import pdb
 
 # PyTorch imports.
 import torch
@@ -30,6 +31,22 @@ class Critic(nn.Module):
         x = self.linear3(x)
 
         return x
+
+    def get_q_value(self, state, action):
+        """
+        Args:
+            state (np.ndarray)
+            action (np.ndarray)
+        Returns:
+            q_value (float)
+        """
+        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        action = torch.FloatTensor(action).unsqueeze(0).to(self.device)
+        self.eval()
+        with torch.no_grad():
+            q_value = self.forward(state, action).item()
+        self.train()
+        return q_value
 
 
 class Actor(nn.Module):

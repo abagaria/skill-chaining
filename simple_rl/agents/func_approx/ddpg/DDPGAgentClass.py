@@ -53,6 +53,7 @@ class DDPGAgent(Agent):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=LRA)
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
+        self.epsilon = 1.0
 
         # Tensorboard logging
         self.writer = SummaryWriter() if tensor_log else None
@@ -60,10 +61,10 @@ class DDPGAgent(Agent):
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
-    def act(self, state, epsilon, evaluation_mode=False):
+    def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
         if not evaluation_mode:
-            action += (self.noise() * max(0.0, epsilon))
+            action += (self.noise() * self.epsilon)
         return np.clip(action, -1., 1.)
 
     def step(self, state, action, reward, next_state, done):
@@ -109,6 +110,7 @@ class DDPGAgent(Agent):
             self.writer.add_scalar("critic_grad_norm", compute_gradient_norm(self.critic), self.n_learning_iterations)
             self.writer.add_scalar("actor_grad_norm", compute_gradient_norm(self.actor), self.n_learning_iterations)
             self.writer.add_scalar("sampled_q_values", Q_expected.mean().item(), self.n_learning_iterations)
+            self.writer.add_scalar("epsilon", self.epsilon, self.n_learning_iterations)
 
     def soft_update(self, local_model, target_model, tau):
         """
@@ -123,6 +125,8 @@ class DDPGAgent(Agent):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
+    def update_epsilon(self):
+        self.epsilon = max(0., self.epsilon - LINEAR_EPS_DECAY)
 
 def trained_forward_pass(agent, mdp, render=False):
     mdp.reset()
@@ -132,7 +136,7 @@ def trained_forward_pass(agent, mdp, render=False):
     mdp.render = render
 
     while not state.is_terminal():
-        action = agent.act(state.features(),  epsilon=0., evaluation_mode=True)
+        action = agent.act(state.features(), evaluation_mode=True)
         reward, next_state = mdp.execute_agent_action(action)
         overall_reward += reward
         state = next_state
@@ -142,28 +146,21 @@ def trained_forward_pass(agent, mdp, render=False):
 
 
 def train(agent, mdp, episodes, steps):
-    epsilon = 1.0
     best_episodic_reward = -np.inf
     per_episode_scores = []
     per_episode_durations = []
     last_10_scores = deque(maxlen=50)
     last_10_durations = deque(maxlen=50)
 
-    # We are decaying epsilon linearly from 1 to 0 during
-    # (nearly) the training lifetime of the agent
-    epsilon_decay = 1. / ((episodes - 100) * 200)
-
     for episode in range(episodes):
         mdp.reset()
         state = deepcopy(mdp.init_state)
         score = 0.
         for step in range(steps):
-            epsilon = np.clip(epsilon - epsilon_decay, 0., 1.)
-
-            action = agent.act(state.features(), epsilon)
+            action = agent.act(state.features())
             reward, next_state = mdp.execute_agent_action(action)
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-
+            agent.update_epsilon()
             state = next_state
             score += reward
 
@@ -180,10 +177,10 @@ def train(agent, mdp, episodes, steps):
             best_episodic_reward = score
 
         print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), epsilon), end="")
+            episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon), end="")
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), epsilon))
+            episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
 
     return per_episode_scores, per_episode_durations
 
@@ -191,6 +188,7 @@ def train(agent, mdp, episodes, steps):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
+    parser.add_argument("--difficulty", type=str, help="Control suite env difficulty", default="easy")
     parser.add_argument("--render", type=bool, help="render environment training", default=False)
     parser.add_argument("--log", type=bool, help="enable tensorboard logging", default=False)
     parser.add_argument("--episodes", type=int, help="number of training episodes", default=200)
@@ -200,7 +198,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if "reacher" in args.env.lower():
-        overall_mdp = FixedReacherMDP(seed=args.seed, render=args.render)
+        overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
     else:
