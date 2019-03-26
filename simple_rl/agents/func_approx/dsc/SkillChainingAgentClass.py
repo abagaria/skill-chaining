@@ -19,9 +19,9 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+# from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
-from simple_rl.tasks.gym.GymMDPClass import GymMDP
+# from simple_rl.tasks.gym.GymMDPClass import GymMDP
 
 
 class SkillChaining(object):

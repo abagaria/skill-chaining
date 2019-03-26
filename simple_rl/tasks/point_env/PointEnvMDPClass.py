@@ -1,16 +1,19 @@
 # Python imports.
 import numpy as np
 import pdb
+import os
 
 # Other imports.
-from mujoco_py import load_model_from_path, MjSim, MjViewer, MjSimState
+from mujoco_py import load_model_from_path, MjSim, MjViewer, MjSimState, utils
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 
 class PointEnvMDP(MDP):
     def __init__(self, torque_multiplier=100., init_mean=(-0.2, -0.2), render=False):
-        model = load_model_from_path("/Users/akhil/git-repos/dm_control/dm_control/suite/point_mass.xml")
+        mj_path, _ = utils.discover_mujoco()
+        xml = os.path.join(mj_path, "model", "point_mass.xml")
+        model = load_model_from_path(xml)
         self.sim = MjSim(model)
         self.render = render
         self.init_mean = init_mean
