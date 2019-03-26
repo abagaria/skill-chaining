@@ -11,14 +11,13 @@ from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 class PointEnvMDP(MDP):
     def __init__(self, torque_multiplier=100., init_mean=(-0.2, -0.2), render=False):
-        mj_path, _ = utils.discover_mujoco()
-        xml = os.path.join(mj_path, "model", "point_mass.xml")
+        xml = "/home/abagaria/dm_control/dm_control/suite/point_mass.xml"
         model = load_model_from_path(xml)
         self.sim = MjSim(model)
         self.render = render
         self.init_mean = init_mean
-
-        self.viewer = MjViewer(self.sim)
+        
+        if self.render: self.viewer = MjViewer(self.sim)
 
         # Config
         self.env_name = "Point-Mass-Environment"
