@@ -20,11 +20,13 @@ from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
+from simple_rl.tasks.gym.GymMDPClass import GymMDP
 
 
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, pretrained_options=[], buffer_length=20,
-				 subgoal_reward=1.0, subgoal_hits=10, max_num_options=4,
+				 subgoal_reward=1.0, subgoal_hits=3, max_num_options=4,
 				 enable_option_timeout=True, intra_option_learning=False,
 				 generate_plots=False, log_dir="", seed=0):
 		"""
@@ -80,8 +82,8 @@ class SkillChaining(object):
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
 		# We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
 		# options, this agent will predict Q-values for them as well
-		self.agent_over_options = DQNAgent(state_space_size, 1, trained_options=self.trained_options,
-										   seed=seed, lr=lr, name="GlobalDQN", eps_start=1.0, tensor_log=False,
+		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
+										   seed=seed, lr=lr, name="GlobalDQN", eps_start=1.0, tensor_log=True,
 										   use_double_dqn=True)
 
 		# This is our first untrained option - one that gets us to the goal state from nearby the goal
@@ -137,12 +139,11 @@ class SkillChaining(object):
 		Returns:
 			init_q_value (float)
 		"""
-		global_solver = self.global_option.solver  # type: DDPGAgent
-		final_transitions = newly_trained_option.get_final_transitions()
-		final_state_action_pairs = [(experience.state, experience.action) for experience in final_transitions]
+		global_solver = self.agent_over_options  # type: DQNAgent
+		state_option_pairs = newly_trained_option.final_transitions
 		q_values = []
-		for state, action in final_state_action_pairs:
-			q_value = global_solver.critic.get_q_value(state.features(), action)
+		for state, option_idx in state_option_pairs:
+			q_value = global_solver.get_qvalue(state.features(), option_idx)
 			q_values.append(q_value)
 		return np.max(q_values)
 
@@ -169,6 +170,7 @@ class SkillChaining(object):
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q_value = self.get_init_q_value_for_new_option(newly_trained_option) if init_q is None else init_q
+		print("Initializing new option node with q value {}".format(init_q_value))
 		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q_value)
 		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q_value)
 
@@ -199,14 +201,7 @@ class SkillChaining(object):
 		# TODO: (since the option could have "failed" simply because it timed out)
 		selected_option = self.trained_options[action]  # type: Option
 		if self.enable_intra_option_learning:
-			def get_reward(transitions):
-				""" Used to get discounted cumulative rewards for SMDP updates. """
-				gamma = self.agent_over_options.gamma
-				raw_rewards = [tt[2] for tt in transitions]
-				return sum([ (gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 			for i, transition in enumerate(option_transitions):
-				# sub_transitions = option_transitions[i:]
-				# discounted_reward = get_reward(sub_transitions)
 				start_state = transition[0]
 				if selected_option.is_init_true(start_state):
 					option_reward = self.subgoal_reward if selected_option.is_term_true(next_state) else -1.
@@ -245,6 +240,10 @@ class SkillChaining(object):
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
 
+		# If we triggered the untrained option's termination condition, add to its buffer of terminal transitions
+		if self.untrained_option.is_term_true(next_state) and not self.untrained_option.is_term_true(state):
+			self.untrained_option.final_transitions.append((state, option_idx))
+
 		# Add data to train Q(s, o)
 		self.make_smdp_update(state, option_idx, discounted_reward, next_state, option_transitions)
 
@@ -271,30 +270,10 @@ class SkillChaining(object):
 
 	@staticmethod
 	def get_next_state_from_experiences(experiences):
-		"""
-		Given a list of experiences, fetch the final state encountered.
-		Args:
-			experiences (list): list of (s, a, r, s') tuples
-
-		Returns:
-			next_state (State)
-		"""
-		try:
-			isinstance(experiences[-1][-1], State), "Expected last element to be next_state, got {}".format(experiences[-1][-1])
-		except:
-			pdb.set_trace()
 		return experiences[-1][-1]
 
 	@staticmethod
 	def get_reward_from_experiences(experiences):
-		"""
-		Given a list of experiences, fetch the overall reward encountered.
-		Args:
-			experiences (list): list of (s, a, r, s') tuples
-
-		Returns:
-			total_reward (float): Sum of all the rewards encountered in `experiences`
-		"""
 		total_reward = 0.
 		for experience in experiences:
 			reward = experience[2]
@@ -307,10 +286,6 @@ class SkillChaining(object):
 			if option.is_init_true(start_state):
 				return False
 		return len(self.trained_options) < self.max_num_options
-
-	@staticmethod
-	def number_of_states_in_term_set(untrained_option, trajectory):
-		return sum([untrained_option.is_term_true(state) for state in trajectory])
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -338,21 +313,23 @@ class SkillChaining(object):
 				for experience in experiences:
 					experience_buffer.append(experience)
 					state_buffer.append(experience[0])
-				state_buffer.append(experiences[-1][-1]) # Don't forget to add the last s' to the buffer
+
+				# Don't forget to add the last s' to the buffer
+				if state.is_terminal() or (step_number == num_steps - 1):
+					state_buffer.append(state)
 
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
-						self.untrained_option.get_training_phase() == "gestation":
+						self.untrained_option.get_training_phase() == "gestation" and self.max_num_options > 0:
 
 					uo_episode_terminated = True
 
 					if self.untrained_option.train(experience_buffer, state_buffer):
-						device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-						if self.generate_plots and not self.agent_over_options.tensor_log:
-							render_sampled_value_function(self.agent_over_options, device, episode=episode-10000)
-							render_sampled_initiation_classifier(self.untrained_option, self.agent_over_options)
+						if self.generate_plots:
+							render_sampled_value_function(self.agent_over_options, episode=episode-10000)
+							render_sampled_initiation_classifier(self.untrained_option)
 						self._augment_agent_with_new_option(self.untrained_option)
-						if self.generate_plots and not self.agent_over_options.tensor_log:
-							render_sampled_value_function(self.agent_over_options, device, episode=episode+10000)
+						if self.generate_plots:
+							render_sampled_value_function(self.agent_over_options, episode=episode+10000)
 
 				if self.untrained_option.get_training_phase() == "initiation_done" and self.should_create_more_options():
 					self.create_child_option()
@@ -365,30 +342,34 @@ class SkillChaining(object):
 			per_episode_scores.append(score)
 			per_episode_durations.append(step_number)
 
-			if self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations):
-				break
+			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
 
 		return per_episode_scores, per_episode_durations
 
 	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
-		device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon), end="")
+
+		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}\tGO Eps: {:.2f}'.format(
+			episode, np.mean(last_10_scores), np.mean(last_10_durations),
+			self.agent_over_options.epsilon, self.global_option.solver.epsilon), end="")
+
 		if episode % 10 == 0:
-			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
+			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}\tGO Eps: {:.2f}'.format(
+				episode, np.mean(last_10_scores), np.mean(last_10_durations),
+				self.agent_over_options.epsilon, self.global_option.solver.epsilon))
+
 		if episode > 0 and episode % 100 == 0:
 			eval_score = self.trained_forward_pass(render=False)
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-		if self.generate_plots and not self.agent_over_options.tensor_log and episode % 50 == 0:
-			render_sampled_value_function(self.agent_over_options, device, episode=episode)
+		if self.generate_plots and episode % 20 == 0:
+			render_sampled_value_function(self.agent_over_options, episode=episode)
 
 		for trained_option in self.trained_options:  # type: Option
 			self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
 			if self.agent_over_options.tensor_log:
 				self.agent_over_options.writer.add_scalar("{}_executions".format(trained_option.name),
 														  episode_option_executions[trained_option.name], episode)
-		return False
 
 	def save_all_models(self):
 		torch.save(self.agent_over_options.policy_network.state_dict(), 'global_policy_dqn.pth')
@@ -469,6 +450,7 @@ def create_log_dir(experiment_name):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+	parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
 	parser.add_argument("--pretrained", type=bool, help="whether or not to load pretrained options", default=False)
 	parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
 	parser.add_argument("--episodes", type=int, help="# episodes", default=2000)
@@ -485,8 +467,20 @@ if __name__ == '__main__':
 	parser.add_argument("--generate_plots", type=bool, help="Whether or not to generate plots", default=False)
 	args = parser.parse_args()
 
-	overall_mdp = FixedReacherMDP(args.seed, args.difficulty, args.render)
-	state_space_size = overall_mdp.init_state.features().shape[0]
+	if "reacher" in args.env.lower():
+		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
+		state_dim = overall_mdp.init_state.features().shape[0]
+		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+	elif "point" in args.env.lower():
+		overall_mdp = PointEnvMDP(render=args.render)
+		state_dim = 4
+		action_dim = 2
+	else:
+		overall_mdp = GymMDP(args.env, render=args.render)
+		state_dim = overall_mdp.env.observation_space.shape[0]
+		action_dim = overall_mdp.env.action_space.shape[0]
+		overall_mdp.env.seed(args.seed)
+
 	random_seed = args.seed
 	lr = args.lr
 	max_number_of_options = args.n_options

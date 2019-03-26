@@ -10,7 +10,7 @@ class ReplayBuffer(object):
     def __init__(self, buffer_size=BUFFER_SIZE, name_buffer='', seed=0):
         self.buffer_size = buffer_size
         self.num_exp = 0
-        self.buffer = deque(maxlen=buffer_size)
+        self.memory = deque(maxlen=buffer_size)
         self.name = name_buffer
 
         self.seed = seed
@@ -19,7 +19,7 @@ class ReplayBuffer(object):
 
     def add(self, state, action, reward, next_state, terminal):
         experience = state, action, reward, next_state, terminal
-        self.buffer.append(experience)
+        self.memory.append(experience)
         self.num_exp += 1
 
     def size(self):
@@ -30,14 +30,14 @@ class ReplayBuffer(object):
 
     def sample(self, batch_size=BATCH_SIZE):
         if self.num_exp < batch_size:
-            batch = random.sample(self.buffer, self.num_exp)
+            batch = random.sample(self.memory, self.num_exp)
         else:
-            batch = random.sample(self.buffer, batch_size)
+            batch = random.sample(self.memory, batch_size)
 
         state, action, reward, next_state, terminal = map(np.stack, zip(*batch))
 
         return state, action, reward, next_state, terminal
 
     def clear(self):
-        self.buffer = deque(maxlen=self.buffer_size)
+        self.memory = deque(maxlen=self.buffer_size)
         self.num_exp = 0

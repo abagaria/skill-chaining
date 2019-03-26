@@ -20,6 +20,8 @@ from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
+
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, tensor_log=False, name="DDPG-Agent"):
@@ -128,18 +130,20 @@ class DDPGAgent(Agent):
     def update_epsilon(self):
         self.epsilon = max(0., self.epsilon - LINEAR_EPS_DECAY)
 
-def trained_forward_pass(agent, mdp, render=False):
+def trained_forward_pass(agent, mdp, steps, render=False):
     mdp.reset()
     state = deepcopy(mdp.init_state)
     overall_reward = 0.
     original_render = deepcopy(mdp.render)
     mdp.render = render
 
-    while not state.is_terminal():
+    for _ in range(steps):
         action = agent.act(state.features(), evaluation_mode=True)
         reward, next_state = mdp.execute_agent_action(action)
         overall_reward += reward
         state = next_state
+        if state.is_terminal():
+            break
 
     mdp.render = original_render
     return overall_reward
@@ -201,6 +205,10 @@ if __name__ == "__main__":
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+    elif "point" in args.env.lower():
+        overall_mdp = PointEnvMDP(render=args.render)
+        state_dim = 4
+        action_dim = 2
     else:
         overall_mdp = GymMDP(args.env, render=args.render)
         state_dim = overall_mdp.env.observation_space.shape[0]
@@ -217,4 +225,4 @@ if __name__ == "__main__":
 
     best_ep, best_agent = load_model(ddpg_agent)
     print("loaded {} from episode {}".format(best_agent.name, best_ep))
-    trained_forward_pass(best_agent, overall_mdp)
+    trained_forward_pass(best_agent, overall_mdp, args.steps)

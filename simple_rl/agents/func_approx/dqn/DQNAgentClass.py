@@ -48,7 +48,7 @@ class GlobalEpsilonSchedule(EpsilonSchedule):
     def __init__(self, eps_start):
         EPS_END = 0.05
         EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 10000
+        EPS_LINEAR_DECAY_LENGTH = 50000
         super(GlobalEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
 
     def update_epsilon(self, current_epsilon, num_executions):
@@ -186,12 +186,12 @@ class DQNAgent(Agent):
         self.num_updates = 0
         self.num_epsilon_updates = 0
 
-        if os.path.exists(name):
-            # print("Deleting folder: {}".format(name))
-            shutil.rmtree(name)
+        # if os.path.exists(name):
+        #     # print("Deleting folder: {}".format(name))
+        #     shutil.rmtree(name)
 
         if self.tensor_log:
-            self.writer = SummaryWriter(name)
+            self.writer = SummaryWriter()
 
         print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
                                                                                self.use_ddqn, BUFFER_SIZE))
@@ -217,7 +217,7 @@ class DQNAgent(Agent):
 
         impossible_option_idx = []
         for idx, option in enumerate(self.trained_options):
-            np_state = state.cpu().data.numpy()[0]
+            np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
 
             if option.parent is None:
                 assert option.name == "overall_goal_policy" or option.name == "global_option"
@@ -475,9 +475,10 @@ class ReplayBuffer:
         e = self.experience(state, action, reward, next_state, done, num_steps)
         self.memory.append(e)
 
-    def sample(self):
+    def sample(self, batch_size=None):
         """Randomly sample a batch of experiences from memory."""
-        experiences = random.sample(self.memory, k=self.batch_size)
+        size = self.batch_size if batch_size is None else batch_size
+        experiences = random.sample(self.memory, k=size)
 
         # Log the number of times we see a non-negative reward (should be sparse)
         num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])

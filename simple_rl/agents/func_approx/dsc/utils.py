@@ -1,5 +1,5 @@
 # Python imports.
-import random
+import pdb
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
@@ -7,6 +7,9 @@ import time
 import torch
 import seaborn as sns
 sns.set()
+
+# Other imports.
+from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 class Experience(object):
 	def __init__(self, s, a, r, s_prime):
@@ -44,74 +47,73 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 	possible_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
 					   'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 	for i, trajectory in enumerate(initiation_data):
-		plot_trajectory(trajectory, color=possible_colors[i], marker=marker)
+		color_idx = i % len(possible_colors)
+		plot_trajectory(trajectory, color=possible_colors[color_idx], marker=marker)
 
-def sample_states_and_create_meshgrid(solver, state_form, device):
-	# Array of experience tuples
-	replay_buffer = solver.replay_buffer.memory
+def get_grid_states():
+	ss = []
+	for x in np.arange(-0.31, 0.31, 0.06):
+		for y in np.arange(-0.31, 0.31, 0.06):
+			s = PointEnvState(position=np.array([x, y]), velocity=np.array([0., 0.]), done=False)
+			ss.append(s)
+	return ss
 
-	# Extract all visited states in the replay buffer
-	if len(replay_buffer) > 1000:
-		states = random.sample([e.state for e in replay_buffer], 1000)
-	else:
-		states = [e.state for e in replay_buffer]
+def get_values(solver, init_values=False):
+	values = []
+	for x in np.arange(-0.31, 0.31, 0.06):
+		for y in np.arange(-0.31, 0.31, 0.06):
+			v = []
+			for vx in [-0.01, -0.1, 0., 0.01, 0.1]:
+				for vy in [-0.01, -0.1, 0., 0.01, 0.1]:
+					s = PointEnvState(position=np.array([x, y]), velocity=np.array([vx, vy]), done=False)
 
-	states_array = np.vstack(states)
+					if not init_values:
+						v.append(solver.get_value(s.features()))
+					else:
+						v.append(solver.is_init_true(s))
 
-	x = states_array[:, 0]
-	y = states_array[:, 1]
+			if not init_values:
+				values.append(np.mean(v))
+			else:
+				values.append(np.sum(v))
 
-	xi, yi = np.linspace(x.min(), x.max(), 500), np.linspace(y.min(), y.max(), 500)
+	return values
+
+def render_sampled_value_function(solver, episode=None):
+	states = get_grid_states()
+	values = get_values(solver)
+
+	x = np.array([state.position[0] for state in states])
+	y = np.array([state.position[1] for state in states])
+	xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
 	xx, yy = np.meshgrid(xi, yi)
-
-	if state_form == "tensor":
-		states_array = torch.from_numpy(states_array).float().to(device)
-
-	return x, y, xx, yy, states_array
-
-def render_sampled_value_function(solver, device, episode=None):
-	x, y, xx, yy, states_tensor = sample_states_and_create_meshgrid(solver, "tensor", device)
-
-	# Forward pass through our Q-function
-	with torch.no_grad():
-		q_values = solver.get_batched_qvalues(states_tensor)
-		values = torch.max(q_values, dim=-1)[0].cpu().data.numpy()
-
-	try:
-		rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
-	except:
-		print("Could not render value function because of interpolation error")
-		plt.close()
-		return
-
+	rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
 	zz = rbf(xx, yy)
-	plt.contourf(xx, yy, zz)
+	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()])
 	plt.colorbar()
-	plt.title("Value Function at episode {}".format(episode))
-	name = solver.name if episode is None else solver.name + "_" + str(episode)
-	plt.savefig("{}_value_function.png".format(name))
+	name = solver.name if episode is None else solver.name + "_{}".format(episode)
+	plt.savefig("value_function_plots/{}_value_function.png".format(name))
 	plt.close()
 
 
-def render_sampled_initiation_classifier(option, global_solver):
-	x, y, xx, yy, states_array = sample_states_and_create_meshgrid(global_solver, "array", None)
-	inits = option.batched_is_init_true(states_array)
+def render_sampled_initiation_classifier(option):
+	states = get_grid_states()
+	values = get_values(option, init_values=True)
 
-	try:
-		rbf = scipy.interpolate.Rbf(x, y, inits, function="linear")
-	except:
-		print("Could not render initiation classifier because of interpolation error")
-		plt.close()
-		return
-
+	x = np.array([state.position[0] for state in states])
+	y = np.array([state.position[1] for state in states])
+	xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+	xx, yy = np.meshgrid(xi, yi)
+	rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
 	zz = rbf(xx, yy)
 
-	plt.contourf(xx, yy, zz, cmap=plt.cm.coolwarm, alpha=0.8)
+	# plt.contourf(xx, yy, zz, cmap=plt.cm.coolwarm, alpha=0.8)
+	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()])
 	plt.colorbar()
 	plot_all_trajectories_in_initiation_data(option.positive_examples)
 	plt.xlabel("x")
 	plt.ylabel("y")
-	plt.savefig("{}_svm_{}.png".format(option.name, time.time()))
+	plt.savefig("initiation_set_plots/{}_svm_{}.png".format(option.name, time.time()))
 	plt.close()
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):

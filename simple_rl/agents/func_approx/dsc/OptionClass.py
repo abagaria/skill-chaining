@@ -21,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, buffer_length=20, pretrained=False,
 				 num_subgoal_hits_required=3, subgoal_reward=1., max_steps=20000, seed=0, parent=None, children=[],
-                 classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=7, generate_plots=False,
+                 classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=3, generate_plots=False,
 				 device=torch.device("cpu")):
 		'''
 		Args:
@@ -78,8 +78,8 @@ class Option(object):
 		if classifier_type == "bocsvm" and parent is None:
 			raise AssertionError("{}'s parent cannot be none".format(self.name))
 
-		state_size = overall_mdp.init_state.features().shape[0]
-		action_size = overall_mdp.env.action_spec().minimum.shape[0]
+		state_size = overall_mdp.state_space_size()
+		action_size = overall_mdp.action_space_size()
 
 		self.global_solver = DDPGAgent(state_size, action_size, seed, device) if name == "global_option" else global_solver
 		self.solver = DDPGAgent(state_size, action_size, seed, device)
@@ -93,6 +93,7 @@ class Option(object):
 		self.positive_examples = []
 		self.negative_examples = []
 		self.experience_buffer = []
+		self.final_transitions = []
 
 		self.overall_mdp = overall_mdp
 		self.num_goal_hits = 0
@@ -188,12 +189,6 @@ class Option(object):
 		positive_trajectories = self.positive_examples
 		return [trajectory[-1] for trajectory in positive_trajectories]
 
-	def get_final_transitions(self):
-		# list of off-policy Experience objects (s, a, r, s') that triggered the
-		# current option's termination set during its gestation period
-		successful_transitions = self.experience_buffer
-		return [trajectory[-1] for trajectory in successful_transitions]
-
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
 			return "gestation"
@@ -243,7 +238,7 @@ class Option(object):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self._construct_feature_matrix(self.positive_examples)
 
-		self.initiation_classifier = svm.OneClassSVM(nu=0.01, gamma="auto")
+		self.initiation_classifier = svm.OneClassSVM(nu=0.01, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_two_class_classifier(self):
@@ -365,7 +360,6 @@ class Option(object):
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
-				# TODO: Fix epsilon
 				action = self.solver.act(state.features(), evaluation_mode=False)
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
@@ -391,7 +385,7 @@ class Option(object):
 				step_number += 1
 				num_steps += 1
 
-			# Don't forget to add the terminal state to the followed trajectory
+			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
 			if self.get_training_phase() == "initiation":
@@ -426,9 +420,9 @@ class Option(object):
 			self.train_two_class_classifier()
 			if self.generate_plots:
 				if self.name != "global_option":
-					render_sampled_initiation_classifier(self, self.global_solver)
+					render_sampled_initiation_classifier(self)
 				else:
-					render_sampled_initiation_classifier(self, self.solver)
+					render_sampled_initiation_classifier(self)
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state
