@@ -312,7 +312,6 @@ class Option(object):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
 		self.initialize_with_global_ddpg()
 
-		# TODO: How should we maintain everyone's epsilons?
 		self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition

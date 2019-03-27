@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 import argparse
-import os
+import pdb
 
 # PyTorch imports.
 import torch
@@ -18,8 +18,7 @@ from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlen
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-# from simple_rl.tasks.gym.GymMDPClass import GymMDP
-# from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 
 
@@ -142,6 +141,10 @@ class DDPGAgent(Agent):
     def update_epsilon(self):
         self.epsilon = max(0., self.epsilon - LINEAR_EPS_DECAY)
 
+    def get_value(self, state):
+        action = self.actor.get_action(state)
+        return self.critic.get_q_value(state, action)
+
 def trained_forward_pass(agent, mdp, steps, render=False):
     mdp.reset()
     state = deepcopy(mdp.init_state)
@@ -197,6 +200,7 @@ def train(agent, mdp, episodes, steps):
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
+            render_sampled_value_function(agent, episode=episode)
 
     return per_episode_scores, per_episode_durations
 
