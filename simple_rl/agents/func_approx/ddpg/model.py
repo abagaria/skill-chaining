@@ -58,6 +58,10 @@ class Actor(nn.Module):
         self.linear2 = nn.Linear(h1, h2)
         self.linear3 = nn.Linear(h2, action_dim)
 
+        # We will use batch norm to normalize the input to the tanh non-linearity
+        self.norm1 = nn.BatchNorm1d(h1)
+        self.norm2 = nn.BatchNorm1d(h2)
+
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
 
@@ -68,13 +72,17 @@ class Actor(nn.Module):
 
     def forward(self, state):
         x = self.relu(self.linear1(state))
+        x = self.norm1(x)
         x = self.relu(self.linear2(x))
+        x = self.norm2(x)
         x = self.tanh(self.linear3(x))
         return x
 
     def get_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        self.eval()
         action = self.forward(state)
+        self.train()
         return action.detach().cpu().numpy()[0]
 
 

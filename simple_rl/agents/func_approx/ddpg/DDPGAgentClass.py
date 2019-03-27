@@ -60,6 +60,7 @@ class DDPGAgent(Agent):
         # Tensorboard logging
         self.writer = SummaryWriter() if tensor_log else None
         self.n_learning_iterations = 0
+        self.n_acting_iterations = 0
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
@@ -67,7 +68,18 @@ class DDPGAgent(Agent):
         action = self.actor.get_action(state)
         if not evaluation_mode:
             action += (self.noise() * self.epsilon)
-        return np.clip(action, -1., 1.)
+        action = np.clip(action, -1., 1.)
+
+        if self.writer is not None:
+            self.n_acting_iterations = self.n_acting_iterations + 1
+            self.writer.add_scalar("action_x", action[0], self.n_acting_iterations)
+            self.writer.add_scalar("action_y", action[1], self.n_acting_iterations)
+            self.writer.add_scalar("state_x", state[0], self.n_acting_iterations)
+            self.writer.add_scalar("state_y", state[1], self.n_acting_iterations)
+            self.writer.add_scalar("state_xdot", state[2], self.n_acting_iterations)
+            self.writer.add_scalar("state_ydot", state[3], self.n_acting_iterations)
+
+        return action
 
     def step(self, state, action, reward, next_state, done):
         self.replay_buffer.add(state, action, reward, next_state, done)
@@ -91,7 +103,7 @@ class DDPGAgent(Agent):
         Q_expected = self.critic(states, actions)
 
         self.critic_optimizer.zero_grad()
-        critic_loss = F.smooth_l1_loss(Q_expected, Q_targets)
+        critic_loss = F.mse_loss(Q_expected, Q_targets)
         critic_loss.backward()
         self.critic_optimizer.step()
 

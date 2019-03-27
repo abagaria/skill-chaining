@@ -18,6 +18,8 @@ class ReplayBuffer(object):
         np.random.seed(seed)
 
     def add(self, state, action, reward, next_state, terminal):
+        assert isinstance(state, np.ndarray) and isinstance(action, np.ndarray) and \
+               isinstance(reward, (int, float)) and isinstance(next_state, np.ndarray)
         experience = state, action, reward, next_state, terminal
         self.memory.append(experience)
         self.num_exp += 1
