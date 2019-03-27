@@ -10,8 +10,8 @@ from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 
 class PointEnvMDP(MDP):
-    def __init__(self, torque_multiplier=100., init_mean=(-0.2, -0.2), render=False):
-        xml = "/home/abagaria/dm_control/dm_control/suite/point_mass.xml"
+    def __init__(self, torque_multiplier=1., init_mean=(-0.2, -0.2), render=False):
+        xml = "/Users/akhil/git-repos/dm_control/dm_control/suite/point_mass.xml"
         model = load_model_from_path(xml)
         self.sim = MjSim(model)
         self.render = render
@@ -48,7 +48,7 @@ class PointEnvMDP(MDP):
         return reward, next_state
 
     def is_goal_state(self, state):
-        position = state.features()[:2]
+        position = state.features()[:2] if isinstance(state, PointEnvState) else state[:2]
         return self.is_goal_position(position)
 
     def is_goal_position(self, position):

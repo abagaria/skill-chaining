@@ -404,7 +404,7 @@ class SkillChaining(object):
 		for option in self.trained_options:
 			visualize_dqn_replay_buffer(option.solver)
 		visualize_dqn_replay_buffer(self.agent_over_options)
-		visualize_smdp_updates(self.agent_over_options, self.mdp)
+		visualize_smdp_updates(self.agent_over_options)
 
 		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)

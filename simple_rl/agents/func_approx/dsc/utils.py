@@ -117,16 +117,16 @@ def render_sampled_initiation_classifier(option):
 	plt.close()
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
-	goal_transitions = list(filter(lambda e: e.reward >= 0 and e.done == 1, solver.replay_buffer.memory))
-	cliff_transitions = list(filter(lambda e: e.reward < 0 and e.done == 1, solver.replay_buffer.memory))
-	non_terminals = list(filter(lambda e: e.done == 0, solver.replay_buffer.memory))
+	goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))
+	cliff_transitions = list(filter(lambda e: e[2] < 0 and e[4] == 1, solver.replay_buffer.memory))
+	non_terminals = list(filter(lambda e: e[4] == 0, solver.replay_buffer.memory))
 
-	goal_x = [e.next_state.position[0] for e in goal_transitions]
-	goal_y = [e.next_state.position[1] for e in goal_transitions]
-	cliff_x = [e.next_state.position[0] for e in cliff_transitions]
-	cliff_y = [e.next_state.position[1] for e in cliff_transitions]
-	non_term_x = [e.next_state.position[0] for e in non_terminals]
-	non_term_y = [e.next_state.position[1] for e in non_terminals]
+	goal_x = [e[3][0] for e in goal_transitions]
+	goal_y = [e[3][1] for e in goal_transitions]
+	cliff_x = [e[3][0] for e in cliff_transitions]
+	cliff_y = [e[3][1] for e in cliff_transitions]
+	non_term_x = [e[3][0] for e in non_terminals]
+	non_term_y = [e[3][1] for e in non_terminals]
 
 	# background_image = imread("pinball_domain.png")
 
@@ -141,18 +141,18 @@ def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	plt.savefig("{}_replay_buffer_analysis_{}.png".format(solver.name, experiment_name))
 	plt.close()
 
-def visualize_smdp_updates(global_solver, mdp, experiment_name=""):
-	smdp_transitions = list(filter(lambda e: not mdp.is_primitive_action(e.action), global_solver.replay_buffer.memory))
+def visualize_smdp_updates(global_solver, experiment_name=""):
+	smdp_transitions = list(filter(lambda e: isinstance(e.action, int) and e.action > 0, global_solver.replay_buffer.memory))
 	negative_transitions = list(filter(lambda e: e.done == 0, smdp_transitions))
 	terminal_transitions = list(filter(lambda e: e.done == 1, smdp_transitions))
-	positive_start_x = [e.state.position[0] for e in terminal_transitions]
-	positive_start_y = [e.state.position[1] for e in terminal_transitions]
-	positive_end_x = [e.next_state.position[0] for e in terminal_transitions]
-	positive_end_y = [e.next_state.position[1] for e in terminal_transitions]
-	negative_start_x = [e.state.position[0] for e in negative_transitions]
-	negative_start_y = [e.state.position[1] for e in negative_transitions]
-	negative_end_x = [e.next_state.position[0] for e in negative_transitions]
-	negative_end_y = [e.next_state.position[1] for e in negative_transitions]
+	positive_start_x = [e.state[0] for e in terminal_transitions]
+	positive_start_y = [e.state[1] for e in terminal_transitions]
+	positive_end_x = [e.next_state[0] for e in terminal_transitions]
+	positive_end_y = [e.next_state[1] for e in terminal_transitions]
+	negative_start_x = [e.state[0] for e in negative_transitions]
+	negative_start_y = [e.state[1] for e in negative_transitions]
+	negative_end_x = [e.next_state[0] for e in negative_transitions]
+	negative_end_y = [e.next_state[1] for e in negative_transitions]
 
 	plt.figure(figsize=(8, 5))
 	plt.scatter(positive_start_x, positive_start_y, alpha=0.6, label="+s")
