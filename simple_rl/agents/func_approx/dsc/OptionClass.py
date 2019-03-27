@@ -130,6 +130,13 @@ class Option(object):
 		for my_param, global_param in zip(self.solver.target_critic.parameters(), self.global_solver.target_critic.parameters()):
 			my_param.data.copy_(global_param.data)
 
+		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
+			if self.is_init_true(state):
+				if self.is_term_true(next_state):
+					self.solver.step(state, action, self.subgoal_reward, next_state, True)
+				else:
+					self.solver.step(state, action, reward, next_state, done)
+
 	def distance_to_closest_positive_example(self, state):
 		XA = state.features() if isinstance(state, State) else state
 		XB = self._construct_feature_matrix(self.positive_examples)
