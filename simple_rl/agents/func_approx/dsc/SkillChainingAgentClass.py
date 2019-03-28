@@ -267,7 +267,7 @@ class SkillChaining(object):
 		option = self.trained_options[option_idx]  # type: Option
 		if len(option.solver.replay_buffer) > 500:
 			sample_experiences = option.solver.replay_buffer.sample(batch_size=500)
-			sample_states = torch.from_numpy(sample_experiences[0]).float()
+			sample_states = torch.from_numpy(sample_experiences[0]).float().to(torch.device("cuda:0"))
 			return self.agent_over_options.get_batched_qvalues(sample_states)[:, option_idx].mean()
 		return 0.0
 
