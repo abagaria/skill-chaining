@@ -67,8 +67,9 @@ class DDPGAgent(Agent):
 
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
+        noise = self.noise()
         if not evaluation_mode:
-            action += (self.noise() * self.epsilon)
+            action += (noise * self.epsilon)
         action = np.clip(action, -1., 1.)
 
         if self.writer is not None:
@@ -79,6 +80,8 @@ class DDPGAgent(Agent):
             self.writer.add_scalar("{}_state_y".format(self.name), state[1], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_xdot".format(self.name), state[2], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_ydot".format(self.name), state[3], self.n_acting_iterations)
+            self.writer.add_scalar("{}_noise_x".format(self.name), noise[0], self.n_acting_iterations)
+            self.writer.add_scalar("{}_noise_y".format(self.name), noise[1], self.n_acting_iterations)
 
         return action
 
