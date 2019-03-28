@@ -23,7 +23,7 @@ from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 
 
 class DDPGAgent(Agent):
-    def __init__(self, state_size, action_size, seed, device, tensor_log=False, name="DDPG-Agent"):
+    def __init__(self, state_size, action_size, seed, device, tensor_log=False, writer=None, name="DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
 
@@ -57,7 +57,9 @@ class DDPGAgent(Agent):
         self.epsilon = 1.0
 
         # Tensorboard logging
-        self.writer = SummaryWriter() if tensor_log else None
+        self.writer = None
+        if tensor_log: self.writer = writer if writer is not None else SummaryWriter()
+
         self.n_learning_iterations = 0
         self.n_acting_iterations = 0
 
@@ -71,12 +73,12 @@ class DDPGAgent(Agent):
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
-            self.writer.add_scalar("action_x", action[0], self.n_acting_iterations)
-            self.writer.add_scalar("action_y", action[1], self.n_acting_iterations)
-            self.writer.add_scalar("state_x", state[0], self.n_acting_iterations)
-            self.writer.add_scalar("state_y", state[1], self.n_acting_iterations)
-            self.writer.add_scalar("state_xdot", state[2], self.n_acting_iterations)
-            self.writer.add_scalar("state_ydot", state[3], self.n_acting_iterations)
+            self.writer.add_scalar("{}_action_x".format(self.name), action[0], self.n_acting_iterations)
+            self.writer.add_scalar("{}_action_y".format(self.name), action[1], self.n_acting_iterations)
+            self.writer.add_scalar("{}_state_x".format(self.name), state[0], self.n_acting_iterations)
+            self.writer.add_scalar("{}_state_y".format(self.name), state[1], self.n_acting_iterations)
+            self.writer.add_scalar("{}_state_xdot".format(self.name), state[2], self.n_acting_iterations)
+            self.writer.add_scalar("{}_state_ydot".format(self.name), state[3], self.n_acting_iterations)
 
         return action
 
@@ -118,12 +120,12 @@ class DDPGAgent(Agent):
         # Tensorboard logging
         if self.writer is not None:
             self.n_learning_iterations = self.n_learning_iterations + 1
-            self.writer.add_scalar("critic_loss", critic_loss.item(), self.n_learning_iterations)
-            self.writer.add_scalar("actor_loss", actor_loss.item(), self.n_learning_iterations)
-            self.writer.add_scalar("critic_grad_norm", compute_gradient_norm(self.critic), self.n_learning_iterations)
-            self.writer.add_scalar("actor_grad_norm", compute_gradient_norm(self.actor), self.n_learning_iterations)
-            self.writer.add_scalar("sampled_q_values", Q_expected.mean().item(), self.n_learning_iterations)
-            self.writer.add_scalar("epsilon", self.epsilon, self.n_learning_iterations)
+            self.writer.add_scalar("{}_critic_loss".format(self.name), critic_loss.item(), self.n_learning_iterations)
+            self.writer.add_scalar("{}_actor_loss".format(self.name), actor_loss.item(), self.n_learning_iterations)
+            self.writer.add_scalar("{}_critic_grad_norm".format(self.name), compute_gradient_norm(self.critic), self.n_learning_iterations)
+            self.writer.add_scalar("{}_actor_grad_norm".format(self.name), compute_gradient_norm(self.actor), self.n_learning_iterations)
+            self.writer.add_scalar("{}_sampled_q_values".format(self.name), Q_expected.mean().item(), self.n_learning_iterations)
+            self.writer.add_scalar("{}_epsilon".format(self.name), self.epsilon, self.n_learning_iterations)
 
     def soft_update(self, local_model, target_model, tau):
         """

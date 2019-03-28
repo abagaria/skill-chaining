@@ -22,6 +22,7 @@ from tensorboardX import SummaryWriter
 
 from simple_rl.agents.AgentClass import Agent
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
+from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
 
 ## Hyperparameters
 BUFFER_SIZE = int(1e6)  # replay buffer size
@@ -153,7 +154,7 @@ class DQNAgent(Agent):
 
     def __init__(self, state_size, action_size, trained_options, seed, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
-                 gradient_clip=None, evaluation_epsilon=0.05):
+                 gradient_clip=None, evaluation_epsilon=0.05, writer=None):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -186,12 +187,8 @@ class DQNAgent(Agent):
         self.num_updates = 0
         self.num_epsilon_updates = 0
 
-        # if os.path.exists(name):
-        #     # print("Deleting folder: {}".format(name))
-        #     shutil.rmtree(name)
-
         if self.tensor_log:
-            self.writer = SummaryWriter()
+            self.writer = SummaryWriter() if writer is None else writer
 
         print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
                                                                                self.use_ddqn, BUFFER_SIZE))
@@ -408,14 +405,10 @@ class DQNAgent(Agent):
         self.optimizer.step()
 
         if self.tensor_log:
-            self.writer.add_scalar("Loss", loss.item(), self.num_updates)
-            self.writer.add_scalar("AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
-            self.writer.add_scalar("AverageQValue", Q_expected.mean().item(), self.num_updates)
-            parameters_nn = list(self.policy_network.parameters())
-            means = []
-            for param in parameters_nn:
-                means.append(param.mean().item())
-            self.writer.add_scalar("AverageWeights", np.mean(means), self.num_updates)
+            self.writer.add_scalar("DQN-Loss", loss.item(), self.num_updates)
+            self.writer.add_scalar("DQN-AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
+            self.writer.add_scalar("DQN-AverageQValue", Q_expected.mean().item(), self.num_updates)
+            self.writer.add_scalar("DQN-GradientNorm", compute_gradient_norm(self.policy_network), self.num_updates)
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)
@@ -439,7 +432,7 @@ class DQNAgent(Agent):
 
         # Log epsilon decay
         if self.tensor_log:
-            self.writer.add_scalar("Epsilon", self.epsilon, self.num_epsilon_updates)
+            self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""

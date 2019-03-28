@@ -22,7 +22,7 @@ class Option(object):
 	def __init__(self, overall_mdp, name, global_solver, buffer_length=20, pretrained=False,
 				 num_subgoal_hits_required=3, subgoal_reward=1., max_steps=20000, seed=0, parent=None, children=[],
                  classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=3, generate_plots=False,
-				 device=torch.device("cpu")):
+				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -41,6 +41,8 @@ class Option(object):
 			timeout (int)
 			initiation_period (int)
 			generate_plots (bool)
+			device (torch.device)
+			writer (SummaryWriter)
 		'''
 		self.name = name
 		self.buffer_length = buffer_length
@@ -54,6 +56,7 @@ class Option(object):
 		self.classifier_type = classifier_type
 		self.enable_timeout = enable_timeout
 		self.generate_plots = generate_plots
+		self.writer = writer
 
 		self.timeout = np.inf
 
@@ -81,8 +84,9 @@ class Option(object):
 		state_size = overall_mdp.state_space_size()
 		action_size = overall_mdp.action_space_size()
 
+		solver_name = "{}_ddpg_agent".format(self.name)
 		self.global_solver = DDPGAgent(state_size, action_size, seed, device) if name == "global_option" else global_solver
-		self.solver = DDPGAgent(state_size, action_size, seed, device)
+		self.solver = DDPGAgent(state_size, action_size, seed, device, tensor_log=True, writer=writer, name=solver_name)
 
 		if name != "global_option":
 			self.initialize_with_global_ddpg()
@@ -245,7 +249,7 @@ class Option(object):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self._construct_feature_matrix(self.positive_examples)
 
-		self.initiation_classifier = svm.OneClassSVM(nu=0.01, gamma="scale")
+		self.initiation_classifier = svm.OneClassSVM(nu=0.1, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_two_class_classifier(self):
@@ -397,8 +401,8 @@ class Option(object):
 			if self.get_training_phase() == "initiation":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
-			if self.solver.tensor_log:
-				self.solver.writer.add_scalar("ExecutionLength", len(option_transitions), self.num_executions)
+			if self.writer is not None:
+				self.writer.add_scalar("{}-ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
 
 			return option_transitions, total_reward
 
@@ -425,10 +429,7 @@ class Option(object):
 		if len(self.negative_examples) > 0:
 			self.train_two_class_classifier()
 			if self.generate_plots:
-				if self.name != "global_option":
-					render_sampled_initiation_classifier(self)
-				else:
-					render_sampled_initiation_classifier(self)
+				render_sampled_initiation_classifier(self)
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state
@@ -436,7 +437,7 @@ class Option(object):
 		num_steps = 0
 
 		while not self.is_term_true(state) and not state.is_terminal()\
-				and not state.is_out_of_frame() and step_number < self.max_steps and num_steps < self.timeout:
+				and step_number < self.max_steps and num_steps < self.timeout:
 			action = self.solver.act(state.features(), evaluation_mode=True)
 			reward, state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 			score += reward

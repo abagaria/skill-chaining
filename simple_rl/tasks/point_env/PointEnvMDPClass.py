@@ -4,13 +4,13 @@ import pdb
 import os
 
 # Other imports.
-from mujoco_py import load_model_from_path, MjSim, MjViewer, MjSimState, utils
+from mujoco_py import load_model_from_path, MjSim, MjViewer, MjSimState
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 
 class PointEnvMDP(MDP):
-    def __init__(self, torque_multiplier=1., init_mean=(-0.2, -0.2), render=False):
+    def __init__(self, init_mean=(-0.2, -0.2), render=False):
         xml = "/Users/akhil/git-repos/dm_control/dm_control/suite/point_mass.xml"
         model = load_model_from_path(xml)
         self.sim = MjSim(model)
@@ -24,8 +24,6 @@ class PointEnvMDP(MDP):
         self.target_position = np.array([0., 0.])
         self.target_tolerance = 0.02
         self.init_noise = 0.05
-        self.max_absolute_torque = 5.
-        self.torque_multiplier = torque_multiplier
 
         self._initialize_mujoco_state()
         self.init_state = self.get_state()
@@ -72,7 +70,7 @@ class PointEnvMDP(MDP):
         return state
 
     def _step(self, action):
-        self.sim.data.ctrl[:] = self.torque_multiplier * action
+        self.sim.data.ctrl[:] = action
         self.sim.step()
         return self.get_state()
 
@@ -89,8 +87,9 @@ class PointEnvMDP(MDP):
     def action_space_size():
         return 2
 
-    def is_primitive_action(self, action):
-        return self.torque_multiplier * -1. <= action.all() <= self.torque_multiplier
+    @staticmethod
+    def is_primitive_action(action):
+        return -1. <= action.all() <= 1.
 
     def reset(self):
         self._initialize_mujoco_state()

@@ -12,6 +12,7 @@ import argparse
 import os
 import random
 import numpy as np
+from tensorboardX import SummaryWriter
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -19,16 +20,14 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-# from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
-# from simple_rl.tasks.gym.GymMDPClass import GymMDP
 
 
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, pretrained_options=[], buffer_length=20,
 				 subgoal_reward=1.0, subgoal_hits=3, max_num_options=4,
 				 enable_option_timeout=True, intra_option_learning=False,
-				 generate_plots=False, log_dir="", seed=0):
+				 generate_plots=False, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -43,6 +42,7 @@ class SkillChaining(object):
 			generate_plots (bool): whether or not to produce plots in this run
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
+			tensor_log (bool): Tensorboard logging enable
 		"""
 		self.mdp = mdp
 		self.original_actions = deepcopy(mdp.actions)
@@ -56,6 +56,7 @@ class SkillChaining(object):
 		self.generate_plots = generate_plots
 		self.log_dir = log_dir
 		self.seed = seed
+		self.writer = SummaryWriter() if tensor_log else None
 
 		print("Initializing skill chaining with option_timeout={}".format(self.enable_option_timeout))
 
@@ -74,7 +75,7 @@ class SkillChaining(object):
 									num_subgoal_hits_required=self.num_goal_hits_before_training,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									classifier_type="ocsvm", enable_timeout=self.enable_option_timeout,
-									generate_plots=self.generate_plots)
+									generate_plots=self.generate_plots, writer=self.writer)
 
 		self.trained_options = [self.global_option]
 
@@ -84,7 +85,7 @@ class SkillChaining(object):
 		# options, this agent will predict Q-values for them as well
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=lr, name="GlobalDQN", eps_start=1.0, tensor_log=True,
-										   use_double_dqn=True)
+										   use_double_dqn=True, writer=self.writer)
 
 		# This is our first untrained option - one that gets us to the goal state from nearby the goal
 		# We pick this option when self.agent_over_options thinks that we should
@@ -96,7 +97,7 @@ class SkillChaining(object):
 							 num_subgoal_hits_required=self.num_goal_hits_before_training,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 classifier_type="ocsvm", enable_timeout=self.enable_option_timeout,
-							 generate_plots=self.generate_plots)
+							 generate_plots=self.generate_plots, writer=self.writer)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -120,7 +121,8 @@ class SkillChaining(object):
 									  num_subgoal_hits_required=self.num_goal_hits_before_training,
 									  subgoal_reward=self.subgoal_reward,
 									  seed=self.seed, parent=self.untrained_option,
-									  enable_timeout=self.enable_option_timeout)
+									  enable_timeout=self.enable_option_timeout,
+									  writer=self.writer)
 
 		self.untrained_option.children.append(new_untrained_option)
 		self.untrained_option = new_untrained_option
@@ -166,7 +168,8 @@ class SkillChaining(object):
 									eps_start=self.agent_over_options.epsilon,
 									tensor_log=self.agent_over_options.tensor_log,
 									use_double_dqn=self.agent_over_options.use_ddqn,
-									lr=self.agent_over_options.learning_rate)
+									lr=self.agent_over_options.learning_rate,
+									writer=self.writer)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q_value = self.get_init_q_value_for_new_option(newly_trained_option) if init_q is None else init_q
@@ -254,9 +257,9 @@ class SkillChaining(object):
 		if not selected_option.pretrained:
 			sampled_q_value = self.sample_qvalue(option_idx)
 			self.option_qvalues[selected_option.name].append(sampled_q_value)
-			if self.agent_over_options.tensor_log:
-				self.agent_over_options.writer.add_scalar("{}_q_value".format(selected_option.name),
-														  sampled_q_value, selected_option.num_executions)
+			if self.writer is not None:
+				self.writer.add_scalar("{}_q_value".format(selected_option.name),
+									   sampled_q_value, selected_option.num_executions)
 
 		return option_transitions, option_reward, next_state, len(option_transitions)
 
@@ -367,9 +370,9 @@ class SkillChaining(object):
 
 		for trained_option in self.trained_options:  # type: Option
 			self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
-			if self.agent_over_options.tensor_log:
-				self.agent_over_options.writer.add_scalar("{}_executions".format(trained_option.name),
-														  episode_option_executions[trained_option.name], episode)
+			if self.writer is not None:
+				self.writer.add_scalar("{}_executions".format(trained_option.name),
+									   episode_option_executions[trained_option.name], episode)
 
 	def save_all_models(self):
 		torch.save(self.agent_over_options.policy_network.state_dict(), 'global_policy_dqn.pth')
@@ -465,6 +468,7 @@ if __name__ == '__main__':
 	parser.add_argument("--option_timeout", type=bool, help="Whether option times out at 200 steps", default=False)
 	parser.add_argument("--difficulty", type=str, help="Difficulty level of the task", default="easy")
 	parser.add_argument("--generate_plots", type=bool, help="Whether or not to generate plots", default=False)
+	parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -500,7 +504,8 @@ if __name__ == '__main__':
 	chainer = SkillChaining(overall_mdp, args.steps, buffer_length=buffer_len,
 							seed=random_seed, subgoal_reward=sub_reward, max_num_options=max_number_of_options,
 							log_dir=logdir, intra_option_learning=args.intra_option_learning,
-							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots)
+							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
+							tensor_log=args.tensor_log)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics

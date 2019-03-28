@@ -41,7 +41,11 @@ def plot_trajectory(trajectory, color='k', marker="o"):
 	for i, state in enumerate(trajectory):
 		x = state.position[0]
 		y = state.position[1]
-		plt.scatter(x, y, c=color, alpha=float(i) / len(trajectory), marker=marker)
+
+		if marker == "x":
+			plt.scatter(x, y, c=color, s=100, marker=marker)
+		else:
+			plt.scatter(x, y, c=color, alpha=float(i) / len(trajectory), marker=marker)
 
 def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 	possible_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
@@ -89,7 +93,7 @@ def render_sampled_value_function(solver, episode=None):
 	xx, yy = np.meshgrid(xi, yi)
 	rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
 	zz = rbf(xx, yy)
-	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()])
+	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
 	plt.colorbar()
 	name = solver.name if episode is None else solver.name + "_{}".format(episode)
 	plt.savefig("value_function_plots/{}_value_function.png".format(name))
@@ -108,9 +112,13 @@ def render_sampled_initiation_classifier(option):
 	zz = rbf(xx, yy)
 
 	# plt.contourf(xx, yy, zz, cmap=plt.cm.coolwarm, alpha=0.8)
-	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()])
+	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
 	plt.colorbar()
+
 	plot_all_trajectories_in_initiation_data(option.positive_examples)
+	if len(option.negative_examples) > 0:
+		plot_all_trajectories_in_initiation_data(option.negative_examples, marker="x")
+
 	plt.xlabel("x")
 	plt.ylabel("y")
 	plt.savefig("initiation_set_plots/{}_svm_{}.png".format(option.name, time.time()))
