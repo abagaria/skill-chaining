@@ -23,14 +23,18 @@ from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 
 
 class DDPGAgent(Agent):
-    def __init__(self, state_size, action_size, seed, device, tensor_log=False, writer=None, name="DDPG-Agent"):
+    def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
+        self.actor_learning_rate = lr_actor
+        self.critic_learning_rate = lr_critic
+        self.batch_size = batch_size
 
         self.seed = random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
-        
+
         self.device = device
         self.tensor_log = tensor_log
         self.name = name
@@ -50,8 +54,8 @@ class DDPGAgent(Agent):
         for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
             target_param.data.copy_(param.data)
 
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=LRC)
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=LRA)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic, weight_decay=1e-2)
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
         self.epsilon = 1.0
@@ -88,8 +92,8 @@ class DDPGAgent(Agent):
     def step(self, state, action, reward, next_state, done):
         self.replay_buffer.add(state, action, reward, next_state, done)
 
-        if len(self.replay_buffer) > BATCH_SIZE:
-            experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
+        if len(self.replay_buffer) > self.batch_size:
+            experiences = self.replay_buffer.sample(batch_size=self.batch_size)
             self._learn(experiences, GAMMA)
 
     def _learn(self, experiences, gamma):

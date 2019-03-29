@@ -24,7 +24,8 @@ from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 
 
 class SkillChaining(object):
-	def __init__(self, mdp, max_steps, pretrained_options=[], buffer_length=20,
+	def __init__(self, mdp, max_steps, lr_dqn, lr_actor, lr_critic, ddpg_batch_size,
+				 pretrained_options=[], buffer_length=20,
 				 subgoal_reward=1.0, subgoal_hits=3, max_num_options=4,
 				 enable_option_timeout=True, intra_option_learning=False,
 				 generate_plots=False, log_dir="", seed=0, tensor_log=False):
@@ -32,6 +33,10 @@ class SkillChaining(object):
 		Args:
 			mdp (MDP): Underlying domain we have to solve
 			max_steps (int): Number of time steps allowed per episode of the MDP
+			lr_dqn (float): Learning rate for agent over options
+			lr_actor (float): Learning rate for DDPG Actor
+			lr_critic (float): Learning rate for DDPG Critic
+			ddpg_batch_size (int): Batch size for DDPG agents
 			pretrained_options (list): options obtained from a previous run of the skill chaining algorithm
 			buffer_length (int): size of the circular buffer used as experience buffer
 			subgoal_reward (float): Hitting a subgoal must yield a supplementary reward to enable local policy
@@ -71,7 +76,8 @@ class SkillChaining(object):
 
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
 		self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
-									buffer_length=self.buffer_length,
+									buffer_length=self.buffer_length, lr_actor=lr_actor, lr_critic=lr_critic,
+									ddpg_batch_size=ddpg_batch_size,
 									num_subgoal_hits_required=self.num_goal_hits_before_training,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									classifier_type="ocsvm", enable_timeout=self.enable_option_timeout,
@@ -84,7 +90,7 @@ class SkillChaining(object):
 		# We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
 		# options, this agent will predict Q-values for them as well
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
-										   seed=seed, lr=lr, name="GlobalDQN", eps_start=1.0, tensor_log=True,
+										   seed=seed, lr=lr_dqn, name="GlobalDQN", eps_start=1.0, tensor_log=True,
 										   use_double_dqn=True, writer=self.writer)
 
 		# This is our first untrained option - one that gets us to the goal state from nearby the goal
@@ -93,8 +99,8 @@ class SkillChaining(object):
 		# Once we hit its termination condition N times, we will start learning its initiation set
 		# Once we have learned its initiation set, we will create its child option
 		goal_option = Option(overall_mdp=self.mdp, name='overall_goal_policy', global_solver=self.global_option.solver,
-							 buffer_length=self.buffer_length,
-							 num_subgoal_hits_required=self.num_goal_hits_before_training,
+							 buffer_length=self.buffer_length, lr_actor=lr_actor, lr_critic=lr_critic,
+							 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=self.num_goal_hits_before_training,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 classifier_type="ocsvm", enable_timeout=self.enable_option_timeout,
 							 generate_plots=self.generate_plots, writer=self.writer)
@@ -118,6 +124,9 @@ class SkillChaining(object):
 		old_untrained_option_id = id(self.untrained_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
 									  buffer_length=self.buffer_length,
+									  lr_actor=self.untrained_option.lr_actor,
+									  lr_critic=self.untrained_option.lr_critic,
+									  ddpg_batch_size=self.untrained_option.ddpg_batch_size,
 									  num_subgoal_hits_required=self.num_goal_hits_before_training,
 									  subgoal_reward=self.subgoal_reward,
 									  seed=self.seed, parent=self.untrained_option,
@@ -267,7 +276,7 @@ class SkillChaining(object):
 		option = self.trained_options[option_idx]  # type: Option
 		if len(option.solver.replay_buffer) > 500:
 			sample_experiences = option.solver.replay_buffer.sample(batch_size=500)
-			sample_states = torch.from_numpy(sample_experiences[0]).float().to(torch.device("cuda:0"))
+			sample_states = torch.from_numpy(sample_experiences[0]).float()
 			return self.agent_over_options.get_batched_qvalues(sample_states)[:, option_idx].mean()
 		return 0.0
 
@@ -456,12 +465,16 @@ if __name__ == '__main__':
 	parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
 	parser.add_argument("--pretrained", type=bool, help="whether or not to load pretrained options", default=False)
 	parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
-	parser.add_argument("--episodes", type=int, help="# episodes", default=2000)
-	parser.add_argument("--steps", type=int, help="# steps", default=10000)
+	parser.add_argument("--episodes", type=int, help="# episodes", default=200)
+	parser.add_argument("--steps", type=int, help="# steps", default=1000)
 	parser.add_argument("--intra_option_learning", type=bool, help="Whether or not to use i-o-l", default=False)
 	parser.add_argument("--buffer_len", type=int, help="SkillChaining Buffer Length", default=20)
 	parser.add_argument("--subgoal_reward", type=float, help="SkillChaining subgoal reward", default=0.)
-	parser.add_argument("--lr", type=float, help="learning rate", default=1e-4)
+	parser.add_argument("--lr_dqn", type=float, help="DQN learning rate", default=1e-4)
+	parser.add_argument("--lr_a", type=float, help="DDPG Actor learning rate", default=1e-4)
+	parser.add_argument("--lr_c", type=float, help="DDPG Critic learning rate", default=1e-3)
+	parser.add_argument("--dqn_batch_size", type=int, help="DQN Batch Size", default=64)
+	parser.add_argument("--ddpg_batch_size", type=int, help="DDPG Batch Size", default=64)
 	parser.add_argument("--n_options", type=int, help="Max # options to learn", default=3)
 	parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
 	parser.add_argument("--hard_coded", type=bool, help="Whether to use hard coded goal option", default=False)
@@ -485,25 +498,19 @@ if __name__ == '__main__':
 		action_dim = overall_mdp.env.action_space.shape[0]
 		overall_mdp.env.seed(args.seed)
 
-	random_seed = args.seed
-	lr = args.lr
-	max_number_of_options = args.n_options
-
 	# Create folders for saving various things
 	logdir = create_log_dir(args.experiment_name)
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")
 
-	buffer_len = args.buffer_len
-	sub_reward = args.subgoal_reward
-
 	print("Training skill chaining agent from scratch with a buffer length of {} and subgoal reward {}".format(
-		buffer_len, sub_reward))
+		args.buffer_len, args.subgoal_reward))
 	print("MDP InitState = ", overall_mdp.init_state)
 
-	chainer = SkillChaining(overall_mdp, args.steps, buffer_length=buffer_len,
-							seed=random_seed, subgoal_reward=sub_reward, max_num_options=max_number_of_options,
-							log_dir=logdir, intra_option_learning=args.intra_option_learning,
+	chainer = SkillChaining(overall_mdp, args.steps, args.lr_dqn, args.lr_a, args.lr_c, args.ddpg_batch_size,
+							buffer_length=args.buffer_len, seed=args.seed, subgoal_reward=args.subgoal_reward,
+							max_num_options=args.n_options, log_dir=logdir,
+							intra_option_learning=args.intra_option_learning,
 							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
 							tensor_log=args.tensor_log)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)

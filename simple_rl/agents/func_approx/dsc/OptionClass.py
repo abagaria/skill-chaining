@@ -19,15 +19,18 @@ from simple_rl.agents.func_approx.dsc.utils import Experience, render_sampled_in
 
 class Option(object):
 
-	def __init__(self, overall_mdp, name, global_solver, buffer_length=20, pretrained=False,
-				 num_subgoal_hits_required=3, subgoal_reward=1., max_steps=20000, seed=0, parent=None, children=[],
-                 classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=3, generate_plots=False,
-				 device=torch.device("cpu"), writer=None):
+	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, buffer_length=20,
+				 pretrained=False, num_subgoal_hits_required=3, subgoal_reward=1., max_steps=20000, seed=0, parent=None,
+				 children=[], classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=3,
+				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
 			name (str)
 			global_solver (DDPGAgent)
+			lr_actor (float)
+			lr_critic (float)
+			ddpg_batch_size (int)
 			buffer_length (int)
 			pretrained (bool)
 			num_subgoal_hits_required (int)
@@ -85,8 +88,8 @@ class Option(object):
 		action_size = overall_mdp.action_space_size()
 
 		solver_name = "{}_ddpg_agent".format(self.name)
-		self.global_solver = DDPGAgent(state_size, action_size, seed, device) if name == "global_option" else global_solver
-		self.solver = DDPGAgent(state_size, action_size, seed, device, tensor_log=True, writer=writer, name=solver_name)
+		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size) if name == "global_option" else global_solver
+		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=True, writer=writer, name=solver_name)
 
 		if name != "global_option":
 			self.initialize_with_global_ddpg()
