@@ -6,13 +6,13 @@ sys.path = [""] + sys.path
 
 from collections import deque, defaultdict
 from copy import deepcopy
-import _pickle as pickle
+import pickle as pickle
 import pdb
 import argparse
 import os
 import random
 import numpy as np
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -142,11 +142,6 @@ class SkillChaining(object):
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
 		"""
-		Sample the Q-values of transitions that triggered the option’s target event during its gestation,
-		and initialize Q(s, o) to the max of these values.
-		Args:
-			newly_trained_option (Option)
-
 		Returns:
 			init_q_value (float)
 		"""
