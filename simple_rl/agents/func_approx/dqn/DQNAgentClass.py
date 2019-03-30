@@ -416,7 +416,6 @@ class DQNAgent(Agent):
     def soft_update(self, local_model, target_model, tau):
         """
         Soft update of target network from policy network.
-        θ_target = τ*θ_local + (1 - τ)*θ_target
 
         Args:
             local_model (nn.Module): weights will be copied from
