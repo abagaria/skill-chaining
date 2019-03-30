@@ -511,9 +511,6 @@ def train(agent, mdp, episodes, steps):
         last_10_scores.append(score)
         per_episode_scores.append(score)
 
-        print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)), end="")
-        if episode % 10 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)))
     return per_episode_scores
 
 def test_forward_pass(dqn_agent, mdp):
