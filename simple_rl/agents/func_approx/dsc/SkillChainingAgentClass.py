@@ -12,6 +12,7 @@ import os
 import random
 import numpy as np
 from tensorboardX import SummaryWriter
+import torch
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -24,7 +25,7 @@ from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_dqn, lr_actor, lr_critic, ddpg_batch_size,
-				 pretrained_options=[], buffer_length=20,
+				 device, pretrained_options=[], buffer_length=20,
 				 subgoal_reward=1.0, subgoal_hits=3, max_num_options=4,
 				 enable_option_timeout=True, intra_option_learning=False,
 				 generate_plots=False, log_dir="", seed=0, tensor_log=False):
@@ -36,6 +37,7 @@ class SkillChaining(object):
 			lr_actor (float): Learning rate for DDPG Actor
 			lr_critic (float): Learning rate for DDPG Critic
 			ddpg_batch_size (int): Batch size for DDPG agents
+			device (str): torch device {cpu/cuda:0/cuda:1}
 			pretrained_options (list): options obtained from a previous run of the skill chaining algorithm
 			buffer_length (int): size of the circular buffer used as experience buffer
 			subgoal_reward (float): Hitting a subgoal must yield a supplementary reward to enable local policy
@@ -60,6 +62,7 @@ class SkillChaining(object):
 		self.generate_plots = generate_plots
 		self.log_dir = log_dir
 		self.seed = seed
+		self.device = torch.device(device)
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -82,7 +85,7 @@ class SkillChaining(object):
 									num_subgoal_hits_required=self.num_goal_hits_before_training,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									classifier_type="ocsvm", enable_timeout=self.enable_option_timeout,
-									generate_plots=self.generate_plots, writer=self.writer)
+									generate_plots=self.generate_plots, writer=self.writer, device=self.device)
 
 		self.trained_options = [self.global_option]
 
@@ -92,7 +95,7 @@ class SkillChaining(object):
 		# options, this agent will predict Q-values for them as well
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=lr_dqn, name="GlobalDQN", eps_start=1.0, tensor_log=True,
-										   use_double_dqn=True, writer=self.writer)
+										   use_double_dqn=True, writer=self.writer, device=self.device)
 
 		# This is our first untrained option - one that gets us to the goal state from nearby the goal
 		# We pick this option when self.agent_over_options thinks that we should
@@ -104,7 +107,7 @@ class SkillChaining(object):
 							 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=self.num_goal_hits_before_training,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 classifier_type="ocsvm", enable_timeout=self.enable_option_timeout,
-							 generate_plots=self.generate_plots, writer=self.writer)
+							 generate_plots=self.generate_plots, writer=self.writer, device=self.device)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -125,14 +128,14 @@ class SkillChaining(object):
 		old_untrained_option_id = id(self.untrained_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
 									  buffer_length=self.buffer_length,
-									  lr_actor=self.untrained_option.lr_actor,
-									  lr_critic=self.untrained_option.lr_critic,
-									  ddpg_batch_size=self.untrained_option.ddpg_batch_size,
+									  lr_actor=self.untrained_option.solver.actor_learning_rate,
+									  lr_critic=self.untrained_option.solver.critic_learning_rate,
+									  ddpg_batch_size=self.untrained_option.solver.batch_size,
 									  num_subgoal_hits_required=self.num_goal_hits_before_training,
 									  subgoal_reward=self.subgoal_reward,
 									  seed=self.seed, parent=self.untrained_option,
 									  enable_timeout=self.enable_option_timeout,
-									  writer=self.writer)
+									  writer=self.writer, device=self.device)
 
 		self.untrained_option.children.append(new_untrained_option)
 		self.untrained_option = new_untrained_option
@@ -170,7 +173,7 @@ class SkillChaining(object):
 									tensor_log=self.agent_over_options.tensor_log,
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
-									writer=self.writer)
+									writer=self.writer, device=self.device)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q_value = self.get_init_q_value_for_new_option(newly_trained_option) if init_q is None else init_q
@@ -265,11 +268,10 @@ class SkillChaining(object):
 		return option_transitions, option_reward, next_state, len(option_transitions)
 
 	def sample_qvalue(self, option_idx):
-		device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 		option = self.trained_options[option_idx]  # type: Option
 		if len(option.solver.replay_buffer) > 500:
 			sample_experiences = option.solver.replay_buffer.sample(batch_size=500)
-			sample_states = torch.from_numpy(sample_experiences[0]).float().to(device)
+			sample_states = torch.from_numpy(sample_experiences[0]).float().to(self.device)
 			return self.agent_over_options.get_batched_qvalues(sample_states)[:, option_idx].mean()
 		return 0.0
 
@@ -455,6 +457,7 @@ def create_log_dir(experiment_name):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+	parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
 	parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
 	parser.add_argument("--pretrained", type=bool, help="whether or not to load pretrained options", default=False)
 	parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
@@ -479,6 +482,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
+		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
 		state_dim = overall_mdp.init_state.features().shape[0]
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
@@ -487,6 +491,7 @@ if __name__ == '__main__':
 		state_dim = 4
 		action_dim = 2
 	else:
+		from simple_rl.tasks.gym.GymMDPClass import GymMDP
 		overall_mdp = GymMDP(args.env, render=args.render)
 		state_dim = overall_mdp.env.observation_space.shape[0]
 		action_dim = overall_mdp.env.action_space.shape[0]
@@ -506,7 +511,7 @@ if __name__ == '__main__':
 							max_num_options=args.n_options, log_dir=logdir,
 							intra_option_learning=args.intra_option_learning,
 							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
-							tensor_log=args.tensor_log)
+							tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
