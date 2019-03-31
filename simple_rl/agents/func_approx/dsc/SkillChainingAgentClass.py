@@ -60,9 +60,11 @@ class SkillChaining(object):
 		self.generate_plots = generate_plots
 		self.log_dir = log_dir
 		self.seed = seed
-		self.writer = SummaryWriter() if tensor_log else None
 
-		print("Initializing skill chaining with option_timeout={}".format(self.enable_option_timeout))
+		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
+		self.writer = SummaryWriter(tensor_name) if tensor_log else None
+
+		print("Initializing skill chaining with option_timeout={}, seed={}".format(self.enable_option_timeout, seed))
 
 		random.seed(seed)
 		np.random.seed(seed)
@@ -473,6 +475,7 @@ if __name__ == '__main__':
 	parser.add_argument("--difficulty", type=str, help="Difficulty level of the task", default="easy")
 	parser.add_argument("--generate_plots", type=bool, help="Whether or not to generate plots", default=False)
 	parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
+	parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -480,7 +483,7 @@ if __name__ == '__main__':
 		state_dim = overall_mdp.init_state.features().shape[0]
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
 	elif "point" in args.env.lower():
-		overall_mdp = PointEnvMDP(render=args.render)
+		overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
 		state_dim = 4
 		action_dim = 2
 	else:
