@@ -1,7 +1,6 @@
 import numpy as np
 import random
 from collections import namedtuple, deque
-import gym
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
@@ -21,7 +20,6 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 
 from simple_rl.agents.AgentClass import Agent
-from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
 
 ## Hyperparameters
@@ -415,9 +413,6 @@ class DQNAgent(Agent):
 
     def soft_update(self, local_model, target_model, tau):
         """
-        Soft update of target network from policy network.
-        θ_target = τ*θ_local + (1 - τ)*θ_target
-
         Args:
             local_model (nn.Module): weights will be copied from
             target_model (nn.Module): weights will be copied to

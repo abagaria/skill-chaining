@@ -11,12 +11,12 @@ from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 class PointEnvMDP(MDP):
     def __init__(self, init_mean=(-0.2, -0.2), render=False):
-        xml = "/Users/akhil/git-repos/dm_control/dm_control/suite/point_mass.xml"
+        xml = "/home/abagaria/git-repos/dm_control/dm_control/suite/point_mass.xml"
         model = load_model_from_path(xml)
         self.sim = MjSim(model)
         self.render = render
         self.init_mean = init_mean
-        
+
         if self.render: self.viewer = MjViewer(self.sim)
 
         # Config

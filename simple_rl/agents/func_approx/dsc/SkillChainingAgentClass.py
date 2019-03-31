@@ -6,7 +6,6 @@ sys.path = [""] + sys.path
 
 from collections import deque, defaultdict
 from copy import deepcopy
-import _pickle as pickle
 import pdb
 import argparse
 import os
@@ -141,15 +140,6 @@ class SkillChaining(object):
 		assert id(self.untrained_option.parent) == old_untrained_option_id, "Checking python references"
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
-		"""
-		Sample the Q-values of transitions that triggered the option’s target event during its gestation,
-		and initialize Q(s, o) to the max of these values.
-		Args:
-			newly_trained_option (Option)
-
-		Returns:
-			init_q_value (float)
-		"""
 		global_solver = self.agent_over_options  # type: DQNAgent
 		state_option_pairs = newly_trained_option.final_transitions
 		q_values = []
