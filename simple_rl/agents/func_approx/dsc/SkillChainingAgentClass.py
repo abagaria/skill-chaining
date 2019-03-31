@@ -408,8 +408,8 @@ class SkillChaining(object):
 			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
 		visualize_dqn_replay_buffer(self.agent_over_options, args.experiment_name)
 		visualize_smdp_updates(self.agent_over_options, args.experiment_name)
-                render_sampled_value_function(self.agent_over_options, episode=args.episodes)
-                for i, o in enumerate(self.trained_options):
+		render_sampled_value_function(self.agent_over_options, episode=args.episodes)
+		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
 			plt.plot(self.option_qvalues[o.name])
 			plt.title(o.name)
