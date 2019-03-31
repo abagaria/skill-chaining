@@ -375,14 +375,14 @@ class SkillChaining(object):
 									   episode_option_executions[trained_option.name], episode)
 
 	def save_all_models(self):
-		torch.save(self.agent_over_options.policy_network.state_dict(), 'global_policy_dqn.pth')
-		torch.save(self.agent_over_options.target_network.state_dict(), 'global_target_dqn.pth')
+		torch.save(self.agent_over_options.policy_network.state_dict(), 'saved_runs/global_policy_dqn.pth')
+		torch.save(self.agent_over_options.target_network.state_dict(), 'saved_runs/global_target_dqn.pth')
 		for option in self.trained_options: # type: Option
 			save_model(option.solver, args.episodes, best=False)
 
 	def save_all_initiation_classifiers(self):
 		for option in self.trained_options:
-			with open("{}_svm.pkl".format(option.name), "wb+") as _f:
+			with open("saved_runs/{}_svm.pkl".format(option.name), "wb+") as _f:
 				pickle.dump(option.initiation_classifier, _f)
 
 	def save_all_scores(self, pretrained, scores, durations):
@@ -405,15 +405,15 @@ class SkillChaining(object):
 
 	def perform_experiments(self):
 		for option in self.trained_options:
-			visualize_dqn_replay_buffer(option.solver)
-		visualize_dqn_replay_buffer(self.agent_over_options)
-		visualize_smdp_updates(self.agent_over_options)
-
-		for i, o in enumerate(self.trained_options):
+			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
+		visualize_dqn_replay_buffer(self.agent_over_options, args.experiment_name)
+		visualize_smdp_updates(self.agent_over_options, args.experiment_name)
+                render_sampled_value_function(self.agent_over_options, episode=args.episodes)
+                for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
 			plt.plot(self.option_qvalues[o.name])
 			plt.title(o.name)
-		plt.savefig("sampled_q_so.png")
+		plt.savefig("value_function_plots/sampled_q_so_{}.png".format(self.seed))
 		plt.close()
 
 	def trained_forward_pass(self, render=True):
