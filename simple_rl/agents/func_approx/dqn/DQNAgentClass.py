@@ -67,10 +67,6 @@ class OptionEpsilonSchedule(EpsilonSchedule):
     def update_epsilon(self, current_epsilon, num_executions):
         return max(self.eps_end, self.eps_exp_decay * current_epsilon)
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-# device = torch.device("cpu")
-print("######### Using {} ############".format(device))
-
 class QNetwork(nn.Module):
     """Actor (Policy) Model."""
 
@@ -143,14 +139,12 @@ class QNetwork(nn.Module):
         # Old way of initializing the weights and biases of the new option node:
         # self.fc3.weight[new_action_idx].data.copy_(torch.max(smaller_net.fc3.weight, dim=0)[0])
         # self.fc3.bias[new_action_idx].data.copy_(torch.max(smaller_net.fc3.bias, dim=0)[0])
-
-        init_bias_term = torch.tensor(init_q_value, device=device).float()
-        self.fc3.bias[new_action_idx].data.copy_(init_bias_term)
+        self.fc3.bias[new_action_idx].data.fill_(init_q_value)
 
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, trained_options, seed, name="DQN-Agent",
+    def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, writer=None):
         self.state_size = state_size
@@ -164,15 +158,16 @@ class DQNAgent(Agent):
         self.evaluation_epsilon = evaluation_epsilon
         self.seed = random.seed(seed)
         self.tensor_log = tensor_log
+        self.device = device
 
         # Q-Network
-        self.policy_network = QNetwork(state_size, action_size, seed).to(device)
-        self.target_network = QNetwork(state_size, action_size, seed).to(device)
+        self.policy_network = QNetwork(state_size, action_size, seed).to(self.device)
+        self.target_network = QNetwork(state_size, action_size, seed).to(self.device)
 
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
         # Replay memory
-        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
+        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.device)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
@@ -238,7 +233,7 @@ class DQNAgent(Agent):
         self.num_executions += 1
         epsilon = self.epsilon if train_mode else self.evaluation_epsilon
 
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
             action_values = self.policy_network(state)
@@ -275,7 +270,7 @@ class DQNAgent(Agent):
         return np.max(action_values.cpu().data.numpy())
 
     def get_qvalue(self, state, action_idx):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
             action_values = self.policy_network(state)
@@ -283,7 +278,7 @@ class DQNAgent(Agent):
         return action_values[0][action_idx]
 
     def get_qvalues(self, state):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
             action_values = self.policy_network(state)
@@ -319,7 +314,7 @@ class DQNAgent(Agent):
                     pdb.set_trace()
 
             # Move the q-values back the GPU
-            action_values = torch.from_numpy(action_values).float().to(device)
+            action_values = torch.from_numpy(action_values).float().to(self.device)
 
         return action_values
 
@@ -432,7 +427,7 @@ class DQNAgent(Agent):
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
-    def __init__(self, action_size, buffer_size, batch_size, seed):
+    def __init__(self, action_size, buffer_size, batch_size, seed, device):
         """
         Initialize a ReplayBuffer object.
         Args:
@@ -440,12 +435,14 @@ class ReplayBuffer:
             buffer_size (int): maximum size of buffer
             batch_size (int): size of each training batch
             seed (int): random seed
+            device (torch.device): cpu / cuda:0 / cuda:1
         """
         self.action_size = action_size
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
         self.seed = random.seed(seed)
+        self.device = device
 
         self.positive_transitions = []
 
@@ -472,12 +469,12 @@ class ReplayBuffer:
         num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])
         self.positive_transitions.append(num_positive_transitions)
 
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
-        steps = torch.from_numpy(np.vstack([e.num_steps for e in experiences if e is not None])).float().to(device)
+        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(self.device)
+        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(self.device)
+        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(self.device)
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
+        steps = torch.from_numpy(np.vstack([e.num_steps for e in experiences if e is not None])).float().to(self.device)
 
         return states, actions, rewards, next_states, dones, steps
 
