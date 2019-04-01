@@ -227,6 +227,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if "reacher" in args.env.lower():
+        from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
@@ -235,6 +236,7 @@ if __name__ == "__main__":
         state_dim = 4
         action_dim = 2
     else:
+        from simple_rl.tasks.gym.GymMDPClass import GymMDP
         overall_mdp = GymMDP(args.env, render=args.render)
         state_dim = overall_mdp.env.observation_space.shape[0]
         action_dim = overall_mdp.env.action_space.shape[0]
@@ -250,4 +252,4 @@ if __name__ == "__main__":
 
     best_ep, best_agent = load_model(ddpg_agent)
     print("loaded {} from episode {}".format(best_agent.name, best_ep))
-    trained_forward_pass(best_agent, overall_mdp, args.steps)
+    # trained_forward_pass(best_agent, overall_mdp, args.steps)

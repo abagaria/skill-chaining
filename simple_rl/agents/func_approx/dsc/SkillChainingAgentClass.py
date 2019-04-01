@@ -499,6 +499,7 @@ if __name__ == '__main__':
 
 	# Create folders for saving various things
 	logdir = create_log_dir(args.experiment_name)
+	create_log_dir("saved_runs")
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")
 
