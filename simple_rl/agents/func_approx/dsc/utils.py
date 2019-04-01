@@ -83,7 +83,7 @@ def get_values(solver, init_values=False):
 
 	return values
 
-def render_sampled_value_function(solver, episode=None):
+def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	states = get_grid_states()
 	values = get_values(solver)
 
@@ -95,7 +95,7 @@ def render_sampled_value_function(solver, episode=None):
 	zz = rbf(xx, yy)
 	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
 	plt.colorbar()
-	name = solver.name if episode is None else solver.name + "_{}".format(episode)
+	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}_value_function.png".format(name))
 	plt.close()
 

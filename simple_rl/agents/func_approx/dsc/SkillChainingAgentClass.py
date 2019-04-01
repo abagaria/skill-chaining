@@ -412,12 +412,12 @@ class SkillChaining(object):
 			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
 		visualize_dqn_replay_buffer(self.agent_over_options, args.experiment_name)
 		visualize_smdp_updates(self.agent_over_options, args.experiment_name)
-		render_sampled_value_function(self.agent_over_options, episode=args.episodes)
+		render_sampled_value_function(self.agent_over_options, episode=args.episodes, experiment_name=args.experiment_name)
 		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
 			plt.plot(self.option_qvalues[o.name])
 			plt.title(o.name)
-		plt.savefig("value_function_plots/sampled_q_so_{}.png".format(self.seed))
+		plt.savefig("value_function_plots/{}_sampled_q_so_{}.png".format(args.experiment_name, self.seed))
 		plt.close()
 
 	def trained_forward_pass(self, render=True):

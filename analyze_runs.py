@@ -148,8 +148,8 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "acrobot_sc_dist"
-    experiment_names = ["acrobot_sc_dist_1", "acrobot_sc_2"]  # glob.glob("*_hard_pinball")
+    meta_experiment_name = "point_lr_curves"
+    experiment_names = ["lr_actor_1e_3", "lr_c_1e_3"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:
@@ -157,7 +157,7 @@ def produce_comparison_plots():
         scores, durations = get_scores(experiment_name)
         training_scores_batch.append(scores)
         training_durations_batch.append(durations)
-        plot_option_executions(get_option_executions(experiment_name), experiment_name)
+        # plot_option_executions(get_option_executions(experiment_name), experiment_name)
     plot_comparison_training_scores(training_scores_batch, experiment_names, experiment=meta_experiment_name)
     plot_comparison_training_durations(training_durations_batch, experiment_names, experiment=meta_experiment_name)
 
