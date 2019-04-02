@@ -216,7 +216,8 @@ def train(agent, mdp, episodes, steps):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
+    parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--env", type=str, help="name of gym environment", default="point-env")
     parser.add_argument("--difficulty", type=str, help="Control suite env difficulty", default="easy")
     parser.add_argument("--render", type=bool, help="render environment training", default=False)
     parser.add_argument("--log", type=bool, help="enable tensorboard logging", default=False)
@@ -225,6 +226,8 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--seed", type=int, help="random seed", default=0)
     args = parser.parse_args()
+
+    log_dir = create_log_dir(args.experiment_name)
 
     if "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
@@ -249,6 +252,7 @@ if __name__ == "__main__":
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
     save_model(ddpg_agent, episode_number=args.episodes, best=False)
+    save_all_scores(episodic_scores, episodic_durations, log_dir, args.seed)
 
     best_ep, best_agent = load_model(ddpg_agent)
     print("loaded {} from episode {}".format(best_agent.name, best_ep))

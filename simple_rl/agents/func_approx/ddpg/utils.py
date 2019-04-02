@@ -71,3 +71,28 @@ def compute_gradient_norm(model):
         total_norm += param_norm.item() ** 2
     total_norm = total_norm ** (1. / 2)
     return total_norm
+
+
+def create_log_dir(experiment_name):
+    path = os.path.join(os.getcwd(), experiment_name)
+    try:
+        os.mkdir(path)
+    except OSError:
+        print("Creation of the directory %s failed" % path)
+    else:
+        print("Successfully created the directory %s " % path)
+    return path
+
+
+def save_all_scores(scores, durations, log_dir, seed):
+    print("\rSaving training scores and durations..")
+    training_scores_file_name = "flat_ddpg_training_scores_{}".format(seed)
+    training_durations_file_name = "flat_ddpg_training_durations_{}".format(seed)
+
+    training_scores_file_name = os.path.join(log_dir, training_scores_file_name)
+    training_durations_file_name = os.path.join(log_dir, training_durations_file_name)
+
+    with open(training_scores_file_name, "wb+") as _f:
+        pickle.dump(scores, _f)
+    with open(training_durations_file_name, "wb+") as _f:
+        pickle.dump(durations, _f)
