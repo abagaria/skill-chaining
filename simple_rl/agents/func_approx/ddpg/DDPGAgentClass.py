@@ -217,6 +217,7 @@ def train(agent, mdp, episodes, steps):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--dense_reward", type=bool, help="Whether to use dense/sparse rewards", default=False)
     parser.add_argument("--env", type=str, help="name of gym environment", default="point-env")
     parser.add_argument("--difficulty", type=str, help="Control suite env difficulty", default="easy")
     parser.add_argument("--render", type=bool, help="render environment training", default=False)
@@ -235,7 +236,7 @@ if __name__ == "__main__":
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
     elif "point" in args.env.lower():
-        overall_mdp = PointEnvMDP(render=args.render)
+        overall_mdp = PointEnvMDP(dense_reward=args.dense_reward, render=args.render)
         state_dim = 4
         action_dim = 2
     else:
