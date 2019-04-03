@@ -464,7 +464,7 @@ if __name__ == '__main__':
 	parser.add_argument("--episodes", type=int, help="# episodes", default=200)
 	parser.add_argument("--steps", type=int, help="# steps", default=1000)
 	parser.add_argument("--intra_option_learning", type=bool, help="Whether or not to use i-o-l", default=False)
-	parser.add_argument("--buffer_len", type=int, help="SkillChaining Buffer Length", default=20)
+	parser.add_argument("--buffer_len", type=int, help="SkillChaining Buffer Length", default=100)
 	parser.add_argument("--subgoal_reward", type=float, help="SkillChaining subgoal reward", default=0.)
 	parser.add_argument("--lr_dqn", type=float, help="DQN learning rate", default=1e-4)
 	parser.add_argument("--lr_a", type=float, help="DDPG Actor learning rate", default=1e-4)

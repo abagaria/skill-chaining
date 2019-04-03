@@ -219,9 +219,9 @@ class Option(object):
 			states (list)
 		"""
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
-		starting_idx = int(len(states) // 4)
-		segmented_states = states[starting_idx:]
-
+		segmented_states = deepcopy(states)
+		if len(states) >= self.buffer_length:
+			segmented_states = segmented_states[-self.buffer_length:]
 		self.positive_examples.append(segmented_states)
 
 	def add_experience_buffer(self, experience_queue):
@@ -231,10 +231,9 @@ class Option(object):
 			experience_queue (list)
 		"""
 		assert type(experience_queue) == list, "Expected initiation experience sample to be a list"
-
-		starting_idx = int(len(experience_queue) // 4)
-		segmented_experiences = experience_queue[starting_idx:]
-
+		segmented_experiences = deepcopy(experience_queue)
+		if len(segmented_experiences) >= self.buffer_length:
+			segmented_experiences = segmented_experiences[-self.buffer_length:]
 		experiences = [Experience(*exp) for exp in segmented_experiences]
 		self.experience_buffer.append(experiences)
 
