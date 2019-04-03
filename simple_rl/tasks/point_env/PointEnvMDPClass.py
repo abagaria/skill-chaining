@@ -10,7 +10,7 @@ from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 
 class PointEnvMDP(MDP):
-    def __init__(self, init_mean=(-0.2, -0.2), control_cost=False, render=False):
+    def __init__(self, init_mean=(-0.2, -0.2), control_cost=False, dense_reward=False, render=False):
         if "darwin" in sys.platform: xml = "/Users/akhil/git-repos/dm_control/dm_control/suite/point_mass.xml"
         else: xml = "/home/abagaria/git-repos/dm_control/dm_control/suite/point_mass.xml"
         model = load_model_from_path(xml)
@@ -18,6 +18,7 @@ class PointEnvMDP(MDP):
         self.render = render
         self.init_mean = init_mean
         self.control_cost = control_cost
+        self.dense_reward = dense_reward
 
         if self.render: self.viewer = MjViewer(self.sim)
 
@@ -30,12 +31,17 @@ class PointEnvMDP(MDP):
         self._initialize_mujoco_state()
         self.init_state = self.get_state()
 
+        print("Loaded {} with dense_reward={}".format(self.env_name, self.dense_reward))
+
         MDP.__init__(self, [0, 1], self._transition_func, self._reward_func, self.init_state)
 
     def _reward_func(self, state, action):
         self.next_state = self._step(action)
         if self.render: self.viewer.render()
-        reward = +0 if self.next_state.is_terminal() else -1.
+        if self.dense_reward:
+            reward = -np.linalg.norm(self.next_state.position - self.target_position)
+        else:
+            reward = +0. if self.next_state.is_terminal() else -1.
         control_cost = 0.1 * np.linalg.norm(action)
         if self.control_cost: reward = reward - control_cost
         return reward
