@@ -369,7 +369,7 @@ class SkillChaining(object):
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-		if self.generate_plots and episode % 20 == 0:
+		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.agent_over_options, episode=episode)
 
 		for trained_option in self.trained_options:  # type: Option
@@ -486,6 +486,11 @@ if __name__ == '__main__':
 		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
 		state_dim = overall_mdp.init_state.features().shape[0]
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+	elif "maze" in args.env.lower():
+		from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
+		overall_mdp = PointMazeMDP(seed=args.seed, render=args.render)
+		state_dim = 6
+		action_dim = 2
 	elif "point" in args.env.lower():
 		overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
 		state_dim = 4

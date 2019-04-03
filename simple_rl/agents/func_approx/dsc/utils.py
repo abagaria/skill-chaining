@@ -9,7 +9,7 @@ import seaborn as sns
 sns.set()
 
 # Other imports.
-from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
+from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
 
 class Experience(object):
 	def __init__(self, s, a, r, s_prime):
@@ -56,25 +56,29 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
 	ss = []
-	for x in np.arange(-0.31, 0.31, 0.06):
-		for y in np.arange(-0.31, 0.31, 0.06):
-			s = PointEnvState(position=np.array([x, y]), velocity=np.array([0., 0.]), done=False)
+	for x in np.arange(0., 11., 1.):
+		for y in np.arange(0., 11., 1.):
+			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
+							   theta=0., theta_dot=0., done=False)
 			ss.append(s)
 	return ss
 
 def get_values(solver, init_values=False):
 	values = []
-	for x in np.arange(-0.31, 0.31, 0.06):
-		for y in np.arange(-0.31, 0.31, 0.06):
+	for x in np.arange(0., 11., 1.):
+		for y in np.arange(0., 11., 1.):
 			v = []
 			for vx in [-0.01, -0.1, 0., 0.01, 0.1]:
 				for vy in [-0.01, -0.1, 0., 0.01, 0.1]:
-					s = PointEnvState(position=np.array([x, y]), velocity=np.array([vx, vy]), done=False)
+					for theta in [-90., -45., 0., 45., 90.]:
+						for theta_dot in [-1., 0., 1.]:
+							s = PointMazeState(position=np.array([x, y]), velocity=np.array([vx, vy]),
+											   theta=theta, theta_dot=theta_dot, done=False)
 
-					if not init_values:
-						v.append(solver.get_value(s.features()))
-					else:
-						v.append(solver.is_init_true(s))
+							if not init_values:
+								v.append(solver.get_value(s.features()))
+							else:
+								v.append(solver.is_init_true(s))
 
 			if not init_values:
 				values.append(np.mean(v))
