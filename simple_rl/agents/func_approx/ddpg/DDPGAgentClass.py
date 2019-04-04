@@ -19,7 +19,6 @@ from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
-from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 
 
 class DDPGAgent(Agent):
@@ -236,6 +235,7 @@ if __name__ == "__main__":
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
     elif "point" in args.env.lower():
+        from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
         overall_mdp = PointEnvMDP(dense_reward=args.dense_reward, render=args.render)
         state_dim = 4
         action_dim = 2

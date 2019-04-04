@@ -20,7 +20,6 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 
 
 class SkillChaining(object):
@@ -491,6 +490,7 @@ if __name__ == '__main__':
 		state_dim = 6
 		action_dim = 2
 	elif "point" in args.env.lower():
+		from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
 		overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
 		state_dim = 4
 		action_dim = 2
