@@ -2,7 +2,7 @@
 BUFFER_SIZE = int(1e6)
 BATCH_SIZE = 64
 GAMMA = 0.99
-TAU = 0.001
+TAU = 0.01
 LRA = 1e-4
 LRC = 1e-3
 HIDDEN_1 = 400

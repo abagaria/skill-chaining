@@ -15,13 +15,13 @@ import time
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
-from simple_rl.agents.func_approx.dsc.utils import Experience, render_sampled_initiation_classifier
+from simple_rl.agents.func_approx.dsc.utils import Experience
 
 class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, buffer_length=20,
 				 pretrained=False, num_subgoal_hits_required=3, subgoal_reward=1., max_steps=20000, seed=0, parent=None,
-				 children=[], classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=3,
+				 children=[], classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=0,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -142,7 +142,8 @@ class Option(object):
 				if self.is_term_true(next_state):
 					self.solver.step(state, action, self.subgoal_reward, next_state, True)
 				else:
-					self.solver.step(state, action, reward, next_state, done)
+					subgoal_reward = self.get_subgoal_reward(next_state[:2])
+					self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def distance_to_closest_positive_example(self, state):
 		XA = state.features() if isinstance(state, State) else state
@@ -167,7 +168,7 @@ class Option(object):
 			return predictions
 
 		if self.classifier_type == "ocsvm":
-			return self.initiation_classifier.predict(state_matrix)
+			return self.initiation_classifier.predict(state_matrix[:, :2])
 
 		raise NotImplementedError("Classifier type {} not supported".format(self.classifier_type))
 
@@ -176,7 +177,7 @@ class Option(object):
 		if self.name == "global_option":
 			return True
 
-		input_features = ground_state.features() if isinstance(ground_state, State) else ground_state
+		input_features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 
 		# Child options are available in learned sub-parts of the state space
 		svm_decision = self.initiation_classifier.predict([input_features])[0] == 1
@@ -222,7 +223,8 @@ class Option(object):
 		segmented_states = deepcopy(states)
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
-		self.positive_examples.append(segmented_states)
+		segmented_positions = [segmented_state.position for segmented_state in segmented_states]
+		self.positive_examples.append(segmented_positions)
 
 	def add_experience_buffer(self, experience_queue):
 		"""
@@ -240,18 +242,13 @@ class Option(object):
 	@staticmethod
 	def _construct_feature_matrix(examples_matrix):
 		states = list(itertools.chain.from_iterable(examples_matrix))
-		n_samples = len(states)
-		n_features = states[0].get_num_feats()
-		X = np.zeros((n_samples, n_features))
-		for row in range(X.shape[0]):
-			X[row, :] = states[row].features()
-		return X
+		return np.array(states)
 
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self._construct_feature_matrix(self.positive_examples)
 
-		self.initiation_classifier = svm.OneClassSVM(nu=0.1, gamma="scale")
+		self.initiation_classifier = svm.OneClassSVM(kernel="poly", nu=0.01, gamma="auto")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_two_class_classifier(self):
@@ -271,14 +268,17 @@ class Option(object):
 	def train_initiation_classifier(self):
 		self.train_one_class_svm()
 
-	@staticmethod
-	def get_center_of_initiation_data(initiation_data):
-		initiation_states = list(itertools.chain.from_iterable(initiation_data))
-		x_positions = [state.x for state in initiation_states]
-		y_positions = [state.y for state in initiation_states]
-		x_center = (max(x_positions) + min(x_positions)) / 2.
-		y_center = (max(y_positions) + min(y_positions)) / 2.
-		return np.array([x_center, y_center])
+	def get_subgoal_reward(self, position_vector):
+		# For global and parent option, we use the negative distance to the goal state
+		if self.parent is None:
+			return -0.1 * self.overall_mdp.distance_to_goal(position_vector)
+
+		# For every other option, we use the negative distance to the parent's initiation set classifier
+		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))
+
+		# Decision_function returns a negative distance for points not inside the classifier
+		subgoal_reward = 0. if dist >= 0 else dist
+		return subgoal_reward
 
 	def off_policy_update(self, state, action, reward, next_state):
 		""" Make off-policy updates to the current option's low level DDPG solver. """
@@ -293,7 +293,8 @@ class Option(object):
 		if self.is_init_true(state) and self.is_term_true(next_state):
 			self.solver.step(state.features(), action, self.subgoal_reward, next_state.features(), True)
 		elif self.is_init_true(state):
-			self.solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+			subgoal_reward = self.get_subgoal_reward(next_state.features()[:2])
+			self.solver.step(state.features(), action, subgoal_reward, next_state.features(), next_state.is_terminal())
 
 	def update_option_solver(self, s, a, r, s_prime):
 		""" Make on-policy updates to the current option's low-level DDPG solver. """
@@ -312,7 +313,8 @@ class Option(object):
 		elif s_prime.is_terminal():
 			self.solver.step(s.features(), a, r, s_prime.features(), True)
 		else:
-			self.solver.step(s.features(), a, r, s_prime.features(), False)
+			subgoal_reward = self.get_subgoal_reward(s_prime.features()[:2])
+			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
@@ -400,8 +402,8 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
-			if self.get_training_phase() == "initiation":
-				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
+			# if self.get_training_phase() == "initiation":
+			# 	self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
 			if self.writer is not None:
 				self.writer.add_scalar("{}-ExecutionLength".format(self.name), len(option_transitions), self.num_executions)

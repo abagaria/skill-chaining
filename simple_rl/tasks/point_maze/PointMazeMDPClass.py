@@ -9,9 +9,10 @@ from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
 from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
 class PointMazeMDP(MDP):
-    def __init__(self, seed, render=False):
+    def __init__(self, seed, dense_reward=False, render=False):
         self.env_name = "point_maze"
         self.seed = seed
+        self.dense_reward = dense_reward
         self.render = render
 
         # Set random seed
@@ -38,6 +39,8 @@ class PointMazeMDP(MDP):
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
+        if self.dense_reward:
+            return -0.1 * self.distance_to_goal(self.next_state.position)
         return reward
 
     def _transition_func(self, state, action):
@@ -64,6 +67,9 @@ class PointMazeMDP(MDP):
             return state.is_terminal()
         position = state[:2]
         return self.env.is_in_goal_position(position)
+
+    def distance_to_goal(self, position):
+        return self.env.distance_to_goal_position(position)
 
     @staticmethod
     def state_space_size():

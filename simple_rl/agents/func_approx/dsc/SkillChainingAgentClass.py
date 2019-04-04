@@ -331,12 +331,7 @@ class SkillChaining(object):
 					uo_episode_terminated = True
 
 					if self.untrained_option.train(experience_buffer, state_buffer):
-						if self.generate_plots:
-							render_sampled_value_function(self.agent_over_options, episode=episode-10000)
-							render_sampled_initiation_classifier(self.untrained_option)
 						self._augment_agent_with_new_option(self.untrained_option)
-						if self.generate_plots:
-							render_sampled_value_function(self.agent_over_options, episode=episode+10000)
 
 				if self.untrained_option.get_training_phase() == "initiation_done" and self.should_create_more_options():
 					self.create_child_option()
@@ -370,7 +365,7 @@ class SkillChaining(object):
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
 		if self.generate_plots and episode % 10 == 0:
-			render_sampled_value_function(self.agent_over_options, episode=episode)
+			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
 
 		for trained_option in self.trained_options:  # type: Option
 			self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
@@ -412,13 +407,16 @@ class SkillChaining(object):
 			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
 		visualize_dqn_replay_buffer(self.agent_over_options, args.experiment_name)
 		visualize_smdp_updates(self.agent_over_options, args.experiment_name)
-		render_sampled_value_function(self.agent_over_options, episode=args.episodes, experiment_name=args.experiment_name)
+		render_sampled_value_function(self.global_option.solver, episode=args.episodes, experiment_name=args.experiment_name)
 		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
 			plt.plot(self.option_qvalues[o.name])
 			plt.title(o.name)
 		plt.savefig("value_function_plots/{}_sampled_q_so_{}.png".format(args.experiment_name, self.seed))
 		plt.close()
+
+		for option in self.trained_options:
+			visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
 
 	def trained_forward_pass(self, render=True):
 		"""
@@ -479,6 +477,7 @@ if __name__ == '__main__':
 	parser.add_argument("--generate_plots", type=bool, help="Whether or not to generate plots", default=False)
 	parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
 	parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
+	parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -488,7 +487,7 @@ if __name__ == '__main__':
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
 	elif "maze" in args.env.lower():
 		from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
-		overall_mdp = PointMazeMDP(seed=args.seed, render=args.render)
+		overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
 		state_dim = 6
 		action_dim = 2
 	elif "point" in args.env.lower():

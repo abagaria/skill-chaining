@@ -39,8 +39,12 @@ class Experience(object):
 
 def plot_trajectory(trajectory, color='k', marker="o"):
 	for i, state in enumerate(trajectory):
-		x = state.position[0]
-		y = state.position[1]
+		if isinstance(state, PointMazeState):
+			x = state.position[0]
+			y = state.position[1]
+		else:
+			x = state[0]
+			y = state[1]
 
 		if marker == "x":
 			plt.scatter(x, y, c=color, s=100, marker=marker)
@@ -103,29 +107,31 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	plt.savefig("value_function_plots/{}_value_function.png".format(name))
 	plt.close()
 
+def make_meshgrid(x, y, h=.02):
+	x_min, x_max = x.min() - 1, x.max() + 1
+	y_min, y_max = y.min() - 1, y.max() + 1
+	xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+						 np.arange(y_min, y_max, h))
+	return xx, yy
 
-def render_sampled_initiation_classifier(option):
-	states = get_grid_states()
-	values = get_values(option, init_values=True)
-
-	x = np.array([state.position[0] for state in states])
-	y = np.array([state.position[1] for state in states])
-	xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
-	xx, yy = np.meshgrid(xi, yi)
-	rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
-	zz = rbf(xx, yy)
-
-	# plt.contourf(xx, yy, zz, cmap=plt.cm.coolwarm, alpha=0.8)
-	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
-	plt.colorbar()
+def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
+	plt.figure(figsize=(8.0, 5.0))
+	X = option._construct_feature_matrix(option.positive_examples)
+	X0, X1 = X[:, 0], X[:, 1]
+	xx, yy = make_meshgrid(X0, X1)
+	Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
+	Z1 = Z1.reshape(xx.shape)
+	plt.contour(xx, yy, Z1, levels=[0], linewidths=2, cmap=plt.cm.bone)
 
 	plot_all_trajectories_in_initiation_data(option.positive_examples)
-	if len(option.negative_examples) > 0:
-		plot_all_trajectories_in_initiation_data(option.negative_examples, marker="x")
+
+	plt.xlim((-3, 11))
+	plt.ylim((-3, 11))
 
 	plt.xlabel("x")
 	plt.ylabel("y")
-	plt.savefig("initiation_set_plots/{}_svm_{}.png".format(option.name, time.time()))
+	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+	plt.savefig("initiation_set_plots/{}_one_class_svm.png".format(name))
 	plt.close()
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
@@ -150,7 +156,7 @@ def visualize_dqn_replay_buffer(solver, experiment_name=""):
 
 	plt.legend()
 	plt.title("# transitions = {}".format(len(solver.replay_buffer)))
-	plt.savefig("{}_replay_buffer_analysis_{}.png".format(solver.name, experiment_name))
+	plt.savefig("value_function_plots/{}_replay_buffer_analysis_{}.png".format(solver.name, experiment_name))
 	plt.close()
 
 def visualize_smdp_updates(global_solver, experiment_name=""):
@@ -173,5 +179,23 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
 	plt.scatter(negative_end_x, negative_end_y, alpha=0.6, label="-s'")
 	plt.legend()
 	plt.title("# updates = {}".format(len(smdp_transitions)))
-	plt.savefig("DQN_SMDP_Updates_{}.png".format(experiment_name))
+	plt.savefig("value_function_plots/DQN_SMDP_Updates_{}.png".format(experiment_name))
+	plt.close()
+
+def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name=""):
+	next_states = [experience[3] for experience in solver.replay_buffer.memory]
+	rewards = [experience[2] for experience in solver.replay_buffer.memory]
+	x = np.array([state[0] for state in next_states])
+	y = np.array([state[1] for state in next_states])
+
+	plt.scatter(x, y, None, c=rewards, cmap=plt.cm.bone)
+	plt.colorbar()
+	plt.xlabel("x")
+	plt.ylabel("y")
+	plt.title("Replay Buffer Reward Heat Map")
+	plt.xlim((-3, 11))
+	plt.ylim((-3, 11))
+
+	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
+	plt.savefig("value_function_plots/{}_replay_buffer_reward_map.png".format(name))
 	plt.close()

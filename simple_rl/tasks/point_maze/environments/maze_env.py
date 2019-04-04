@@ -491,7 +491,10 @@ class MazeEnv(gym.Env):
     return False
 
   def is_in_goal_position(self, pos):
-    return np.linalg.norm(pos - self.goal_xy) <= 0.6
+    return self.distance_to_goal_position(pos) <= 0.6
+
+  def distance_to_goal_position(self, pos):
+    return np.linalg.norm(pos - self.goal_xy)
 
   def step(self, action):
     outer_reward = 0.
