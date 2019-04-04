@@ -209,7 +209,7 @@ def train(agent, mdp, episodes, steps):
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
-            render_sampled_value_function(agent, episode=episode)
+            render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
 
     return per_episode_scores, per_episode_durations
 
