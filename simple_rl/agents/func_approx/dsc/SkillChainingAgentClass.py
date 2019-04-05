@@ -25,7 +25,7 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_dqn, lr_actor, lr_critic, ddpg_batch_size,
 				 device, pretrained_options=[], buffer_length=20,
-				 subgoal_reward=1.0, subgoal_hits=3, max_num_options=4,
+				 subgoal_reward=1.0, subgoal_hits=5, max_num_options=4,
 				 enable_option_timeout=True, intra_option_learning=False,
 				 generate_plots=False, log_dir="", seed=0, tensor_log=False):
 		"""
@@ -416,6 +416,8 @@ class SkillChaining(object):
 
 		for option in self.trained_options:
 			visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
+			if option.name != "global_option":
+				plot_one_class_initiation_classifier(option, args.episodes, args.experiment_name)
 
 	def trained_forward_pass(self, render=True):
 		"""
