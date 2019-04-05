@@ -21,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, buffer_length=20,
 				 pretrained=False, num_subgoal_hits_required=3, subgoal_reward=1., max_steps=20000, seed=0, parent=None,
-				 children=[], classifier_type="ocsvm", enable_timeout=True, timeout=250, initiation_period=0,
+				 children=[], classifier_type="ocsvm", enable_timeout=True, timeout=100, initiation_period=0,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -248,7 +248,7 @@ class Option(object):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self._construct_feature_matrix(self.positive_examples)
 
-		self.initiation_classifier = svm.OneClassSVM(kernel="poly", nu=0.01, gamma="auto")
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="auto")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_two_class_classifier(self):
