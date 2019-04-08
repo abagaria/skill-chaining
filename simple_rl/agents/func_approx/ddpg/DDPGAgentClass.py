@@ -153,6 +153,13 @@ class DDPGAgent(Agent):
         action = self.actor.get_action(state)
         return self.critic.get_q_value(state, action)
 
+    def get_qvalues(self, states, actions):
+        self.critic.eval()
+        with torch.no_grad():
+            q_values = self.critic(states, actions)
+        self.critic.train()
+        return q_values
+
 def trained_forward_pass(agent, mdp, steps, render=False):
     mdp.reset()
     state = deepcopy(mdp.init_state)
