@@ -65,7 +65,7 @@ class Option(object):
 
 		solver_name = "{}_ddpg_agent".format(self.name)
 		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size) if name == "global_option" else global_solver
-		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=True, writer=writer, name=solver_name)
+		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=(writer is not None), writer=writer, name=solver_name)
 
 		self.overall_mdp = overall_mdp
 		self.num_goal_hits = 0
