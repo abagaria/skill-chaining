@@ -147,7 +147,10 @@ class DDPGAgent(Agent):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
     def update_epsilon(self):
-        self.epsilon = max(0., self.epsilon - LINEAR_EPS_DECAY)
+        if "global" in self.name.lower():
+            self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
+        else:
+            self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
 
     def get_value(self, state):
         action = self.actor.get_action(state)

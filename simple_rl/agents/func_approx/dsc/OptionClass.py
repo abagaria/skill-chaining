@@ -5,15 +5,18 @@ import numpy as np
 import pdb
 from copy import deepcopy
 import torch
+from sklearn import svm
+import itertools
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
+from simple_rl.agents.func_approx.dsc.utils import Experience
 
 class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size,
-				 subgoal_reward=0., max_steps=20000, seed=0, parent=None,
+				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 enable_timeout=True, timeout=100, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -64,11 +67,18 @@ class Option(object):
 		action_size = overall_mdp.action_space_size()
 
 		solver_name = "{}_ddpg_agent".format(self.name)
-		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size) if name == "global_option" else global_solver
+		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
 		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=(writer is not None), writer=writer, name=solver_name)
 
-		self.overall_mdp = overall_mdp
+		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
+		self.positive_examples = []
+		self.experience_buffer = []
+		self.initiation_classifier = None
+		self.num_subgoal_hits_required = num_subgoal_hits_required
+		self.buffer_length = buffer_length
+
+		self.overall_mdp = overall_mdp
 
 		# Debug member variables
 		self.num_executions = 0
@@ -92,43 +102,36 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
-	def batched_is_init_true(self, state_matrix):
+	def initialize_with_global_ddpg(self):
+		for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
+			my_param.data.copy_(global_param.data)
+		for my_param, global_param in zip(self.solver.critic.parameters(), self.global_solver.critic.parameters()):
+			my_param.data.copy_(global_param.data)
+		for my_param, global_param in zip(self.solver.target_actor.parameters(), self.global_solver.target_actor.parameters()):
+			my_param.data.copy_(global_param.data)
+		for my_param, global_param in zip(self.solver.target_critic.parameters(), self.global_solver.target_critic.parameters()):
+			my_param.data.copy_(global_param.data)
 
+		# Not using off_policy_update() because we have numpy arrays not state objects here
+		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
+			if self.is_init_true(state):
+				if self.is_term_true(next_state):
+					self.solver.step(state, action, self.subgoal_reward, next_state, True)
+				else:
+					subgoal_reward = self.get_subgoal_reward(next_state)
+					self.solver.step(state, action, subgoal_reward, next_state, done)
+
+	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
-
 		position_matrix = state_matrix[:, :2]
-		x_positions = position_matrix[:, 0]
-		y_positions = position_matrix[:, 1]
-
-		if self.name == "overall_goal_policy":
-			x_conditions = x_positions <= 6.
-			y_conditions = y_positions >= 6.
-			return np.logical_and(x_conditions, y_conditions)
-		if self.name == "option_1":
-			x_conditions = x_positions > 6
-			return x_conditions
-		if self.name == "option_2":
-			x_conditions = x_positions <= 6.
-			y_conditions = y_positions <= 2.
-			return np.logical_and(x_conditions, y_conditions)
-
-		raise NotImplementedError("Expected 3 options got {}".format(self.name))
+		return self.initiation_classifier.predict(position_matrix) == 1
 
 	def is_init_true(self, ground_state):
-		# The global option is available everywhere
 		if self.name == "global_option":
 			return True
-
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
-		x_position, y_position = features[0], features[1]
-
-		if self.name == "overall_goal_policy":
-			return x_position <= 6. <= y_position
-		if self.name == "option_1":
-			return x_position > 6.
-		if self.name == "option_2":
-			return x_position <= 6. and y_position <= 2.
+		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -138,6 +141,66 @@ class Option(object):
 		assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
 		return self.overall_mdp.is_goal_state(ground_state)
 
+	def add_initiation_experience(self, states):
+		assert type(states) == list, "Expected initiation experience sample to be a queue"
+		segmented_states = deepcopy(states)
+		if len(states) >= self.buffer_length:
+			segmented_states = segmented_states[-self.buffer_length:]
+		segmented_positions = [segmented_state.position for segmented_state in segmented_states]
+		self.positive_examples.append(segmented_positions)
+
+	def add_experience_buffer(self, experience_queue):
+		assert type(experience_queue) == list, "Expected initiation experience sample to be a list"
+		segmented_experiences = deepcopy(experience_queue)
+		if len(segmented_experiences) >= self.buffer_length:
+			segmented_experiences = segmented_experiences[-self.buffer_length:]
+		experiences = [Experience(*exp) for exp in segmented_experiences]
+		self.experience_buffer.append(experiences)
+
+	@staticmethod
+	def construct_feature_matrix(examples):
+		states = list(itertools.chain.from_iterable(examples))
+		return np.array(states)
+
+	def train_one_class_svm(self):
+		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
+		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+
+		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		self.initiation_classifier.fit(positive_feature_matrix)
+
+	def initialize_option_policy(self):
+		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
+		self.initialize_with_global_ddpg()
+
+		self.solver.epsilon = self.global_solver.epsilon
+
+		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
+		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
+		for experience in experience_buffer:
+			state, action, reward, next_state = experience.serialize()
+			self.update_option_solver(state, action, reward, next_state)
+
+	def train(self, experience_buffer, state_buffer):
+		"""
+		Called every time the agent hits the current option's termination set.
+		Args:
+			experience_buffer (list)
+			state_buffer (list)
+		Returns:
+			trained (bool): whether or not we actually trained this option
+		"""
+		self.add_initiation_experience(state_buffer)
+		self.add_experience_buffer(experience_buffer)
+		self.num_goal_hits += 1
+
+		if self.num_goal_hits >= self.num_subgoal_hits_required:
+			self.train_one_class_svm()
+			self.initialize_option_policy()
+			return True
+		return False
+
 	def get_subgoal_reward(self, state):
 
 		if self.is_term_true(state):
@@ -145,25 +208,20 @@ class Option(object):
 			return 0.
 
 		# Rewards based on position only
-		position_vector = state.features()[:2]
+		position_vector = state.features()[:2] if isinstance(state, State) else state[:2]
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
 			return -0.1 * self.overall_mdp.distance_to_goal(position_vector)
 
 		# For every other option, we use the negative distance to the parent's initiation set classifier
-		if self.name == "option_1":
-			if position_vector[1] < 6.:
-				target_position = np.array([6., 6.])
-				return -0.1 * np.linalg.norm(position_vector - target_position)
-			goal_line_1 = np.array([6., 6.])
-			goal_line_2 = np.array([6., 10.])
-			return -0.1 * self.distance_to_line(position_vector, goal_line_1, goal_line_2)
-		if self.name == "option_2":
-			goal_line_1 = np.array([+6., -2.])
-			goal_line_2 = np.array([+6., +2.])
-			return -0.1 * self.distance_to_line(position_vector, goal_line_1, goal_line_2)
-		raise NotImplementedError("{}".format(self.name))
+		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
+
+		if not isinstance(dist, (int, float)): pdb.set_trace()
+
+		# Decision_function returns a negative distance for points not inside the classifier
+		subgoal_reward = 0. if dist >= 0 else dist
+		return subgoal_reward
 
 	def off_policy_update(self, state, action, reward, next_state):
 		""" Make off-policy updates to the current option's low level DDPG solver. """
@@ -194,7 +252,7 @@ class Option(object):
 			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
 		elif s_prime.is_terminal():
 			print("[{}]: {} is_terminal() but not term_true()".format(self.name, s))
-			self.solver.step(s.features(), a, r, s_prime.features(), True)
+			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
 		else:
 			subgoal_reward = self.get_subgoal_reward(s_prime)
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
@@ -246,7 +304,7 @@ class Option(object):
 				num_steps += 1
 
 			if self.writer is not None:
-				self.writer.add_scalar("{}-ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
+				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
 
 			return option_transitions, total_reward
 
@@ -265,7 +323,3 @@ class Option(object):
 			step_number += 1
 			num_steps += 1
 		return score, state, step_number
-
-	@staticmethod
-	def distance_to_line(point, line_1, line_2):
-		return np.abs(np.cross(line_2 - line_1, point - line_1) / np.linalg.norm(line_2 - line_1))

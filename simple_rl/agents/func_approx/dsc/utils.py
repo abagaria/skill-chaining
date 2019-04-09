@@ -116,7 +116,7 @@ def make_meshgrid(x, y, h=.02):
 
 def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))
-	X = option._construct_feature_matrix(option.positive_examples)
+	X = option.construct_feature_matrix(option.positive_examples)
 	X0, X1 = X[:, 0], X[:, 1]
 	xx, yy = make_meshgrid(X0, X1)
 	Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])

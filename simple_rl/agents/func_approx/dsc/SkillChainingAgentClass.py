@@ -22,8 +22,9 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 
 
 class SkillChaining(object):
-	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, subgoal_reward=1.0,
-				 enable_option_timeout=True, generate_plots=False, log_dir="", seed=0, tensor_log=False):
+	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
+				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
+				 generate_plots=False, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -34,6 +35,8 @@ class SkillChaining(object):
 			device (str): torch device {cpu/cuda:0/cuda:1}
 			subgoal_reward (float): Hitting a subgoal must yield a supplementary reward to enable local policy
 			enable_option_timeout (bool): whether or not the option times out after some number of steps
+			buffer_length (int): size of trajectories used to train initiation sets of options
+			num_subgoal_hits_required (int): number of times we need to hit an option's termination before learning
 			generate_plots (bool): whether or not to produce plots in this run
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
@@ -45,9 +48,12 @@ class SkillChaining(object):
 		self.subgoal_reward = subgoal_reward
 		self.enable_option_timeout = enable_option_timeout
 		self.generate_plots = generate_plots
+		self.buffer_length = buffer_length
+		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.log_dir = log_dir
 		self.seed = seed
 		self.device = torch.device(device)
+		self.max_num_options = max_num_options
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -61,8 +67,8 @@ class SkillChaining(object):
 
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
 		self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
-									lr_actor=lr_actor, lr_critic=lr_critic,
-									ddpg_batch_size=ddpg_batch_size,
+									lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
+									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device)
@@ -75,19 +81,16 @@ class SkillChaining(object):
 		# Once we hit its termination condition N times, we will start learning its initiation set
 		# Once we have learned its initiation set, we will create its child option
 		goal_option = Option(overall_mdp=self.mdp, name='overall_goal_policy', global_solver=self.global_option.solver,
-							 lr_actor=lr_actor, lr_critic=lr_critic,
-							 ddpg_batch_size=ddpg_batch_size,
+							 lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
+							 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device)
-		self.trained_options.append(goal_option)
 
-		# Hard code the other 2 options we need for solving point maze
-		option_1 = self.create_child_option(goal_option)
-		self.trained_options.append(option_1)
-
-		option_2 = self.create_child_option(option_1)
-		self.trained_options.append(option_2)
+		# Pointer to the current option:
+		# 1. This option has the termination set which defines our current goal trigger
+		# 2. This option has an untrained initialization set and policy, which we need to train from experience
+		self.untrained_option = goal_option
 
 		# Debug variables
 		self.global_execution_states = []
@@ -106,6 +109,8 @@ class SkillChaining(object):
 									  lr_critic=parent_option.solver.critic_learning_rate,
 									  ddpg_batch_size=parent_option.solver.batch_size,
 									  subgoal_reward=self.subgoal_reward,
+									  buffer_length=self.buffer_length,
+									  num_subgoal_hits_required=self.num_subgoal_hits_required,
 									  seed=self.seed, parent=parent_option,
 									  enable_timeout=self.enable_option_timeout,
 									  writer=self.writer, device=self.device)
@@ -179,6 +184,13 @@ class SkillChaining(object):
 			total_reward += reward
 		return total_reward
 
+	def should_create_more_options(self):
+		start_state = deepcopy(self.mdp.init_state)
+		for option in self.trained_options:  # type: Option
+			if option.is_init_true(start_state):
+				return False
+		return len(self.trained_options) < self.max_num_options
+
 	def skill_chaining(self, num_episodes, num_steps):
 
 		# For logging purposes
@@ -192,6 +204,7 @@ class SkillChaining(object):
 			self.mdp.reset()
 			score = 0.
 			step_number = 0
+			uo_episode_terminated = False
 			state = deepcopy(self.mdp.init_state)
 			experience_buffer = []
 			state_buffer = []
@@ -208,6 +221,14 @@ class SkillChaining(object):
 				# Don't forget to add the last s' to the buffer
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
+
+				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and self.max_num_options > 0:
+					uo_episode_terminated = True
+					if self.untrained_option.train(experience_buffer, state_buffer):
+						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+						self.trained_options.append(self.untrained_option)
+						new_option = self.create_child_option(self.untrained_option)
+						self.untrained_option = new_option
 
 				if state.is_terminal():
 					break
@@ -335,6 +356,9 @@ if __name__ == '__main__':
 	parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
 	parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
 	parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
+	parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
+	parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
+	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
