@@ -6,6 +6,7 @@ import pdb
 from copy import deepcopy
 import torch
 from sklearn import svm
+from sklearn.covariance import EllipticEnvelope
 import itertools
 
 # Other imports.
@@ -15,7 +16,7 @@ from simple_rl.agents.func_approx.dsc.utils import Experience
 
 class Option(object):
 
-	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size,
+	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 enable_timeout=True, timeout=100, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
@@ -26,6 +27,7 @@ class Option(object):
 			lr_actor (float)
 			lr_critic (float)
 			ddpg_batch_size (int)
+			classifier_type (str)
 			subgoal_reward (float)
 			max_steps (int)
 			seed (int)
@@ -42,6 +44,7 @@ class Option(object):
 		self.seed = seed
 		self.parent = parent
 		self.enable_timeout = enable_timeout
+		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
 
@@ -167,8 +170,23 @@ class Option(object):
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale", random_state=self.seed)
 		self.initiation_classifier.fit(positive_feature_matrix)
+
+	def train_elliptic_envelope_classifier(self):
+		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
+		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+
+		self.initiation_classifier = EllipticEnvelope(contamination=0.2, random_state=self.seed)
+		self.initiation_classifier.fit(positive_feature_matrix)
+
+	def train_initiation_classifier(self):
+		if self.classifier_type == "ocsvm":
+			self.train_one_class_svm()
+		elif self.classifier_type == "elliptic":
+			self.train_elliptic_envelope_classifier()
+		else:
+			raise NotImplementedError("{} not supported".format(self.classifier_type))
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
@@ -196,7 +214,7 @@ class Option(object):
 		self.num_goal_hits += 1
 
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
-			self.train_one_class_svm()
+			self.train_initiation_classifier()
 			self.initialize_option_policy()
 			return True
 		return False
@@ -230,6 +248,7 @@ class Option(object):
 
 		# Don't make updates while walking around the termination set of an option
 		if self.is_term_true(state):
+			print("[off_policy_update] Warning: called updater on {} term states: {}".format(self.name, state))
 			return
 
 		# Off-policy updates for states outside tne initiation set were discarded
@@ -244,8 +263,9 @@ class Option(object):
 		assert self.overall_mdp.is_primitive_action(a), "Option solver should be over primitive actions: {}".format(a)
 		assert not s.is_terminal(), "Terminal state did not terminate at some point"
 
-		if self.is_term_true(s): #, "Don't call on-policy updater on {} term states: {}".format(self.name, s)
-			pdb.set_trace()
+		if self.is_term_true(s):
+			print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
+			return
 
 		if self.is_term_true(s_prime):
 			print("{} execution successful".format(self.name))

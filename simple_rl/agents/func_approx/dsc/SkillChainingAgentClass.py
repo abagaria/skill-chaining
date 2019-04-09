@@ -24,7 +24,7 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
-				 generate_plots=False, log_dir="", seed=0, tensor_log=False):
+				 classifier_type="ocsvm", generate_plots=False, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -37,6 +37,7 @@ class SkillChaining(object):
 			enable_option_timeout (bool): whether or not the option times out after some number of steps
 			buffer_length (int): size of trajectories used to train initiation sets of options
 			num_subgoal_hits_required (int): number of times we need to hit an option's termination before learning
+			classifier_type (str): Type of classifier we will train for option initiation sets
 			generate_plots (bool): whether or not to produce plots in this run
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
@@ -54,6 +55,7 @@ class SkillChaining(object):
 		self.seed = seed
 		self.device = torch.device(device)
 		self.max_num_options = max_num_options
+		self.classifier_type = classifier_type
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -70,7 +72,7 @@ class SkillChaining(object):
 									lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
-									enable_timeout=self.enable_option_timeout,
+									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device)
 
 		self.trained_options = [self.global_option]
@@ -84,13 +86,16 @@ class SkillChaining(object):
 							 lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 							 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
-							 enable_timeout=self.enable_option_timeout,
+							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
 		# 2. This option has an untrained initialization set and policy, which we need to train from experience
 		self.untrained_option = goal_option
+
+		# List of init states seen while running this algorithm
+		self.init_states = []
 
 		# Debug variables
 		self.global_execution_states = []
@@ -110,6 +115,7 @@ class SkillChaining(object):
 									  ddpg_batch_size=parent_option.solver.batch_size,
 									  subgoal_reward=self.subgoal_reward,
 									  buffer_length=self.buffer_length,
+									  classifier_type=self.classifier_type,
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
 									  seed=self.seed, parent=parent_option,
 									  enable_timeout=self.enable_option_timeout,
@@ -185,10 +191,10 @@ class SkillChaining(object):
 		return total_reward
 
 	def should_create_more_options(self):
-		start_state = deepcopy(self.mdp.init_state)
-		for option in self.trained_options:  # type: Option
-			if option.is_init_true(start_state):
-				return False
+		for start_state in self.init_states:
+			for option in self.trained_options:  # type: Option
+				if option.is_init_true(start_state):
+					return False
 		return len(self.trained_options) < self.max_num_options
 
 	def skill_chaining(self, num_episodes, num_steps):
@@ -206,6 +212,7 @@ class SkillChaining(object):
 			step_number = 0
 			uo_episode_terminated = False
 			state = deepcopy(self.mdp.init_state)
+			self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []
 			episode_option_executions = defaultdict(lambda : 0)
@@ -222,13 +229,15 @@ class SkillChaining(object):
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
 
-				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and self.max_num_options > 0:
+				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
+						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
 						self.trained_options.append(self.untrained_option)
-						new_option = self.create_child_option(self.untrained_option)
-						self.untrained_option = new_option
+						if self.should_create_more_options():
+							new_option = self.create_child_option(self.untrained_option)
+							self.untrained_option = new_option
 
 				if state.is_terminal():
 					break
@@ -359,6 +368,7 @@ if __name__ == '__main__':
 	parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
 	parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
 	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
+	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
