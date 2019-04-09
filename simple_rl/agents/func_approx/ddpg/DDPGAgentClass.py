@@ -241,6 +241,11 @@ if __name__ == "__main__":
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+    elif "maze" in args.env.lower():
+        from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
+        overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
+        state_dim = 6
+        action_dim = 2
     elif "point" in args.env.lower():
         from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
         overall_mdp = PointEnvMDP(dense_reward=args.dense_reward, render=args.render)
