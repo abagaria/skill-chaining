@@ -191,8 +191,9 @@ class SkillChaining(object):
 		return total_reward
 
 	def should_create_more_options(self):
+		local_options = self.trained_options[1:]
 		for start_state in self.init_states:
-			for option in self.trained_options:  # type: Option
+			for option in local_options:  # type: Option
 				if option.is_init_true(start_state):
 					return False
 		return len(self.trained_options) < self.max_num_options
