@@ -8,6 +8,7 @@ import torch
 from sklearn import svm
 from sklearn.covariance import EllipticEnvelope
 import itertools
+from scipy.spatial import distance
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -165,19 +166,44 @@ class Option(object):
 		states = list(itertools.chain.from_iterable(examples))
 		return np.array(states)
 
+	def get_distances_to_goal(self, position_matrix):
+		if self.parent is None:
+			goal_position = self.overall_mdp.goal_position
+			return distance.cdist(goal_position[None, ...], position_matrix, "euclidean")
+
+		distances = self.parent.initiation_classifier.decision_function(position_matrix)
+		distances[distances >= 0.] = 0.
+		return distances
+
+	@staticmethod
+	def distance_to_weights(distances):
+		weights = np.copy(distances)
+		for row in range(weights.shape[0]):
+			if weights[row] > 0.:
+				weights[row] = np.exp(-0.5 * weights[row])
+			else:
+				weights[row] = 1.
+		return weights
+
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		distances = self.get_distances_to_goal(positive_feature_matrix)
+		weights = self.distance_to_weights(distances.squeeze(0))
+
+		import matplotlib.pyplot as plt
+		plt.scatter(distances[0, :], weights)
+		plt.savefig("initiation_set_plots/dist_v_weights_{}.png".format(self.name))
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale", random_state=self.seed)
-		self.initiation_classifier.fit(positive_feature_matrix)
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		self.initiation_classifier.fit(positive_feature_matrix, sample_weight=weights)
 
 	def train_elliptic_envelope_classifier(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
-		self.initiation_classifier = EllipticEnvelope(contamination=0.2, random_state=self.seed)
+		self.initiation_classifier = EllipticEnvelope(contamination=0.2)
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_initiation_classifier(self):
@@ -234,8 +260,6 @@ class Option(object):
 
 		# For every other option, we use the negative distance to the parent's initiation set classifier
 		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
-
-		if not isinstance(dist, (int, float)): pdb.set_trace()
 
 		# Decision_function returns a negative distance for points not inside the classifier
 		subgoal_reward = 0. if dist >= 0 else dist

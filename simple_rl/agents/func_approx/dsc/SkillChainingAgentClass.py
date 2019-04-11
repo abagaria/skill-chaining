@@ -405,7 +405,7 @@ if __name__ == '__main__':
 
 	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
-							log_dir=logdir,
+							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
 							tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)

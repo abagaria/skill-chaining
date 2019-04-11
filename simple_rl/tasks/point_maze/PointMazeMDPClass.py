@@ -30,6 +30,7 @@ class PointMazeMDP(MDP):
             'maze_size_scaling': 4
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
+        self.goal_position = self.env.goal_xy
         self.reset()
 
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
