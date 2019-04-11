@@ -189,10 +189,11 @@ class Option(object):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 		distances = self.get_distances_to_goal(positive_feature_matrix)
-		weights = self.distance_to_weights(distances.squeeze(0))
+		distances = distances.squeeze(0) if len(distances.shape) > 1 else distances
+		weights = self.distance_to_weights(distances)
 
 		import matplotlib.pyplot as plt
-		plt.scatter(distances[0, :], weights)
+		plt.scatter(distances, weights)
 		plt.savefig("initiation_set_plots/dist_v_weights_{}.png".format(self.name))
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
