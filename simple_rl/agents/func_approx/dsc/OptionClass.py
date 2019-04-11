@@ -194,7 +194,7 @@ class Option(object):
 
 		import matplotlib.pyplot as plt
 		plt.scatter(distances, weights)
-		plt.savefig("initiation_set_plots/dist_v_weights_{}.png".format(self.name))
+		plt.savefig("initiation_set_plots/dist_v_weights_{}_{}.png".format(self.name, self.seed))
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")

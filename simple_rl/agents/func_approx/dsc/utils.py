@@ -131,7 +131,7 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 	plt.xlabel("x")
 	plt.ylabel("y")
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-	plt.savefig("initiation_set_plots/{}_one_class_svm.png".format(name))
+	plt.savefig("initiation_set_plots/{}_{}_one_class_svm.png".format(name, option.seed))
 	plt.close()
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
