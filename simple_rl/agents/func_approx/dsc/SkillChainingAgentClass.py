@@ -195,8 +195,10 @@ class SkillChaining(object):
 		for start_state in self.init_states:
 			for option in local_options:  # type: Option
 				if option.is_init_true(start_state):
+					print("Init state is in {}'s initiation set classifier".format(option.name))
 					return False
-		return len(self.trained_options) < self.max_num_options
+		return True
+		# return len(self.trained_options) < self.max_num_options
 
 	def skill_chaining(self, num_episodes, num_steps):
 
