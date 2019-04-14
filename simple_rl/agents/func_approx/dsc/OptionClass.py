@@ -83,6 +83,7 @@ class Option(object):
 		self.buffer_length = buffer_length
 
 		self.overall_mdp = overall_mdp
+		self.final_transitions = []
 
 		# Debug member variables
 		self.num_executions = 0

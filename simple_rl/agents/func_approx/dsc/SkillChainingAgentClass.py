@@ -19,6 +19,7 @@ from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
+from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
 
 class SkillChaining(object):
@@ -89,6 +90,14 @@ class SkillChaining(object):
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device)
 
+		# This is our policy over options
+		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
+		# We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
+		# options, this agent will predict Q-values for them as well
+		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
+										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
+										   use_double_dqn=True, writer=self.writer, device=self.device)
+
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
 		# 2. This option has an untrained initialization set and policy, which we need to train from experience
@@ -129,13 +138,76 @@ class SkillChaining(object):
 
 	def make_off_policy_updates_for_options(self, state, action, reward, next_state):
 		for option in self.trained_options: # type: Option
-			option.off_policy_update(state, action, reward, next_state)
+			option.off_policy_update(state, action, reward, next_state)\
+
+
+	def make_smdp_update(self, state, action, total_discounted_reward, next_state, option_transitions):
+		"""
+		Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
+		Args:
+			state (State): state from which we started option execution
+			action (int): option taken by the global solver
+			total_discounted_reward (float): cumulative reward from the overall SMDP update
+			next_state (State): state we landed in after executing the option
+			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
+		"""
+		assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
+
+		# TODO: Should we do intra-option learning only when the option was successful in reaching its subgoal?
+		selected_option = self.trained_options[action]  # type: Option
+		for i, transition in enumerate(option_transitions):
+			start_state = transition[0]
+			if selected_option.is_init_true(start_state):
+				option_reward = self.subgoal_reward if selected_option.is_term_true(next_state) else -1.
+				self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
+											 next_state.is_terminal(), num_steps=1)
+
+	def get_init_q_value_for_new_option(self, newly_trained_option):
+		global_solver = self.agent_over_options  # type: DQNAgent
+		state_option_pairs = newly_trained_option.final_transitions
+		q_values = []
+		for state, option_idx in state_option_pairs:
+			q_value = global_solver.get_qvalue(state.features(), option_idx)
+			q_values.append(q_value)
+		return np.max(q_values)
+
+	def _augment_agent_with_new_option(self, newly_trained_option):
+		"""
+		Train the current untrained option and initialize a new one to target.
+		Add the newly_trained_option as a new node to the Q-function over options
+		Args:
+			newly_trained_option (Option)
+		"""
+		# Add the trained option to the action set of the global solver
+		if newly_trained_option not in self.trained_options:
+			self.trained_options.append(newly_trained_option)
+
+		# Augment the global DQN with the newly trained option
+		num_actions = len(self.trained_options)
+		new_global_agent = DQNAgent(self.agent_over_options.state_size, num_actions, self.trained_options,
+									seed=self.seed, name=self.agent_over_options.name,
+									eps_start=self.agent_over_options.epsilon,
+									tensor_log=self.agent_over_options.tensor_log,
+									use_double_dqn=self.agent_over_options.use_ddqn,
+									lr=self.agent_over_options.learning_rate,
+									writer=self.writer, device=self.device)
+		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
+
+		init_q = self.get_init_q_value_for_new_option(newly_trained_option)
+		print("Initializing new option node with q value {}".format(init_q))
+		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q)
+		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q)
+
+		self.agent_over_options = new_global_agent
 
 	def act(self, state):
-		for option in self.trained_options[1:]: # type: Option
-			if option.is_init_true(state):
-				return option
-		return self.global_option
+		# Query the global Q-function to determine which option to take in the current state
+		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
+		self.agent_over_options.update_epsilon()
+
+		# Selected option
+		selected_option = self.trained_options[option_idx]  # type: Option
+		return selected_option
 
 	def take_action(self, state, step_number, episode_option_executions):
 		"""
@@ -156,6 +228,13 @@ class SkillChaining(object):
 
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
+
+		# If we triggered the untrained option's termination condition, add to its buffer of terminal transitions
+		if self.untrained_option.is_term_true(next_state) and not self.untrained_option.is_term_true(state):
+			self.untrained_option.final_transitions.append((state, selected_option.option_idx))
+
+		# Add data to train Q(s, o)
+		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
 
 		# Debug logging
 		episode_option_executions[selected_option.name] += 1
@@ -237,7 +316,7 @@ class SkillChaining(object):
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
-						self.trained_options.append(self.untrained_option)
+						self._augment_agent_with_new_option(self.untrained_option)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option
