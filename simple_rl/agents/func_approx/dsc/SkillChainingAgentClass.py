@@ -25,7 +25,8 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
-				 classifier_type="ocsvm", init_q=None, generate_plots=False, log_dir="", seed=0, tensor_log=False):
+				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
+				 log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -41,6 +42,7 @@ class SkillChaining(object):
 			classifier_type (str): Type of classifier we will train for option initiation sets
 			init_q (float): If not none, we use this value to initialize the value of a new option
 			generate_plots (bool): whether or not to produce plots in this run
+			use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -51,6 +53,7 @@ class SkillChaining(object):
 		self.subgoal_reward = subgoal_reward
 		self.enable_option_timeout = enable_option_timeout
 		self.init_q = init_q
+		self.use_full_smdp_update = use_full_smdp_update
 		self.generate_plots = generate_plots
 		self.buffer_length = buffer_length
 		self.num_subgoal_hits_required = num_subgoal_hits_required
@@ -155,14 +158,25 @@ class SkillChaining(object):
 		"""
 		assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
 
+		def get_reward(transitions):
+			gamma = self.global_option.solver.gamma
+			raw_rewards = [tt[2] for tt in transitions]
+			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
+
 		# TODO: Should we do intra-option learning only when the option was successful in reaching its subgoal?
 		selected_option = self.trained_options[action]  # type: Option
 		for i, transition in enumerate(option_transitions):
 			start_state = transition[0]
 			if selected_option.is_init_true(start_state):
-				option_reward = self.subgoal_reward if selected_option.is_term_true(next_state) else -1.
-				self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
-											 next_state.is_terminal(), num_steps=1)
+				if self.use_full_smdp_update:
+					sub_transitions = option_transitions[i:]
+					option_reward = get_reward(sub_transitions)
+					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
+												 next_state.is_terminal(), num_steps=len(sub_transitions))
+				else:
+					option_reward = self.subgoal_reward if selected_option.is_term_true(next_state) else -1.
+					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
+												 next_state.is_terminal(), num_steps=1)
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
 		global_solver = self.agent_over_options  # type: DQNAgent
@@ -472,6 +486,7 @@ if __name__ == '__main__':
 	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
+	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -510,7 +525,7 @@ if __name__ == '__main__':
 	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
-							enable_option_timeout=args.option_timeout, init_q=q0,
+							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
