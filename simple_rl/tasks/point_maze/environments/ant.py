@@ -51,26 +51,18 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
   @property
   def physics(self):
-    return self.model
+    return self.sim
 
   def _step(self, a):
     return self.step(a)
 
   def step(self, a):
-    xposbefore = self.get_body_com("torso")[0]
     self.do_simulation(a, self.frame_skip)
-    xposafter = self.get_body_com("torso")[0]
-    forward_reward = (xposafter - xposbefore) / self.dt
-    ctrl_cost = .5 * np.square(a).sum()
-    survive_reward = 1.0
-    reward = forward_reward - ctrl_cost + survive_reward
-    state = self.state_vector()
+
+    reward = -1.
     done = False
     ob = self._get_obs()
-    return ob, reward, done, dict(
-        reward_forward=forward_reward,
-        reward_ctrl=-ctrl_cost,
-        reward_survive=survive_reward)
+    return ob, reward, done, {}
 
   def _get_obs(self):
     # No cfrc observation
@@ -118,7 +110,7 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
   def get_ori(self):
     ori = [0, 1, 0, 0]
-    rot = self.model.data.qpos[self.__class__.ORI_IND:self.__class__.ORI_IND + 4]  # take the quaternion
+    rot = self.physics.data.qpos[self.__class__.ORI_IND:self.__class__.ORI_IND + 4]  # take the quaternion
     ori = q_mult(q_mult(rot, ori), q_inv(rot))[1:3]  # project onto x-y plane
     ori = math.atan2(ori[1], ori[0])
     return ori
@@ -132,4 +124,5 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     self.set_state(qpos, qvel)
 
   def get_xy(self):
-    return self.physics.data.qpos[:2]
+    qpos = np.copy(self.physics.data.qpos)
+    return qpos[:2]
