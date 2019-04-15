@@ -87,8 +87,8 @@ class Option(object):
 
 		# Debug member variables
 		self.num_executions = 0
-		self.starting_points = []
-		self.ending_points 	 = []
+		self.taken_or_not = []
+		self.n_taken_or_not = 0
 
 	def __str__(self):
 		return self.name
@@ -192,10 +192,6 @@ class Option(object):
 		distances = self.get_distances_to_goal(positive_feature_matrix)
 		distances = distances.squeeze(0) if len(distances.shape) > 1 else distances
 		weights = self.distance_to_weights(distances)
-
-		import matplotlib.pyplot as plt
-		plt.scatter(distances, weights)
-		plt.savefig("initiation_set_plots/dist_v_weights_{}_{}.png".format(self.name, self.seed))
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")

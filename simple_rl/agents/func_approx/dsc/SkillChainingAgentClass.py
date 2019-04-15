@@ -25,7 +25,7 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
-				 classifier_type="ocsvm", generate_plots=False, log_dir="", seed=0, tensor_log=False):
+				 classifier_type="ocsvm", init_q=None, generate_plots=False, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -39,6 +39,7 @@ class SkillChaining(object):
 			buffer_length (int): size of trajectories used to train initiation sets of options
 			num_subgoal_hits_required (int): number of times we need to hit an option's termination before learning
 			classifier_type (str): Type of classifier we will train for option initiation sets
+			init_q (float): If not none, we use this value to initialize the value of a new option
 			generate_plots (bool): whether or not to produce plots in this run
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
@@ -49,6 +50,7 @@ class SkillChaining(object):
 		self.max_steps = max_steps
 		self.subgoal_reward = subgoal_reward
 		self.enable_option_timeout = enable_option_timeout
+		self.init_q = init_q
 		self.generate_plots = generate_plots
 		self.buffer_length = buffer_length
 		self.num_subgoal_hits_required = num_subgoal_hits_required
@@ -171,12 +173,13 @@ class SkillChaining(object):
 			q_values.append(q_value)
 		return np.max(q_values)
 
-	def _augment_agent_with_new_option(self, newly_trained_option):
+	def _augment_agent_with_new_option(self, newly_trained_option, init_q_value):
 		"""
 		Train the current untrained option and initialize a new one to target.
 		Add the newly_trained_option as a new node to the Q-function over options
 		Args:
 			newly_trained_option (Option)
+			init_q_value (float): if given use this, else compute init_q optimistically
 		"""
 		# Add the trained option to the action set of the global solver
 		if newly_trained_option not in self.trained_options:
@@ -193,7 +196,7 @@ class SkillChaining(object):
 									writer=self.writer, device=self.device)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
-		init_q = self.get_init_q_value_for_new_option(newly_trained_option)
+		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
 		print("Initializing new option node with q value {}".format(init_q))
 		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q)
 		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q)
@@ -207,6 +210,16 @@ class SkillChaining(object):
 
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
+
+		# Debug: If it was possible to take an option, did we take it?
+		for option in self.trained_options:  # type: Option
+			if option.is_init_true(state):
+				option_taken = option.option_idx == selected_option.option_idx
+				if option.writer is not None:
+					option.writer.add_scalar("{}_taken".format(option.name), option_taken, option.n_taken_or_not)
+					option.taken_or_not.append(option_taken)
+					option.n_taken_or_not += 1
+
 		return selected_option
 
 	def take_action(self, state, step_number, episode_option_executions):
@@ -316,7 +329,7 @@ class SkillChaining(object):
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
-						self._augment_agent_with_new_option(self.untrained_option)
+						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option
@@ -395,6 +408,13 @@ class SkillChaining(object):
 		for option in self.trained_options:
 			visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
 
+		for i, o in enumerate(self.trained_options):
+			plt.subplot(1, len(self.trained_options), i + 1)
+			plt.plot(o.taken_or_not)
+			plt.title(o.name)
+		plt.savefig("value_function_plots/{}_taken_or_not_{}.png".format(args.experiment_name, self.seed))
+		plt.close()
+
 	def trained_forward_pass(self, render=True):
 		"""
 		Called when skill chaining has finished training: execute options when possible and then atomic actions
@@ -451,6 +471,7 @@ if __name__ == '__main__':
 	parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
 	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
+	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -484,11 +505,13 @@ if __name__ == '__main__':
 	print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
 	print("MDP InitState = ", overall_mdp.init_state)
 
+	q0 = 0. if args.init_q == "zero" else None
+
 	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
-							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
-							tensor_log=args.tensor_log, device=args.device)
+							enable_option_timeout=args.option_timeout, init_q=q0,
+							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
