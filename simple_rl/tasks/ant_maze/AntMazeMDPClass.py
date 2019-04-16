@@ -6,6 +6,7 @@ import pdb
 # Other imports.
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.point_maze.environments.ant_maze_env import AntMazeEnv
+from simple_rl.tasks.ant_maze.AntMazeStateClass import AntMazeState
 
 class AntMazeMDP(MDP):
     def __init__(self, seed, dense_reward=False, render=False):
@@ -27,16 +28,17 @@ class AntMazeMDP(MDP):
             'top_down_view': False,
             'manual_collision': True,
             'maze_size_scaling': 4,
-            "expose_body_coms": "torso"
+            "expose_body_coms": ["torso"]
         }
 
         self.env = AntMazeEnv(**gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy
         self.reset()
 
+        # The XML file defines actuation range b/w [-30, 30]
         self.torque_multiplier = 30.
 
-        MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
+        MDP.__init__(self, range(8), self._transition_func, self._reward_func, self.init_state)
 
     def _reward_func(self, state, action):
         assert self.is_primitive_action(action)
@@ -49,18 +51,15 @@ class AntMazeMDP(MDP):
         return reward
 
     def _transition_func(self, state, action):
-        pass
+        return self.next_state
 
     @staticmethod
     def _get_state(observation, done):
         """ Convert np obs array from gym into a State object. """
         obs = np.copy(observation)
-        position = obs[:2]
-        theta = obs[2]
-        velocity = obs[3:5]
-        theta_dot = obs[5]
-        # Ignoring obs[6] which corresponds to time elapsed in seconds
-        state = PointMazeState(position, theta, velocity, theta_dot, done)
+        position = obs[-4:-2]
+        other_features = obs[:-4]
+        state = AntMazeState(position, other_features, done)
         return state
 
     def execute_agent_action(self, action, option_idx=None):
@@ -68,7 +67,7 @@ class AntMazeMDP(MDP):
         return reward, next_state
 
     def is_goal_state(self, state):
-        if isinstance(state, AntMazeMDP):
+        if isinstance(state, AntMazeState):
             return state.is_terminal()
         position = state[:2]
         return self.env.is_in_goal_position(position)
