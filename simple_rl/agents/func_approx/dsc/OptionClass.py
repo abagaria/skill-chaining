@@ -19,7 +19,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=100, generate_plots=False, device=torch.device("cpu"), writer=None):
+				 enable_timeout=True, timeout=200, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -193,10 +193,6 @@ class Option(object):
 		distances = distances.squeeze(0) if len(distances.shape) > 1 else distances
 		weights = self.distance_to_weights(distances)
 
-		import matplotlib.pyplot as plt
-		plt.scatter(distances, weights)
-		plt.savefig("initiation_set_plots/dist_v_weights_{}_{}.png".format(self.name, self.seed))
-
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix, sample_weight=weights)
@@ -303,13 +299,14 @@ class Option(object):
 			subgoal_reward = self.get_subgoal_reward(s_prime)
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
-	def execute_option_in_mdp(self, mdp, step_number):
+	def execute_option_in_mdp(self, mdp, step_number, random_action_selection):
 		"""
 		Option main control loop.
 
 		Args:
 			mdp (MDP): environment where actions are being taken
 			step_number (int): how many steps have already elapsed in the outer control loop.
+			random_action_selection (bool): Either query option's act() method or sample from uniform random dist
 
 		Returns:
 			option_transitions (list): list of (s, a, r, s') tuples
@@ -326,7 +323,12 @@ class Option(object):
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
-				action = self.solver.act(state.features(), evaluation_mode=False)
+				if random_action_selection:
+					action = np.random.uniform(-1., 1., self.overall_mdp.action_space_size())
+				else:
+					action = self.solver.act(state.features(), evaluation_mode=False)
+					self.solver.update_epsilon()
+
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
 				self.update_option_solver(state, action, reward, next_state)
@@ -338,7 +340,6 @@ class Option(object):
 					self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
 					self.global_solver.update_epsilon()
 
-				self.solver.update_epsilon()
 				option_transitions.append((state, action, reward, next_state))
 
 				total_reward += reward

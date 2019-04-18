@@ -6,7 +6,7 @@ class AntMazeState(State):
         self.other_features = other_features
 
         features = position.tolist()
-        features.append(other_features.tolist())
+        features += other_features.tolist()
 
         State.__init__(self, data=features, is_terminal=done)
 

@@ -209,11 +209,12 @@ class SkillChaining(object):
 		selected_option = self.trained_options[option_idx]  # type: Option
 		return selected_option
 
-	def take_action(self, state, step_number, episode_option_executions):
+	def take_action(self, state, episode_number, step_number, episode_option_executions):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
 		Args:
 			state (State)
+			episode_number (int)
 			step_number (int): which iteration of the control loop we are on
 			episode_option_executions (defaultdict)
 
@@ -223,8 +224,8 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		selected_option = self.act(state)
-
-		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number)
+		uniform_random_exploration = episode_number < 5
+		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number, uniform_random_exploration)
 
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
@@ -300,7 +301,7 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				experiences, reward, state, steps = self.take_action(state, step_number, episode_option_executions)
+				experiences, reward, state, steps = self.take_action(state, episode, step_number, episode_option_executions)
 				score += reward
 				step_number += steps
 				for experience in experiences:
@@ -315,7 +316,6 @@ class SkillChaining(object):
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
-						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
 						self._augment_agent_with_new_option(self.untrained_option)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
@@ -384,6 +384,7 @@ class SkillChaining(object):
 	def perform_experiments(self):
 		for option in self.trained_options:
 			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
+			plot_one_class_initiation_classifier(self.untrained_option, args.episodes, args.experiment_name)
 		render_sampled_value_function(self.global_option.solver, episode=args.episodes, experiment_name=args.experiment_name)
 		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
@@ -458,6 +459,11 @@ if __name__ == '__main__':
 		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
 		state_dim = overall_mdp.init_state.features().shape[0]
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+	elif "ant" in args.env.lower():
+		from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
+		overall_mdp = AntMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
 	elif "maze" in args.env.lower():
 		from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
 		overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
@@ -481,11 +487,12 @@ if __name__ == '__main__':
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")
 
-	print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
+	print("Training skill chaining agent with subgoal reward {} and buffer_len = {}".format(args.subgoal_reward,
+																							args.buffer_len))
 	print("MDP InitState = ", overall_mdp.init_state)
 
 	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
-							seed=args.seed, subgoal_reward=args.subgoal_reward,
+							seed=args.seed, subgoal_reward=args.subgoal_reward, buffer_length=args.buffer_len,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
 							tensor_log=args.tensor_log, device=args.device)

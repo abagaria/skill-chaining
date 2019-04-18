@@ -27,7 +27,7 @@ class AntMazeMDP(MDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 4,
+            'maze_size_scaling': 2,
             "expose_body_coms": ["torso"]
         }
 
@@ -36,7 +36,7 @@ class AntMazeMDP(MDP):
         self.reset()
 
         # The XML file defines actuation range b/w [-30, 30]
-        self.torque_multiplier = 30.
+        self.torque_multiplier = 35.
 
         MDP.__init__(self, range(8), self._transition_func, self._reward_func, self.init_state)
 
@@ -47,7 +47,7 @@ class AntMazeMDP(MDP):
             self.env.render()
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
-            return -0.1 * self.distance_to_goal(self.next_state.position)
+            return reward + (-0.1 * self.distance_to_goal(self.next_state.position))
         return reward
 
     def _transition_func(self, state, action):
@@ -75,13 +75,12 @@ class AntMazeMDP(MDP):
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 
-    @staticmethod
-    def state_space_size():
-        return 6
+    def state_space_size(self):
+        return self.init_state.features().shape[0]
 
     @staticmethod
     def action_space_size():
-        return 2
+        return 8
 
     @staticmethod
     def is_primitive_action(action):

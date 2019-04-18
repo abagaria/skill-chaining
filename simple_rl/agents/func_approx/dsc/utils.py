@@ -125,8 +125,8 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 
 	plot_all_trajectories_in_initiation_data(option.positive_examples)
 
-	plt.xlim((-3, 11))
-	plt.ylim((-3, 11))
+	plt.xlim((-1, 5))
+	plt.ylim((-1, 5))
 
 	plt.xlabel("x")
 	plt.ylabel("y")
@@ -193,8 +193,8 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	plt.xlabel("x")
 	plt.ylabel("y")
 	plt.title("Replay Buffer Reward Heat Map")
-	plt.xlim((-3, 11))
-	plt.ylim((-3, 11))
+	plt.xlim((-1, 5))
+	plt.ylim((-1, 5))
 
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}_replay_buffer_reward_map.png".format(name))

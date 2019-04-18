@@ -15,6 +15,7 @@
 
 """Wrapper for creating the ant environment in gym_mujoco."""
 
+import pdb
 import math
 import numpy as np
 from gym import utils
@@ -57,12 +58,14 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     return self.step(a)
 
   def step(self, a):
+    pos_before = np.copy(self.get_body_com("torso")[:2])
     self.do_simulation(a, self.frame_skip)
+    pos_after = np.copy(self.get_body_com("torso")[:2])
+    forward_reward = 0.5 * np.linalg.norm(pos_after - pos_before) / self.dt
 
-    reward = -1.
     done = False
     ob = self._get_obs()
-    return ob, reward, done, {}
+    return ob, forward_reward, done, {}
 
   def _get_obs(self):
     # No cfrc observation

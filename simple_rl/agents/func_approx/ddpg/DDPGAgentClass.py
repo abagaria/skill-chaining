@@ -23,7 +23,7 @@ from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="DDPG-Agent"):
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
@@ -56,6 +56,7 @@ class DDPGAgent(Agent):
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic, weight_decay=1e-2)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
 
+        self.buffer_size = 10 * BUFFER_SIZE if "global" in self.name.lower() else BUFFER_SIZE
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
         self.epsilon = 1.0
 
@@ -70,15 +71,14 @@ class DDPGAgent(Agent):
 
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
-        noise = self.noise()
+        noise = np.random.normal(0., self.epsilon, size=self.action_size)
         if not evaluation_mode:
-            action += (noise * self.epsilon)
+            action += noise #(noise * self.epsilon)
         action = np.clip(action, -1., 1.)
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
-            self.writer.add_scalar("{}_action_x".format(self.name), action[0], self.n_acting_iterations)
-            self.writer.add_scalar("{}_action_y".format(self.name), action[1], self.n_acting_iterations)
+            self.writer.add_scalar("{}_action_norm".format(self.name), np.linalg.norm(action), self.n_acting_iterations)
             self.writer.add_scalar("{}_state_x".format(self.name), state[0], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_y".format(self.name), state[1], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_xdot".format(self.name), state[2], self.n_acting_iterations)
@@ -194,14 +194,21 @@ def train(agent, mdp, episodes, steps):
         state = deepcopy(mdp.init_state)
         score = 0.
         for step in range(steps):
-            action = agent.act(state.features())
+            if episode < 5:
+                action = np.random.uniform(-1., 1., mdp.action_space_size())
+            else:
+                action = agent.act(state.features())
+                agent.update_epsilon()
             reward, next_state = mdp.execute_agent_action(action)
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-            agent.update_epsilon()
             state = next_state
             score += reward
 
+            if agent.writer is not None:
+                agent.writer.add_scalar("Raw Rewards", reward, step + (episode * steps))
+
             if state.is_terminal():
+                print("Encountered terminal state")
                 break
 
         last_10_scores.append(score)
@@ -218,7 +225,7 @@ def train(agent, mdp, episodes, steps):
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
-            render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
+            # render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
 
     return per_episode_scores, per_episode_durations
 
@@ -244,6 +251,11 @@ if __name__ == "__main__":
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+    elif "ant" in args.env.lower():
+        from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
+        overall_mdp = AntMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
     elif "maze" in args.env.lower():
         from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
         overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
@@ -263,7 +275,7 @@ if __name__ == "__main__":
 
     print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
 
-    agent_name = overall_mdp.env_name + "_ddpg_agent"
+    agent_name = overall_mdp.env_name + "_global_ddpg_agent"
     ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
