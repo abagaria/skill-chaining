@@ -52,9 +52,10 @@ class Critic(nn.Module):
 
 
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, h1=HIDDEN_1, h2=HIDDEN_2, device=torch.device("cpu"), seed=0):
+    def __init__(self, state_dim, action_dim, action_bound, h1=HIDDEN_1, h2=HIDDEN_2, device=torch.device("cpu"), seed=0):
         super(Actor, self).__init__()
         self.device = device
+        self.action_bound = action_bound
 
         self.linear1 = nn.Linear(state_dim, h1)
         self.linear2 = nn.Linear(h1, h2)
@@ -79,7 +80,7 @@ class Actor(nn.Module):
         x = self.norm1(x)
         x = self.relu(self.linear2(x))
         x = self.norm2(x)
-        x = self.tanh(self.linear3(x))
+        x = self.action_bound * self.tanh(self.linear3(x))
         return x
 
     def get_action(self, state):

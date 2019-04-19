@@ -22,10 +22,11 @@ from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 
 
 class DDPGAgent(Agent):
-    def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
+    def __init__(self, state_size, action_size, action_bound, seed, device, lr_actor=LRA, lr_critic=LRC,
                  batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
+        self.action_bound = action_bound
         self.actor_learning_rate = lr_actor
         self.critic_learning_rate = lr_critic
         self.batch_size = batch_size
@@ -39,10 +40,10 @@ class DDPGAgent(Agent):
         self.name = name
 
         self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
-        self.actor = Actor(state_size, action_size, device=device)
+        self.actor = Actor(state_size, action_size, action_bound, device=device)
         self.critic = Critic(state_size, action_size, device=device)
 
-        self.target_actor = Actor(state_size, action_size, device=device)
+        self.target_actor = Actor(state_size, action_size, action_bound, device=device)
         self.target_critic = Critic(state_size, action_size, device=device)
 
         # Initialize actor target network
@@ -73,8 +74,8 @@ class DDPGAgent(Agent):
         action = self.actor.get_action(state)
         noise = np.random.normal(0., self.epsilon, size=self.action_size)
         if not evaluation_mode:
-            action += noise #(noise * self.epsilon)
-        action = np.clip(action, -1., 1.)
+            action += noise
+        action = np.clip(action, -self.action_bound, self.action_bound)
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
@@ -188,6 +189,8 @@ def train(agent, mdp, episodes, steps):
     per_episode_durations = []
     last_10_scores = deque(maxlen=50)
     last_10_durations = deque(maxlen=50)
+    action_bound = mdp.action_space_bound()
+    action_size = mdp.action_space_size()
 
     for episode in range(episodes):
         mdp.reset()
@@ -195,7 +198,7 @@ def train(agent, mdp, episodes, steps):
         score = 0.
         for step in range(steps):
             if episode < 5:
-                action = np.random.uniform(-1., 1., mdp.action_space_size())
+                action = np.random.uniform(-action_bound, action_bound, action_size)
             else:
                 action = agent.act(state.features())
                 agent.update_epsilon()
@@ -256,6 +259,7 @@ if __name__ == "__main__":
         overall_mdp = AntMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
+        max_action = overall_mdp.action_space_bound()
     elif "maze" in args.env.lower():
         from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
         overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
@@ -276,7 +280,7 @@ if __name__ == "__main__":
     print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
 
     agent_name = overall_mdp.env_name + "_global_ddpg_agent"
-    ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
+    ddpg_agent = DDPGAgent(state_dim, action_dim, max_action, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
     save_model(ddpg_agent, episode_number=args.episodes, best=False)

@@ -62,17 +62,16 @@ class Option(object):
 		else:
 			self.option_idx = self.parent.option_idx + 1
 
-		print("Creating {} with enable_timeout={}".format(name, enable_timeout))
-
 		random.seed(seed)
 		np.random.seed(seed)
 
 		state_size = overall_mdp.state_space_size()
 		action_size = overall_mdp.action_space_size()
+		action_bound = overall_mdp.action_space_bound()
 
 		solver_name = "{}_ddpg_agent".format(self.name)
-		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
-		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=(writer is not None), writer=writer, name=solver_name)
+		self.global_solver = DDPGAgent(state_size, action_size, action_bound, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
+		self.solver = DDPGAgent(state_size, action_size, action_bound, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=(writer is not None), writer=writer, name=solver_name)
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -81,6 +80,10 @@ class Option(object):
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
+
+		print("Creating {} with enable_timeout={}, buffer_len={}, subgoal_hits={}".format(name, enable_timeout,
+																						  self.buffer_length,
+																						  self.num_subgoal_hits_required))
 
 		self.overall_mdp = overall_mdp
 		self.final_transitions = []
@@ -118,13 +121,13 @@ class Option(object):
 			my_param.data.copy_(global_param.data)
 
 		# Not using off_policy_update() because we have numpy arrays not state objects here
-		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
-			if self.is_init_true(state):
-				if self.is_term_true(next_state):
-					self.solver.step(state, action, self.subgoal_reward, next_state, True)
-				else:
-					subgoal_reward = self.get_subgoal_reward(next_state)
-					self.solver.step(state, action, subgoal_reward, next_state, done)
+		# for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
+		# 	if self.is_init_true(state):
+		# 		if self.is_term_true(next_state):
+		# 			self.solver.step(state, action, self.subgoal_reward, next_state, True)
+		# 		else:
+		# 			subgoal_reward = self.get_subgoal_reward(next_state)
+		# 			self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":

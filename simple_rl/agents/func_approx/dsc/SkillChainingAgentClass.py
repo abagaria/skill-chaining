@@ -119,6 +119,7 @@ class SkillChaining(object):
 
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
+									  max_steps=self.max_steps,
 									  lr_actor=parent_option.solver.actor_learning_rate,
 									  lr_critic=parent_option.solver.critic_learning_rate,
 									  ddpg_batch_size=parent_option.solver.batch_size,
@@ -193,7 +194,7 @@ class SkillChaining(object):
 									writer=self.writer, device=self.device)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
-		init_q = self.get_init_q_value_for_new_option(newly_trained_option)
+		init_q = 0  #self.get_init_q_value_for_new_option(newly_trained_option)
 		print("Initializing new option node with q value {}".format(init_q))
 		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q)
 		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q)
@@ -201,13 +202,17 @@ class SkillChaining(object):
 		self.agent_over_options = new_global_agent
 
 	def act(self, state):
-		# Query the global Q-function to determine which option to take in the current state
-		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
-		self.agent_over_options.update_epsilon()
-
-		# Selected option
-		selected_option = self.trained_options[option_idx]  # type: Option
-		return selected_option
+		for option in self.trained_options[1:]:  # type: Option
+			if option.is_init_true(state):
+				return option
+		return self.global_option
+		# # Query the global Q-function to determine which option to take in the current state
+		# option_idx = self.agent_over_options.act(state.features(), train_mode=True)
+		# self.agent_over_options.update_epsilon()
+		#
+		# # Selected option
+		# selected_option = self.trained_options[option_idx]  # type: Option
+		# return selected_option
 
 	def take_action(self, state, episode_number, step_number, episode_option_executions):
 		"""
@@ -224,7 +229,7 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		selected_option = self.act(state)
-		uniform_random_exploration = episode_number < 5
+		uniform_random_exploration = self.should_create_more_options()
 		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number, uniform_random_exploration)
 
 		option_reward = self.get_reward_from_experiences(option_transitions)
@@ -235,7 +240,7 @@ class SkillChaining(object):
 			self.untrained_option.final_transitions.append((state, selected_option.option_idx))
 
 		# Add data to train Q(s, o)
-		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
+		# self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
 
 		# Debug logging
 		episode_option_executions[selected_option.name] += 1
@@ -275,7 +280,6 @@ class SkillChaining(object):
 		for start_state in self.init_states:
 			for option in local_options:  # type: Option
 				if option.is_init_true(start_state):
-					print("Init state is in {}'s initiation set classifier".format(option.name))
 					return False
 		return True
 		# return len(self.trained_options) < self.max_num_options
@@ -316,7 +320,9 @@ class SkillChaining(object):
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
-						self._augment_agent_with_new_option(self.untrained_option)
+						# self._augment_agent_with_new_option(self.untrained_option)
+						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+						self.trained_options.append(self.untrained_option)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option
