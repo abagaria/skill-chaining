@@ -304,6 +304,11 @@ class SkillChaining(object):
 			state_buffer = []
 			episode_option_executions = defaultdict(lambda : 0)
 
+			if episode > 0 and (episode % 10 == 0):
+				self.mdp.render = True
+			else:
+				self.mdp.render = False
+
 			while step_number < num_steps:
 				experiences, reward, state, steps = self.take_action(state, episode, step_number, episode_option_executions)
 				score += reward
