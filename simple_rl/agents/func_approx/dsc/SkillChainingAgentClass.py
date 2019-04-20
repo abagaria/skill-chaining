@@ -411,12 +411,12 @@ class SkillChaining(object):
 	def perform_experiments(self):
 		for option in self.trained_options:
 			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
-		render_sampled_value_function(self.global_option.solver, episode=args.episodes, experiment_name=args.experiment_name)
+
 		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
 			plt.plot(self.option_qvalues[o.name])
 			plt.title(o.name)
-		plt.savefig("value_function_plots/{}_sampled_q_so_{}.png".format(args.experiment_name, self.seed))
+		plt.savefig("value_function_plots/{}/sampled_q_so_{}.png".format(args.experiment_name, self.seed))
 		plt.close()
 
 		for option in self.trained_options:
@@ -516,6 +516,8 @@ if __name__ == '__main__':
 	create_log_dir("saved_runs")
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")
+	create_log_dir("value_function_plots/{}".format(args.experiment_name))
+	create_log_dir("value_function_plots/{}".format(args.experiment_name))
 
 	print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
 	print("MDP InitState = ", overall_mdp.init_state)
