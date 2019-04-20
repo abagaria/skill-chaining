@@ -104,7 +104,7 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
 	plt.colorbar()
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
-	plt.savefig("value_function_plots/{}_value_function.png".format(name))
+	plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
 	plt.close()
 
 def make_meshgrid(x, y, h=.02):
@@ -131,7 +131,7 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 	plt.xlabel("x")
 	plt.ylabel("y")
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-	plt.savefig("initiation_set_plots/{}_{}_one_class_svm.png".format(name, option.seed))
+	plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
 	plt.close()
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
@@ -156,7 +156,7 @@ def visualize_dqn_replay_buffer(solver, experiment_name=""):
 
 	plt.legend()
 	plt.title("# transitions = {}".format(len(solver.replay_buffer)))
-	plt.savefig("value_function_plots/{}_replay_buffer_analysis_{}.png".format(solver.name, experiment_name))
+	plt.savefig("value_function_plots/{}/{}_replay_buffer_analysis.png".format(experiment_name, solver.name))
 	plt.close()
 
 def visualize_smdp_updates(global_solver, experiment_name=""):
@@ -179,7 +179,7 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
 	plt.scatter(negative_end_x, negative_end_y, alpha=0.6, label="-s'")
 	plt.legend()
 	plt.title("# updates = {}".format(len(smdp_transitions)))
-	plt.savefig("value_function_plots/DQN_SMDP_Updates_{}.png".format(experiment_name))
+	plt.savefig("value_function_plots/{}/DQN_SMDP_Updates.png".format(experiment_name))
 	plt.close()
 
 def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name=""):
@@ -197,5 +197,5 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	plt.ylim((-1, 5))
 
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
-	plt.savefig("value_function_plots/{}_replay_buffer_reward_map.png".format(name))
+	plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
 	plt.close()
