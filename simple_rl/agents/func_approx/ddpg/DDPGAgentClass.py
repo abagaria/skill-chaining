@@ -72,14 +72,15 @@ class DDPGAgent(Agent):
 
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
-        noise = np.random.normal(0., self.epsilon, size=self.action_size)
+        noise = self.action_bound * np.random.normal(0., self.epsilon, size=self.action_size)
         if not evaluation_mode:
             action += noise
         action = np.clip(action, -self.action_bound, self.action_bound)
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
-            self.writer.add_scalar("{}_action_norm".format(self.name), np.linalg.norm(action), self.n_acting_iterations)
+            self.writer.add_scalar("{}_action_max".format(self.name), np.max(action), self.n_acting_iterations)
+            self.writer.add_scalar("{}_action_min".format(self.name), np.min(action), self.n_acting_iterations)
             self.writer.add_scalar("{}_state_x".format(self.name), state[0], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_y".format(self.name), state[1], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_xdot".format(self.name), state[2], self.n_acting_iterations)
@@ -197,7 +198,7 @@ def train(agent, mdp, episodes, steps):
         state = deepcopy(mdp.init_state)
         score = 0.
         for step in range(steps):
-            if episode < 5:
+            if episode < 1:
                 action = np.random.uniform(-action_bound, action_bound, action_size)
             else:
                 action = agent.act(state.features())

@@ -492,7 +492,7 @@ if __name__ == '__main__':
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")
 	create_log_dir("value_function_plots/{}".format(args.experiment_name))
-	create_log_dir("value_function_plots/{}".format(args.experiment_name))
+	create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
 
 	print("Training skill chaining agent with subgoal reward {} and buffer_len = {}".format(args.subgoal_reward,
 																							args.buffer_len))
