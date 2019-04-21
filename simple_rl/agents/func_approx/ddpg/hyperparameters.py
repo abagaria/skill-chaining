@@ -11,5 +11,6 @@ HIDDEN_2 = 300
 MAX_EPISODES = 50000
 MAX_STEPS = 200
 GLOBAL_LINEAR_EPS_DECAY = 1e-6  # complete decay over 1 million transitions
-OPTION_LINEAR_EPS_DECAY = 5e-5  # complete decay over 5 hundred thousand transitions
+OPTION_LINEAR_EPS_DECAY = 3e-6  # complete decay over 5 hundred thousand transitions
+EPS_MIN = 0.1                   # lowest that epsilon will be to always have some exploration noise
 PRINT_EVERY = 10
