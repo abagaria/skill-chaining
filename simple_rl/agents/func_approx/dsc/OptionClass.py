@@ -197,7 +197,7 @@ class Option(object):
 		weights = self.distance_to_weights(distances)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix, sample_weight=weights)
 
 	def train_elliptic_envelope_classifier(self):
