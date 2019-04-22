@@ -58,7 +58,7 @@ class DDPGAgent(Agent):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
 
         self.buffer_size = 10 * BUFFER_SIZE if "global" in self.name.lower() else BUFFER_SIZE
-        self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
+        self.replay_buffer = ReplayBuffer(buffer_size=self.buffer_size, name_buffer="{}_replay_buffer".format(name))
         self.epsilon = 1.0
 
         # Tensorboard logging
