@@ -18,8 +18,6 @@ class Critic(nn.Module):
         self.linear2 = nn.Linear(h1 + action_dim, h2)
         self.linear3 = nn.Linear(h2, 1)
 
-        self.linear3.weight.data.uniform_(-0.003, 0.003)
-
         self.relu = nn.ReLU()
 
         self.seed = seed
@@ -60,8 +58,6 @@ class Actor(nn.Module):
         self.linear1 = nn.Linear(state_dim, h1)
         self.linear2 = nn.Linear(h1, h2)
         self.linear3 = nn.Linear(h2, action_dim)
-
-        self.linear3.weight.data.uniform_(-0.003, 0.003)
 
         # We will use batch norm to normalize the input to the tanh non-linearity
         self.norm1 = nn.BatchNorm1d(h1)

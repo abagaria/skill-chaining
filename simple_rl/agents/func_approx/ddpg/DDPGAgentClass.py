@@ -54,7 +54,7 @@ class DDPGAgent(Agent):
         for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
             target_param.data.copy_(param.data)
 
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic, weight_decay=1e-2)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=lr_critic)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
 
         self.buffer_size = 10 * BUFFER_SIZE if "global" in self.name.lower() else BUFFER_SIZE
@@ -72,6 +72,7 @@ class DDPGAgent(Agent):
 
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
+        policy_action = np.copy(action)
         noise = self.action_bound * np.random.normal(0., self.epsilon, size=self.action_size)
         if not evaluation_mode:
             action += noise
@@ -79,6 +80,8 @@ class DDPGAgent(Agent):
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
+            self.writer.add_scalar("{}_policy_max".format(self.name), np.max(policy_action), self.n_acting_iterations)
+            self.writer.add_scalar("{}_policy_min".format(self.name), np.min(policy_action), self.n_acting_iterations)
             self.writer.add_scalar("{}_action_max".format(self.name), np.max(action), self.n_acting_iterations)
             self.writer.add_scalar("{}_action_min".format(self.name), np.min(action), self.n_acting_iterations)
             self.writer.add_scalar("{}_state_x".format(self.name), state[0], self.n_acting_iterations)

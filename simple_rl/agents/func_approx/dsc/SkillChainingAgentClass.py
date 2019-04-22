@@ -23,13 +23,14 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
 
 class SkillChaining(object):
-	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
+	def __init__(self, mdp, init_steps, final_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", generate_plots=False, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
-			max_steps (int): Number of time steps allowed per episode of the MDP
+			init_steps (int): Number of time steps allowed per episode of the MDP during pure exploration phase
+			final_steps (int): Number of time steps allowed per episode of the MDP after pure exploration is done
 			lr_actor (float): Learning rate for DDPG Actor
 			lr_critic (float): Learning rate for DDPG Critic
 			ddpg_batch_size (int): Batch size for DDPG agents
@@ -46,7 +47,9 @@ class SkillChaining(object):
 		"""
 		self.mdp = mdp
 		self.original_actions = deepcopy(mdp.actions)
-		self.max_steps = max_steps
+		self.init_max_steps = init_steps
+		self.final_max_steps = final_steps
+		self.max_steps = init_steps
 		self.subgoal_reward = subgoal_reward
 		self.enable_option_timeout = enable_option_timeout
 		self.generate_plots = generate_plots
@@ -102,6 +105,8 @@ class SkillChaining(object):
 		# 1. This option has the termination set which defines our current goal trigger
 		# 2. This option has an untrained initialization set and policy, which we need to train from experience
 		self.untrained_option = goal_option
+
+		self.random_exploration = True
 
 		# List of init states seen while running this algorithm
 		self.init_states = []
@@ -229,9 +234,15 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		selected_option = self.act(state)
-		uniform_random_exploration = self.should_create_more_options()
-		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number, uniform_random_exploration)
 
+		# Decide if want to do pure exploration. If we are done with that phase, then we can drop
+		# the number of steps per episode to avoid extremely large training times
+		random_exploration = self.should_create_more_options()
+		if self.random_exploration and not random_exploration:
+			self.random_exploration = False
+			self.change_max_steps(self.final_max_steps)
+
+		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number, self.random_exploration)
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
 
@@ -284,7 +295,15 @@ class SkillChaining(object):
 		return True
 		# return len(self.trained_options) < self.max_num_options
 
-	def skill_chaining(self, num_episodes, num_steps):
+	def change_max_steps(self, new_max_steps):
+		print("Changing max_steps from {} to {}".format(self.max_steps, new_max_steps))
+		self.max_steps = new_max_steps
+		if self.untrained_option is not None:
+			self.untrained_option.max_steps = new_max_steps
+		for option in self.trained_options:  # type: Option
+			option.max_steps = new_max_steps
+
+	def skill_chaining(self, num_episodes):
 
 		# For logging purposes
 		per_episode_scores = []
@@ -304,7 +323,7 @@ class SkillChaining(object):
 			state_buffer = []
 			episode_option_executions = defaultdict(lambda : 0)
 
-			while step_number < num_steps:
+			while step_number < self.max_steps:
 				experiences, reward, state, steps = self.take_action(state, episode, step_number, episode_option_executions)
 				score += reward
 				step_number += steps
@@ -313,7 +332,7 @@ class SkillChaining(object):
 					state_buffer.append(experience[0])
 
 				# Don't forget to add the last s' to the buffer
-				if state.is_terminal() or (step_number == num_steps - 1):
+				if state.is_terminal() or (step_number == self.max_steps - 1):
 					state_buffer.append(state)
 
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
@@ -442,7 +461,6 @@ if __name__ == '__main__':
 	parser.add_argument("--pretrained", type=bool, help="whether or not to load pretrained options", default=False)
 	parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
 	parser.add_argument("--episodes", type=int, help="# episodes", default=200)
-	parser.add_argument("--steps", type=int, help="# steps", default=1000)
 	parser.add_argument("--subgoal_reward", type=float, help="SkillChaining subgoal reward", default=0.)
 	parser.add_argument("--lr_a", type=float, help="DDPG Actor learning rate", default=1e-4)
 	parser.add_argument("--lr_c", type=float, help="DDPG Critic learning rate", default=1e-3)
@@ -453,6 +471,9 @@ if __name__ == '__main__':
 	parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
 	parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
 	parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
+	parser.add_argument("--reward_scale", type=float, help="Reward scale for MDP", default=1.0)
+	parser.add_argument("--init_steps", type=int, help="# steps during pure exploration phase", default=25000)
+	parser.add_argument("--final_steps", type=int, help="# steps after done with pure exploration", default=5000)
 	parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
 	parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
 	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
@@ -466,7 +487,7 @@ if __name__ == '__main__':
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
 	elif "ant" in args.env.lower():
 		from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
-		overall_mdp = AntMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
+		overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed, render=args.render)
 		state_dim = overall_mdp.state_space_size()
 		action_dim = overall_mdp.action_space_size()
 	elif "maze" in args.env.lower():
@@ -498,12 +519,12 @@ if __name__ == '__main__':
 																							args.buffer_len))
 	print("MDP InitState = ", overall_mdp.init_state)
 
-	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
+	chainer = SkillChaining(overall_mdp, args.init_steps, args.final_steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
 							seed=args.seed, subgoal_reward=args.subgoal_reward, buffer_length=args.buffer_len,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
 							tensor_log=args.tensor_log, device=args.device)
-	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes)
 
 	# Log performance metrics
 	chainer.save_all_models()
