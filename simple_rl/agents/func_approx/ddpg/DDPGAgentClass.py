@@ -231,7 +231,7 @@ def train(agent, mdp, episodes, steps):
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
             # render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
 
-    visualize_next_state_reward_heat_map(agent.solver, episodes, args.experiment_name)
+    visualize_next_state_reward_heat_map(agent, episodes, args.experiment_name)
 
     return per_episode_scores, per_episode_durations
 
