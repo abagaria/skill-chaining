@@ -50,7 +50,7 @@ class AntMazeMDP(MDP):
             self.env.render()
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
-            if next_state.is_terminal():
+            if self.next_state.is_terminal():
                 return 0.
             return -self.reward_scale * self.distance_to_goal(self.next_state.position)
         return reward
