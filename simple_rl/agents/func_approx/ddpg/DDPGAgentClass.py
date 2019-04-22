@@ -238,6 +238,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--dense_reward", type=bool, help="Whether to use dense/sparse rewards", default=False)
+    parser.add_argument("--reward_scale", type=float, help="Reward scale for MDP", default=1.0)
     parser.add_argument("--env", type=str, help="name of gym environment", default="point-env")
     parser.add_argument("--difficulty", type=str, help="Control suite env difficulty", default="easy")
     parser.add_argument("--render", type=bool, help="render environment training", default=False)
@@ -257,7 +258,7 @@ if __name__ == "__main__":
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
     elif "ant" in args.env.lower():
         from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
-        overall_mdp = AntMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
+        overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
         max_action = overall_mdp.action_space_bound()

@@ -9,9 +9,10 @@ from simple_rl.tasks.point_maze.environments.ant_maze_env import AntMazeEnv
 from simple_rl.tasks.ant_maze.AntMazeStateClass import AntMazeState
 
 class AntMazeMDP(MDP):
-    def __init__(self, seed, dense_reward=False, render=False):
+    def __init__(self, seed, reward_scale=1.0, dense_reward=False, render=False):
         self.env_name = "ant_maze"
         self.seed = seed
+        self.reward_scale = reward_scale
         self.dense_reward = dense_reward
         self.render = render
 
@@ -38,6 +39,8 @@ class AntMazeMDP(MDP):
         # The XML file defines actuation range b/w [-30, 30]
         self.action_bound = 30.
 
+        print("Created {} with reward scale = {}".format(self.env_name, self.reward_scale))
+
         MDP.__init__(self, range(8), self._transition_func, self._reward_func, self.init_state)
 
     def _reward_func(self, state, action):
@@ -47,7 +50,9 @@ class AntMazeMDP(MDP):
             self.env.render()
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
-            return -0.1 * self.distance_to_goal(self.next_state.position)
+            if next_state.is_terminal():
+                return 0.
+            return -self.reward_scale * self.distance_to_goal(self.next_state.position)
         return reward
 
     def _transition_func(self, state, action):
