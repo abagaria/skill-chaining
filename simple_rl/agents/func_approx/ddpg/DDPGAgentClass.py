@@ -115,7 +115,7 @@ class DDPGAgent(Agent):
         Q_expected = self.critic(states, actions)
 
         self.critic_optimizer.zero_grad()
-        critic_loss = F.mse_loss(Q_expected, Q_targets)
+        critic_loss = F.smooth_l1_loss(Q_expected, Q_targets)
         critic_loss.backward()
         self.critic_optimizer.step()
 

@@ -257,7 +257,10 @@ class Option(object):
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
-			return -0.1 * self.overall_mdp.distance_to_goal(position_vector)
+			goal_distance = self.overall_mdp.distance_to_goal(position_vector)
+			if goal_distance <= 0.6:
+				return 0.
+			return -self.overall_mdp.reward_scale * goal_distance
 
 		# For every other option, we use the negative distance to the parent's initiation set classifier
 		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
@@ -327,7 +330,11 @@ class Option(object):
 					step_number < self.max_steps and num_steps < self.timeout:
 
 				if random_action_selection:
-					action = np.random.uniform(-self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_size())
+					if np.random.random() < 0.75:
+						action = np.random.uniform(-self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_size())
+					else:
+						action = self.solver.act(state.features(), evaluation_mode=False)
+						action += (self.overall_mdp.action_space_bound() * np.random.normal(0., 0.7, self.overall_mdp.action_space_size()))
 				else:
 					action = self.solver.act(state.features(), evaluation_mode=False)
 					self.solver.update_epsilon()
