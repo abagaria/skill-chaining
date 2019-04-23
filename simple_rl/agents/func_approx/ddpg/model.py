@@ -28,7 +28,7 @@ class Critic(nn.Module):
     def forward(self, state, action):
         x = self.relu(self.linear1(state))
         x = self.relu(self.linear2(torch.cat([x, action], 1)))
-        x = self.linear3(x)
+        x = self.linear3(x).clamp(max=0.)
 
         return x
 

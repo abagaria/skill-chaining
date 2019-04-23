@@ -348,7 +348,8 @@ class Option(object):
 
 				if self.name != "global_option":
 					self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-					self.global_solver.update_epsilon()
+					if not random_action_selection:
+						self.global_solver.update_epsilon()
 
 				option_transitions.append((state, action, reward, next_state))
 

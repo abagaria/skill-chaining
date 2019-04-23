@@ -73,9 +73,9 @@ class DDPGAgent(Agent):
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
         policy_action = np.copy(action)
-        noise = self.action_bound * np.random.normal(0., self.epsilon, size=self.action_size)
-        if not evaluation_mode:
-            action += noise
+        epsilon = self.epsilon if not evaluation_mode else EPS_MIN
+        noise = self.action_bound * np.random.normal(0., epsilon, size=self.action_size)
+        action += noise
         action = np.clip(action, -self.action_bound, self.action_bound)
 
         if self.writer is not None:
