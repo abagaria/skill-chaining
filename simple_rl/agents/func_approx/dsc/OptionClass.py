@@ -217,9 +217,9 @@ class Option(object):
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		self.initialize_with_global_ddpg()
+		# self.initialize_with_global_ddpg()
 
-		self.solver.epsilon = self.global_solver.epsilon
+		# self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
 		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
