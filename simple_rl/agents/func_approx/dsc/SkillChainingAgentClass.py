@@ -60,6 +60,7 @@ class SkillChaining(object):
 		self.device = torch.device(device)
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
+		self.dense_reward = mdp.dense_reward
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -77,7 +78,8 @@ class SkillChaining(object):
 									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-									generate_plots=self.generate_plots, writer=self.writer, device=self.device)
+									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+									dense_reward=self.dense_reward)
 
 		self.trained_options = [self.global_option]
 
@@ -91,7 +93,8 @@ class SkillChaining(object):
 							 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-							 generate_plots=self.generate_plots, writer=self.writer, device=self.device)
+							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+							 dense_reward=self.dense_reward)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -132,9 +135,9 @@ class SkillChaining(object):
 									  buffer_length=self.buffer_length,
 									  classifier_type=self.classifier_type,
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
-									  seed=self.seed, parent=parent_option,
+									  seed=self.seed, parent=parent_option,  max_steps=self.max_steps,
 									  enable_timeout=self.enable_option_timeout,
-									  writer=self.writer, device=self.device)
+									  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"

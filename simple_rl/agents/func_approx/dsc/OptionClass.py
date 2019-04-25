@@ -19,7 +19,8 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=200, generate_plots=False, device=torch.device("cpu"), writer=None):
+				 dense_reward=False, enable_timeout=True, timeout=100, generate_plots=False, device=torch.device("cpu"),
+				 writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -33,6 +34,7 @@ class Option(object):
 			max_steps (int)
 			seed (int)
 			parent (Option)
+			dense_reward (bool)
 			enable_timeout (bool)
 			timeout (int)
 			generate_plots (bool)
@@ -44,6 +46,7 @@ class Option(object):
 		self.max_steps = max_steps
 		self.seed = seed
 		self.parent = parent
+		self.dense_reward = dense_reward
 		self.enable_timeout = enable_timeout
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
@@ -184,7 +187,7 @@ class Option(object):
 		weights = np.copy(distances)
 		for row in range(weights.shape[0]):
 			if weights[row] > 0.:
-				weights[row] = np.exp(-0.5 * weights[row])
+				weights[row] = np.exp(-1. * weights[row])
 			else:
 				weights[row] = 1.
 		return weights
@@ -251,6 +254,10 @@ class Option(object):
 		if self.is_term_true(state):
 			print("~~~~~ Warning: subgoal query at goal ~~~~~")
 			return 0.
+
+		# Return step penalty in sparse reward domain
+		if not self.dense_reward:
+			return -1.
 
 		# Rewards based on position only
 		position_vector = state.features()[:2] if isinstance(state, State) else state[:2]
