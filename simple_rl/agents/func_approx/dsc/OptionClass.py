@@ -330,7 +330,7 @@ class Option(object):
 					step_number < self.max_steps and num_steps < self.timeout:
 
 				if random_action_selection:
-					if np.random.random() < 0.75:
+					if np.random.random() < 0.95:
 						action = np.random.uniform(-self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_size())
 					else:
 						action = self.solver.act(state.features(), evaluation_mode=False)
