@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
     print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
 
-    agent_name = overall_mdp.env_name + "_ddpg_agent"
+    agent_name = overall_mdp.env_name + "_global_ddpg_agent"
     ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
