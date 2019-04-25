@@ -188,7 +188,7 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	x = np.array([state[0] for state in next_states])
 	y = np.array([state[1] for state in next_states])
 
-	plt.scatter(x, y, None, c=rewards, cmap=plt.cm.bone)
+	plt.scatter(x, y, None, c=rewards, cmap=plt.cm.coolwarm)
 	plt.colorbar()
 	plt.xlabel("x")
 	plt.ylabel("y")
