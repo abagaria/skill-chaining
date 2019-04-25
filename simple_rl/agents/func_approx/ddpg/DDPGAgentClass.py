@@ -218,7 +218,6 @@ def train(agent, mdp, episodes, steps):
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
-            render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
 
     visualize_next_state_reward_heat_map(agent, args.episodes, args.experiment_name)
 
