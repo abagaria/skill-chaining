@@ -18,7 +18,7 @@ from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlen
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
+from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function, visualize_next_state_reward_heat_map
 
 
 class DDPGAgent(Agent):
@@ -219,6 +219,8 @@ def train(agent, mdp, episodes, steps):
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
             render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
+
+    visualize_next_state_reward_heat_map(agent, args.episodes, args.experiment_name)
 
     return per_episode_scores, per_episode_durations
 
