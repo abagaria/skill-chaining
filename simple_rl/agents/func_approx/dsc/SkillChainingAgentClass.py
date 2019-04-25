@@ -135,7 +135,7 @@ class SkillChaining(object):
 									  buffer_length=self.buffer_length,
 									  classifier_type=self.classifier_type,
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
-									  seed=self.seed, parent=parent_option,  max_steps=self.max_steps,
+									  seed=self.seed, parent=parent_option,
 									  enable_timeout=self.enable_option_timeout,
 									  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
 
