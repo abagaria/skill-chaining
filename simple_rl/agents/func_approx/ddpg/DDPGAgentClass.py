@@ -23,7 +23,7 @@ from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="DDPG-Agent"):
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
