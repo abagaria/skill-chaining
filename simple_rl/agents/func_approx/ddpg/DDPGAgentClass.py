@@ -239,6 +239,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     log_dir = create_log_dir(args.experiment_name)
+    create_log_dir("saved_runs")
+    create_log_dir("value_function_plots")
+    create_log_dir("initiation_set_plots")
+    create_log_dir("value_function_plots/{}".format(args.experiment_name))
+    create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
 
     if "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
