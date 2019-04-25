@@ -182,12 +182,12 @@ class Option(object):
 		distances[distances >= 0.] = 0.
 		return distances
 
-	@staticmethod
-	def distance_to_weights(distances):
+	def distance_to_weights(self, distances):
 		weights = np.copy(distances)
 		for row in range(weights.shape[0]):
 			if weights[row] > 0.:
-				weights[row] = np.exp(-1. * weights[row])
+				decay_factor = -0.5 if self.overall_mdp.dense_reward else -1.
+				weights[row] = np.exp(decay_factor * weights[row])
 			else:
 				weights[row] = 1.
 		return weights
