@@ -45,15 +45,22 @@ class AntMazeMDP(MDP):
 
     def _reward_func(self, state, action):
         assert self.is_primitive_action(action)
-        next_state, reward, done, _ = self.env.step(action)
+        next_state, _, done, _ = self.env.step(action)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
+
+        # Dense reward
         if self.dense_reward:
             if self.next_state.is_terminal():
                 return 0.
             return -self.reward_scale * self.distance_to_goal(self.next_state.position)
-        return reward
+
+        # Sparse reward
+        if self.next_state.is_terminal():
+            return 0.
+        else:
+            return -1.
 
     def _transition_func(self, state, action):
         return self.next_state

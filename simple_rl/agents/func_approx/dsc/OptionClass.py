@@ -186,7 +186,7 @@ class Option(object):
 		weights = np.copy(distances)
 		for row in range(weights.shape[0]):
 			if weights[row] > 0.:
-				decay_factor = -0.5 if self.overall_mdp.dense_reward else -1.
+				decay_factor = -0.5 if self.overall_mdp.dense_reward else -2.
 				weights[row] = np.exp(decay_factor * weights[row])
 			else:
 				weights[row] = 1.
