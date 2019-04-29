@@ -9,7 +9,7 @@ sns.set()
 
 RMAX = 10.
 
-def moving_average(a, n=10) :
+def moving_average(a, n=30) :
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
@@ -148,8 +148,8 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "point_lr_curves"
-    experiment_names = ["lr_actor_1e_3", "lr_c_1e_3"]
+    meta_experiment_name = "Skill Chaining in Point Maze Environment"
+    experiment_names = ["point_maze_ddpg_dense", "point_maze_ddpg_sparse", "point_sparse_real_smaller_inits", "point_dense_real_smaller_inits"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:

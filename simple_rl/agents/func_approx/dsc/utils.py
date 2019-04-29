@@ -60,34 +60,41 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
 	ss = []
-	for x in np.arange(0., 11., 1.):
-		for y in np.arange(0., 11., 1.):
+	for x in np.arange(-2., 11., 1.):
+		for y in np.arange(-2., 11., 1.):
 			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-							   theta=0., theta_dot=0., done=False)
+							   theta=0., theta_dot=0., has_key=False, done=False)
 			ss.append(s)
 	return ss
 
 def get_values(solver, init_values=False):
 	values = []
-	for x in np.arange(0., 11., 1.):
-		for y in np.arange(0., 11., 1.):
+	for x in np.arange(-2., 11., 1.):
+		for y in np.arange(-2., 11., 1.):
 			v = []
-			for vx in [-0.01, -0.1, 0., 0.01, 0.1]:
-				for vy in [-0.01, -0.1, 0., 0.01, 0.1]:
-					for theta in [-90., -45., 0., 45., 90.]:
-						for theta_dot in [-1., 0., 1.]:
-							s = PointMazeState(position=np.array([x, y]), velocity=np.array([vx, vy]),
-											   theta=theta, theta_dot=theta_dot, done=False)
+			for has_key in [False, True]:
+				s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
+								   theta=0, theta_dot=0, has_key=has_key, done=False)
 
-							if not init_values:
-								v.append(solver.get_value(s.features()))
-							else:
-								v.append(solver.is_init_true(s))
+				if not init_values:
+					v.append(solver.get_value(s.features()))
+				else:
+					v.append(solver.is_init_true(s))
 
 			if not init_values:
 				values.append(np.mean(v))
 			else:
 				values.append(np.sum(v))
+
+	return values
+
+def get_initiation_set_values(option, has_key):
+	values = []
+	for x in np.arange(-2., 11., 1.):
+		for y in np.arange(-2., 11., 1.):
+			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
+							   theta=0, theta_dot=0, has_key=has_key, done=False)
+			values.append(option.is_init_true(s))
 
 	return values
 
@@ -107,6 +114,36 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
 	plt.close()
 
+def render_sampled_initiation_classifier(option, episode, experiment_name):
+	def generate_plot(has_key):
+		states = get_grid_states()
+		values = get_initiation_set_values(option, has_key=has_key)
+
+		x = np.array([state.position[0] for state in states])
+		y = np.array([state.position[1] for state in states])
+		xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+		xx, yy = np.meshgrid(xi, yi)
+		rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
+		zz = rbf(xx, yy)
+		plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
+		plt.colorbar()
+
+		# Plot trajectories
+		positive_examples = option.construct_feature_matrix(option.positive_examples)
+		negative_examples = option.construct_feature_matrix(option.negative_examples)
+		plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+
+		if negative_examples.shape[0] > 0:
+			plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+
+		name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+		plt.legend()
+		plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier.png".format(experiment_name, name, has_key))
+		plt.close()
+
+	generate_plot(has_key=True)
+	generate_plot(has_key=False)
+
 def make_meshgrid(x, y, h=.02):
 	x_min, x_max = x.min() - 1, x.max() + 1
 	y_min, y_max = y.min() - 1, y.max() + 1
@@ -117,16 +154,17 @@ def make_meshgrid(x, y, h=.02):
 def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))
 	X = option.construct_feature_matrix(option.positive_examples)
-	X0, X1 = X[:, 0], X[:, 1]
-	xx, yy = make_meshgrid(X0, X1)
-	Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
+	X0, X1, X2 = X[:, 0], X[:, 1], X[:, 2]
+	xx, yy, zz = np.meshgrid(X0, X1, X2)
+
+	Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel(), zz.ravel()])
 	Z1 = Z1.reshape(xx.shape)
-	plt.contour(xx, yy, Z1, levels=[0], linewidths=2, cmap=plt.cm.bone)
+	plt.contour(np.mean(xx, axis=-1), np.mean(yy, axis=-1), np.mean(Z1, axis=-1), levels=[0], linewidths=2, cmap=plt.cm.bone)
 
-	plot_all_trajectories_in_initiation_data(option.positive_examples)
+	plt.scatter(X0, X1)
 
-	plt.xlim((-1, 5))
-	plt.ylim((-1, 5))
+	plt.xlim((-2, 10))
+	plt.ylim((-2, 10))
 
 	plt.xlabel("x")
 	plt.ylabel("y")
@@ -188,13 +226,13 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	x = np.array([state[0] for state in next_states])
 	y = np.array([state[1] for state in next_states])
 
-	plt.scatter(x, y, None, c=rewards, cmap=plt.cm.bone)
+	plt.scatter(x, y, None, c=rewards, cmap=plt.cm.coolwarm)
 	plt.colorbar()
 	plt.xlabel("x")
 	plt.ylabel("y")
 	plt.title("Replay Buffer Reward Heat Map")
-	plt.xlim((-1, 5))
-	plt.ylim((-1, 5))
+	plt.xlim((-2, 10))
+	plt.ylim((-2, 10))
 
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))

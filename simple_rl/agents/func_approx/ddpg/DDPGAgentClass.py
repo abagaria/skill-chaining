@@ -14,7 +14,7 @@ from tensorboardX import SummaryWriter
 
 # Other imports.
 from simple_rl.agents.AgentClass import Agent
-from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlenbeckActionNoise
+from simple_rl.agents.func_approx.ddpg.model import Actor, Critic
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
@@ -39,7 +39,6 @@ class DDPGAgent(Agent):
         self.tensor_log = tensor_log
         self.name = name
 
-        self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
         self.actor = Actor(state_size, action_size, action_bound, device=device)
         self.critic = Critic(state_size, action_size, device=device)
 
@@ -76,6 +75,7 @@ class DDPGAgent(Agent):
         if not evaluation_mode:
             action += noise
         action = np.clip(action, -self.action_bound, self.action_bound)
+
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
@@ -263,8 +263,9 @@ if __name__ == "__main__":
     elif "maze" in args.env.lower():
         from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
         overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
-        state_dim = 6
+        state_dim = 7
         action_dim = 2
+        max_action = 1.
     elif "point" in args.env.lower():
         from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
         overall_mdp = PointEnvMDP(dense_reward=args.dense_reward, render=args.render)

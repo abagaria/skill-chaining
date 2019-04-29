@@ -27,7 +27,7 @@ class PointMazeMDP(MDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 4
+            'maze_size_scaling': 2
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy
@@ -52,11 +52,12 @@ class PointMazeMDP(MDP):
         """ Convert np obs array from gym into a State object. """
         obs = np.copy(observation)
         position = obs[:2]
-        theta = obs[2]
-        velocity = obs[3:5]
-        theta_dot = obs[5]
-        # Ignoring obs[6] which corresponds to time elapsed in seconds
-        state = PointMazeState(position, theta, velocity, theta_dot, done)
+        has_key = obs[2]
+        theta = obs[3]
+        velocity = obs[4:6]
+        theta_dot = obs[6]
+        # Ignoring obs[7] which corresponds to time elapsed in seconds
+        state = PointMazeState(position, has_key, theta, velocity, theta_dot, done)
         return state
 
     def execute_agent_action(self, action, option_idx=None):
@@ -72,13 +73,15 @@ class PointMazeMDP(MDP):
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 
-    @staticmethod
-    def state_space_size():
-        return 6
+    def state_space_size(self):
+        return 7
 
     @staticmethod
     def action_space_size():
         return 2
+
+    def action_space_bound(self):
+        return 1.
 
     @staticmethod
     def is_primitive_action(action):

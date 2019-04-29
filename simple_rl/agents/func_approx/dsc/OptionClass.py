@@ -19,7 +19,8 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=200, generate_plots=False, device=torch.device("cpu"), writer=None):
+				 enable_timeout=True, timeout=150, initiation_period=10,  generate_plots=False,
+				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -35,6 +36,7 @@ class Option(object):
 			parent (Option)
 			enable_timeout (bool)
 			timeout (int)
+			initiation_period (int)
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
@@ -45,6 +47,7 @@ class Option(object):
 		self.seed = seed
 		self.parent = parent
 		self.enable_timeout = enable_timeout
+		self.initiation_period = initiation_period
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
@@ -76,10 +79,20 @@ class Option(object):
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
 		self.positive_examples = []
+		self.negative_examples = []
+		self.parent_positive_examples = []
 		self.experience_buffer = []
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
+
+		# If we are not the global or the goal option, we want to include the positive examples of all options
+		# above us as our own negative examples
+		parent_option = self.parent
+		while parent_option is not None:
+			print("Adding {}'s positive examples".format(parent_option.name))
+			self.parent_positive_examples += list(itertools.chain.from_iterable(self.parent.positive_examples))
+			parent_option = parent_option.parent
 
 		print("Creating {} with enable_timeout={}, buffer_len={}, subgoal_hits={}".format(name, enable_timeout,
 																						  self.buffer_length,
@@ -111,50 +124,55 @@ class Option(object):
 		return not self == other
 
 	def initialize_with_global_ddpg(self):
-		for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
-			my_param.data.copy_(global_param.data)
-		for my_param, global_param in zip(self.solver.critic.parameters(), self.global_solver.critic.parameters()):
-			my_param.data.copy_(global_param.data)
-		for my_param, global_param in zip(self.solver.target_actor.parameters(), self.global_solver.target_actor.parameters()):
-			my_param.data.copy_(global_param.data)
-		for my_param, global_param in zip(self.solver.target_critic.parameters(), self.global_solver.target_critic.parameters()):
-			my_param.data.copy_(global_param.data)
+		# for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
+		# 	my_param.data.copy_(global_param.data)
+		# for my_param, global_param in zip(self.solver.critic.parameters(), self.global_solver.critic.parameters()):
+		# 	my_param.data.copy_(global_param.data)
+		# for my_param, global_param in zip(self.solver.target_actor.parameters(), self.global_solver.target_actor.parameters()):
+		# 	my_param.data.copy_(global_param.data)
+		# for my_param, global_param in zip(self.solver.target_critic.parameters(), self.global_solver.target_critic.parameters()):
+		# 	my_param.data.copy_(global_param.data)
 
 		# Not using off_policy_update() because we have numpy arrays not state objects here
-		# for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
-		# 	if self.is_init_true(state):
-		# 		if self.is_term_true(next_state):
-		# 			self.solver.step(state, action, self.subgoal_reward, next_state, True)
-		# 		else:
-		# 			subgoal_reward = self.get_subgoal_reward(next_state)
-		# 			self.solver.step(state, action, subgoal_reward, next_state, done)
+		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
+			if self.is_init_true(state):
+				if self.is_term_true(next_state) or self.overall_mdp.is_goal_state(next_state):
+					self.solver.step(state, action, self.subgoal_reward, next_state, True)
+				else:
+					subgoal_reward = self.get_subgoal_reward(next_state)
+					self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
-		position_matrix = state_matrix[:, :2]
+		position_matrix = state_matrix[:, :3]
 		return self.initiation_classifier.predict(position_matrix) == 1
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
-		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
+		features = ground_state.features()[:3] if isinstance(ground_state, State) else ground_state[:3]
 		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
-			return self.parent.is_init_true(ground_state)
-
-		# If option does not have a parent, it must be the goal option or the global option
-		assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
-		return self.overall_mdp.is_goal_state(ground_state)
+			parent_option = self.parent
+			while parent_option is not None:
+				if parent_option.is_init_true(ground_state):
+					return True
+				parent_option = parent_option.parent
+			return False
+		else:
+			# If option does not have a parent, it must be the goal option or the global option
+			assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
+			return self.overall_mdp.is_goal_state(ground_state)
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
 		segmented_states = deepcopy(states)
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
-		segmented_positions = [segmented_state.position for segmented_state in segmented_states]
+		segmented_positions = [segmented_state.features()[:3] for segmented_state in segmented_states]
 		self.positive_examples.append(segmented_positions)
 
 	def add_experience_buffer(self, experience_queue):
@@ -189,16 +207,22 @@ class Option(object):
 				weights[row] = 1.
 		return weights
 
+	def get_training_phase(self):
+		if self.num_goal_hits < self.num_subgoal_hits_required:
+			return "gestation"
+		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
+			return "initiation"
+		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
+			return "initiation_done"
+		return "trained"
+
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-		distances = self.get_distances_to_goal(positive_feature_matrix)
-		distances = distances.squeeze(0) if len(distances.shape) > 1 else distances
-		weights = self.distance_to_weights(distances)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
-		self.initiation_classifier.fit(positive_feature_matrix, sample_weight=weights)
+		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_elliptic_envelope_classifier(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
@@ -215,11 +239,26 @@ class Option(object):
 		else:
 			raise NotImplementedError("{} not supported".format(self.classifier_type))
 
+	def train_two_class_classifier(self):
+		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
+		positive_labels = [1] * positive_feature_matrix.shape[0]
+		negative_labels = [0] * negative_feature_matrix.shape[0]
+
+		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+		Y = np.concatenate((positive_labels, negative_labels))
+
+		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
+		self.initiation_classifier = svm.SVC(kernel="rbf", gamma="scale", class_weight="balanced")
+		self.initiation_classifier.fit(X, Y)
+
+		self.classifier_type = "tcsvm"
+
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
 		self.initialize_with_global_ddpg()
 
-		self.solver.epsilon = self.global_solver.epsilon
+		# self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
 		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
@@ -251,20 +290,8 @@ class Option(object):
 		if self.is_term_true(state):
 			print("~~~~~ Warning: subgoal query at goal ~~~~~")
 			return 0.
-
-		# Rewards based on position only
-		position_vector = state.features()[:2] if isinstance(state, State) else state[:2]
-
-		# For global and parent option, we use the negative distance to the goal state
-		if self.parent is None:
-			return -0.1 * self.overall_mdp.distance_to_goal(position_vector)
-
-		# For every other option, we use the negative distance to the parent's initiation set classifier
-		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
-
-		# Decision_function returns a negative distance for points not inside the classifier
-		subgoal_reward = 0. if dist >= 0 else dist
-		return subgoal_reward
+		else:
+			return -1.
 
 	def off_policy_update(self, state, action, reward, next_state):
 		""" Make off-policy updates to the current option's low level DDPG solver. """
@@ -302,19 +329,19 @@ class Option(object):
 			subgoal_reward = self.get_subgoal_reward(s_prime)
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
-	def execute_option_in_mdp(self, mdp, step_number, random_action_selection):
+	def execute_option_in_mdp(self, mdp, step_number):
 		"""
 		Option main control loop.
 
 		Args:
 			mdp (MDP): environment where actions are being taken
 			step_number (int): how many steps have already elapsed in the outer control loop.
-			random_action_selection (bool): Either query option's act() method or sample from uniform random dist
 
 		Returns:
 			option_transitions (list): list of (s, a, r, s') tuples
 			discounted_reward (float): cumulative discounted reward obtained by executing the option
 		"""
+		start_state = deepcopy(mdp.cur_state)
 		state = mdp.cur_state
 
 		if self.is_init_true(state):
@@ -322,15 +349,16 @@ class Option(object):
 			total_reward = 0.
 			self.num_executions += 1
 			num_steps = 0
+			visited_states = []
 
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
-				if random_action_selection:
-					action = np.random.uniform(-self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_size())
-				else:
-					action = self.solver.act(state.features(), evaluation_mode=False)
-					self.solver.update_epsilon()
+				# if self.get_training_phase() == "initiation":
+				# 	action = self.solver.act(state.features(), evaluation_mode=True)
+				# else:
+				action = self.solver.act(state.features(), evaluation_mode=False)
+				self.solver.update_epsilon()
 
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
@@ -344,6 +372,7 @@ class Option(object):
 					self.global_solver.update_epsilon()
 
 				option_transitions.append((state, action, reward, next_state))
+				visited_states.append(state)
 
 				total_reward += reward
 				state = next_state
@@ -353,12 +382,45 @@ class Option(object):
 				step_number += 1
 				num_steps += 1
 
+			# Don't forget to add the final state to the followed trajectory
+			visited_states.append(state)
+
+			if self.get_training_phase() == "initiation":
+				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
+
 			if self.writer is not None:
 				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
 
 			return option_transitions, total_reward
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
+
+	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
+										 outer_step_number):
+		if self.is_term_true(final_state):  # success
+			self.num_goal_hits += 1
+			positive_states = [start_state] + visited_states[-self.buffer_length:]
+			positive_examples = [state.features()[:3] for state in positive_states]
+			self.positive_examples.append(positive_examples)
+
+			# For every new positive example we add, we will sample a parent positive as a negative example
+			# This will prevent our learned initiation set from overlapping heavily with that of our parent's
+			if len(self.parent_positive_examples) > 0:
+				num_parents = self.get_num_parents()
+				for _ in range(num_parents):
+					sampled_parent_positive = random.choice(self.parent_positive_examples)
+					self.negative_examples.append([sampled_parent_positive])
+
+		elif num_steps == self.timeout:
+			negative_examples = [start_state.features()[:3]]
+			self.negative_examples.append(negative_examples)
+		else:
+			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
+				"Hit else case, but {} was not terminal".format(final_state)
+
+		# Refine the initiation set classifier
+		if len(self.negative_examples) > 0:
+			self.train_two_class_classifier()
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state
@@ -373,3 +435,11 @@ class Option(object):
 			step_number += 1
 			num_steps += 1
 		return score, state, step_number
+
+	def get_num_parents(self):
+		num_parents = 0
+		parent_option = self.parent
+		while parent_option is not None:
+			num_parents += 1
+			parent_option = parent_option.parent
+		return num_parents
