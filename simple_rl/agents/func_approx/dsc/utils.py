@@ -2,6 +2,7 @@
 import pdb
 import numpy as np
 import scipy.interpolate
+import imageio
 import matplotlib.pyplot as plt
 import time
 import torch
@@ -125,20 +126,23 @@ def render_sampled_initiation_classifier(option, episode, experiment_name):
 		xx, yy = np.meshgrid(xi, yi)
 		rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
 		zz = rbf(xx, yy)
-		plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
+		plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.bwr)
 		plt.colorbar()
 
 		# Plot trajectories
-		positive_examples = option.construct_feature_matrix(option.positive_examples)
-		negative_examples = option.construct_feature_matrix(option.negative_examples)
-		plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+		# positive_examples = option.construct_feature_matrix(option.positive_examples)
+		# negative_examples = option.construct_feature_matrix(option.negative_examples)
+		# plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+		#
+		# if negative_examples.shape[0] > 0:
+		# 	plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
-		if negative_examples.shape[0] > 0:
-			plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+		background_image = imageio.imread("four_room_domain.png")
+		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
 		name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-		plt.legend()
-		plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier.png".format(experiment_name, name, has_key))
+		plt.title("{} Initiation Set".format(option.name))
+		plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier_{}.png".format(experiment_name, name, has_key, option.seed))
 		plt.close()
 
 	generate_plot(has_key=True)
