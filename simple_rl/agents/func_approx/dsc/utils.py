@@ -10,7 +10,7 @@ import seaborn as sns
 sns.set()
 
 # Other imports.
-from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
+from simple_rl.tasks.fixed_reacher.FixedReacherStateClass import FixedReacherState
 
 class Experience(object):
 	def __init__(self, s, a, r, s_prime):
@@ -61,10 +61,10 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
 	ss = []
-	for x in np.arange(-2., 11., 1.):
-		for y in np.arange(-2., 11., 1.):
-			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-							   theta=0., theta_dot=0., has_key=False, done=False)
+	for x in np.arange(-0.2, 0.2, 0.01):
+		for y in np.arange(-0.2, 0.2, 0.01):
+			features = np.array([x, y] + 11*[0.])
+			s = FixedReacherState(features, False)
 			ss.append(s)
 	return ss
 
@@ -89,12 +89,12 @@ def get_values(solver, init_values=False):
 
 	return values
 
-def get_initiation_set_values(option, has_key):
+def get_initiation_set_values(option):
 	values = []
-	for x in np.arange(-2., 11., 1.):
-		for y in np.arange(-2., 11., 1.):
-			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
-							   theta=0, theta_dot=0, has_key=has_key, done=False)
+	for x in np.arange(-0.2, 0.2, 0.01):
+		for y in np.arange(-0.2, 0.2, 0.01):
+			features = np.array([x, y] + 11*[0.])
+			s = FixedReacherState(features, False)
 			values.append(option.is_init_true(s))
 
 	return values
@@ -116,9 +116,9 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	plt.close()
 
 def render_sampled_initiation_classifier(option, episode, experiment_name):
-	def generate_plot(has_key):
+	def generate_plot():
 		states = get_grid_states()
-		values = get_initiation_set_values(option, has_key=has_key)
+		values = get_initiation_set_values(option)
 
 		x = np.array([state.position[0] for state in states])
 		y = np.array([state.position[1] for state in states])
@@ -137,16 +137,15 @@ def render_sampled_initiation_classifier(option, episode, experiment_name):
 		# if negative_examples.shape[0] > 0:
 		# 	plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
-		background_image = imageio.imread("four_room_domain.png")
-		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
+		background_image = imageio.imread("reacher_domain.png")
+		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-0.2, 0.2, -0.2, 0.2])
 
 		name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 		plt.title("{} Initiation Set".format(option.name))
-		plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier_{}.png".format(experiment_name, name, has_key, option.seed))
+		plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
 		plt.close()
 
-	generate_plot(has_key=True)
-	generate_plot(has_key=False)
+	generate_plot()
 
 def make_meshgrid(x, y, h=.02):
 	x_min, x_max = x.min() - 1, x.max() + 1
@@ -235,8 +234,8 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	plt.xlabel("x")
 	plt.ylabel("y")
 	plt.title("Replay Buffer Reward Heat Map")
-	plt.xlim((-2, 10))
-	plt.ylim((-2, 10))
+	plt.xlim((-0.2, 0.2))
+	plt.ylim((-0.2, 0.2))
 
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))

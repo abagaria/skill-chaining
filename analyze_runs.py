@@ -126,8 +126,8 @@ def get_scores(experiment_name):
         score_names = experiment_name + "/" + "sc_pretrained_False_training_scores_*.pkl".format(experiment_name)
         duration_names = experiment_name + "/" + "sc_pretrained_False_training_durations_*.pkl".format(experiment_name)
     else:
-        score_names = experiment_name + "/" + experiment_name + "*_training_scores.pkl"
-        duration_names = experiment_name + "/" + experiment_name + "*_training_durations.pkl"
+        score_names = experiment_name + "/"  + "flat_ddpg_training_scores_*"
+        duration_names = experiment_name + "/"  + "flat_ddpg_training_durations_*"
     training_scores, training_durations = [], []
     for score_file in glob.glob(score_names):
         with open(score_file, "rb") as f:
@@ -148,8 +148,8 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "Skill Chaining in Point Maze Environment"
-    experiment_names = ["point_maze_ddpg_dense", "point_maze_ddpg_sparse", "point_sparse_real_smaller_inits", "point_dense_real_smaller_inits"]
+    meta_experiment_name = "Skill Chaining in 4-room with key Environment"
+    experiment_names = ["ddpg_reacher", "sc_reacher_g3_i10_bl10"]#["point_maze_ddpg_dense", "point_maze_ddpg_sparse", "point_sparse_real_smaller_inits", "point_dense_real_smaller_inits"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:

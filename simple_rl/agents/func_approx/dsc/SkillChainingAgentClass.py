@@ -370,8 +370,8 @@ class SkillChaining(object):
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-		if self.generate_plots and episode % 10 == 0:
-			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
+		# if self.generate_plots and episode % 10 == 0:
+		# 	render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
 
 		for trained_option in self.trained_options:  # type: Option
 			self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
@@ -471,17 +471,18 @@ if __name__ == '__main__':
 	parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
 	parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
 	parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
-	parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
+	parser.add_argument("--num_subgoal_hits", type=int, help="Gestation period", default=3)
+	parser.add_argument("--initiation_period", type=int, help="Initiation period", default=10)
 	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
-		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
+		from simple_rl.tasks.fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+		overall_mdp = FixedReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
 		state_dim = overall_mdp.init_state.features().shape[0]
-		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+		action_dim = overall_mdp.env.action_space.shape[0]
 	elif "ant" in args.env.lower():
 		from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
 		overall_mdp = AntMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)

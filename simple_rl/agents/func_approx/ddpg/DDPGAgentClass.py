@@ -58,7 +58,7 @@ class DDPGAgent(Agent):
 
         self.buffer_size = 10 * BUFFER_SIZE if "global" in self.name.lower() else BUFFER_SIZE
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
-        self.epsilon = 1.0
+        self.epsilon = 0.1  # Using fixed epsilon for reacher since its a small state + action space
 
         # Tensorboard logging
         self.writer = None
@@ -147,11 +147,9 @@ class DDPGAgent(Agent):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
+    # Using fixed epsilon for reacher since its a small state space
     def update_epsilon(self):
-        if "global" in self.name.lower():
-            self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
-        else:
-            self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
+        self.epsilon = 0.1
 
     def get_value(self, state):
         action = self.actor.get_action(state)
@@ -250,10 +248,11 @@ if __name__ == "__main__":
     log_dir = create_log_dir(args.experiment_name)
 
     if "reacher" in args.env.lower():
-        from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-        overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
+        from simple_rl.tasks.fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+        overall_mdp = FixedReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
-        action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+        action_dim = overall_mdp.env.action_space.shape[0]
+        max_action = overall_mdp.action_space_bound()
     elif "ant" in args.env.lower():
         from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
         overall_mdp = AntMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
