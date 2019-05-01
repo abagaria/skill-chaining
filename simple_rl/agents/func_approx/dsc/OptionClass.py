@@ -142,17 +142,41 @@ class Option(object):
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
+	def distance_to_closest_positive_example(self, position):
+		XB = self.construct_feature_matrix(self.positive_examples)[:, :2]
+		distances = distance.cdist(position[None, ...], XB, "euclidean")
+		return np.min(distances)
+
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
-		position_matrix = state_matrix[:, :3]
-		return self.initiation_classifier.predict(position_matrix) == 1
+		feature_matrix = state_matrix[:, :3]
+		svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
+
+		if self.classifier_type == "ocsvm":
+			return svm_decisions
+		if self.classifier_type == "tcsvm":
+			position_matrix = feature_matrix[:, :2]
+			positive_example_matrix = self.construct_feature_matrix(self.positive_examples)[:, :2]
+			distance_matrix = distance.cdist(position_matrix, positive_example_matrix, "euclidean")
+			closest_distances = np.min(distance_matrix, axis=1)
+			distance_predictions = closest_distances < 1.
+			predictions = np.logical_and(svm_decisions, distance_predictions)
+			return predictions
+		raise NotImplementedError(self.classifier_type)
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
 		features = ground_state.features()[:3] if isinstance(ground_state, State) else ground_state[:3]
-		return self.initiation_classifier.predict([features])[0] == 1
+		svm_decision = self.initiation_classifier.predict([features])[0] == 1
+
+		if self.classifier_type == "ocsvm":
+			return svm_decision
+		if self.classifier_type == "tcsvm":
+			dist = self.distance_to_closest_positive_example(features[:2])
+			return svm_decision and dist < 1.
+		raise NotImplementedError(self.classifier_type)
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
