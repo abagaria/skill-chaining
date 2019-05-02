@@ -13,14 +13,15 @@ from scipy.spatial import distance
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
-from simple_rl.agents.func_approx.dsc.utils import Experience
+from simple_rl.agents.func_approx.ddpg.utils import load_model
+from simple_rl.agents.func_approx.dsc.utils import Experience, load_classifier
 
 class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=150, initiation_period=10,  generate_plots=False,
-				 device=torch.device("cpu"), writer=None):
+				 enable_timeout=True, timeout=150, initiation_period=10,  pretrained=False, generate_plots=False,
+				 experiment_name="", device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -37,7 +38,9 @@ class Option(object):
 			enable_timeout (bool)
 			timeout (int)
 			initiation_period (int)
+			pretrained (bool)
 			generate_plots (bool)
+			experiment_name (str)
 			device (torch.device)
 			writer (SummaryWriter)
 		'''
@@ -49,6 +52,8 @@ class Option(object):
 		self.enable_timeout = enable_timeout
 		self.initiation_period = initiation_period
 		self.classifier_type = classifier_type
+		self.pretrained = pretrained
+		self.experiment_name = experiment_name
 		self.generate_plots = generate_plots
 		self.writer = writer
 
@@ -94,6 +99,9 @@ class Option(object):
 			self.parent_positive_examples += list(itertools.chain.from_iterable(self.parent.positive_examples))
 			parent_option = parent_option.parent
 
+		if self.pretrained:
+			self.load_pretrained_option()
+
 		print("Creating {} with enable_timeout={}, buffer_len={}, subgoal_hits={}".format(name, enable_timeout,
 																						  self.buffer_length,
 																						  self.num_subgoal_hits_required))
@@ -122,6 +130,11 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	def load_pretrained_option(self):
+		episode, self.solver = load_model(self.solver, self.experiment_name, best=False)
+		self.initiation_classifier, self.positive_examples = load_classifier(self.experiment_name, self.name)
+		print("Loaded model for {} from episode {}".format(self.name, episode))
 
 	def initialize_with_global_ddpg(self):
 		# for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
@@ -362,7 +375,8 @@ class Option(object):
 
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
-				self.update_option_solver(state, action, reward, next_state)
+				if not self.pretrained:
+					self.update_option_solver(state, action, reward, next_state)
 
 				# Note: We are not using the option augmented subgoal reward while making off-policy updates to global DQN
 				assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
@@ -385,7 +399,7 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
-			if self.get_training_phase() == "initiation":
+			if self.get_training_phase() == "initiation" and not self.pretrained:
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
 			if self.writer is not None:

@@ -26,7 +26,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False):
+				 log_dir="", seed=0, tensor_log=False, pretrained=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -45,6 +45,7 @@ class SkillChaining(object):
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
+			pretrained (bool): If true, use pretrained options
 		"""
 		self.mdp = mdp
 		self.original_actions = deepcopy(mdp.actions)
@@ -60,6 +61,7 @@ class SkillChaining(object):
 		self.device = torch.device(device)
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
+		self.pretrained = pretrained
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -77,7 +79,8 @@ class SkillChaining(object):
 									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-									generate_plots=self.generate_plots, writer=self.writer, device=self.device)
+									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+									pretrained=False)
 
 		self.trained_options = [self.global_option]
 
@@ -91,7 +94,8 @@ class SkillChaining(object):
 							 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-							 generate_plots=self.generate_plots, writer=self.writer, device=self.device)
+							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+							 pretrained=self.pretrained, experiment_name=args.experiment_name)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -111,6 +115,10 @@ class SkillChaining(object):
 
 		# If not using SMDP updates to train the policy over options, use this as the reward
 		self.high_level_subgoal_reward = 0.
+
+		if self.pretrained:
+			self._augment_agent_with_new_option(goal_option, q0=0.)
+			self.load_pretrained_options()
 
 		# Debug variables
 		self.global_execution_states = []
@@ -135,7 +143,7 @@ class SkillChaining(object):
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
 									  seed=self.seed, parent=parent_option,
 									  enable_timeout=self.enable_option_timeout,
-									  writer=self.writer, device=self.device)
+									  writer=self.writer, device=self.device, pretrained=self.pretrained)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -187,12 +195,13 @@ class SkillChaining(object):
 			q_values.append(q_value)
 		return np.max(q_values)
 
-	def _augment_agent_with_new_option(self, newly_trained_option):
+	def _augment_agent_with_new_option(self, newly_trained_option, q0=None):
 		"""
 		Train the current untrained option and initialize a new one to target.
 		Add the newly_trained_option as a new node to the Q-function over options
 		Args:
 			newly_trained_option (Option)
+			q0 (float): if given, use this to initialize the q-value corresponding to the new option
 		"""
 		# Add the trained option to the action set of the global solver
 		if newly_trained_option not in self.trained_options:
@@ -209,7 +218,7 @@ class SkillChaining(object):
 									writer=self.writer, device=self.device)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
-		init_q = self.get_init_q_value_for_new_option(newly_trained_option)
+		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if q0 is None else q0
 		print("Initializing new option node with q value {}".format(init_q))
 		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q)
 		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q)
@@ -289,6 +298,7 @@ class SkillChaining(object):
 		return total_reward
 
 	def should_create_more_options(self):
+		if self.pretrained: return False
 		local_options = self.trained_options[1:]
 		for start_state in self.init_states:
 			for option in local_options:  # type: Option
@@ -329,13 +339,11 @@ class SkillChaining(object):
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
 
-				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
+				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and not self.pretrained and\
 						self.max_num_options > 0 and self.untrained_option.get_training_phase() == "gestation":
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						self._augment_agent_with_new_option(self.untrained_option)
-						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
-						# self.trained_options.append(self.untrained_option)
 
 				if self.should_create_more_options() and self.untrained_option.get_training_phase() == "initiation_done":
 					new_option = self.create_child_option(self.untrained_option)
@@ -379,9 +387,38 @@ class SkillChaining(object):
 				self.writer.add_scalar("{}_executions".format(trained_option.name),
 									   episode_option_executions[trained_option.name], episode)
 
+	def load_pretrained_options(self):
+		def option_name_to_idx(name):
+			option_number = name.split("_")[-1]
+			return int(option_number)
+		def create_option(idx):
+			return Option(self.mdp, name="option_{}".format(idx), global_solver=self.global_option.solver,
+						   max_steps=self.max_steps,
+						   lr_actor=self.global_option.solver.actor_learning_rate,
+						   lr_critic=self.global_option.solver.critic_learning_rate,
+						   ddpg_batch_size=self.global_option.solver.batch_size,
+						   subgoal_reward=self.subgoal_reward,
+						   buffer_length=self.buffer_length,
+						   classifier_type=self.classifier_type,
+						   num_subgoal_hits_required=self.num_subgoal_hits_required,
+						   seed=self.seed, parent=self.trained_options[idx],
+						   enable_timeout=self.enable_option_timeout, experiment_name=args.experiment_name,
+						   writer=self.writer, device=self.device, pretrained=True)
+
+		saved_option_names = get_list_of_saved_options(args.experiment_name)
+		option_indices = sorted([option_name_to_idx(option_name) for option_name in saved_option_names])
+		for i, option_id in enumerate(option_indices):
+			option = create_option(option_id)
+			print("****** Loaded {} with parent {} from disk ******".format(option.name, option.parent.name))
+			self._augment_agent_with_new_option(option, q0=0.)
+
 	def save_all_models(self):
 		for option in self.trained_options: # type: Option
-			save_model(option.solver, args.episodes, best=False)
+			save_model(option.solver, args.episodes, args.experiment_name, best=False)
+
+	def save_initiation_classifiers(self):
+		for option in self.trained_options[1:]:
+			save_classifier(args.experiment_name, option)
 
 	def save_all_scores(self, pretrained, scores, durations):
 		print("\rSaving training and validation scores..")
@@ -507,7 +544,7 @@ if __name__ == '__main__':
 
 	# Create folders for saving various things
 	logdir = create_log_dir(args.experiment_name)
-	create_log_dir("saved_runs")
+	create_log_dir("{}/saved_runs".format(args.experiment_name))
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")
 	create_log_dir("value_function_plots/{}".format(args.experiment_name))
@@ -521,11 +558,12 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward, buffer_length=args.buffer_len,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, generate_plots=args.generate_plots,
-							use_full_smdp_update=args.use_smdp_update,
+							use_full_smdp_update=args.use_smdp_update, pretrained=args.pretrained,
 							tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
+	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
 	chainer.save_all_models()
 	chainer.perform_experiments()
-	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
+	chainer.save_initiation_classifiers()

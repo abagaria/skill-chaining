@@ -3,7 +3,7 @@ import torch
 import pickle
 
 
-def save_model(ddpg_agent, episode_number, best=True):
+def save_model(ddpg_agent, episode_number, experiment_name, best=True):
     actor_state = {
         "epoch": episode_number,
         "state_dict": ddpg_agent.actor.state_dict(),
@@ -26,27 +26,27 @@ def save_model(ddpg_agent, episode_number, best=True):
         "state_dict": ddpg_agent.target_critic.state_dict()
     }
 
-    if not os.path.exists("saved_runs"):
-        os.makedirs("saved_runs")
+    if not os.path.exists("{}/saved_runs".format(experiment_name)):
+        os.makedirs("{}/saved_runs".format(experiment_name))
 
     prefix = "best_" if best else "final_"
     name = prefix + ddpg_agent.name
-    torch.save(actor_state, "saved_runs/{}_actor.pkl".format(name))
-    torch.save(critic_state, "saved_runs/{}_critic.pkl".format(name))
-    torch.save(target_actor_state, "saved_runs/{}_target_actor.pkl".format(name))
-    torch.save(target_critic_state, "saved_runs/{}_target_critic.pkl".format(name))
+    torch.save(actor_state, "{}/saved_runs/{}_actor.pkl".format(experiment_name, name))
+    torch.save(critic_state, "{}/saved_runs/{}_critic.pkl".format(experiment_name, name))
+    torch.save(target_actor_state, "{}/saved_runs/{}_target_actor.pkl".format(experiment_name, name))
+    torch.save(target_critic_state, "{}/saved_runs/{}_target_critic.pkl".format(experiment_name, name))
 
-    with open("saved_runs/{}_replay_buffer.pkl".format(name), "wb") as f:
+    with open("{}/saved_runs/{}_replay_buffer.pkl".format(experiment_name, name), "wb") as f:
         pickle.dump(ddpg_agent.replay_buffer, f)
 
-def load_model(ddpg_agent, best=True):
+def load_model(ddpg_agent, experiment_name, best=True):
     prefix = "best_" if best else "final_"
     name = prefix + ddpg_agent.name
 
-    actor_state = torch.load("saved_runs/{}_actor.pkl".format(name))
-    critic_state = torch.load("saved_runs/{}_critic.pkl".format(name))
-    target_actor_state = torch.load("saved_runs/{}_target_actor.pkl".format(name))
-    target_critic_state = torch.load("saved_runs/{}_target_critic.pkl".format(name))
+    actor_state = torch.load("{}/saved_runs/{}_actor.pkl".format(experiment_name, name))
+    critic_state = torch.load("{}/saved_runs/{}_critic.pkl".format(experiment_name, name))
+    target_actor_state = torch.load("{}/saved_runs/{}_target_actor.pkl".format(experiment_name, name))
+    target_critic_state = torch.load("{}/saved_runs/{}_target_critic.pkl".format(experiment_name, name))
 
     ddpg_agent.actor.load_state_dict(actor_state["state_dict"])
     ddpg_agent.actor_optimizer.load_state_dict(actor_state["optimizer"])
@@ -58,7 +58,7 @@ def load_model(ddpg_agent, best=True):
     assert actor_state["epoch"] == critic_state["epoch"] == target_actor_state["epoch"] == target_critic_state["epoch"]
     episode = actor_state["epoch"]
 
-    with open("saved_runs/{}_replay_buffer.pkl".format(name), "rb") as f:
+    with open("{}/saved_runs/{}_replay_buffer.pkl".format(experiment_name, name), "rb") as f:
         ddpg_agent.replay_buffer = pickle.load(f)
 
     return episode, ddpg_agent

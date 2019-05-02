@@ -4,10 +4,11 @@ import numpy as np
 import scipy.interpolate
 import imageio
 import matplotlib.pyplot as plt
-import time
+import pickle
 import torch
 import seaborn as sns
 sns.set()
+import glob
 
 # Other imports.
 from simple_rl.tasks.fixed_reacher.FixedReacherStateClass import FixedReacherState
@@ -33,6 +34,32 @@ class Experience(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+def save_classifier(experiment_name, option):
+	classifier_name = "{}/saved_runs/{}_initiation_classifier.pkl".format(experiment_name, option.name)
+	positive_examples_name = "{}/saved_runs/{}_positive_examples.pkl".format(experiment_name, option.name)
+	with open(classifier_name, "wb") as f:
+		pickle.dump(option.initiation_classifier, f)
+	with open(positive_examples_name, "wb") as f:
+		pickle.dump(option.positive_examples, f)
+
+def load_classifier(experiment_name, option_name):
+	classifier_name = "{}/saved_runs/{}_initiation_classifier.pkl".format(experiment_name, option_name)
+	positive_examples_name = "{}/saved_runs/{}_positive_examples.pkl".format(experiment_name, option_name)
+	with open(classifier_name, "rb") as f:
+		classifier = pickle.load(f)
+	with open(positive_examples_name, "rb") as f:
+		examples = pickle.load(f)
+	return classifier, examples
+
+def get_list_of_saved_options(experiment_name):
+	option_names = []
+	for file_name in glob.glob("{}/saved_runs/*_agent_actor.pkl".format(experiment_name)):
+		option_name = file_name.split("/")[-1].split("_ddpg")[0].split("final_")[1]
+		if "global_option" not in option_name and "overall_goal_policy" not in option_name:
+			option_names.append(option_name)
+	return option_names
+
 
 # ---------------
 # Plotting utils
