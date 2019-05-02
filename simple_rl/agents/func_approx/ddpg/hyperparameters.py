@@ -10,6 +10,7 @@ HIDDEN_2 = 300
 
 MAX_EPISODES = 50000
 MAX_STEPS = 200
-GLOBAL_LINEAR_EPS_DECAY = 1e-5  # complete decay over 1 million transitions
-OPTION_LINEAR_EPS_DECAY = 2e-5  # complete decay over 5 hundred thousand transitions
+GLOBAL_LINEAR_EPS_DECAY = 1e-5  # complete decay over 1 hundred thousand transitions
+OPTION_LINEAR_EPS_DECAY = 2e-5  # complete decay over 50 thousand transitions
+EPS_MIN                 = 0.1   # always add some noise to prevent getting stuck
 PRINT_EVERY = 10

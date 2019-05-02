@@ -149,9 +149,9 @@ class DDPGAgent(Agent):
 
     def update_epsilon(self):
         if "global" in self.name.lower():
-            self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
+            self.epsilon = max(EPS_MIN, self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
         else:
-            self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
+            self.epsilon = max(EPS_MIN, self.epsilon - OPTION_LINEAR_EPS_DECAY)
 
     def get_value(self, state):
         action = self.actor.get_action(state)
