@@ -246,7 +246,6 @@ class SkillChaining(object):
 		Either take a primitive action from `state` or execute a closed-loop option policy.
 		Args:
 			state (State)
-			episode_number (int)
 			step_number (int): which iteration of the control loop we are on
 			episode_option_executions (defaultdict)
 
@@ -348,7 +347,7 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < self.max_steps:
-				experiences, reward, state, steps = self.take_action(state, episode, step_number, episode_option_executions)
+				experiences, reward, state, steps = self.take_action(state, step_number, episode_option_executions)
 				score += reward
 				step_number += steps
 				for experience in experiences:
