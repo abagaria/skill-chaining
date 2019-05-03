@@ -220,9 +220,9 @@ class Option(object):
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		self.initialize_with_global_ddpg()
+		# self.initialize_with_global_ddpg()
 
-		self.solver.epsilon = self.global_solver.epsilon
+		# self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
 		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
@@ -337,7 +337,7 @@ class Option(object):
 					step_number < self.max_steps and num_steps < self.timeout:
 
 				if random_action_selection:
-					if np.random.random() < 0.75:
+					if np.random.random() < 0.95:
 						action = np.random.uniform(-self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_bound(), self.overall_mdp.action_space_size())
 					else:
 						action = self.solver.act(state.features(), evaluation_mode=False)
