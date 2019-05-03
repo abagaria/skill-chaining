@@ -9,8 +9,9 @@ from simple_rl.tasks.point_maze.environments.ant_maze_env import AntMazeEnv
 from simple_rl.tasks.ant_maze.AntMazeStateClass import AntMazeState
 
 class AntMazeMDP(MDP):
-    def __init__(self, seed, reward_scale=1.0, dense_reward=False, render=False):
+    def __init__(self, seed, vary_init=False, reward_scale=1.0, dense_reward=False, render=False):
         self.env_name = "ant_maze"
+        self.vary_init = vary_init
         self.seed = seed
         self.reward_scale = reward_scale
         self.dense_reward = dense_reward
@@ -32,7 +33,7 @@ class AntMazeMDP(MDP):
             "expose_body_coms": ["torso"]
         }
 
-        self.env = AntMazeEnv(**gym_mujoco_kwargs)
+        self.env = AntMazeEnv(vary_init=vary_init, **gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy
         self.reset()
 
@@ -97,13 +98,13 @@ class AntMazeMDP(MDP):
     def action_space_bound(self):
         return self.action_bound
 
-    @staticmethod
-    def is_primitive_action(action):
-        return -1. <= action.all() <= 1.
+    def is_primitive_action(self, action):
+        return -self.action_bound <= action.all() <= self.action_bound
 
-    def reset(self):
-        init_state_array = self.env.reset()
+    def reset(self, training_time=True):
+        init_state_array = self.env.reset(training_time=training_time)
         self.init_state = self._get_state(init_state_array, done=False)
+        print("Sampled init state = ", self.init_state.position)
         super(AntMazeMDP, self).reset()
 
     def __str__(self):

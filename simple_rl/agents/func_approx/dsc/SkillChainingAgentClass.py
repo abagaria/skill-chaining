@@ -71,6 +71,7 @@ class SkillChaining(object):
 		np.random.seed(seed)
 
 		self.validation_scores = []
+		self.validation_durations = []
 
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
 		self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
@@ -245,6 +246,9 @@ class SkillChaining(object):
 			self.random_exploration = False
 			self.change_max_steps(self.final_max_steps)
 
+		if step_number >= self.max_steps:
+			return [], 0., state, 0
+
 		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number, self.random_exploration)
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
@@ -321,7 +325,6 @@ class SkillChaining(object):
 			step_number = 0
 			uo_episode_terminated = False
 			state = deepcopy(self.mdp.init_state)
-			self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []
 			episode_option_executions = defaultdict(lambda : 0)
@@ -339,7 +342,8 @@ class SkillChaining(object):
 					state_buffer.append(state)
 
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
-						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
+						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None and \
+						len(state_buffer) > 50:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						# self._augment_agent_with_new_option(self.untrained_option)
@@ -373,10 +377,19 @@ class SkillChaining(object):
 			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
-		if episode > 0 and episode % 100 == 0:
-			eval_score = self.trained_forward_pass(render=False)
-			self.validation_scores.append(eval_score)
-			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+		if episode % 10 == 0:
+			evaluation_scores = []
+			evaluation_durations = []
+			for _ in range(5):
+				eval_score, eval_duration = self.trained_forward_pass(max_steps=self.final_max_steps, render=False)
+				evaluation_scores.append(eval_score)
+				evaluation_durations.append(eval_duration)
+			self.validation_scores.append(np.mean(evaluation_scores))
+			self.validation_durations.append(np.mean(evaluation_durations))
+
+			print("\rEpisode {}\tValidation Score: {:.2f}\tValidation Duration: {:.2f}".format(
+				episode, np.mean(evaluation_scores), np.mean(evaluation_durations))
+			)
 
 		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
@@ -396,11 +409,13 @@ class SkillChaining(object):
 		training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
 		training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
 		validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
+		validation_durations_file_name = "sc_pretrained_{}_validation_durations_{}.pkl".format(pretrained, self.seed)
 
 		if self.log_dir:
 			training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
 			training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
 			validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
+			validation_durations_file_name = os.path.join(self.log_dir, validation_durations_file_name)
 
 		with open(training_scores_file_name, "wb+") as _f:
 			pickle.dump(scores, _f)
@@ -408,6 +423,8 @@ class SkillChaining(object):
 			pickle.dump(durations, _f)
 		with open(validation_scores_file_name, "wb+") as _f:
 			pickle.dump(self.validation_scores, _f)
+		with open(validation_durations_file_name, "wb+") as _f:
+			pickle.dump(self.validation_durations, _f)
 
 	def perform_experiments(self):
 		for option in self.trained_options:
@@ -423,19 +440,29 @@ class SkillChaining(object):
 		for option in self.trained_options:
 			visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
 
-	def trained_forward_pass(self, render=True):
+	def trained_forward_pass(self, max_steps, render=True):
 		"""
 		Called when skill chaining has finished training: execute options when possible and then atomic actions
 		Returns:
 			overall_reward (float): score accumulated over the course of the episode.
 		"""
-		self.mdp.reset()
+		set_training_time = False
+		if hasattr(self.mdp, "vary_init"):
+			if self.mdp.vary_init:
+				set_training_time = True
+
+		if set_training_time:
+			self.mdp.reset(training_time=False)
+			self.init_states.append(deepcopy(self.mdp.init_state))
+		else:
+			self.mdp.reset()
+
 		state = deepcopy(self.mdp.init_state)
 		overall_reward = 0.
 		self.mdp.render = render
 		num_steps = 0
 
-		while not state.is_terminal() and num_steps < self.max_steps:
+		while not state.is_terminal() and num_steps < max_steps:
 			selected_option = self.act(state)
 
 			option_reward, next_state, num_steps = selected_option.trained_option_execution(self.mdp, num_steps)
@@ -443,7 +470,7 @@ class SkillChaining(object):
 
 			state = next_state
 
-		return overall_reward
+		return overall_reward, num_steps
 
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
@@ -481,6 +508,7 @@ if __name__ == '__main__':
 	parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
 	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
+	parser.add_argument("--vary_init", type=bool, help="Check if domain supports this", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -490,7 +518,8 @@ if __name__ == '__main__':
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
 	elif "ant" in args.env.lower():
 		from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
-		overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed, render=args.render)
+		overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed,
+								 render=args.render, vary_init=args.vary_init)
 		state_dim = overall_mdp.state_space_size()
 		action_dim = overall_mdp.action_space_size()
 	elif "maze" in args.env.lower():

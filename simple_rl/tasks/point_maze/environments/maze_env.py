@@ -22,6 +22,7 @@ import math
 import numpy as np
 import gym
 import pdb
+import random
 
 from simple_rl.tasks.point_maze.environments import maze_env_utils
 
@@ -48,6 +49,7 @@ class MazeEnv(gym.Env):
       put_spin_near_agent=False,
       top_down_view=False,
       manual_collision=False,
+      vary_init=False,
       *args,
       **kwargs):
     self._maze_id = maze_id
@@ -68,6 +70,7 @@ class MazeEnv(gym.Env):
     self._put_spin_near_agent = put_spin_near_agent
     self._top_down_view = top_down_view
     self._manual_collision = manual_collision
+    self.vary_init = vary_init
 
     self.MAZE_STRUCTURE = structure = maze_env_utils.construct_maze(maze_id=self._maze_id)
     self.elevated = any(-1 in row for row in structure)  # Elevate the maze to allow for falling.
@@ -430,14 +433,36 @@ class MazeEnv(gym.Env):
                            range_sensor_obs.flat] +
                            view + [[self.t * 0.001]])
 
-  def reset(self):
+  def reset(self, training_time=True):
     self.t = 0
     self.trajectory = []
     self.wrapped_env.reset()
-    if len(self._init_positions) > 1:
+
+    if training_time and self.vary_init:
+        feasible_points = self.get_feasible_init_states()
+        random_idx = np.random.choice(np.arange(0, feasible_points.shape[0], 1))
+        xy = feasible_points[random_idx, :]
+        self.wrapped_env.set_xy(xy)
+
+    elif len(self._init_positions) > 1:
       xy = random.choice(self._init_positions)
       self.wrapped_env.set_xy(xy)
+
     return self._get_obs()
+
+  @staticmethod
+  def get_feasible_init_states():
+      x1 = np.arange(0., 4., 0.1)
+      y1 = np.zeros(x1.shape)
+      xy1 = np.concatenate((x1[:, None], y1[:, None]), axis=1)
+      y2 = np.copy(x1)
+      x2 = 4. * np.ones(y2.shape)
+      xy2 = np.concatenate((x2[:, None], y2[:, None]), axis=1)
+      x3 = np.arange(1., 4., 0.1)
+      y3 = 4. * np.ones(x3.shape)
+      xy3 = np.concatenate((x3[:, None], y3[:, None]), axis=1)
+      return np.concatenate((xy1, xy2, xy3), axis=0)
+
 
   @property
   def viewer(self):
