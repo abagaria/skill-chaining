@@ -313,7 +313,7 @@ class Option(object):
 
 		if self.is_term_true(state):
 			print("~~~~~ Warning: subgoal query at goal ~~~~~")
-			return 0.
+			return self.subgoal_reward
 		else:
 			return -1.
 

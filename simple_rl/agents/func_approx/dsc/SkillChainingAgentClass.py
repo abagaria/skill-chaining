@@ -356,19 +356,15 @@ class SkillChaining(object):
 	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
 
 		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
-			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon), end="")
+			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		if self.writer is not None:
 			self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
 
-		if episode % 10 == 0:
-			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
-				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
-
-		if episode > 0 and episode % 100 == 0:
-			eval_score = self.trained_forward_pass(render=False)
-			self.validation_scores.append(eval_score)
-			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+		# if episode > 0 and episode % 100 == 0:
+		eval_score = self.trained_forward_pass(render=False)
+		self.validation_scores.append(eval_score)
+		print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
 		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
