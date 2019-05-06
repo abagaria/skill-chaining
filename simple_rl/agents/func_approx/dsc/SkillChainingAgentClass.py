@@ -327,6 +327,16 @@ class SkillChaining(object):
 		for option in self.trained_options:  # type: Option
 			option.max_steps = new_max_steps
 
+	def fraction_in_trained_options(self, state_buffer):
+		num_inside = 0
+		num_total = 0
+		for state in state_buffer:
+			for option in self.trained_options[1:]:  # type: Option
+				if option.is_init_true(state):
+					num_inside += 1
+				num_total += 1
+		return float(num_inside) / float(num_total) if num_total > 0 else 0.
+
 	def skill_chaining(self, num_episodes):
 
 		# For logging purposes
@@ -360,7 +370,7 @@ class SkillChaining(object):
 
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None and \
-						len(state_buffer) > 50:
+						len(state_buffer) > 50 and self.fraction_in_trained_options(state_buffer) < 0.3:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						self._augment_agent_with_new_option(self.untrained_option)
