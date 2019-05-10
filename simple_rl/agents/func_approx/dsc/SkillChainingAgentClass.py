@@ -452,8 +452,8 @@ class SkillChaining(object):
 			pickle.dump(self.validation_durations, _f)
 
 	def perform_experiments(self):
-		for option in self.trained_options:
-			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
+		#for option in self.trained_options:
+		#	visualize_dqn_replay_buffer(option.solver, args.experiment_name)
 		# render_sampled_value_function(self.global_option.solver, episode=args.episodes, experiment_name=args.experiment_name)
 		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
@@ -465,8 +465,8 @@ class SkillChaining(object):
 		for option in self.trained_options[1:]:
 			plot_one_class_initiation_classifier(option, args.episodes, args.experiment_name)
 
-		for option in self.trained_options:
-			visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
+		#for option in self.trained_options:
+		#	visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
 
 	def trained_forward_pass(self, max_steps, render=True):
 		"""
@@ -588,6 +588,6 @@ if __name__ == '__main__':
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes)
 
 	# Log performance metrics
-	chainer.save_all_models()
-	chainer.perform_experiments()
+	# chainer.save_all_models()
+	# chainer.perform_experiments()
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
