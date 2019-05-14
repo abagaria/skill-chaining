@@ -281,7 +281,7 @@ class SkillChaining(object):
 		episode_option_executions[selected_option.name] += 1
 		self.option_rewards[selected_option.name].append(discounted_reward)
 
-		sampled_q_value = self.sample_qvalue(selected_option)
+		sampled_q_value = 0. #self.sample_qvalue(selected_option)
 		self.option_qvalues[selected_option.name].append(sampled_q_value)
 		if self.writer is not None:
 			self.writer.add_scalar("{}_q_value".format(selected_option.name),
