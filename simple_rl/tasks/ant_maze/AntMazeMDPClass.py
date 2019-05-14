@@ -9,13 +9,21 @@ from simple_rl.tasks.point_maze.environments.ant_maze_env import AntMazeEnv
 from simple_rl.tasks.ant_maze.AntMazeStateClass import AntMazeState
 
 class AntMazeMDP(MDP):
-    def __init__(self, seed, vary_init=False, reward_scale=1.0, dense_reward=False, render=False):
-        self.env_name = "ant_maze"
+    def __init__(self, seed, env_name, vary_init=False, reward_scale=1.0, dense_reward=False, render=False):
+        self.env_name = env_name
         self.vary_init = vary_init
         self.seed = seed
         self.reward_scale = reward_scale
         self.dense_reward = dense_reward
         self.render = render
+
+        if "maze" in env_name.lower():
+            maze_id = "Maze"
+        elif "room" in env_name.lower():
+            maze_id = "FourRoom"
+        else:
+            NotImplementedError(env_name)
+        scaling = 1 if env_name == "ant_maze" else 1
 
         # Set random seed
         random.seed(seed)
@@ -23,13 +31,13 @@ class AntMazeMDP(MDP):
 
         # Configure env
         gym_mujoco_kwargs = {
-            'maze_id': 'Maze',
+            'maze_id': maze_id,
             'n_bins': 0,
             'observe_blocks': False,
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 2,
+            'maze_size_scaling': scaling,
             "expose_body_coms": ["torso"]
         }
 

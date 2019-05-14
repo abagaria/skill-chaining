@@ -537,7 +537,7 @@ if __name__ == '__main__':
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
 	elif "ant" in args.env.lower():
 		from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
-		overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed,
+		overall_mdp = AntMazeMDP(env_name=args.env, reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed,
 								 render=args.render, vary_init=args.vary_init)
 		state_dim = overall_mdp.state_space_size()
 		action_dim = overall_mdp.action_space_size()
