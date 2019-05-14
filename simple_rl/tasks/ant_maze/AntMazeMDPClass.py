@@ -23,13 +23,13 @@ class AntMazeMDP(MDP):
 
         # Configure env
         gym_mujoco_kwargs = {
-            'maze_id': 'Maze',
+            'maze_id': 'Reacher',
             'n_bins': 0,
             'observe_blocks': False,
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 2,
+            'maze_size_scaling': 3,
             "expose_body_coms": ["torso"]
         }
 

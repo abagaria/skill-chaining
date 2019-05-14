@@ -540,17 +540,17 @@ if __name__ == '__main__':
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	args = parser.parse_args()
 
-	if "reacher" in args.env.lower():
-		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
-		state_dim = overall_mdp.init_state.features().shape[0]
-		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
-	elif "ant" in args.env.lower():
+	if "ant" in args.env.lower():
 		from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
 		overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed,
 								 render=args.render, vary_init=args.vary_init)
 		state_dim = overall_mdp.state_space_size()
 		action_dim = overall_mdp.action_space_size()
+	elif "reacher" in args.env.lower():
+		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
+		state_dim = overall_mdp.init_state.features().shape[0]
+		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
 	elif "maze" in args.env.lower():
 		from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
 		overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
