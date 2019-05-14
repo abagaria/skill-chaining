@@ -357,6 +357,7 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < self.max_steps:
+				previous_state = deepcopy(state)
 				experiences, reward, state, steps = self.take_action(state, step_number, episode_option_executions)
 				score += reward
 				step_number += steps
@@ -368,7 +369,8 @@ class SkillChaining(object):
 				if state.is_terminal() or (step_number == self.max_steps - 1):
 					state_buffer.append(state)
 
-				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
+				if self.untrained_option.is_term_true(state) and (not self.untrained_option.is_term_true(previous_state))\
+						and (not uo_episode_terminated) and\
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None and \
 						len(state_buffer) > 50 and self.fraction_in_trained_options(state_buffer) < 0.3:
 					uo_episode_terminated = True
