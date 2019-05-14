@@ -90,8 +90,10 @@ class AntFourRoomMDP(MDP):
         # Reset controls
         self.sim.data.ctrl[:] = 0
 
-        self.sim.data.qpos = np.zeros()
-        init_state_array = np.zeros(self.state_dim)
+        self.sim.data.qpos = np.zeros(len(self.sim.data.qpos))
+        self.sim.data.qvel = np.zeros(len(self.sim.data.qvel))
+        
+        init_state_array = self.get_observation()
         self.init_state = self._get_state(init_state_array, done=False)
         print("Sampled init state = ", self.init_state.position)
         super(AntFourRoomMDP, self).reset()
