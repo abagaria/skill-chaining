@@ -125,8 +125,8 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 
 	plot_all_trajectories_in_initiation_data(option.positive_examples)
 
-	plt.xlim((-1, 5))
-	plt.ylim((-1, 5))
+	plt.xlim((-1, 10))
+	plt.ylim((-1, 10))
 
 	plt.xlabel("x")
 	plt.ylabel("y")

@@ -329,13 +329,12 @@ class SkillChaining(object):
 
 	def fraction_in_trained_options(self, state_buffer):
 		num_inside = 0
-		num_total = 0
+		num_total = len(state_buffer)
 		for state in state_buffer:
 			for option in self.trained_options[1:]:  # type: Option
 				if option.is_init_true(state):
 					num_inside += 1
-				num_total += 1
-		return float(num_inside) / float(num_total) if num_total > 0 else 0.
+		return float(num_inside) / float(num_total) if num_total > 0 else 1.
 
 	def skill_chaining(self, num_episodes):
 
