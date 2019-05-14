@@ -29,7 +29,7 @@ class AntMazeMDP(MDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 2,
+            'maze_size_scaling': 4,
             "expose_body_coms": ["torso"]
         }
 

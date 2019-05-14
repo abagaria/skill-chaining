@@ -56,7 +56,7 @@ class MazeEnv(gym.Env):
 
     model_cls = self.__class__.MODEL_CLASS
     if model_cls is None:
-      raise "MODEL_CLASS unspecified!"
+      raise ValueError("MODEL_CLASS unspecified!")
     xml_path = os.path.join(MODEL_DIR, model_cls.FILE)
     tree = ET.parse(xml_path)
     worldbody = tree.find(".//worldbody")
@@ -452,14 +452,15 @@ class MazeEnv(gym.Env):
 
   @staticmethod
   def get_feasible_init_states():
-      x1 = np.arange(0., 4., 0.1)
+      k = 8.
+      x1 = np.arange(0., k, 0.1)
       y1 = np.zeros(x1.shape)
       xy1 = np.concatenate((x1[:, None], y1[:, None]), axis=1)
       y2 = np.copy(x1)
-      x2 = 4. * np.ones(y2.shape)
+      x2 = k * np.ones(y2.shape)
       xy2 = np.concatenate((x2[:, None], y2[:, None]), axis=1)
-      x3 = np.arange(1., 4., 0.1)
-      y3 = 4. * np.ones(x3.shape)
+      x3 = np.arange(1., k, 0.1)
+      y3 = k * np.ones(x3.shape)
       xy3 = np.concatenate((x3[:, None], y3[:, None]), axis=1)
       return np.concatenate((xy1, xy2, xy3), axis=0)
 

@@ -68,7 +68,7 @@
     </body>
 
     <!-- Goal / target position -->
-        <geom name="target" type="sphere" size="0.5" pos="0 4 0" rgba="1. 0. 0. 0.6" />
+        <geom name="target" type="sphere" size="0.5" pos="0 8 0" rgba="1. 0. 0. 0.6" />
 
   </worldbody>
   <actuator>
