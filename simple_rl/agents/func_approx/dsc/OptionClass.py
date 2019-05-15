@@ -79,10 +79,19 @@ class Option(object):
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
 		self.positive_examples = []
+		self.negative_examples = []
 		self.experience_buffer = []
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
+
+		# If we are not the global or the goal option, we want to include the positive examples of all options
+		# above us as our own negative examples
+		parent_option = self.parent
+		while parent_option is not None:
+			print("Adding {}'s positive examples".format(parent_option.name))
+			self.negative_examples += list(itertools.chain.from_iterable(parent_option.positive_examples))
+			parent_option = parent_option.parent
 
 		print("Creating {} with enable_timeout={}, buffer_len={}, subgoal_hits={}".format(name, enable_timeout,
 																						  self.buffer_length,
@@ -132,17 +141,41 @@ class Option(object):
 		# 			subgoal_reward = self.get_subgoal_reward(next_state)
 		# 			self.solver.step(state, action, subgoal_reward, next_state, done)
 
+	def distance_to_closest_positive_example(self, position):
+		XB = self.construct_feature_matrix(self.positive_examples)[:, :2]
+		distances = distance.cdist(position[None, ...], XB, "euclidean")
+		return np.min(distances)
+
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
+
 		position_matrix = state_matrix[:, :2]
-		return self.initiation_classifier.predict(position_matrix) == 1
+		svm_decisions = self.initiation_classifier.predict(position_matrix) == 1
+
+		if self.classifier_type == "ocsvm":
+			return svm_decisions
+		elif self.classifier_type == "tcsvm":
+			positive_example_matrix = self.construct_feature_matrix(self.positive_examples)[:, :2]
+			distance_matrix = distance.cdist(position_matrix, positive_example_matrix, "euclidean")
+			closest_distances = np.min(distance_matrix, axis=1)
+			distance_predictions = closest_distances < 0.7
+			predictions = np.logical_and(svm_decisions, distance_predictions)
+			return predictions
+		raise ValueError(self.classifier_type)
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
+
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
-		return self.initiation_classifier.predict([features])[0] == 1
+		svm_decision = self.initiation_classifier.predict([features])[0] == 1
+		if self.classifier_type == "ocsvm":
+			return svm_decision
+		elif self.classifier_type == "tcsvm":
+			dist = self.distance_to_closest_positive_example(features[:2])
+			return svm_decision and dist < 0.7
+		raise ValueError(self.classifier_type)
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -173,50 +206,39 @@ class Option(object):
 		states = list(itertools.chain.from_iterable(examples))
 		return np.array(states)
 
-	def get_distances_to_goal(self, position_matrix):
-		if self.parent is None:
-			goal_position = self.overall_mdp.goal_position
-			return distance.cdist(goal_position[None, ...], position_matrix, "euclidean")
-
-		distances = self.parent.initiation_classifier.decision_function(position_matrix)
-		distances[distances >= 0.] = 0.
-		return distances
-
-	def distance_to_weights(self, distances):
-		weights = np.copy(distances)
-		for row in range(weights.shape[0]):
-			if weights[row] > 0.:
-				decay_factor = -0.5 if self.overall_mdp.dense_reward else -2.
-				weights[row] = np.exp(decay_factor * weights[row])
-			else:
-				weights[row] = 1.
-		return weights
-
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-		distances = self.get_distances_to_goal(positive_feature_matrix)
-		distances = distances.squeeze(0) if len(distances.shape) > 1 else distances
-		weights = self.distance_to_weights(distances)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="scale")
-		self.initiation_classifier.fit(positive_feature_matrix, sample_weight=weights)
-
-	def train_elliptic_envelope_classifier(self):
-		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-
-		self.initiation_classifier = EllipticEnvelope(contamination=0.2)
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix)
+		self.classifier_type = "ocsvm"
+
+	def train_two_class_classifier(self):
+		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		negative_feature_matrix = np.array(self.negative_examples)
+		positive_labels = [1] * positive_feature_matrix.shape[0]
+		negative_labels = [0] * negative_feature_matrix.shape[0]
+
+		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+		Y = np.concatenate((positive_labels, negative_labels))
+
+		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
+		self.initiation_classifier = svm.SVC(kernel="rbf", gamma="scale", class_weight="balanced")
+		self.initiation_classifier.fit(X, Y)
+
+		self.classifier_type = "tcsvm"
 
 	def train_initiation_classifier(self):
-		if self.classifier_type == "ocsvm":
+		if len(self.negative_examples) == 0:
+			print("Training 1-class SVM for {}\n".format(self.name))
 			self.train_one_class_svm()
-		elif self.classifier_type == "elliptic":
-			self.train_elliptic_envelope_classifier()
+		elif len(self.negative_examples) > 0:
+			print("Training 2-class SVM for {}\n".format(self.name))
+			self.train_two_class_classifier()
 		else:
-			raise NotImplementedError("{} not supported".format(self.classifier_type))
+			raise ValueError("Trying to train classifier for {}".format(self.name))
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
@@ -253,7 +275,7 @@ class Option(object):
 
 		if self.is_term_true(state):
 			print("~~~~~ Warning: subgoal query at goal ~~~~~")
-			return 0.
+			return self.subgoal_reward
 
 		# Return step penalty in sparse reward domain
 		if not self.dense_reward:

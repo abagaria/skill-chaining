@@ -464,7 +464,7 @@ class SkillChaining(object):
 		plt.close()
 
 		for option in self.trained_options[1:]:
-			plot_one_class_initiation_classifier(option, args.episodes, args.experiment_name)
+			plot_initiation_classifier(option, args.episodes, args.experiment_name)
 
 		#for option in self.trained_options:
 		#	visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
