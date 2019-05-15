@@ -9,7 +9,7 @@ import seaborn as sns
 sns.set()
 
 # Other imports.
-from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
+from simple_rl.tasks.ant_maze.AntMazeStateClass import AntMazeState
 
 class Experience(object):
 	def __init__(self, s, a, r, s_prime):
@@ -37,9 +37,13 @@ class Experience(object):
 # Plotting utils
 # ---------------
 
+GRID_MIN = -1.
+GRID_MAX = +8.
+GRID_STEP = 0.5
+
 def plot_trajectory(trajectory, color='k', marker="o"):
 	for i, state in enumerate(trajectory):
-		if isinstance(state, PointMazeState):
+		if isinstance(state, AntMazeState):
 			x = state.position[0]
 			y = state.position[1]
 		else:
@@ -60,10 +64,11 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
 	ss = []
-	for x in np.arange(0., 11., 1.):
-		for y in np.arange(0., 11., 1.):
-			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-							   theta=0., theta_dot=0., done=False)
+	for x in np.arange(GRID_MIN, GRID_MAX, GRID_STEP):
+		for y in np.arange(GRID_MIN, GRID_MAX, GRID_STEP):
+			position = np.array([x, y])
+			other_features = np.array(29 * [0.])
+			s = AntMazeState(position, other_features, False)
 			ss.append(s)
 	return ss
 
@@ -91,6 +96,17 @@ def get_values(solver, init_values=False):
 
 	return values
 
+def get_initiation_set_values(option):
+	values = []
+	for x in np.arange(GRID_MIN, GRID_MAX, GRID_STEP):
+		for y in np.arange(GRID_MIN, GRID_MAX, GRID_STEP):
+			position = np.array([x, y])
+			other_features = np.array(29*[0.])
+			s = AntMazeState(position, other_features, False)
+			values.append(option.is_init_true(s))
+
+	return values
+
 def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	states = get_grid_states()
 	values = get_values(solver)
@@ -106,6 +122,38 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
 	plt.close()
+
+def render_sampled_initiation_classifier(option, episode, experiment_name):
+	def generate_plot():
+		states = get_grid_states()
+		values = get_initiation_set_values(option)
+
+		x = np.array([state.position[0] for state in states])
+		y = np.array([state.position[1] for state in states])
+		xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+		xx, yy = np.meshgrid(xi, yi)
+		rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
+		zz = rbf(xx, yy)
+		plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.bwr)
+		plt.colorbar()
+
+		# Plot trajectories
+		positive_examples = option.construct_feature_matrix(option.positive_examples)
+		negative_examples = np.array(option.negative_examples)
+		plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.bone)
+
+		if negative_examples.shape[0] > 0:
+			plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.bone)
+
+		# background_image = imageio.imread("reacher_domain.png")
+		# plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-0.2, 0.2, -0.2, 0.2])
+
+		name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+		plt.title("{} Initiation Set".format(option.name))
+		plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
+		plt.close()
+
+	generate_plot()
 
 def make_meshgrid(x, y, h=.02):
 	x_min, x_max = x.min() - 1, x.max() + 1
@@ -133,6 +181,12 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
 	plt.close()
+
+def plot_initiation_classifier(option, episode=None, experiment_name=""):
+	if option.parent is None:
+		plot_one_class_initiation_classifier(option, episode, experiment_name)
+	else:
+		render_sampled_initiation_classifier(option, episode, experiment_name)
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))
