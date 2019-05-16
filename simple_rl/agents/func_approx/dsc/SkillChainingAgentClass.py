@@ -346,7 +346,7 @@ class SkillChaining(object):
 
 		for episode in range(num_episodes):
 
-			self.mdp.reset()
+			self.mdp.reset(training_time=self.random_exploration)
 			score = 0.
 			step_number = 0
 			uo_episode_terminated = False

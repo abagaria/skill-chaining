@@ -141,28 +141,13 @@ class Option(object):
 		# 			subgoal_reward = self.get_subgoal_reward(next_state)
 		# 			self.solver.step(state, action, subgoal_reward, next_state, done)
 
-	def distance_to_closest_positive_example(self, position):
-		XB = self.construct_feature_matrix(self.positive_examples)[:, :2]
-		distances = distance.cdist(position[None, ...], XB, "euclidean")
-		return np.min(distances)
-
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
 
 		position_matrix = state_matrix[:, :2]
 		svm_decisions = self.initiation_classifier.predict(position_matrix) == 1
-
-		if self.classifier_type == "ocsvm":
-			return svm_decisions
-		elif self.classifier_type == "tcsvm":
-			positive_example_matrix = self.construct_feature_matrix(self.positive_examples)[:, :2]
-			distance_matrix = distance.cdist(position_matrix, positive_example_matrix, "euclidean")
-			closest_distances = np.min(distance_matrix, axis=1)
-			distance_predictions = closest_distances < 0.7
-			predictions = np.logical_and(svm_decisions, distance_predictions)
-			return predictions
-		raise ValueError(self.classifier_type)
+		return svm_decisions
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
@@ -170,12 +155,7 @@ class Option(object):
 
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		svm_decision = self.initiation_classifier.predict([features])[0] == 1
-		if self.classifier_type == "ocsvm":
-			return svm_decision
-		elif self.classifier_type == "tcsvm":
-			dist = self.distance_to_closest_positive_example(features[:2])
-			return svm_decision and dist < 0.7
-		raise ValueError(self.classifier_type)
+		return svm_decision
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -225,8 +205,13 @@ class Option(object):
 		Y = np.concatenate((positive_labels, negative_labels))
 
 		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-		self.initiation_classifier = svm.SVC(kernel="rbf", gamma="scale", class_weight="balanced")
-		self.initiation_classifier.fit(X, Y)
+		two_class_initiation_classifier = svm.SVC(kernel="rbf", gamma="scale", class_weight="balanced")
+		two_class_initiation_classifier.fit(X, Y)
+
+		training_predictions = two_class_initiation_classifier.predict(X)
+		one_class_data = X[training_predictions == 1]
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		self.initiation_classifier.fit(one_class_data)
 
 		self.classifier_type = "tcsvm"
 
@@ -273,7 +258,7 @@ class Option(object):
 
 	def get_subgoal_reward(self, state):
 
-		if self.is_term_true(state):
+		if self.is_term_true(state) or state.is_terminal():
 			print("~~~~~ Warning: subgoal query at goal ~~~~~")
 			return self.subgoal_reward
 
@@ -288,7 +273,7 @@ class Option(object):
 		if self.parent is None:
 			goal_distance = self.overall_mdp.distance_to_goal(position_vector)
 			if goal_distance <= 0.6:
-				return 0.
+				return self.subgoal_reward
 			return -self.overall_mdp.reward_scale * goal_distance
 
 		# For every other option, we use the negative distance to the parent's initiation set classifier
