@@ -84,15 +84,15 @@ def create_log_dir(experiment_name):
     return path
 
 
-def save_all_scores(scores, durations, log_dir, seed):
-    print("\rSaving training scores and durations..")
-    training_scores_file_name = "flat_ddpg_training_scores_{}".format(seed)
-    training_durations_file_name = "flat_ddpg_training_durations_{}".format(seed)
+def save_all_scores(scores, durations, log_dir, mode, seed):
+    print("\rSaving {} scores and durations..".format(mode))
+    scores_file_name = "flat_ddpg_{}_scores_{}".format(mode, seed)
+    durations_file_name = "flat_ddpg_{}_durations_{}".format(mode, seed)
 
-    training_scores_file_name = os.path.join(log_dir, training_scores_file_name)
-    training_durations_file_name = os.path.join(log_dir, training_durations_file_name)
+    scores_file_name = os.path.join(log_dir, scores_file_name)
+    durations_file_name = os.path.join(log_dir, durations_file_name)
 
-    with open(training_scores_file_name, "wb+") as _f:
+    with open(scores_file_name, "wb+") as _f:
         pickle.dump(scores, _f)
-    with open(training_durations_file_name, "wb+") as _f:
+    with open(durations_file_name, "wb+") as _f:
         pickle.dump(durations, _f)
