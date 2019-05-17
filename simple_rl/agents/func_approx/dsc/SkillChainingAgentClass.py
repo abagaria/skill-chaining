@@ -351,6 +351,7 @@ class SkillChaining(object):
 			step_number = 0
 			uo_episode_terminated = False
 			state = deepcopy(self.mdp.init_state)
+			if not self.mdp.vary_init: self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []
 			episode_option_executions = defaultdict(lambda : 0)
@@ -371,7 +372,7 @@ class SkillChaining(object):
 				if self.untrained_option.is_term_true(state) and (not self.untrained_option.is_term_true(previous_state))\
 						and (not uo_episode_terminated) and\
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None and \
-						len(state_buffer) > 50 and self.fraction_in_trained_options(state_buffer) < 0.3:
+						(self.fraction_in_trained_options(state_buffer) < 0.3 or self.untrained_option.option_idx > 3):
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						self._augment_agent_with_new_option(self.untrained_option)

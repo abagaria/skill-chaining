@@ -29,7 +29,7 @@ class AntMazeMDP(MDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 3,
+            'maze_size_scaling': 2,
             "expose_body_coms": ["torso"]
         }
 
@@ -102,7 +102,7 @@ class AntMazeMDP(MDP):
         return -self.action_bound <= action.all() <= self.action_bound
 
     def reset(self, training_time=True):
-        init_state_array = self.env.reset(training_time=training_time)
+        init_state_array = self.env.reset(training_time=(training_time and self.vary_init))
         self.init_state = self._get_state(init_state_array, done=False)
         print("Sampled init state = ", self.init_state.position)
         super(AntMazeMDP, self).reset()
