@@ -258,8 +258,9 @@ class SkillChaining(object):
 
 		# Decide if want to do pure exploration. If we are done with that phase, then we can drop
 		# the number of steps per episode to avoid extremely large training times
-		random_exploration = self.should_create_more_options() or episode < 75
-		if self.random_exploration and not random_exploration:
+		should_create_more = self.should_create_more_options()
+		stop_random_exploration = (not should_create_more) or (should_create_more and episode >= 75)
+		if self.random_exploration and stop_random_exploration:
 			self.random_exploration = False
 			self.change_max_steps(self.final_max_steps)
 
