@@ -71,7 +71,10 @@ class DDPGAgent(Agent):
         Agent.__init__(self, name, [], gamma=GAMMA)
 
     def act(self, state, evaluation_mode=False):
-        action = self.actor.get_action(state)
+        if np.random.random_sample() < 0.9:
+            action = self.actor.get_action(state)
+        else:
+            action = np.random.uniform(-self.action_bound, self.action_bound, self.action_size)
         policy_action = np.copy(action)
         epsilon = self.epsilon if not evaluation_mode else EPS_MIN
         noise = self.action_bound * np.random.normal(0., epsilon, size=self.action_size)

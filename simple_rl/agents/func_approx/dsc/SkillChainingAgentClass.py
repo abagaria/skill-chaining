@@ -241,7 +241,7 @@ class SkillChaining(object):
 		selected_option = self.trained_options[option_idx]  # type: Option
 		return selected_option
 
-	def take_action(self, state, step_number, episode_option_executions):
+	def take_action(self, state, step_number, episode_option_executions, episode):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
 		Args:
@@ -258,7 +258,7 @@ class SkillChaining(object):
 
 		# Decide if want to do pure exploration. If we are done with that phase, then we can drop
 		# the number of steps per episode to avoid extremely large training times
-		random_exploration = self.should_create_more_options()
+		random_exploration = self.should_create_more_options() or episode < 75
 		if self.random_exploration and not random_exploration:
 			self.random_exploration = False
 			self.change_max_steps(self.final_max_steps)
@@ -357,7 +357,7 @@ class SkillChaining(object):
 
 			while step_number < self.max_steps:
 				previous_state = deepcopy(state)
-				experiences, reward, state, steps = self.take_action(state, step_number, episode_option_executions)
+				experiences, reward, state, steps = self.take_action(state, step_number, episode_option_executions, episode)
 				score += reward
 				step_number += steps
 				for experience in experiences:
@@ -371,7 +371,7 @@ class SkillChaining(object):
 				if self.untrained_option.is_term_true(state) and (not self.untrained_option.is_term_true(previous_state))\
 						and (not uo_episode_terminated) and\
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None and \
-						len(state_buffer) > 50 and self.fraction_in_trained_options(state_buffer) < 0.3:
+						(len(state_buffer) > 50 or np.linalg.norm(state.position) < 2.) and self.fraction_in_trained_options(state_buffer) < 0.3:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						self._augment_agent_with_new_option(self.untrained_option)
