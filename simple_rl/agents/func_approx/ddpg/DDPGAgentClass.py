@@ -169,13 +169,11 @@ class DDPGAgent(Agent):
         return q_values
 
 def trained_forward_pass(agent, mdp, steps, render=False):
-    mdp.reset()
+    mdp.reset(training_time=False)
     state = deepcopy(mdp.init_state)
     overall_reward = 0.
-    original_render = deepcopy(mdp.render)
-    mdp.render = render
 
-    for _ in range(steps):
+    for step_number in range(steps):
         action = agent.act(state.features(), evaluation_mode=True)
         reward, next_state = mdp.execute_agent_action(action)
         overall_reward += reward
@@ -183,16 +181,14 @@ def trained_forward_pass(agent, mdp, steps, render=False):
         if state.is_terminal():
             break
 
-    mdp.render = original_render
-    return overall_reward
+    return overall_reward, step_number+1
 
 
 def train(agent, mdp, episodes, steps):
-    best_episodic_reward = -np.inf
     per_episode_scores = []
     per_episode_durations = []
-    last_10_scores = deque(maxlen=50)
-    last_10_durations = deque(maxlen=50)
+    last_10_scores = deque(maxlen=10)
+    last_10_durations = deque(maxlen=10)
     action_bound = mdp.action_space_bound()
     action_size = mdp.action_space_size()
 
@@ -201,7 +197,7 @@ def train(agent, mdp, episodes, steps):
         state = deepcopy(mdp.init_state)
         score = 0.
         for step in range(steps):
-            if episode < 1:
+            if episode < 20:
                 action = np.random.uniform(-action_bound, action_bound, action_size)
             else:
                 action = agent.act(state.features())
@@ -223,19 +219,17 @@ def train(agent, mdp, episodes, steps):
         last_10_durations.append(step)
         per_episode_durations.append(step)
 
-        if score > best_episodic_reward:
-            save_model(agent, episode)
-            best_episodic_reward = score
-
         print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon), end="")
-        if episode % PRINT_EVERY == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
-            # render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
+        episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
 
-    visualize_next_state_reward_heat_map(agent, episodes, args.experiment_name)
-
+        if episode % 10 == 0:
+            test_reward, test_duration = trained_forward_pass(agent, mdp, steps, False)
+            validation_scores.append(test_reward)
+            validation_durations.append(test_duration)
+            print(80 * "=")
+            print("Episode: {} \t Validation Score: {} \t Validation Duration: {}".format(episode, test_reward,
+                                                                                          test_duration))
+            print(80 * "=")
     return per_episode_scores, per_episode_durations
 
 
@@ -252,7 +246,10 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, help="number of steps per episode", default=200)
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--seed", type=int, help="random seed", default=0)
+    parser.add_argument("--vary_init", type=bool, default=False)
     args = parser.parse_args()
+
+    validation_scores, validation_durations = [], []
 
     log_dir = create_log_dir(args.experiment_name)
 
@@ -263,7 +260,8 @@ if __name__ == "__main__":
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
     elif "ant" in args.env.lower():
         from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
-        overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed, render=args.render)
+        overall_mdp = AntMazeMDP(reward_scale=args.reward_scale, dense_reward=args.dense_reward, seed=args.seed,
+                                 render=args.render, vary_init=args.vary_init)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
         max_action = overall_mdp.action_space_bound()
@@ -290,9 +288,5 @@ if __name__ == "__main__":
     ddpg_agent = DDPGAgent(state_dim, action_dim, max_action, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
-    save_model(ddpg_agent, episode_number=args.episodes, best=False)
-    save_all_scores(episodic_scores, episodic_durations, log_dir, args.seed)
-
-    best_ep, best_agent = load_model(ddpg_agent)
-    print("loaded {} from episode {}".format(best_agent.name, best_ep))
-    # trained_forward_pass(best_agent, overall_mdp, args.steps)
+    save_all_scores(episodic_scores, episodic_durations, log_dir, "training", args.seed)
+    save_all_scores(validation_scores, validation_durations, log_dir, "validation", args.seed)
