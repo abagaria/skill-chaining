@@ -193,7 +193,10 @@ def train(agent, mdp, episodes, steps):
     action_size = mdp.action_space_size()
 
     for episode in range(episodes):
-        mdp.reset()
+        if episode < 20:
+            mdp.reset()
+        else:
+            mdp.reset(training_time=False)
         state = deepcopy(mdp.init_state)
         score = 0.
         for step in range(steps):
@@ -230,6 +233,10 @@ def train(agent, mdp, episodes, steps):
             print("Episode: {} \t Validation Score: {} \t Validation Duration: {}".format(episode, test_reward,
                                                                                           test_duration))
             print(80 * "=")
+
+            # Incrementally store all the validation scores
+            save_all_scores([test_reward], [test_duration], log_dir, "validation_{}".format(episode), args.seed)
+
     return per_episode_scores, per_episode_durations
 
 
