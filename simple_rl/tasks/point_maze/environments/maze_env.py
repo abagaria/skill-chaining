@@ -28,7 +28,7 @@ from simple_rl.tasks.point_maze.environments import maze_env_utils
 
 # Directory that contains mujoco xml files.
 # MODEL_DIR = '/Users/akhil/git-repos/models/research/efficient-hrl/environments/assets'
-MODEL_DIR = os.path.join(os.path.expanduser("~"), 'skill-chaining/simple_rl/tasks/point_maze/environments/assets')
+MODEL_DIR = os.path.join(os.path.expanduser("~"), 'git-repos/skill-chaining/simple_rl/tasks/point_maze/environments/assets')
 
 
 class MazeEnv(gym.Env):
