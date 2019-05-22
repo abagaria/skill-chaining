@@ -174,7 +174,7 @@ class Option(object):
 
 		distances = self.parent.initiation_classifier.decision_function(position_matrix)
 		distances[distances >= 0.] = 0.
-		return distances
+		return -1. * distances
 
 	@staticmethod
 	def distance_to_weights(distances):
@@ -356,12 +356,17 @@ class Option(object):
 		state = mdp.cur_state
 		score, step_number = 0., deepcopy(outer_step_counter)
 		num_steps = 0
+		visited_states = []
 
 		while not self.is_term_true(state) and not state.is_terminal()\
 				and step_number < self.max_steps and num_steps < self.timeout:
+
+			visited_states.append(deepcopy(state))
+			
 			action = self.solver.act(state.features(), evaluation_mode=True)
 			reward, state = mdp.execute_agent_action(action, option_idx=self.option_idx)
+
 			score += reward
 			step_number += 1
 			num_steps += 1
-		return score, state, step_number
+		return score, state, step_number, visited_states

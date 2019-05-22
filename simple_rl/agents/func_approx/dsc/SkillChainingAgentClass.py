@@ -342,7 +342,7 @@ class SkillChaining(object):
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
-						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
@@ -440,16 +440,19 @@ class SkillChaining(object):
 		overall_reward = 0.
 		self.mdp.render = render
 		num_steps = 0
+		action_sequence = []		
 
 		while not state.is_terminal() and num_steps < self.max_steps:
 			selected_option = self.act(state)
 
-			option_reward, next_state, num_steps = selected_option.trained_option_execution(self.mdp, num_steps)
+			option_reward, next_state, num_steps, visited_states = selected_option.trained_option_execution(self.mdp, num_steps)
 			overall_reward += option_reward
+
+			action_sequence.append( (selected_option.option_idx, visited_states) )
 
 			state = next_state
 
-		return overall_reward
+		return overall_reward, action_sequence
 
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
