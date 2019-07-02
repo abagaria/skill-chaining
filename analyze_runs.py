@@ -9,10 +9,34 @@ sns.set()
 
 RMAX = 10.
 
-def moving_average(a, n=10) :
+def moving_average(a, n=25) :
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
+
+
+def get_plot_params(array):
+    median = np.median(array, axis=0)
+    means = np.mean(array, axis=0)
+    std = np.std(array, axis=0)
+    top = means + std
+    bot = means - std
+    return median, means, top, bot
+
+def smoothen_data(scores, n=25):
+    print(scores.shape)
+    smoothened_cols = scores.shape[1] - n + 1
+    smoothened_data = np.zeros((scores.shape[0], smoothened_cols))
+    for i in range(scores.shape[0]):
+        smoothened_data[i, :] = moving_average(scores[i, :], n=n)
+    return smoothened_data
+
+
+def generate_plot(score_array, label):
+    smoothened_data = smoothen_data(score_array)
+    median, mean, top, bottom = get_plot_params(smoothened_data)
+    plt.plot(median, label=label, alpha=0.9)
+    plt.fill_between( range(len(top)), top, bottom, alpha=0.2 )
 
 def plot_option_executions(experiment_executions, experiment_name):
     """
@@ -63,10 +87,12 @@ def plot_training_scores(training_scores, experiment_name):
 def plot_comparison_training_scores(training_scores_batch, experiment_names, experiment="sc"):
     plt.figure(figsize=(8, 5))
     for training_scores, experiment_name in zip(training_scores_batch, experiment_names):
-        median_scores, top, bottom = get_plot_params(training_scores)
-        plt.plot(moving_average(median_scores), linewidth=4, label=experiment_name.replace("_hard_pinball", ""))
-        plt.fill_between(range(len(median_scores)), top, bottom, alpha=0.1)
-        # plt.ylim((5, 10))
+        # median_scores, top, bottom = get_plot_params(training_scores)
+        # plt.plot(moving_average(median_scores), linewidth=4, label=experiment_name.replace("_hard_pinball", ""))
+        # plt.fill_between(range(len(median_scores)), top, bottom, alpha=0.1)
+        # # plt.ylim((5, 10))
+        generate_plot(np.array(training_scores), experiment_name)
+    
     plt.title("Episodic Scores (Training)")
     plt.ylabel("Reward")
     plt.xlabel("Episode")
@@ -77,7 +103,7 @@ def plot_comparison_training_scores(training_scores_batch, experiment_names, exp
 def plot_comparison_training_durations(training_durations_batch, experiment_names, experiment="sc"):
     plt.figure(figsize=(8, 5))
     for training_durations, experiment_name in zip(training_durations_batch, experiment_names):
-        median_scores, top, bottom = get_plot_params(training_durations, clamp_top=False)
+        median_scores, mean_scores, top, bottom = get_plot_params(training_durations)
         plt.plot(median_scores, linewidth=4, label=experiment_name.replace("_hard_pinball", ""))
         plt.fill_between( range(len(median_scores)), top, bottom, alpha=0.1 )
     plt.yscale("log")
@@ -102,32 +128,34 @@ def plot_training_durations(training_durations, experiment_name):
     plt.savefig("{}_training_durations.png".format(experiment_name))
     plt.close()
 
-def get_plot_params(scores, clamp_top=True, variable_sized=False):
-    if variable_sized:
-        lengths = map(len, scores)
-        trunc_length = min(lengths)
-        truncated_scores = [score_list[:trunc_length] for score_list in scores]
-        s = np.array(truncated_scores)
-    else:
-        s = np.array(scores)
-    medians = np.median(s, axis=0)
-    means = np.mean(s, axis=0)
-    stds = np.std(s, axis=0)
-    if clamp_top:
-        top = np.max(s, axis=0)
-        bot = means - stds
-    else:
-        top = means + stds
-        bot = np.min(s, axis=0)
-    return medians, top, bot
+# def get_plot_params(scores, clamp_top=True, variable_sized=False):
+#     if variable_sized:
+#         lengths = map(len, scores)
+#         trunc_length = min(lengths)
+#         truncated_scores = [score_list[:trunc_length] for score_list in scores]
+#         s = np.array(truncated_scores)
+#     else:
+#         s = np.array(scores)
+#     medians = np.median(s, axis=0)
+#     means = np.mean(s, axis=0)
+#     stds = np.std(s, axis=0)
+#     if clamp_top:
+#         top = np.max(s, axis=0)
+#         bot = means - stds
+#     else:
+#         top = means + stds
+#         bot = np.min(s, axis=0)
+#     return medians, top, bot
+
 
 def get_scores(experiment_name):
     if "sc" in experiment_name:
         score_names = experiment_name + "/" + "sc_pretrained_False_training_scores_*.pkl".format(experiment_name)
         duration_names = experiment_name + "/" + "sc_pretrained_False_training_durations_*.pkl".format(experiment_name)
     else:
-        score_names = experiment_name + "/" + experiment_name + "*_training_scores.pkl"
-        duration_names = experiment_name + "/" + experiment_name + "*_training_durations.pkl"
+        pdb.set_trace()
+        score_names = experiment_name + "/" + "*_training_scores_*"
+        duration_names = experiment_name + "/" + "*_training_durations_*"
     training_scores, training_durations = [], []
     for score_file in glob.glob(score_names):
         with open(score_file, "rb") as f:
@@ -148,8 +176,8 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "point_lr_curves"
-    experiment_names = ["lr_actor_1e_3", "lr_c_1e_3"]
+    meta_experiment_name = "penalty_based_exploration_sparse_point_maze"
+    experiment_names = ["penalty_fix120_sparsePm", "flat_dddpg_eps015_noBonus_sparsePm"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:

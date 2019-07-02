@@ -1,10 +1,12 @@
 # Python imports.
+import time
 import random
 import numpy as np
 from copy import deepcopy
 from collections import deque
 import argparse
 import pdb
+from sklearn.neighbors import KernelDensity
 
 # PyTorch imports.
 import torch
@@ -19,6 +21,43 @@ from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
+
+
+class DensityModel(object):
+    def __init__(self, bandwidth=0.2):
+        self.bandwidth = bandwidth
+        self.model = KernelDensity(bandwidth=bandwidth, rtol=0.05)  # r_tol of 0.05 implies an error tolerance of 5%
+        self.fitted = False
+
+    def fit(self, state_buffer):
+        """
+        Args:
+            state_buffer (np.ndarray): Array with each row representing the features of the state
+        """
+        position_buffer = state_buffer[:, :2]
+
+        start_time = time.time()
+        self.model.fit(position_buffer)
+        end_time = time.time()
+
+        fitting_time = end_time - start_time
+        if fitting_time >= 1:
+            print("\rDensity Model took {} seconds to fit".format(end_time - start_time))
+        self.fitted = True
+
+        return fitting_time
+
+    def get_log_prob(self, states):
+        """
+        Args:
+            states (np.ndarray)
+
+        Returns:
+            log_probabilities (np.ndarray): log probability of each state in `states`
+        """
+        positions = states[:, :2]
+        log_pdf = self.model.score_samples(positions)
+        return log_pdf
 
 
 class DDPGAgent(Agent):
@@ -57,7 +96,12 @@ class DDPGAgent(Agent):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
-        self.epsilon = 1.0
+        self.epsilon = 0.15
+
+        # Pseudo-count based exploration
+        self.density_model = DensityModel()
+        self.should_update_density_model = False
+        self.n_density_fits = 0
 
         # Tensorboard logging
         self.writer = None
@@ -92,21 +136,38 @@ class DDPGAgent(Agent):
         self.replay_buffer.add(state, action, reward, next_state, done)
 
         if len(self.replay_buffer) > self.batch_size:
+
+            # Update the state-density model every `fitting_interval` number of steps
+            # Stop updating after 100 episodes so that we can fix the target value function
+            if len(self.replay_buffer) % args.fitting_interval == 0 and \
+                    len(self.replay_buffer) > 0 and self.should_update_density_model:
+                self.update_density_model()
+
+            # Regular DDPG gradient step
             experiences = self.replay_buffer.sample(batch_size=self.batch_size)
             self._learn(experiences, GAMMA)
 
     def _learn(self, experiences, gamma):
         states, actions, rewards, next_states, dones = experiences
+
+        # Compute exploration bonus before pushing experiences to the GPU
+        # exploration_bonus = self.exploration_bonus(states)
+        augmented_rewards = rewards # + exploration_bonus
+
+        #if not (exploration_bonus <= 0).all():
+        #    pdb.set_trace()
+
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.FloatTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
+        augmented_rewards = torch.FloatTensor(augmented_rewards).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
 
         next_actions = self.target_actor(next_states)
         Q_targets_next = self.target_critic(next_states, next_actions)
 
-        Q_targets = rewards + (1.0 - dones) * gamma * Q_targets_next.detach()
+        Q_targets = augmented_rewards + (1.0 - dones) * gamma * Q_targets_next.detach()
         Q_expected = self.critic(states, actions)
 
         self.critic_optimizer.zero_grad()
@@ -126,6 +187,9 @@ class DDPGAgent(Agent):
         # Tensorboard logging
         if self.writer is not None:
             self.n_learning_iterations = self.n_learning_iterations + 1
+            self.writer.add_scalar("{}_mean_raw_rewards".format(self.name), rewards.mean(), self.n_learning_iterations)
+            self.writer.add_scalar("{}_mean_aug_rewards".format(self.name), augmented_rewards.mean(), self.n_learning_iterations)
+            # self.writer.add_scalar("{}_mean_exploration_bonus".format(self.name), exploration_bonus.mean(), self.n_learning_iterations)
             self.writer.add_scalar("{}_critic_loss".format(self.name), critic_loss.item(), self.n_learning_iterations)
             self.writer.add_scalar("{}_actor_loss".format(self.name), actor_loss.item(), self.n_learning_iterations)
             self.writer.add_scalar("{}_critic_grad_norm".format(self.name), compute_gradient_norm(self.critic), self.n_learning_iterations)
@@ -146,11 +210,35 @@ class DDPGAgent(Agent):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
+    def exploration_bonus(self, states):
+        if self.density_model.fitted:
+            log_pdf = self.density_model.get_log_prob(states)
+            assert (log_pdf <= 0.).all(), "Expected -ive log-probability, got {}".format(log_pdf)
+            penalty = -2. / np.sqrt(-log_pdf)
+
+            # Clipping the penalty at -2 is equivalent to clipping the log prob at -0.5
+            return np.clip(penalty, -2., -0.01)
+        return np.zeros(states.shape[0])
+
+    def update_density_model(self):
+        stored_transitions = self.replay_buffer.memory
+        stored_states = np.array([transition[0] for transition in stored_transitions])
+        fitting_time = self.density_model.fit(stored_states)
+
+        self.n_density_fits += 1
+        self.writer.add_scalar("{}_fitting_time".format(self.name), fitting_time, self.n_density_fits)
+
+        # Plot the first few density fits as a sanity check
+        # When the data set becomes too large, plotting is prohibitively slow
+        if self.n_density_fits < 20:
+            make_kde_plot(self, stored_states[:, 0], stored_states[:, 1], self.n_density_fits, args.experiment_name, args.seed)
+
     def update_epsilon(self):
-        if "global" in self.name.lower():
-            self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
-        else:
-            self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
+        if args.epsilon_decay:
+            if "global" in self.name.lower():
+                self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
+            else:
+                self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
 
     def get_value(self, state):
         action = self.actor.get_action(state)
@@ -186,8 +274,8 @@ def train(agent, mdp, episodes, steps):
     best_episodic_reward = -np.inf
     per_episode_scores = []
     per_episode_durations = []
-    last_10_scores = deque(maxlen=50)
-    last_10_durations = deque(maxlen=50)
+    last_10_scores = deque(maxlen=10)
+    last_10_durations = deque(maxlen=10)
 
     for episode in range(episodes):
         mdp.reset()
@@ -218,7 +306,10 @@ def train(agent, mdp, episodes, steps):
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
-            render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
+            # render_sampled_value_function(agent, episode=episode, experiment_name=args.experiment_name)
+        if episode == args.update_episodes - 1:
+            print("\r Fixing Density Model \r")
+            agent.should_update_density_model = False
 
     return per_episode_scores, per_episode_durations
 
@@ -235,9 +326,21 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, help="number of steps per episode", default=200)
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--seed", type=int, help="random seed", default=0)
+
+    parser.add_argument("--epsilon_decay", type=bool, help="Whether to use e-greedy decay", default=False)
+    parser.add_argument("--fitting_interval", type=int, help="# steps b/w updates for density estimation", default=500)
+    parser.add_argument("--update_episodes", type=int, help="# episodes after which we fix density model", default=120)
     args = parser.parse_args()
 
     log_dir = create_log_dir(args.experiment_name)
+
+    create_log_dir("saved_runs")
+    create_log_dir("value_function_plots")
+    create_log_dir("initiation_set_plots")
+    create_log_dir("kde_plots")
+    create_log_dir("value_function_plots/{}".format(args.experiment_name))
+    create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
+    create_log_dir("kde_plots/{}".format(args.experiment_name))
 
     if "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP

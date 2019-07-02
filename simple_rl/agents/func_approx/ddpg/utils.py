@@ -1,6 +1,8 @@
 import os
 import torch
 import pickle
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 def save_model(ddpg_agent, episode_number, best=True):
@@ -96,3 +98,12 @@ def save_all_scores(scores, durations, log_dir, seed):
         pickle.dump(scores, _f)
     with open(training_durations_file_name, "wb+") as _f:
         pickle.dump(durations, _f)
+
+def make_kde_plot(ddpg_agent, x, y, fit_number, experiment_name, seed):
+    sns.set_style("white")
+    z = ddpg_agent.density_model.model.score_samples(list(zip(x, y)))
+    plt.scatter(x, y, None, c=z)
+    plt.colorbar()
+    plt.title("Log-probability under density model # {}".format(fit_number))
+    plt.savefig("kde_plots/{}/density_model_fit_number_{}_seed_{}.png".format(experiment_name, fit_number, seed))
+    plt.close()
