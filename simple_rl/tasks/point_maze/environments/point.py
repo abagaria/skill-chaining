@@ -90,6 +90,12 @@ class PointEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     qvel = self.physics.data.qvel
     self.set_state(qpos, qvel)
 
+  def set_ori(self, ori):
+    qpos = np.copy(self.physics.data.qpos)
+    qpos[self.__class__.ORI_IND] = ori
+    qvel = self.physics.data.qvel
+    self.set_state(qpos, np.zeros_like(qvel))
+
   def get_xy(self):
     qpos = np.copy(self.physics.data.qpos)
     return qpos[:2]
