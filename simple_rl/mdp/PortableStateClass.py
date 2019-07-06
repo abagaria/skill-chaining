@@ -1,5 +1,6 @@
 # Python imports
 import numpy as np
+import pdb
 
 ''' StateClass.py: Contains the State Class. '''
 
@@ -27,7 +28,9 @@ class PortableState(object):
         return np.array(self.aspace_data).flatten()
 
     def combined_features(self):
-        return np.concatenate((self.pspace_features(), self.aspace_features()), axis=1)
+        pspace = self.pspace_features()
+        aspace = self.aspace_features()
+        return np.concatenate((pspace, aspace), axis=0)
 
     def get_data(self):
         combined = self.combined_features()
@@ -41,6 +44,13 @@ class PortableState(object):
 
     def set_terminal(self, is_term=True):
         self._is_terminal = is_term
+
+    def initiation_classifier_features(self):
+        pass
+
+    @staticmethod
+    def initiation_classifier_feature_indices():
+        pass
 
     def __hash__(self):
         if type(self.data).__module__ == np.__name__:

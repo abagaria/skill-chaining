@@ -11,6 +11,7 @@ sns.set()
 
 # Other imports.
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
+from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePointMazeState
 
 class Experience(object):
 	def __init__(self, s, a, r, s_prime):
@@ -114,6 +115,22 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
 	plt.close()
+
+def render_agent_space_initiation_classifier(option, episode, experiment_name):
+	def generate_plot(has_key):
+		experiences = option.solver.replay_buffer.memory
+		filtered_states = [exp[3] for exp in experiences if exp[0][-1] == has_key]
+		key_distances = [state[8] for state in filtered_states]
+		lock_distances = [state[12] for state in filtered_states]
+		init_values = option.batched_is_init_true(np.array(filtered_states))
+		plt.scatter(key_distances, lock_distances, c=init_values, cmap=plt.cm.coolwarm)
+		plt.title("{} Initiation Set".format(option.name))
+		plt.xlabel("Key Distance")
+		plt.ylabel("Lock Distance")
+		plt.savefig("initiation_set_plots/{}/init_clf_episode_{}_{}_has_key_{}.png".format(experiment_name, episode, option.name, has_key))
+
+	generate_plot(has_key=True)
+	generate_plot(has_key=False)
 
 def render_sampled_initiation_classifier(option, episode, experiment_name):
 	def generate_plot(has_key):

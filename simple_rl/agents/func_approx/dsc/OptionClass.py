@@ -11,7 +11,7 @@ import itertools
 from scipy.spatial import distance
 
 # Other imports.
-from simple_rl.mdp.StateClass import State
+from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePointMazeState
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
 
@@ -19,7 +19,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=150, initiation_period=10,  generate_plots=False,
+				 enable_timeout=True, timeout=150, initiation_period=5,  generate_plots=False,
 				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -68,7 +68,7 @@ class Option(object):
 		random.seed(seed)
 		np.random.seed(seed)
 
-		state_size = overall_mdp.state_space_size()
+		state_size = self.policy_features(overall_mdp.init_state).shape[0]
 		action_size = overall_mdp.action_space_size()
 		action_bound = overall_mdp.action_space_bound()
 
@@ -123,6 +123,7 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
+	# TODO: To learn option policies in agent space, we need to keep around a buffer w/ PortableState objects
 	def initialize_with_global_ddpg(self):
 		# for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
 		# 	my_param.data.copy_(global_param.data)
@@ -142,41 +143,26 @@ class Option(object):
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
-	def distance_to_closest_positive_example(self, position):
-		XB = self.construct_feature_matrix(self.positive_examples)[:, :2]
-		distances = distance.cdist(position[None, ...], XB, "euclidean")
-		return np.min(distances)
-
-	def batched_is_init_true(self, state_matrix):
+	def batched_is_init_true(self, aspace_state_matrix):
 		if self.name == "global_option":
-			return np.ones((state_matrix.shape[0]))
-		feature_matrix = state_matrix[:, :3]
-		svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
+			return np.ones((aspace_state_matrix.shape[0]))
 
-		if self.classifier_type == "ocsvm":
-			return svm_decisions
-		if self.classifier_type == "tcsvm":
-			position_matrix = feature_matrix[:, :2]
-			positive_example_matrix = self.construct_feature_matrix(self.positive_examples)[:, :2]
-			distance_matrix = distance.cdist(position_matrix, positive_example_matrix, "euclidean")
-			closest_distances = np.min(distance_matrix, axis=1)
-			distance_predictions = closest_distances < 1.
-			predictions = np.logical_and(svm_decisions, distance_predictions)
-			return predictions
-		raise NotImplementedError(self.classifier_type)
+		feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
+		feature_matrix = aspace_state_matrix[:, feature_idx]
+		svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
+		return svm_decisions
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
-		features = ground_state.features()[:3] if isinstance(ground_state, State) else ground_state[:3]
-		svm_decision = self.initiation_classifier.predict([features])[0] == 1
 
-		if self.classifier_type == "ocsvm":
-			return svm_decision
-		if self.classifier_type == "tcsvm":
-			dist = self.distance_to_closest_positive_example(features[:2])
-			return svm_decision and dist < 1.
-		raise NotImplementedError(self.classifier_type)
+		if isinstance(ground_state, PortablePointMazeState):
+			features = ground_state.initiation_classifier_features()
+		else:
+			features = ground_state[PortablePointMazeState.initiation_classifier_feature_indices()]
+
+		svm_decision = self.initiation_classifier.predict([features])[0] == 1
+		return svm_decision
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -196,7 +182,7 @@ class Option(object):
 		segmented_states = deepcopy(states)
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
-		segmented_positions = [segmented_state.features()[:3] for segmented_state in segmented_states]
+		segmented_positions = [segmented_state.initiation_classifier_features() for segmented_state in segmented_states]
 		self.positive_examples.append(segmented_positions)
 
 	def add_experience_buffer(self, experience_queue):
@@ -211,25 +197,6 @@ class Option(object):
 	def construct_feature_matrix(examples):
 		states = list(itertools.chain.from_iterable(examples))
 		return np.array(states)
-
-	def get_distances_to_goal(self, position_matrix):
-		if self.parent is None:
-			goal_position = self.overall_mdp.goal_position
-			return distance.cdist(goal_position[None, ...], position_matrix, "euclidean")
-
-		distances = self.parent.initiation_classifier.decision_function(position_matrix)
-		distances[distances >= 0.] = 0.
-		return distances
-
-	@staticmethod
-	def distance_to_weights(distances):
-		weights = np.copy(distances)
-		for row in range(weights.shape[0]):
-			if weights[row] > 0.:
-				weights[row] = np.exp(-0.5 * weights[row])
-			else:
-				weights[row] = 1.
-		return weights
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
@@ -248,18 +215,9 @@ class Option(object):
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
-	def train_elliptic_envelope_classifier(self):
-		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-
-		self.initiation_classifier = EllipticEnvelope(contamination=0.2)
-		self.initiation_classifier.fit(positive_feature_matrix)
-
 	def train_initiation_classifier(self):
 		if self.classifier_type == "ocsvm":
 			self.train_one_class_svm()
-		elif self.classifier_type == "elliptic":
-			self.train_elliptic_envelope_classifier()
 		else:
 			raise NotImplementedError("{} not supported".format(self.classifier_type))
 
@@ -273,14 +231,21 @@ class Option(object):
 		Y = np.concatenate((positive_labels, negative_labels))
 
 		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-		self.initiation_classifier = svm.SVC(kernel="rbf", gamma="scale", class_weight="balanced")
-		self.initiation_classifier.fit(X, Y)
+		two_class_initiation_classifier = svm.SVC(kernel="rbf", gamma="scale", class_weight="balanced")
+		two_class_initiation_classifier.fit(X, Y)
+
+		training_predictions = self.initiation_classifier.predict(X)
+		positive_training_data = X[training_predictions == 1]
+
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="scale")
+		self.initiation_classifier.fit(positive_training_data)
 
 		self.classifier_type = "tcsvm"
 
 	def initialize_option_policy(self):
+		# TODO: Will need a new data structure to hold PortableState objects from global agent's experiences
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		self.initialize_with_global_ddpg()
+		# self.initialize_with_global_ddpg()
 
 		# self.solver.epsilon = self.global_solver.epsilon
 
@@ -317,6 +282,11 @@ class Option(object):
 		else:
 			return -1.
 
+	def policy_features(self, state):
+		if "global" in self.name.lower():
+			return state.pspace_features()
+		return state.aspace_features()
+
 	def off_policy_update(self, state, action, reward, next_state):
 		""" Make off-policy updates to the current option's low level DDPG solver. """
 		assert self.overall_mdp.is_primitive_action(action), "option should be markov: {}".format(action)
@@ -329,10 +299,10 @@ class Option(object):
 
 		# Off-policy updates for states outside tne initiation set were discarded
 		if self.is_init_true(state) and self.is_term_true(next_state):
-			self.solver.step(state.features(), action, self.subgoal_reward, next_state.features(), True)
+			self.solver.step(self.policy_features(state), action, self.subgoal_reward, self.policy_features(next_state), True)
 		elif self.is_init_true(state):
 			subgoal_reward = self.get_subgoal_reward(next_state)
-			self.solver.step(state.features(), action, subgoal_reward, next_state.features(), next_state.is_terminal())
+			self.solver.step(self.policy_features(state), action, subgoal_reward, self.policy_features(next_state), next_state.is_terminal())
 
 	def update_option_solver(self, s, a, r, s_prime):
 		""" Make on-policy updates to the current option's low-level DDPG solver. """
@@ -345,13 +315,13 @@ class Option(object):
 
 		if self.is_term_true(s_prime):
 			print("{} execution successful".format(self.name))
-			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
+			self.solver.step(self.policy_features(s), a, self.subgoal_reward, self.policy_features(s_prime), True)
 		elif s_prime.is_terminal():
 			print("[{}]: {} is_terminal() but not term_true()".format(self.name, s))
-			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
+			self.solver.step(self.policy_features(s), a, self.subgoal_reward, self.policy_features(s_prime), True)
 		else:
 			subgoal_reward = self.get_subgoal_reward(s_prime)
-			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
+			self.solver.step(self.policy_features(s), a, subgoal_reward, self.policy_features(s_prime), False)
 
 	def execute_option_in_mdp(self, mdp, step_number):
 		"""
@@ -369,6 +339,8 @@ class Option(object):
 		state = mdp.cur_state
 
 		if self.is_init_true(state):
+			if "global" not in self.name.lower():
+				print("Executing {}".format(self.name))
 			option_transitions = []
 			total_reward = 0.
 			self.num_executions += 1
@@ -381,7 +353,7 @@ class Option(object):
 				# if self.get_training_phase() == "initiation":
 				# 	action = self.solver.act(state.features(), evaluation_mode=True)
 				# else:
-				action = self.solver.act(state.features(), evaluation_mode=False)
+				action = self.solver.act(self.policy_features(state), evaluation_mode=False)
 				self.solver.update_epsilon()
 
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
@@ -392,7 +364,7 @@ class Option(object):
 				assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
 
 				if self.name != "global_option":
-					self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+					self.global_solver.step(state.pspace_features(), action, reward, next_state.pspace_features(), next_state.is_terminal())
 					self.global_solver.update_epsilon()
 
 				option_transitions.append((state, action, reward, next_state))
@@ -424,7 +396,7 @@ class Option(object):
 		if self.is_term_true(final_state):  # success
 			self.num_goal_hits += 1
 			positive_states = [start_state] + visited_states[-self.buffer_length:]
-			positive_examples = [state.features()[:3] for state in positive_states]
+			positive_examples = [state.initiation_classifier_features() for state in positive_states]
 			self.positive_examples.append(positive_examples)
 
 			# For every new positive example we add, we will sample a parent positive as a negative example
@@ -436,7 +408,7 @@ class Option(object):
 					self.negative_examples.append([sampled_parent_positive])
 
 		elif num_steps == self.timeout:
-			negative_examples = [start_state.features()[:3]]
+			negative_examples = [start_state.initiation_classifier_features()]
 			self.negative_examples.append(negative_examples)
 		else:
 			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
@@ -453,7 +425,7 @@ class Option(object):
 
 		while not self.is_term_true(state) and not state.is_terminal()\
 				and step_number < self.max_steps and num_steps < self.timeout:
-			action = self.solver.act(state.features(), evaluation_mode=True)
+			action = self.solver.act(self.policy_features(state), evaluation_mode=True)
 			reward, state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 			score += reward
 			step_number += 1

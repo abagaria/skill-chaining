@@ -2,6 +2,7 @@
 from collections import deque
 import random
 import numpy as np
+import pdb
 
 # Other imports.
 from simple_rl.agents.func_approx.ddpg.hyperparameters import BUFFER_SIZE, BATCH_SIZE
@@ -36,7 +37,10 @@ class ReplayBuffer(object):
         else:
             batch = random.sample(self.memory, batch_size)
 
-        state, action, reward, next_state, terminal = map(np.stack, zip(*batch))
+        try:
+            state, action, reward, next_state, terminal = map(np.stack, zip(*batch))
+        except:
+            pdb.set_trace()
 
         return state, action, reward, next_state, terminal
 

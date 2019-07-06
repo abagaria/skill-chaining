@@ -15,7 +15,7 @@ from tensorboardX import SummaryWriter
 import torch
 
 # Other imports.
-from simple_rl.mdp.StateClass import State
+from simple_rl.mdp.PortableStateClass import PortableState
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
@@ -152,10 +152,10 @@ class SkillChaining(object):
 		"""
 		Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
 		Args:
-			state (State): state from which we started option execution
+			state (PortableState): state from which we started option execution
 			action (int): option taken by the global solver
 			total_discounted_reward (float): cumulative reward from the overall SMDP update
-			next_state (State): state we landed in after executing the option
+			next_state (PortableState): state we landed in after executing the option
 			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
 		"""
 		def get_reward(transitions):
@@ -171,11 +171,13 @@ class SkillChaining(object):
 				if self.use_full_smdp_update:
 					sub_transitions = option_transitions[i:]
 					option_reward = get_reward(sub_transitions)
-					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
+					self.agent_over_options.step(start_state.pspace_features(), start_state.aspace_features(), action,
+												 option_reward, next_state.pspace_features(), next_state.aspace_features(),
 												 next_state.is_terminal(), num_steps=len(sub_transitions))
 				else:
 					option_reward = self.high_level_subgoal_reward if selected_option.is_term_true(next_state) else -1.
-					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
+					self.agent_over_options.step(start_state.pspace_features(), start_state.aspace_features(), action,
+												 option_reward, next_state.pspace_features(), next_state.aspace_features(),
 												 next_state.is_terminal(), num_steps=1)
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
@@ -183,7 +185,7 @@ class SkillChaining(object):
 		state_option_pairs = newly_trained_option.final_transitions
 		q_values = []
 		for state, option_idx in state_option_pairs:
-			q_value = global_solver.get_qvalue(state.features(), option_idx)
+			q_value = global_solver.get_qvalue(state.pspace_features(), option_idx)
 			q_values.append(q_value)
 		return np.max(q_values)
 
@@ -222,7 +224,7 @@ class SkillChaining(object):
 		# 		return option
 		# return self.global_option
 		# Query the global Q-function to determine which option to take in the current state
-		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
+		option_idx = self.agent_over_options.act(state.pspace_features(), state.aspace_features(), train_mode=True)
 		self.agent_over_options.update_epsilon()
 
 		# Selected option
@@ -361,10 +363,10 @@ class SkillChaining(object):
 		if self.writer is not None:
 			self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
 
-		# if episode > 0 and episode % 100 == 0:
-		eval_score = self.trained_forward_pass(render=False)
-		self.validation_scores.append(eval_score)
-		print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+		# # if episode > 0 and episode % 100 == 0:
+		# eval_score = self.trained_forward_pass(render=False)
+		# self.validation_scores.append(eval_score)
+		# print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
 		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
@@ -473,7 +475,12 @@ if __name__ == '__main__':
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	args = parser.parse_args()
 
-	if "reacher" in args.env.lower():
+	if "portable" in args.env.lower():
+		from simple_rl.tasks.point_maze.PortablePointMazeMDPClass import PortablePointMazeMDP
+		overall_mdp = PortablePointMazeMDP(args.seed, args.dense_reward, render=args.render)
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
+	elif "reacher" in args.env.lower():
 		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
 		state_dim = overall_mdp.init_state.features().shape[0]

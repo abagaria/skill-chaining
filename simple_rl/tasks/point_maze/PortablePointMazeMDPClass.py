@@ -5,10 +5,10 @@ import pdb
 
 # Other imports.
 from simple_rl.mdp.MDPClass import MDP
-from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
+from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePointMazeState
 from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
-class PointMazeMDP(MDP):
+class PortablePointMazeMDP(MDP):
     def __init__(self, seed, dense_reward=False, render=False):
         self.env_name = "point_maze"
         self.seed = seed
@@ -36,36 +36,28 @@ class PointMazeMDP(MDP):
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
 
     def _reward_func(self, state, action):
-        next_state, reward, done, _ = self.env.step(action)
+        next_global_obs, next_egocentric_obs, reward, done, _ = self.env.step(action)
         if self.render:
             self.env.render()
-        self.next_state = self._get_state(next_state, done)
-        if self.dense_reward:
-            return -0.1 * self.distance_to_goal(self.next_state.position)
+        self.next_state = self._get_state(next_global_obs, next_egocentric_obs, done)
         return reward
 
     def _transition_func(self, state, action):
         return self.next_state
 
     @staticmethod
-    def _get_state(observation, done):
+    def _get_state(pspace_obs, aspace_obs, done):
         """ Convert np obs array from gym into a State object. """
-        obs = np.copy(observation)
-        position = obs[:2]
-        has_key = obs[2]
-        theta = obs[3]
-        velocity = obs[4:6]
-        theta_dot = obs[6]
         # Ignoring obs[7] which corresponds to time elapsed in seconds
-        state = PointMazeState(position, has_key, theta, velocity, theta_dot, done)
+        state = PortablePointMazeState(pspace_obs[:7], aspace_obs, done)
         return state
 
     def execute_agent_action(self, action, option_idx=None):
-        reward, next_state = super(PointMazeMDP, self).execute_agent_action(action)
+        reward, next_state = super(PortablePointMazeMDP, self).execute_agent_action(action)
         return reward, next_state
 
     def is_goal_state(self, state):
-        if isinstance(state, PointMazeState):
+        if isinstance(state, PortablePointMazeState):
             return state.is_terminal()
         position = state[:2]
         key = state[2]
@@ -89,9 +81,9 @@ class PointMazeMDP(MDP):
         return -1. <= action.all() <= 1.
 
     def reset(self):
-        init_state_array = self.env.reset()
-        self.init_state = self._get_state(init_state_array, done=False)
-        super(PointMazeMDP, self).reset()
+        init_pspace_obs, init_aspace_obs = self.env.reset()
+        self.init_state = self._get_state(init_pspace_obs, init_aspace_obs, done=False)
+        super(PortablePointMazeMDP, self).reset()
 
     def __str__(self):
         return self.env_name
