@@ -120,7 +120,7 @@ class DDPGAgent(Agent):
         Agent.__init__(self, name, [], gamma=GAMMA)
 
     def act(self, state, evaluation_mode=False):
-        if np.random.random() < 0.8:
+        if np.random.random() < 0.95:
             action = self.actor.get_action(state)
         else:
             action = np.random.uniform(-self.action_bound, self.action_bound, self.action_size)
@@ -317,7 +317,10 @@ def train(agent, mdp, episodes, steps):
         state = deepcopy(mdp.init_state)
         score = 0.
         for step in range(steps):
-            action = agent.act(state.features())
+            if episode > 5:
+                action = agent.act(state.features())
+            else:
+                action = np.random.uniform(-mdp.action_bound, +mdp.action_bound, action_dim)
             reward, next_state = mdp.execute_agent_action(action)
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
             agent.update_epsilon()

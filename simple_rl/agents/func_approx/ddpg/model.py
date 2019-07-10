@@ -52,8 +52,9 @@ class Critic(nn.Module):
 
 
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, h1=HIDDEN_1, h2=HIDDEN_2, device=torch.device("cpu"), seed=0):
+    def __init__(self, state_dim, action_dim, action_bound, h1=HIDDEN_1, h2=HIDDEN_2, device=torch.device("cpu"), seed=0):
         super(Actor, self).__init__()
+        self.action_bound = action_bound
         self.device = device
 
         self.linear1 = nn.Linear(state_dim, h1)
