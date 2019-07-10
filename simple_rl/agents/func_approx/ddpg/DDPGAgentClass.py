@@ -20,12 +20,12 @@ from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlen
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 
 
 class DensityModel(object):
-    def __init__(self, bandwidth=0.2):
+    def __init__(self, bandwidth=0.2, use_full_state=False):
         self.bandwidth = bandwidth
+        self.use_full_state = use_full_state
         self.model = KernelDensity(bandwidth=bandwidth, rtol=0.05)  # r_tol of 0.05 implies an error tolerance of 5%
         self.fitted = False
 
@@ -34,10 +34,13 @@ class DensityModel(object):
         Args:
             state_buffer (np.ndarray): Array with each row representing the features of the state
         """
-        position_buffer = state_buffer[:, :2]
+        if self.use_full_state:
+            input_buffer = state_buffer
+        else:  # Use only the position elements of the state vector
+            input_buffer = state_buffer[:, :2]
 
         start_time = time.time()
-        self.model.fit(position_buffer)
+        self.model.fit(input_buffer)
         end_time = time.time()
 
         fitting_time = end_time - start_time
@@ -55,8 +58,11 @@ class DensityModel(object):
         Returns:
             log_probabilities (np.ndarray): log probability of each state in `states`
         """
-        positions = states[:, :2]
-        log_pdf = self.model.score_samples(positions)
+        if self.use_full_state:
+            X = states
+        else:  # Use only the position elements of the state vector
+            X = states[:, :2]
+        log_pdf = self.model.score_samples(X)
         return log_pdf
 
 
@@ -96,11 +102,11 @@ class DDPGAgent(Agent):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
-        self.epsilon = 0.15
+        self.epsilon = 0.2  # 0.2 for ant-maze and 0.15 for point-maze
 
         # Pseudo-count based exploration
-        self.density_model = DensityModel()
-        self.should_update_density_model = False
+        self.density_model = DensityModel(use_full_state=args.use_full_state)
+        self.should_update_density_model = True
         self.n_density_fits = 0
 
         # Tensorboard logging
@@ -151,11 +157,8 @@ class DDPGAgent(Agent):
         states, actions, rewards, next_states, dones = experiences
 
         # Compute exploration bonus before pushing experiences to the GPU
-        # exploration_bonus = self.exploration_bonus(states)
-        augmented_rewards = rewards # + exploration_bonus
-
-        #if not (exploration_bonus <= 0).all():
-        #    pdb.set_trace()
+        exploration_bonus = self.exploration_bonus(states, next_states)
+        augmented_rewards = rewards + exploration_bonus
 
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.FloatTensor(actions).to(self.device)
@@ -189,7 +192,7 @@ class DDPGAgent(Agent):
             self.n_learning_iterations = self.n_learning_iterations + 1
             self.writer.add_scalar("{}_mean_raw_rewards".format(self.name), rewards.mean(), self.n_learning_iterations)
             self.writer.add_scalar("{}_mean_aug_rewards".format(self.name), augmented_rewards.mean(), self.n_learning_iterations)
-            # self.writer.add_scalar("{}_mean_exploration_bonus".format(self.name), exploration_bonus.mean(), self.n_learning_iterations)
+            self.writer.add_scalar("{}_mean_exploration_bonus".format(self.name), exploration_bonus.mean(), self.n_learning_iterations)
             self.writer.add_scalar("{}_critic_loss".format(self.name), critic_loss.item(), self.n_learning_iterations)
             self.writer.add_scalar("{}_actor_loss".format(self.name), actor_loss.item(), self.n_learning_iterations)
             self.writer.add_scalar("{}_critic_grad_norm".format(self.name), compute_gradient_norm(self.critic), self.n_learning_iterations)
@@ -210,15 +213,41 @@ class DDPGAgent(Agent):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
-    def exploration_bonus(self, states):
+    def exploration_bonus(self, states, next_states):
         if self.density_model.fitted:
             log_pdf = self.density_model.get_log_prob(states)
-            assert (log_pdf <= 0.).all(), "Expected -ive log-probability, got {}".format(log_pdf)
-            penalty = -2. / np.sqrt(-log_pdf)
+            log_pdf[log_pdf >= 0] = -0.01
 
-            # Clipping the penalty at -2 is equivalent to clipping the log prob at -0.5
-            return np.clip(penalty, -2., -0.01)
+            if args.exploration_strategy == "penalty":
+                return self.get_penalty_score(log_pdf)
+            elif args.exploration_strategy == "bonus":
+                return self.get_bonus_score(log_pdf)
+            elif args.exploration_strategy == "shaped":
+                next_log_pdf = self.density_model.get_log_prob(next_states)
+                return self.get_shaped_bonus_score(log_pdf, next_log_pdf)
+            else:
+                raise ValueError("Exploration strategy {} not supported".format(args.exploration_strategy))
+
         return np.zeros(states.shape[0])
+
+    @staticmethod
+    def get_penalty_score(log_pdf):
+        assert (log_pdf <= 0.).all(), "Expected -ive log-probability, got {}".format(log_pdf)
+        penalty = -2. / np.sqrt(-log_pdf)
+
+        # Clipping the penalty at -2 is equivalent to clipping the log prob at -0.5
+        return np.clip(penalty, -2., -0.01)
+
+    @staticmethod
+    def get_bonus_score(log_pdf):
+        exploration_bonus = -1e-4 * log_pdf
+        return np.clip(exploration_bonus, None, 100.)
+
+    def get_shaped_bonus_score(self, current_state_log_pdf, next_state_log_pdf):
+        current_state_bonus = -current_state_log_pdf
+        next_state_bonus = -next_state_log_pdf
+        exploration_bonus = (self.gamma * next_state_bonus) - current_state_bonus
+        return np.clip(exploration_bonus, None, 100.)
 
     def update_density_model(self):
         stored_transitions = self.replay_buffer.memory
@@ -226,12 +255,14 @@ class DDPGAgent(Agent):
         fitting_time = self.density_model.fit(stored_states)
 
         self.n_density_fits += 1
-        self.writer.add_scalar("{}_fitting_time".format(self.name), fitting_time, self.n_density_fits)
+        if self.tensor_log:
+            self.writer.add_scalar("{}_fitting_time".format(self.name), fitting_time, self.n_density_fits)
 
         # Plot the first few density fits as a sanity check
         # When the data set becomes too large, plotting is prohibitively slow
         if self.n_density_fits < 20:
-            make_kde_plot(self, stored_states[:, 0], stored_states[:, 1], self.n_density_fits, args.experiment_name, args.seed)
+            use_full_state = args.use_full_state
+            make_kde_plot(self, stored_states, use_full_state, self.n_density_fits, args.experiment_name, args.seed)
 
     def update_epsilon(self):
         if args.epsilon_decay:
@@ -330,6 +361,8 @@ if __name__ == "__main__":
     parser.add_argument("--epsilon_decay", type=bool, help="Whether to use e-greedy decay", default=False)
     parser.add_argument("--fitting_interval", type=int, help="# steps b/w updates for density estimation", default=500)
     parser.add_argument("--update_episodes", type=int, help="# episodes after which we fix density model", default=120)
+    parser.add_argument("--use_full_state", type=bool, help="(Baseline) Use full state for density model?", default=False)
+    parser.add_argument("--exploration_strategy", type=str, help="penalty/bonus/shaped", default="penalty")
     args = parser.parse_args()
 
     log_dir = create_log_dir(args.experiment_name)
@@ -347,15 +380,15 @@ if __name__ == "__main__":
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
+    elif "ant" in args.env.lower():
+        from simple_rl.tasks.ant_maze.AntMazeMDPClass import AntMazeMDP
+        overall_mdp = AntMazeMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
     elif "maze" in args.env.lower():
         from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
         overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
         state_dim = 6
-        action_dim = 2
-    elif "point" in args.env.lower():
-        from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
-        overall_mdp = PointEnvMDP(dense_reward=args.dense_reward, render=args.render)
-        state_dim = 4
         action_dim = 2
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP

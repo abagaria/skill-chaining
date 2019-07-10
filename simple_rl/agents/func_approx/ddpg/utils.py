@@ -99,9 +99,12 @@ def save_all_scores(scores, durations, log_dir, seed):
     with open(training_durations_file_name, "wb+") as _f:
         pickle.dump(durations, _f)
 
-def make_kde_plot(ddpg_agent, x, y, fit_number, experiment_name, seed):
+def make_kde_plot(ddpg_agent, states, use_full_state, fit_number, experiment_name, seed):
     sns.set_style("white")
-    z = ddpg_agent.density_model.model.score_samples(list(zip(x, y)))
+    x, y = states[:, 0], states[:, 1]
+    X = list(zip(x, y)) if not use_full_state else states
+
+    z = ddpg_agent.density_model.model.score_samples(X)
     plt.scatter(x, y, None, c=z)
     plt.colorbar()
     plt.title("Log-probability under density model # {}".format(fit_number))
