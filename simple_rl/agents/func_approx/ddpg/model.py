@@ -79,7 +79,7 @@ class Actor(nn.Module):
         x = self.norm1(x)
         x = self.relu(self.linear2(x))
         x = self.norm2(x)
-        x = self.tanh(self.linear3(x))
+        x = self.action_bound * self.tanh(self.linear3(x))
         return x
 
     def get_action(self, state):

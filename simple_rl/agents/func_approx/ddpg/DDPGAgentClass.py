@@ -67,10 +67,11 @@ class DensityModel(object):
 
 
 class DDPGAgent(Agent):
-    def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
+    def __init__(self, state_size, action_size, action_bound, seed, device, lr_actor=LRA, lr_critic=LRC,
                  batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
+        self.action_bound = action_bound
         self.actor_learning_rate = lr_actor
         self.critic_learning_rate = lr_critic
         self.batch_size = batch_size
@@ -84,10 +85,10 @@ class DDPGAgent(Agent):
         self.name = name
 
         self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
-        self.actor = Actor(state_size, action_size, device=device)
+        self.actor = Actor(state_size, action_size, action_bound, device=device)
         self.critic = Critic(state_size, action_size, device=device)
 
-        self.target_actor = Actor(state_size, action_size, device=device)
+        self.target_actor = Actor(state_size, action_size, action_bound, device=device)
         self.target_critic = Critic(state_size, action_size, device=device)
 
         # Initialize actor target network
@@ -119,7 +120,10 @@ class DDPGAgent(Agent):
         Agent.__init__(self, name, [], gamma=GAMMA)
 
     def act(self, state, evaluation_mode=False):
-        action = self.actor.get_action(state)
+        if np.random.random() < 0.8:
+            action = self.actor.get_action(state)
+        else:
+            action = np.random.uniform(-self.action_bound, self.action_bound, self.action_size)
         noise = self.noise()
         if not evaluation_mode:
             action += (noise * self.epsilon)
@@ -400,7 +404,8 @@ if __name__ == "__main__":
     print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
 
     agent_name = overall_mdp.env_name + "_ddpg_agent"
-    ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
+    ddpg_agent = DDPGAgent(state_dim, action_dim, overall_mdp.action_bound, args.seed, torch.device(args.device),
+                           tensor_log=args.log, name=agent_name)
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
     save_model(ddpg_agent, episode_number=args.episodes, best=False)
