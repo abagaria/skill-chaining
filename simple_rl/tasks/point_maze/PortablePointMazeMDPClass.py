@@ -9,11 +9,12 @@ from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePoint
 from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
 class PortablePointMazeMDP(MDP):
-    def __init__(self, seed, dense_reward=False, render=False):
+    def __init__(self, seed, train_mode=True, dense_reward=False, render=False):
         self.env_name = "point_maze"
         self.seed = seed
         self.dense_reward = dense_reward
         self.render = render
+        self.train_mode = train_mode
 
         # Set random seed
         random.seed(seed)
@@ -27,7 +28,8 @@ class PortablePointMazeMDP(MDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 2
+            'maze_size_scaling': 2,
+            'train_mode': train_mode
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy

@@ -5,14 +5,14 @@ import seaborn as sns
 sns.set_style("white")
 import pdb
 
-from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
+from simple_rl.tasks.point_maze.PortablePointMazeMDPClass import PortablePointMazeMDP
 
 
-mdp = PointMazeMDP(0, False, render=False)
+mdp = PortablePointMazeMDP(0, True, False, False)
 
 def step(a):
     r, s = mdp.execute_agent_action(a)
-    ego_obs = mdp.env.get_egocentric_obs()
+    ego_obs = s.aspace_features()
     return ego_obs, s
 
 def print_ego(obs):
@@ -20,12 +20,10 @@ def print_ego(obs):
     key_obs = obs[8:12]
     lock_obs = obs[12:16]
     has_key = obs[16]
-    done = obs[17]
     print("Door obs = ", door_obs)
     print("Key  obs = ", key_obs)
     print("Lock obs = ", lock_obs)
     print("Has key  = ", has_key)
-    print("Terminal = ", done)
     print()
 
 def collect_data():
@@ -134,8 +132,9 @@ def plot_key_distances(traj, ego_traj):
     key_distances = get_key_distances(ego_traj)
 
     # Plotting
-    plt.scatter(x, y, c=list(map(lambda x: x / max(key_distances), key_distances)), cmap=plt.cm.bone,
-                norm=matplotlib.colors.LogNorm())
+    plt.scatter(x, y, c=key_distances)
+    # plt.scatter(x, y, c=list(map(lambda x: x / max(key_distances), key_distances)), cmap=plt.cm.bone,
+    #             norm=matplotlib.colors.LogNorm())
     plt.colorbar()
     plt.title("Agent-Space: Distance to Key")
     plt.savefig("aspace_distance_to_key.png")
@@ -146,8 +145,9 @@ def plot_lock_distances(traj, ego_traj):
     y = [s.position[1] for s in traj]
     lock_distances = get_lock_distances(ego_traj)
     plt.figure()
-    plt.scatter(x, y, c=list(map(lambda x: x / max(lock_distances), lock_distances)), cmap=plt.cm.bone,
-                norm=matplotlib.colors.LogNorm())
+    plt.scatter(x, y, c=lock_distances)
+    # plt.scatter(x, y, c=list(map(lambda x: x / max(lock_distances), lock_distances)), cmap=plt.cm.bone,
+    #             norm=matplotlib.colors.LogNorm())
     plt.colorbar()
     plt.title("Agent-Space: Distance to Lock")
     plt.savefig("aspace_distance_to_lock.png")

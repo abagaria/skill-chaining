@@ -119,11 +119,15 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 def render_agent_space_initiation_classifier(option, episode, experiment_name):
 	def generate_plot(has_key):
 		experiences = option.solver.replay_buffer.memory
-		filtered_states = [exp[3] for exp in experiences if exp[0][-1] == has_key]
+		filtered_states = [exp[3] for exp in experiences if exp[3][-1] == has_key]
 		key_distances = [state[8] for state in filtered_states]
 		lock_distances = [state[12] for state in filtered_states]
 		init_values = option.batched_is_init_true(np.array(filtered_states))
 		plt.scatter(key_distances, lock_distances, c=init_values, cmap=plt.cm.coolwarm)
+	
+		plt.xlim((-95, 105))
+		plt.ylim((-5, 20))
+
 		plt.title("{} Initiation Set".format(option.name))
 		plt.xlabel("Key Distance")
 		plt.ylabel("Lock Distance")

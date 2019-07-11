@@ -15,6 +15,8 @@ from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePoint
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
 
+INIT_SET_DISTANCE_THRESHOLD = 5
+
 class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
@@ -149,8 +151,26 @@ class Option(object):
 
 		feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
 		feature_matrix = aspace_state_matrix[:, feature_idx]
-		svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
-		return svm_decisions
+
+		key_distances = feature_matrix[:, 0]
+		lock_distances = feature_matrix[:, 1]
+		has_keys = feature_matrix[:, -1]
+
+		if self.name == "overall_goal_policy":
+			return np.logical_and(lock_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 1)
+
+		elif self.name == "option_1":
+			return np.logical_and(key_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 1)
+
+		elif self.name == "option_2":
+			return np.logical_and(key_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 0)
+
+		elif self.name == "option_3":
+			return np.logical_and(key_distances > INIT_SET_DISTANCE_THRESHOLD, lock_distances > INIT_SET_DISTANCE_THRESHOLD)
+
+		else:
+			svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
+			return svm_decisions
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
@@ -161,8 +181,21 @@ class Option(object):
 		else:
 			features = ground_state[PortablePointMazeState.initiation_classifier_feature_indices()]
 
-		svm_decision = self.initiation_classifier.predict([features])[0] == 1
-		return svm_decision
+		key_distance = features[0]
+		lock_distance = features[1]
+		has_key = features[2]
+
+		if self.name == "overall_goal_policy":
+			return lock_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 1
+		elif self.name == "option_1":
+			return key_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 1
+		elif self.name == "option_2":
+			return key_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 0
+		elif self.name == "option_3":
+			return key_distance > INIT_SET_DISTANCE_THRESHOLD and lock_distance > INIT_SET_DISTANCE_THRESHOLD
+		else:
+			svm_decision = self.initiation_classifier.predict([features])[0] == 1
+			return svm_decision
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -237,10 +270,11 @@ class Option(object):
 		training_predictions = self.initiation_classifier.predict(X)
 		positive_training_data = X[training_predictions == 1]
 
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="scale")
-		self.initiation_classifier.fit(positive_training_data)
+		if positive_training_data.shape[0] > 0:
+			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="scale")
+			self.initiation_classifier.fit(positive_training_data)
 
-		self.classifier_type = "tcsvm"
+			self.classifier_type = "tcsvm"
 
 	def initialize_option_policy(self):
 		# TODO: Will need a new data structure to hold PortableState objects from global agent's experiences
@@ -282,8 +316,11 @@ class Option(object):
 		else:
 			return -1.
 
+	def is_portable(self):
+		return "global" not in self.name.lower() and self.name != "option_3"
+
 	def policy_features(self, state):
-		if "global" in self.name.lower():
+		if not self.is_portable():
 			return state.pspace_features()
 		return state.aspace_features()
 
@@ -339,8 +376,6 @@ class Option(object):
 		state = mdp.cur_state
 
 		if self.is_init_true(state):
-			if "global" not in self.name.lower():
-				print("Executing {}".format(self.name))
 			option_transitions = []
 			total_reward = 0.
 			self.num_executions += 1
@@ -415,7 +450,7 @@ class Option(object):
 				"Hit else case, but {} was not terminal".format(final_state)
 
 		# Refine the initiation set classifier
-		if len(self.negative_examples) > 0:
+		if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
 			self.train_two_class_classifier()
 
 	def trained_option_execution(self, mdp, outer_step_counter):
