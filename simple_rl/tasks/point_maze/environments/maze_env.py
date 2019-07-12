@@ -456,51 +456,52 @@ class MazeEnv(gym.Env):
       lock_obs = self.get_lock_obs()               # [d, theta, v, omega]
       door_obs = self.get_door_obs()               # [d1, d2, theta1, theta2, v1, v2, omega1, omega2]
       done = self.has_key and lock_obs[0] <= 0.6   # portable agent space descriptor is_terminal
-      return door_obs + key_obs + lock_obs + [self.has_key]
+      global_heading = self.wrapped_env.get_ori()
+      return door_obs + key_obs + lock_obs + [self.has_key] + [global_heading]
 
   def get_key_obs(self):
       key_room = self.get_key_room()
       agent_room = self.get_agent_room()
-      # if key_room == agent_room:
+      if key_room == agent_room:
 
-      agent_previous_position = self.previous_agent_xy
-      agent_previous_orientation = self.previous_agent_ori
-      agent_current_position = self.wrapped_env.get_xy()
-      agent_current_orientation = self.wrapped_env.get_ori()
+          agent_previous_position = self.previous_agent_xy
+          agent_previous_orientation = self.previous_agent_ori
+          agent_current_position = self.wrapped_env.get_xy()
+          agent_current_orientation = self.wrapped_env.get_ori()
 
-      current_key_distance = self.get_key_distance(agent_current_position)
-      current_key_angle = self.get_key_angle(agent_current_position, agent_current_orientation)
+          current_key_distance = self.get_key_distance(agent_current_position)
+          current_key_angle = self.get_key_angle(agent_current_position, agent_current_orientation)
 
-      previous_key_distance = self.get_key_distance(agent_previous_position)
-      previous_key_angle = self.get_key_angle(agent_previous_position, agent_previous_orientation)
-      linear_velocity = (current_key_distance - previous_key_distance) / self.dt
-      angular_velocity = (current_key_angle - previous_key_angle) / self.dt
+          previous_key_distance = self.get_key_distance(agent_previous_position)
+          previous_key_angle = self.get_key_angle(agent_previous_position, agent_previous_orientation)
+          linear_velocity = (current_key_distance - previous_key_distance) / self.dt
+          angular_velocity = (current_key_angle - previous_key_angle) / self.dt
 
-      return [current_key_distance, current_key_angle, linear_velocity, angular_velocity]
+          return [current_key_distance, current_key_angle, linear_velocity, angular_velocity]
 
-      # return [self.max_distance, self.max_angle, 0., 0.]
+      return [self.max_distance, self.max_angle, 0., 0.]
 
   def get_lock_obs(self):
       lock_room = self.get_lock_room()
       agent_room = self.get_agent_room()
-      # if lock_room == agent_room:
+      if lock_room == agent_room:
 
-      agent_previous_position = self.previous_agent_xy
-      agent_previous_orientation = self.previous_agent_ori
-      agent_current_position = self.wrapped_env.get_xy()
-      agent_current_orientation = self.wrapped_env.get_ori()
+          agent_previous_position = self.previous_agent_xy
+          agent_previous_orientation = self.previous_agent_ori
+          agent_current_position = self.wrapped_env.get_xy()
+          agent_current_orientation = self.wrapped_env.get_ori()
 
-      current_lock_distance = self.get_lock_distance(agent_current_position)
-      current_lock_angle = self.get_lock_angle(agent_current_position, agent_current_orientation)
+          current_lock_distance = self.get_lock_distance(agent_current_position)
+          current_lock_angle = self.get_lock_angle(agent_current_position, agent_current_orientation)
 
-      previous_lock_distance = self.get_lock_distance(agent_previous_position)
-      previous_lock_angle = self.get_lock_angle(agent_previous_position, agent_previous_orientation)
-      linear_velocity = (current_lock_distance - previous_lock_distance) / self.dt
-      angular_velocity = (current_lock_angle - previous_lock_angle) / self.dt
+          previous_lock_distance = self.get_lock_distance(agent_previous_position)
+          previous_lock_angle = self.get_lock_angle(agent_previous_position, agent_previous_orientation)
+          linear_velocity = (current_lock_distance - previous_lock_distance) / self.dt
+          angular_velocity = (current_lock_angle - previous_lock_angle) / self.dt
 
-      return [current_lock_distance, current_lock_angle, linear_velocity, angular_velocity]
+          return [current_lock_distance, current_lock_angle, linear_velocity, angular_velocity]
 
-      # return [self.max_distance, self.max_angle, 0., 0.]
+      return [self.max_distance, self.max_angle, 0., 0.]
 
   def get_door_obs(self):
       agent_previous_position = self.previous_agent_xy

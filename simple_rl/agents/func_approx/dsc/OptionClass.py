@@ -15,7 +15,7 @@ from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePoint
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
 
-INIT_SET_DISTANCE_THRESHOLD = 5
+INIT_SET_DISTANCE_THRESHOLD = 10
 
 class Option(object):
 
