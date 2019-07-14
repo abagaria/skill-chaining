@@ -201,7 +201,13 @@ def plot_lock_angles():
     plt.close()
 
 def plot_door_angles(room_number):
-    place_agent_in_room(room_number)
+    if room_number == 1 or room_number == 2:
+        place_agent_in_room(room_number)
+    elif room_number == 3:
+        place_agent_in_key_room()
+    else:
+        place_agent_in_lock_room()
+
     door1_angles, door2_angles = sweep_door_angle()
     state_angles = np.arange(0., 405., 45)
 
@@ -229,3 +235,5 @@ if __name__ == "__main__":
     plot_lock_angles()
     plot_door_angles(1)
     plot_door_angles(2)
+    plot_door_angles(3)
+    plot_door_angles(4)

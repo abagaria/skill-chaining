@@ -370,17 +370,21 @@ class MazeEnv(gym.Env):
       }
       return door_coord_map
 
+  @staticmethod
+  def room_to_doors(room):
+      if room == "room1":
+          return "rooms_1_2", "rooms_1_4"
+      if room == "room2":
+          return "rooms_2_3", "rooms_1_2"
+      if room == "room3":
+          return "rooms_3_4", "rooms_2_3"
+      if room == "room4":
+          return "rooms_1_4", "rooms_3_4"
+      raise ValueError("got room {}".format(room))
+
   def get_agent_room_doors(self):
       agent_room = self.get_agent_room()
-      if agent_room == "room1":
-          return "rooms_1_2", "rooms_1_4"
-      if agent_room == "room2":
-          return "rooms_2_3", "rooms_1_2"
-      if agent_room == "room3":
-          return "rooms_3_4", "rooms_2_3"
-      if agent_room == "room4":
-          return "rooms_1_4", "rooms_3_4"
-      raise ValueError(agent_room)
+      return self.room_to_doors(agent_room)
 
   @staticmethod
   def _get_center_point(door_coord_map):
@@ -415,9 +419,32 @@ class MazeEnv(gym.Env):
       distance_vector = self.goal_xy - agent_position
       return np.linalg.norm(distance_vector)
 
+  def get_lock_room_doors(self):
+      lock_room = self.get_lock_room()
+      return self.room_to_doors(lock_room)
+
+  def get_adjacent_lock_room_door(self):
+      if self.get_agent_room() != self.get_key_room():
+          return None
+      door1, door2 = self.get_agent_room_doors()
+      lock_room_doors = self.get_lock_room_doors()
+      if door1 in lock_room_doors:
+          return door1
+      elif door2 in lock_room_doors:
+          return door2
+      pdb.set_trace()  # How can we not be adjacent to the lock-room if we are in the key-room?
+
   def get_door_distances(self, agent_position):
       door1, door2 = self.get_agent_room_doors()
       door_coord_map = self._find_doors()
+
+      # If we are in the key-room, we only get the distance to the lock-room
+      adjacent_lock_room_door = self.get_adjacent_lock_room_door()
+      if adjacent_lock_room_door is not None:
+          lock_room_door_location = door_coord_map[adjacent_lock_room_door]
+          lock_room_door_distance = np.linalg.norm(agent_position - lock_room_door_location)
+          return lock_room_door_distance, self.max_distance
+
       door1_location = door_coord_map[door1]
       door2_location = door_coord_map[door2]
       door1_distance = np.linalg.norm(agent_position - door1_location)
@@ -439,25 +466,30 @@ class MazeEnv(gym.Env):
       return agent_lock_angle
 
   def get_door_angles(self, agent_position, agent_orientation):
+      def get_door_angle(door):
+          door_location = door_coord_map[door]
+          door_distance_vector = agent_position - door_location
+          door_angle = np.arctan2(door_distance_vector[1], door_distance_vector[0]) * 180 / np.pi
+          agent_door_angle = self._wrap_agent_orientation(agent_orientation) - door_angle
+          return agent_door_angle
       door1, door2 = self.get_agent_room_doors()
       door_coord_map = self._find_doors()
-      door1_location = door_coord_map[door1]
-      door2_location = door_coord_map[door2]
-      door1_distance_vector = agent_position - door1_location
-      door2_distance_vector = agent_position - door2_location
-      door1_angle = np.arctan2(door1_distance_vector[1], door1_distance_vector[0]) * 180 / np.pi
-      door2_angle = np.arctan2(door2_distance_vector[1], door2_distance_vector[0]) * 180 / np.pi
-      agent_door1_angle = self._wrap_agent_orientation(agent_orientation) - door1_angle
-      agent_door2_angle = self._wrap_agent_orientation(agent_orientation) - door2_angle
+
+      # If we are in the key-room, we only get the distance to the lock-room
+      adjacent_lock_room_door = self.get_adjacent_lock_room_door()
+      if adjacent_lock_room_door is not None:
+          agent_lock_room_door_angle = get_door_angle(adjacent_lock_room_door)
+          return agent_lock_room_door_angle, self.max_angle
+
+      agent_door1_angle = get_door_angle(door1)
+      agent_door2_angle = get_door_angle(door2)
       return agent_door1_angle, agent_door2_angle
 
   def get_egocentric_obs(self):
       key_obs = self.get_key_obs()                 # [d, theta, v, omega]
       lock_obs = self.get_lock_obs()               # [d, theta, v, omega]
       door_obs = self.get_door_obs()               # [d1, d2, theta1, theta2, v1, v2, omega1, omega2]
-      done = self.has_key and lock_obs[0] <= 0.6   # portable agent space descriptor is_terminal
-      global_heading = self.wrapped_env.get_ori()
-      return door_obs + key_obs + lock_obs + [self.has_key] + [global_heading]
+      return door_obs + key_obs + lock_obs + [self.has_key]
 
   def get_key_obs(self):
       key_room = self.get_key_room()
@@ -508,6 +540,7 @@ class MazeEnv(gym.Env):
       agent_previous_orientation = self.previous_agent_ori
       agent_current_position = self.wrapped_env.get_xy()
       agent_current_orientation = self.wrapped_env.get_ori()
+
       current_door_distances = self.get_door_distances(agent_current_position)
       current_door_angles = self.get_door_angles(agent_current_position, agent_current_orientation)
 

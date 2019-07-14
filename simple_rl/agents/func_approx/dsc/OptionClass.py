@@ -15,7 +15,7 @@ from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePoint
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
 
-INIT_SET_DISTANCE_THRESHOLD = 10
+INIT_SET_DISTANCE_THRESHOLD = 100
 
 class Option(object):
 
@@ -166,7 +166,7 @@ class Option(object):
 			return np.logical_and(key_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 0)
 
 		elif self.name == "option_3":
-			return np.logical_and(key_distances > INIT_SET_DISTANCE_THRESHOLD, lock_distances > INIT_SET_DISTANCE_THRESHOLD)
+			return np.logical_and(key_distances >= INIT_SET_DISTANCE_THRESHOLD, lock_distances >= INIT_SET_DISTANCE_THRESHOLD)
 
 		else:
 			svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
@@ -192,7 +192,7 @@ class Option(object):
 		elif self.name == "option_2":
 			return key_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 0
 		elif self.name == "option_3":
-			return key_distance > INIT_SET_DISTANCE_THRESHOLD and lock_distance > INIT_SET_DISTANCE_THRESHOLD
+			return key_distance >= INIT_SET_DISTANCE_THRESHOLD and lock_distance >= INIT_SET_DISTANCE_THRESHOLD
 		else:
 			svm_decision = self.initiation_classifier.predict([features])[0] == 1
 			return svm_decision
