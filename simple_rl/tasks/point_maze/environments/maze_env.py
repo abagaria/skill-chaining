@@ -456,22 +456,22 @@ class MazeEnv(gym.Env):
       x_key, y_key = distance_vector[0], distance_vector[1]
       key_angle = np.arctan2(y_key, x_key) * 180 / np.pi
       agent_key_angle = self._wrap_agent_orientation(agent_orientation) - key_angle
-      return agent_key_angle
+      return self._wrap_agent_orientation(agent_key_angle)
 
   def get_lock_angle(self, agent_position, agent_orientation):
       distance_vector = self.goal_xy - agent_position
       x_lock, y_lock = distance_vector[0], distance_vector[1]
       lock_angle = np.arctan2(y_lock, x_lock) * 180 / np.pi
       agent_lock_angle = self._wrap_agent_orientation(agent_orientation) - lock_angle
-      return agent_lock_angle
+      return self._wrap_agent_orientation(agent_lock_angle)
 
   def get_door_angles(self, agent_position, agent_orientation):
       def get_door_angle(door):
           door_location = door_coord_map[door]
-          door_distance_vector = agent_position - door_location
+          door_distance_vector = door_location - agent_position
           door_angle = np.arctan2(door_distance_vector[1], door_distance_vector[0]) * 180 / np.pi
-          agent_door_angle = self._wrap_agent_orientation(agent_orientation) - door_angle
-          return agent_door_angle
+          agent_door_angle = door_angle - self._wrap_agent_orientation(agent_orientation)
+          return self._wrap_agent_orientation(agent_door_angle)
       door1, door2 = self.get_agent_room_doors()
       door_coord_map = self._find_doors()
 

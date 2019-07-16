@@ -95,8 +95,8 @@ if __name__ == '__main__':
     parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
     args = parser.parse_args()
 
-    train_env = PortablePointMazeMDP(args.seed, train_mode=True, dense_reward=args.dense_reward, render=args.render)
-    test_env = PortablePointMazeMDP(args.seed, train_mode=False, dense_reward=args.dense_reward, render=args.render)
+    train_env = PortablePointMazeMDP(args.seed, train_mode=False, dense_reward=args.dense_reward, render=args.render)
+    test_env = PortablePointMazeMDP(args.seed, train_mode=True, dense_reward=args.dense_reward, render=args.render)
 
     # Create folders for saving various things
     logdir = create_log_dir(args.experiment_name)
