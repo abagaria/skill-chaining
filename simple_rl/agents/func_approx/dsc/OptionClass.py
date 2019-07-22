@@ -21,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=150, initiation_period=5,  generate_plots=False,
+				 enable_timeout=True, timeout=150, initiation_period=0,  generate_plots=False,
 				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -198,6 +198,13 @@ class Option(object):
 			return svm_decision
 
 	def is_term_true(self, ground_state):
+
+		if self.name == "option_3":
+			if isinstance(ground_state, PortablePointMazeState):
+				return ground_state.aspace_features()[0] <= 0.6
+			else:
+				return ground_state[0] <= 0.6
+
 		if self.parent is not None:
 			parent_option = self.parent
 			while parent_option is not None:
@@ -317,7 +324,7 @@ class Option(object):
 			return -1.
 
 	def is_portable(self):
-		return "global" not in self.name.lower() and self.name != "option_3"
+		return "global" not in self.name.lower()
 
 	def policy_features(self, state):
 		if not self.is_portable():
@@ -381,6 +388,8 @@ class Option(object):
 			self.num_executions += 1
 			num_steps = 0
 			visited_states = []
+			if "global" not in self.name:
+				print("Executing ", self.name)
 
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:

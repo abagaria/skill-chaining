@@ -41,7 +41,7 @@ class PointEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
   def step(self, action):
     qpos = np.copy(self.physics.data.qpos)
-    qpos[2] += action[1]
+    qpos[2] += (0.25 * action[1])
     ori = qpos[2]
     # compute increment in each direction
     dx = math.cos(ori) * action[0]

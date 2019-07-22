@@ -382,9 +382,9 @@ class SkillChaining(object):
 				self.writer.add_scalar("{}_executions".format(trained_option.name),
 									   episode_option_executions[trained_option.name], episode)
 
-	def save_all_models(self):
+	def save_all_models(self, pretrained):
 		for option in self.trained_options: # type: Option
-			save_model(option.solver, self.max_episodes, best=False)
+			save_model(option.solver, self.max_episodes, best=pretrained)
 
 	def save_all_scores(self, pretrained, scores, durations):
 		print("\rSaving training and validation scores..")

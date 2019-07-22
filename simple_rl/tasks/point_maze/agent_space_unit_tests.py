@@ -7,8 +7,10 @@ import pdb
 
 from simple_rl.tasks.point_maze.PortablePointMazeMDPClass import PortablePointMazeMDP
 
+ANGLE_SWEEP = np.arange(-np.pi, np.pi+np.pi/8, np.pi/8)
 
-mdp = PortablePointMazeMDP(0, True, False, False)
+
+mdp = PortablePointMazeMDP(0, train_mode=False, render=False, dense_reward=False)
 
 def step(a):
     r, s = mdp.execute_agent_action(a)
@@ -30,7 +32,10 @@ def collect_data():
     traj = []
     ego_traj = []
     for _ in range(5000):
-        ego_obs, next_state = step(np.random.uniform(-1., 1., 2))
+        a1 = np.random.uniform(-1., 1., 1)
+        a2 = np.random.uniform(-0.25, 0.25, 1)
+        a  = np.array([a1, a2])
+        ego_obs, next_state = step(a)
         print_ego(ego_obs)
         traj.append(next_state)
         ego_traj.append(ego_obs)
@@ -69,8 +74,18 @@ def place_agent_in_key_room():
     noop_action = np.array([0., 0.])
     step(noop_action)
 
+def place_agent_in_key_room_2():
+    position = np.array([9, 9])
+    mdp.env.wrapped_env.set_xy(position)
+
+    noop_action = np.array([0., 0.])
+    step(noop_action)
+
 def place_agent_in_lock_room():
-    position = np.array([2, 8])
+    if mdp.train_mode:
+        position = np.array([0, 8])
+    else:
+        position = np.array([8, 0])
     mdp.env.wrapped_env.set_xy(position)
 
     noop_action = np.array([0., 0.])
@@ -91,7 +106,7 @@ def place_agent_in_room(room_number):
 def sweep_key_angle():
     noop_action = np.array([0., 0.])
     key_angles = []
-    for theta in np.arange(0., 405., 45):
+    for theta in ANGLE_SWEEP:
         mdp.env.wrapped_env.set_ori(theta)
         ego_obs, next_state = step(noop_action)
         key_observation = get_key_observations([ego_obs])[0]
@@ -102,7 +117,7 @@ def sweep_key_angle():
 def sweep_lock_angle():
     noop_action = np.array([0, 0])
     lock_angles = []
-    for theta in np.arange(0., 405., 45):
+    for theta in ANGLE_SWEEP:
         mdp.env.wrapped_env.set_ori(theta)
         ego_obs, next_state = step(noop_action)
         lock_observation = get_lock_observations([ego_obs])[0]
@@ -113,7 +128,7 @@ def sweep_lock_angle():
 def sweep_door_angle():
     noop_action = np.array([0., 0.])
     door1_angles, door2_angles = [], []
-    for theta in np.arange(0., 405., 45.):
+    for theta in ANGLE_SWEEP:
         mdp.env.wrapped_env.set_ori(theta)
         ego_obs, next_state = step(noop_action)
         door_observation = get_door_observations([ego_obs])[0]
@@ -196,10 +211,23 @@ def plot_collected_door_angles(traj, ego_traj):
 def plot_key_angles():
     place_agent_in_key_room()
     key_angles = sweep_key_angle()
-    state_angles = np.arange(0., 405., 45)
+    state_angles = ANGLE_SWEEP
 
     plt.figure()
-    plt.plot(state_angles, key_angles, "ro--")
+    plt.plot(np.rad2deg(state_angles), np.rad2deg(key_angles), "ro--")
+    plt.xlabel("Global angle (degrees)")
+    plt.ylabel("Angle to key (degrees)")
+    plt.title("Agent Space: Angle to Key")
+    plt.show()
+    plt.close()
+
+def plot_key_angles_2():
+    place_agent_in_key_room_2()
+    key_angles = sweep_key_angle()
+    state_angles = ANGLE_SWEEP
+
+    plt.figure()
+    plt.plot(np.rad2deg(state_angles), np.rad2deg(key_angles), "ro--")
     plt.xlabel("Global angle (degrees)")
     plt.ylabel("Angle to key (degrees)")
     plt.title("Agent Space: Angle to Key")
@@ -209,10 +237,10 @@ def plot_key_angles():
 def plot_lock_angles():
     place_agent_in_lock_room()
     lock_angles = sweep_lock_angle()
-    state_angles = np.arange(0., 405., 45)
+    state_angles = ANGLE_SWEEP
 
     plt.figure()
-    plt.plot(state_angles, lock_angles, "ro--")
+    plt.plot(np.rad2deg(state_angles), np.rad2deg(lock_angles), "ro--")
     plt.xlabel("Global angle (degrees)")
     plt.ylabel("Angle to key (degrees)")
     plt.title("Agent Space: Angle to Lock")
@@ -228,16 +256,16 @@ def plot_door_angles(room_number):
         place_agent_in_lock_room()
 
     door1_angles, door2_angles = sweep_door_angle()
-    state_angles = np.arange(0., 405., 45)
+    state_angles = ANGLE_SWEEP
 
     plt.figure()
     plt.subplot(1, 2, 1)
-    plt.plot(state_angles, door1_angles, "ro--")
+    plt.plot(np.rad2deg(state_angles), np.rad2deg(door1_angles), "ro--")
     plt.xlabel("Global angle (degrees)")
     plt.ylabel("Angle to door 1 (degrees)")
 
     plt.subplot(1, 2, 2)
-    plt.plot(state_angles, door2_angles, "ro--")
+    plt.plot(np.rad2deg(state_angles), np.rad2deg(door2_angles), "ro--")
     plt.xlabel("Global angle (degrees)")
     plt.ylabel("Angle to door 2 (degrees)")
 
@@ -250,8 +278,8 @@ if __name__ == "__main__":
     plot_key_distances(trajectory, egocentric_trajectory)
     plot_lock_distances(trajectory, egocentric_trajectory)
     plot_door_distances(trajectory, egocentric_trajectory)
-    plot_collected_door_angles(trajectory, egocentric_trajectory)
     plot_key_angles()
+    plot_key_angles_2()
     plot_lock_angles()
     plot_door_angles(1)
     plot_door_angles(2)

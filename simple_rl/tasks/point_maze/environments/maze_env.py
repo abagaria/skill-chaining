@@ -96,9 +96,9 @@ class MazeEnv(gym.Env):
         "rooms_3_4": (4, 6)
     }
 
-    self.dt = 0.02            # Taken from point.xml
-    self.max_distance = 100.  # Larger than the actual max distance
-    self.max_angle = 180.     # degrees
+    self.dt = 0.02              # Taken from point.xml
+    self.max_distance = 100.    # Larger than the actual max distance
+    self.max_angle = 2*np.pi    # radians
 
     height_offset = 0.
     if self.elevated:
@@ -253,6 +253,7 @@ class MazeEnv(gym.Env):
     print("Goal position: ", self.goal_xy)
     print("Key  position: ", self.key_xy)
 
+    self.train_mode = train_mode
     self.has_key = False
 
     _, file_path = tempfile.mkstemp(text=True, suffix=".xml")
@@ -370,17 +371,28 @@ class MazeEnv(gym.Env):
       }
       return door_coord_map
 
-  @staticmethod
-  def room_to_doors(room):
-      if room == "room1":
-          return "rooms_1_2", "rooms_1_4"
-      if room == "room2":
-          return "rooms_2_3", "rooms_1_2"
-      if room == "room3":
-          return "rooms_3_4", "rooms_2_3"
-      if room == "room4":
-          return "rooms_1_4", "rooms_3_4"
-      raise ValueError("got room {}".format(room))
+  def room_to_doors(self, room):
+      """ This method defines the ordering of doors in the observation feature vector. """
+      if self.train_mode:
+          if room == "room1":
+              return "rooms_1_2", "rooms_1_4"
+          if room == "room2":
+              return "rooms_2_3", "rooms_1_2"
+          if room == "room3":
+              return "rooms_3_4", "rooms_2_3"
+          if room == "room4":
+              return "rooms_3_4", "rooms_1_4"
+          raise ValueError("got room {}".format(room))
+      else:
+          if room == "room1":
+              return "rooms_1_4", "rooms_1_2"
+          if room == "room2":
+              return "rooms_2_3", "rooms_1_2"
+          if room == "room3":
+              return "rooms_2_3", "rooms_3_4"
+          if room == "room4":
+              return "rooms_3_4", "rooms_1_4"
+          raise ValueError("got room {}".format(room))
 
   def get_agent_room_doors(self):
       agent_room = self.get_agent_room()
@@ -391,10 +403,6 @@ class MazeEnv(gym.Env):
       center_x = (door_coord_map["rooms_1_4"][0] + door_coord_map["rooms_2_3"][0]) / 2.
       center_y = (door_coord_map["rooms_1_2"][1] + door_coord_map["rooms_3_4"][1]) / 2.
       return center_x, center_y
-
-  @staticmethod
-  def _wrap_agent_orientation(theta):
-      return ((np.deg2rad(theta) + np.pi) % (2 * np.pi ) - np.pi) * (180. / np.pi)
 
   def location_to_room(self, x, y):
       door_coord_map = self._find_doors()
@@ -448,30 +456,35 @@ class MazeEnv(gym.Env):
       door1_location = door_coord_map[door1]
       door2_location = door_coord_map[door2]
       door1_distance = np.linalg.norm(agent_position - door1_location)
-      door2_distance = np.linalg.norm(agent_position - door2_location)
-      return door1_distance, door2_distance
+      # door2_distance = np.linalg.norm(agent_position - door2_location)
+      # return door1_distance, door2_distance
+      return door1_distance, self.max_distance
+
+  @staticmethod
+  def wrap(angle):
+      return (angle + np.pi) % (2 * np.pi) - np.pi
 
   def get_key_angle(self, agent_position, agent_orientation):
       distance_vector = self.key_xy - agent_position
       x_key, y_key = distance_vector[0], distance_vector[1]
-      key_angle = np.arctan2(y_key, x_key) * 180 / np.pi
-      agent_key_angle = self._wrap_agent_orientation(agent_orientation) - key_angle
-      return self._wrap_agent_orientation(agent_key_angle)
+      key_angle = np.arctan2(y_key, x_key)
+      agent_key_angle = key_angle - self.wrap(agent_orientation)
+      return self.wrap(agent_key_angle)
 
   def get_lock_angle(self, agent_position, agent_orientation):
       distance_vector = self.goal_xy - agent_position
       x_lock, y_lock = distance_vector[0], distance_vector[1]
-      lock_angle = np.arctan2(y_lock, x_lock) * 180 / np.pi
-      agent_lock_angle = self._wrap_agent_orientation(agent_orientation) - lock_angle
-      return self._wrap_agent_orientation(agent_lock_angle)
+      lock_angle = np.arctan2(y_lock, x_lock)
+      agent_lock_angle = lock_angle - self.wrap(agent_orientation)
+      return self.wrap(agent_lock_angle)
 
   def get_door_angles(self, agent_position, agent_orientation):
       def get_door_angle(door):
           door_location = door_coord_map[door]
           door_distance_vector = door_location - agent_position
-          door_angle = np.arctan2(door_distance_vector[1], door_distance_vector[0]) * 180 / np.pi
-          agent_door_angle = door_angle - self._wrap_agent_orientation(agent_orientation)
-          return self._wrap_agent_orientation(agent_door_angle)
+          door_angle = np.arctan2(door_distance_vector[1], door_distance_vector[0])
+          agent_door_angle = door_angle - self.wrap(agent_orientation)
+          return self.wrap(agent_door_angle)
       door1, door2 = self.get_agent_room_doors()
       door_coord_map = self._find_doors()
 
@@ -482,8 +495,9 @@ class MazeEnv(gym.Env):
           return agent_lock_room_door_angle, self.max_angle
 
       agent_door1_angle = get_door_angle(door1)
-      agent_door2_angle = get_door_angle(door2)
-      return agent_door1_angle, agent_door2_angle
+      # agent_door2_angle = get_door_angle(door2)
+      # return agent_door1_angle, agent_door2_angle
+      return agent_door1_angle, self.max_angle
 
   def get_egocentric_obs(self):
       key_obs = self.get_key_obs()                 # [d, theta, v, omega]

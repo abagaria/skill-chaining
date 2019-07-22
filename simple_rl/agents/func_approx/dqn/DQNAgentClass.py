@@ -310,7 +310,13 @@ class DQNAgent(Agent):
             for idx, option in enumerate(self.trained_options): # type: Option
                 try:
                     inits = option.batched_is_init_true(aspace_states)
-                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(aspace_states)
+                    if option.parent is None:
+                        terms = np.zeros(inits.shape)
+                    elif option.name == "option_3":
+                        terms = aspace_states[:, 0] <= 0.6  # Distance to door 1 is less than 0.6
+                    else:
+                        terms = option.parent.batched_is_init_true(aspace_states)
+                    # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(aspace_states)
                     action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
                 except:
                     pdb.set_trace()

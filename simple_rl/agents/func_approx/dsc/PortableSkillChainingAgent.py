@@ -45,14 +45,11 @@ class PortableSkillChainingAgent(object):
         return scores, durations
 
     def create_transfer_agent(self):
-        last_portable_option = self.dsc_agent.trained_options[0]
         for src_trained_option in self.dsc_agent.trained_options[1:]:
             child_option = src_trained_option
             if child_option.is_portable():
-                last_portable_option = child_option
                 self.transfer_dsc_agent.augment_agent_with_new_option(child_option, init_q=0.)
                 print("Added {} with replay buffer size {}".format(child_option.name, len(child_option.solver.replay_buffer)))
-        self.transfer_dsc_agent.untrained_option = last_portable_option
         print("Finished creating transfer agent")
 
     def evaluate(self):
@@ -124,8 +121,10 @@ if __name__ == '__main__':
 
     training_scores, training_durations = portable_agent.train()
     portable_agent.dsc_agent.save_all_scores(pretrained=False, scores=training_scores, durations=training_durations)
+    portable_agent.dsc_agent.save_all_models(pretrained=False)
 
     portable_agent.create_transfer_agent()
 
     eval_scores, eval_durations = portable_agent.evaluate()
     portable_agent.transfer_dsc_agent.save_all_scores(pretrained=True, scores=eval_scores, durations=eval_durations)
+    portable_agent.transfer_dsc_agent.save_all_models(pretrained=True)
