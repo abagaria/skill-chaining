@@ -175,8 +175,8 @@ class Option(object):
 			goal_position = self.overall_mdp.goal_position
 			return distance.cdist(goal_position[None, ...], position_matrix, "euclidean")
 
-		distances = self.parent.initiation_classifier.decision_function(position_matrix)
-		distances[distances >= 0.] = 0.
+		distances = -self.parent.initiation_classifier.decision_function(position_matrix)
+		distances[distances <= 0.] = 0.
 		return distances
 
 	@staticmethod
@@ -192,13 +192,10 @@ class Option(object):
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-		distances = self.get_distances_to_goal(positive_feature_matrix)
-		distances = distances.squeeze(0) if len(distances.shape) > 1 else distances
-		weights = self.distance_to_weights(distances)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
-		self.initiation_classifier.fit(positive_feature_matrix, sample_weight=weights)
+		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_elliptic_envelope_classifier(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
