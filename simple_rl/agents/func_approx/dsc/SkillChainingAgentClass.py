@@ -117,6 +117,7 @@ class SkillChaining(object):
 		self.num_option_executions = defaultdict(lambda : [])
 		self.option_rewards = defaultdict(lambda : [])
 		self.option_qvalues = defaultdict(lambda : [])
+		self.num_options_history = []
 
 	def create_child_option(self, parent_option):
 		# Create new option whose termination is the initiation of the option we just trained
@@ -358,11 +359,13 @@ class SkillChaining(object):
 		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
+		self.num_options_history.append(len(self.trained_options))
+
 		if self.writer is not None:
 			self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
 
 		# if episode > 0 and episode % 100 == 0:
-		eval_score = self.trained_forward_pass(render=False)
+		eval_score = 0  #self.trained_forward_pass(render=False)
 		self.validation_scores.append(eval_score)
 		print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
@@ -384,11 +387,13 @@ class SkillChaining(object):
 		training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
 		training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
 		validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
+		num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
 
 		if self.log_dir:
 			training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
 			training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
 			validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
+			num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
 
 		with open(training_scores_file_name, "wb+") as _f:
 			pickle.dump(scores, _f)
@@ -396,6 +401,8 @@ class SkillChaining(object):
 			pickle.dump(durations, _f)
 		with open(validation_scores_file_name, "wb+") as _f:
 			pickle.dump(self.validation_scores, _f)
+		with open(num_option_history_file_name, "wb+") as _f:
+			pickle.dump(self.num_options_history, _f)
 
 	def perform_experiments(self):
 		for option in self.trained_options:
