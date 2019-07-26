@@ -313,7 +313,8 @@ class DQNAgent(Agent):
                     if option.parent is None:
                         terms = np.zeros(inits.shape)
                     elif option.name == "option_3":
-                        terms = aspace_states[:, 0] <= 0.6  # Distance to door 1 is less than 0.6
+                        door_distance_idx = 0 if option.overall_mdp.train_mode else 1
+                        terms = aspace_states[:, door_distance_idx] <= 1.0  # Distance to relevant door is less than 1
                     else:
                         terms = option.parent.batched_is_init_true(aspace_states)
                     # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(aspace_states)

@@ -10,7 +10,7 @@ from simple_rl.tasks.point_maze.PortablePointMazeMDPClass import PortablePointMa
 ANGLE_SWEEP = np.arange(-np.pi, np.pi+np.pi/8, np.pi/8)
 
 
-mdp = PortablePointMazeMDP(0, train_mode=False, render=False, dense_reward=False)
+mdp = PortablePointMazeMDP(0, train_mode=False, test_mode=True, render=False, dense_reward=False)
 
 def step(a):
     r, s = mdp.execute_agent_action(a)
@@ -31,7 +31,7 @@ def print_ego(obs):
 def collect_data():
     traj = []
     ego_traj = []
-    for _ in range(5000):
+    for _ in range(10000):
         a1 = np.random.uniform(-1., 1., 1)
         a2 = np.random.uniform(-0.25, 0.25, 1)
         a  = np.array([a1, a2])

@@ -9,12 +9,13 @@ from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePoint
 from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
 class PortablePointMazeMDP(MDP):
-    def __init__(self, seed, train_mode=True, dense_reward=False, render=False):
+    def __init__(self, seed, train_mode=True, test_mode=False, dense_reward=False, render=False):
         self.env_name = "point_maze"
         self.seed = seed
         self.dense_reward = dense_reward
         self.render = render
         self.train_mode = train_mode
+        self.test_mode = test_mode
 
         # Set random seed
         random.seed(seed)
@@ -29,7 +30,8 @@ class PortablePointMazeMDP(MDP):
             'top_down_view': False,
             'manual_collision': True,
             'maze_size_scaling': 2,
-            'train_mode': train_mode
+            'train_mode': train_mode,
+            'test_mode': test_mode
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy
@@ -58,6 +60,7 @@ class PortablePointMazeMDP(MDP):
         reward, next_state = super(PortablePointMazeMDP, self).execute_agent_action(action)
         return reward, next_state
 
+    # TODO: This needs to be designed for Agent-Space
     def is_goal_state(self, state):
         if isinstance(state, PortablePointMazeState):
             return state.is_terminal()

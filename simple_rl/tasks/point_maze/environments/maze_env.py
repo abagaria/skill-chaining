@@ -40,6 +40,7 @@ class MazeEnv(gym.Env):
       self,
       maze_id=None,
       train_mode=True,
+      test_mode=False,
       maze_height=0.5,
       maze_size_scaling=8,
       n_bins=0,
@@ -54,9 +55,14 @@ class MazeEnv(gym.Env):
     self._maze_id = maze_id
 
     model_cls = self.__class__.MODEL_CLASS
-    if model_cls is None:
-      raise "MODEL_CLASS unspecified!"
-    filename = model_cls.FILE if train_mode else "point_test.xml"
+
+    if train_mode:
+        filename = model_cls.FILE
+    elif not test_mode:
+        filename = "point2.xml"
+    else:
+        filename = "point_test.xml"
+
     xml_path = os.path.join(MODEL_DIR, filename)
     tree = ET.parse(xml_path)
     worldbody = tree.find(".//worldbody")
@@ -373,26 +379,27 @@ class MazeEnv(gym.Env):
 
   def room_to_doors(self, room):
       """ This method defines the ordering of doors in the observation feature vector. """
-      if self.train_mode:
-          if room == "room1":
-              return "rooms_1_2", "rooms_1_4"
-          if room == "room2":
-              return "rooms_2_3", "rooms_1_2"
-          if room == "room3":
-              return "rooms_3_4", "rooms_2_3"
-          if room == "room4":
-              return "rooms_3_4", "rooms_1_4"
-          raise ValueError("got room {}".format(room))
-      else:
-          if room == "room1":
-              return "rooms_1_4", "rooms_1_2"
-          if room == "room2":
-              return "rooms_2_3", "rooms_1_2"
-          if room == "room3":
-              return "rooms_2_3", "rooms_3_4"
-          if room == "room4":
-              return "rooms_3_4", "rooms_1_4"
-          raise ValueError("got room {}".format(room))
+      # if self.train_mode:
+      if room == "room1":
+          return "rooms_1_2", "rooms_1_4"
+      if room == "room2":
+          return "rooms_2_3", "rooms_1_2"
+      if room == "room3":
+          return "rooms_3_4", "rooms_2_3"
+      if room == "room4":
+          return "rooms_1_4", "rooms_3_4"
+          # return "rooms_3_4", "rooms_1_4"
+      raise ValueError("got room {}".format(room))
+      # else:
+      #     if room == "room1":
+      #         return "rooms_1_4", "rooms_1_2"
+      #     if room == "room2":
+      #         return "rooms_2_3", "rooms_1_2"
+      #     if room == "room3":
+      #         return "rooms_2_3", "rooms_3_4"
+      #     if room == "room4":
+      #         return "rooms_3_4", "rooms_1_4"
+      #     raise ValueError("got room {}".format(room))
 
   def get_agent_room_doors(self):
       agent_room = self.get_agent_room()
@@ -447,18 +454,18 @@ class MazeEnv(gym.Env):
       door_coord_map = self._find_doors()
 
       # If we are in the key-room, we only get the distance to the lock-room
-      adjacent_lock_room_door = self.get_adjacent_lock_room_door()
-      if adjacent_lock_room_door is not None:
-          lock_room_door_location = door_coord_map[adjacent_lock_room_door]
-          lock_room_door_distance = np.linalg.norm(agent_position - lock_room_door_location)
-          return lock_room_door_distance, self.max_distance
+      # adjacent_lock_room_door = self.get_adjacent_lock_room_door()
+      # if adjacent_lock_room_door is not None:
+      #     lock_room_door_location = door_coord_map[adjacent_lock_room_door]
+      #     lock_room_door_distance = np.linalg.norm(agent_position - lock_room_door_location)
+      #     return lock_room_door_distance, self.max_distance
 
       door1_location = door_coord_map[door1]
       door2_location = door_coord_map[door2]
       door1_distance = np.linalg.norm(agent_position - door1_location)
-      # door2_distance = np.linalg.norm(agent_position - door2_location)
-      # return door1_distance, door2_distance
-      return door1_distance, self.max_distance
+      door2_distance = np.linalg.norm(agent_position - door2_location)
+      return door1_distance, door2_distance
+      # return door1_distance, self.max_distance
 
   @staticmethod
   def wrap(angle):
@@ -489,15 +496,15 @@ class MazeEnv(gym.Env):
       door_coord_map = self._find_doors()
 
       # If we are in the key-room, we only get the distance to the lock-room
-      adjacent_lock_room_door = self.get_adjacent_lock_room_door()
-      if adjacent_lock_room_door is not None:
-          agent_lock_room_door_angle = get_door_angle(adjacent_lock_room_door)
-          return agent_lock_room_door_angle, self.max_angle
+      # adjacent_lock_room_door = self.get_adjacent_lock_room_door()
+      # if adjacent_lock_room_door is not None:
+      #     agent_lock_room_door_angle = get_door_angle(adjacent_lock_room_door)
+      #     return agent_lock_room_door_angle, self.max_angle
 
       agent_door1_angle = get_door_angle(door1)
-      # agent_door2_angle = get_door_angle(door2)
-      # return agent_door1_angle, agent_door2_angle
-      return agent_door1_angle, self.max_angle
+      agent_door2_angle = get_door_angle(door2)
+      return agent_door1_angle, agent_door2_angle
+      # return agent_door1_angle, self.max_angle
 
   def get_egocentric_obs(self):
       key_obs = self.get_key_obs()                 # [d, theta, v, omega]

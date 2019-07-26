@@ -16,6 +16,8 @@ from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
 
 INIT_SET_DISTANCE_THRESHOLD = 100
+DOOR_OPTION_COMPLETION_DISTANCE = 1.0
+DOOR_OPTION_INIT_DISTANCE = 2.0
 
 class Option(object):
 
@@ -151,7 +153,9 @@ class Option(object):
 
 		feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
 		feature_matrix = aspace_state_matrix[:, feature_idx]
+		door_distance_idx = 0 if self.overall_mdp.train_mode else 1
 
+		door_distances = aspace_state_matrix[:, door_distance_idx]
 		key_distances = feature_matrix[:, 0]
 		lock_distances = feature_matrix[:, 1]
 		has_keys = feature_matrix[:, -1]
@@ -166,7 +170,11 @@ class Option(object):
 			return np.logical_and(key_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 0)
 
 		elif self.name == "option_3":
-			return np.logical_and(key_distances >= INIT_SET_DISTANCE_THRESHOLD, lock_distances >= INIT_SET_DISTANCE_THRESHOLD)
+			# Either I am not in the lock room or if I am, then I don't have the key
+			lock_condition = np.logical_or(lock_distances >= INIT_SET_DISTANCE_THRESHOLD,
+										   np.logical_and(lock_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 0))
+			return np.logical_and(key_distances >= INIT_SET_DISTANCE_THRESHOLD, lock_condition,
+								  door_distances >= DOOR_OPTION_INIT_DISTANCE)
 
 		else:
 			svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
@@ -176,10 +184,14 @@ class Option(object):
 		if self.name == "global_option":
 			return True
 
+		door_distance_idx = 0 if self.overall_mdp.train_mode else 1
+
 		if isinstance(ground_state, PortablePointMazeState):
 			features = ground_state.initiation_classifier_features()
+			door_distance = ground_state.door_obs[door_distance_idx]
 		else:
 			features = ground_state[PortablePointMazeState.initiation_classifier_feature_indices()]
+			door_distance = ground_state[door_distance_idx]
 
 		key_distance = features[0]
 		lock_distance = features[1]
@@ -192,7 +204,10 @@ class Option(object):
 		elif self.name == "option_2":
 			return key_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 0
 		elif self.name == "option_3":
-			return key_distance >= INIT_SET_DISTANCE_THRESHOLD and lock_distance >= INIT_SET_DISTANCE_THRESHOLD
+			lock_condition = (lock_distance >= INIT_SET_DISTANCE_THRESHOLD) or \
+							 (lock_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 0)
+			return key_distance >= INIT_SET_DISTANCE_THRESHOLD and lock_condition and \
+					door_distance >= DOOR_OPTION_INIT_DISTANCE
 		else:
 			svm_decision = self.initiation_classifier.predict([features])[0] == 1
 			return svm_decision
@@ -200,10 +215,11 @@ class Option(object):
 	def is_term_true(self, ground_state):
 
 		if self.name == "option_3":
+			door_distance_idx = 0 if self.overall_mdp.train_mode else 1
 			if isinstance(ground_state, PortablePointMazeState):
-				return ground_state.aspace_features()[0] <= 0.6
+				return ground_state.aspace_features()[door_distance_idx] <= DOOR_OPTION_COMPLETION_DISTANCE
 			else:
-				return ground_state[0] <= 0.6
+				return ground_state[door_distance_idx] <= DOOR_OPTION_COMPLETION_DISTANCE
 
 		if self.parent is not None:
 			parent_option = self.parent
@@ -407,7 +423,7 @@ class Option(object):
 				# Note: We are not using the option augmented subgoal reward while making off-policy updates to global DQN
 				assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
 
-				if self.name != "global_option":
+				if self.name != "global_option" and self.global_solver is not None:
 					self.global_solver.step(state.pspace_features(), action, reward, next_state.pspace_features(), next_state.is_terminal())
 					self.global_solver.update_epsilon()
 

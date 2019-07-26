@@ -201,9 +201,9 @@ class SkillChaining(object):
 			newly_trained_option (Option)
 			init_q (float)
 		"""
-		# Add the trained option to the action set of the global solver
-		if newly_trained_option not in self.trained_options:
-			self.trained_options.append(newly_trained_option)
+		# # Add the trained option to the action set of the global solver
+		# if newly_trained_option not in self.trained_options:
+		self.trained_options.append(newly_trained_option)
 
 		# Augment the global DQN with the newly trained option
 		num_actions = len(self.trained_options)
@@ -256,8 +256,9 @@ class SkillChaining(object):
 		next_state = self.get_next_state_from_experiences(option_transitions)
 
 		# If we triggered the untrained option's termination condition, add to its buffer of terminal transitions
-		if self.untrained_option.is_term_true(next_state) and not self.untrained_option.is_term_true(state):
-			self.untrained_option.final_transitions.append((state, selected_option.option_idx))
+		if self.untrained_option is not None:
+			if self.untrained_option.is_term_true(next_state) and not self.untrained_option.is_term_true(state):
+				self.untrained_option.final_transitions.append((state, selected_option.option_idx))
 
 		# Add data to train Q(s, o)
 		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
@@ -336,17 +337,18 @@ class SkillChaining(object):
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
 
-				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
-						self.max_num_options > 0 and self.untrained_option.get_training_phase() == "gestation":
-					uo_episode_terminated = True
-					if self.untrained_option.train(experience_buffer, state_buffer):
-						self.augment_agent_with_new_option(self.untrained_option)
-						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
-						# self.trained_options.append(self.untrained_option)
+				if self.untrained_option is not None:
+					if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
+							self.max_num_options > 0 and self.untrained_option.get_training_phase() == "gestation":
+						uo_episode_terminated = True
+						if self.untrained_option.train(experience_buffer, state_buffer):
+							self.augment_agent_with_new_option(self.untrained_option)
+							# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+							# self.trained_options.append(self.untrained_option)
 
-				if self.should_create_more_options() and self.untrained_option.get_training_phase() == "initiation_done":
-					new_option = self.create_child_option(self.untrained_option)
-					self.untrained_option = new_option
+					if self.should_create_more_options() and self.untrained_option.get_training_phase() == "initiation_done":
+						new_option = self.create_child_option(self.untrained_option)
+						self.untrained_option = new_option
 
 				if state.is_terminal():
 					break
