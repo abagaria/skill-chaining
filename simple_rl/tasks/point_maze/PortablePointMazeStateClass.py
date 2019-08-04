@@ -45,14 +45,14 @@ class PortablePointMazeState(PortableState):
     def initiation_classifier_features(self):
         key_features = self.key_obs[:1]   #  self.key_obs[:2]    # distance, angle
         lock_features = self.lock_obs[:1] # self.lock_obs[:2]  # distance, angle
-        # door_features = self.door_obs[:2] # self.door_obs[:4]  # distance1, distance2, angle1, angle2
+        door_features = self.door_obs[:2] # self.door_obs[:4]  # distance1, distance2, angle1, angle2
         has_key = np.array([self.has_key])
-        return np.concatenate((key_features, lock_features, has_key), axis=0)
+        return np.concatenate((door_features, key_features, lock_features, has_key), axis=0)
 
     @staticmethod
     def initiation_classifier_feature_indices():
-        # door_obs_idx = [0, 1]  # list(range(4))
+        door_obs_idx = [0, 1]  # list(range(4))
         key_obs_idx = [8]  # list(range(8, 10))
         lock_obs_idx = [12]  # list(range(12, 14))
         has_key_idx = [16]
-        return key_obs_idx + lock_obs_idx + has_key_idx
+        return door_obs_idx + key_obs_idx + lock_obs_idx + has_key_idx

@@ -180,3 +180,4 @@ if __name__ == '__main__':
     eval_scores, eval_durations = portable_agent.evaluate()
     portable_agent.transfer_dsc_agent.save_all_scores(pretrained=True, scores=eval_scores, durations=eval_durations)
     portable_agent.transfer_dsc_agent.save_all_models(pretrained=True)
+    portable_agent.transfer_dsc_agent.perform_experiments()

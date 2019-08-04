@@ -4,8 +4,7 @@ import numpy as np
 import scipy.interpolate
 import imageio
 import matplotlib.pyplot as plt
-import time
-import torch
+import itertools
 import seaborn as sns
 sns.set()
 
@@ -151,12 +150,12 @@ def render_sampled_initiation_classifier(option, episode, experiment_name):
 		plt.colorbar()
 
 		# Plot trajectories
-		# positive_examples = option.construct_feature_matrix(option.positive_examples)
-		# negative_examples = option.construct_feature_matrix(option.negative_examples)
-		# plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
-		#
-		# if negative_examples.shape[0] > 0:
-		# 	plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+		positive_examples = option.construct_feature_matrix(option.positive_examples)
+		negative_examples = option.construct_feature_matrix(option.negative_examples)
+		plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+
+		if negative_examples.shape[0] > 0:
+			plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
 		background_image = imageio.imread("four_room_domain.png")
 		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
@@ -178,23 +177,90 @@ def make_meshgrid(x, y, h=.02):
 
 def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))
-	X = option.construct_feature_matrix(option.positive_examples)
-	X0, X1, X2 = X[:, 0], X[:, 1], X[:, 2]
-	xx, yy, zz = np.meshgrid(X0, X1, X2)
+	flattened_examples = list(itertools.chain.from_iterable(option.positive_examples))
+	X = option.construct_aspace_matrix(option.positive_examples)
+	Y = option.batched_is_init_true(X)
 
-	Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel(), zz.ravel()])
-	Z1 = Z1.reshape(xx.shape)
-	plt.contour(np.mean(xx, axis=-1), np.mean(yy, axis=-1), np.mean(Z1, axis=-1), levels=[0], linewidths=2, cmap=plt.cm.bone)
+	pos_predicted_idx = np.where(Y == 1)[0]
+	neg_predicted_idx = np.where(Y == -1)[0]
+	pos_predicted_examples = [flattened_examples[i] for i in pos_predicted_idx]
+	neg_predicted_examples = [flattened_examples[i] for i in neg_predicted_idx]
 
-	plt.scatter(X0, X1)
+	def generate_subplot(has_key):
+		positive_positions = np.array([example.position for example in pos_predicted_examples if example.has_key == has_key])
+		negative_positions = np.array([example.position for example in neg_predicted_examples if example.has_key == has_key])
 
-	plt.xlim((-2, 10))
-	plt.ylim((-2, 10))
+		plt.subplot(1, 2, int(has_key) + 1)
+		if positive_positions.shape[0] > 0:
+			plt.scatter(positive_positions[:, 0], positive_positions[:, 1], label="positive")
+		if negative_positions.shape[0] > 0:
+			plt.scatter(negative_positions[:, 0], negative_positions[:, 1], label="negative")
 
-	plt.xlabel("x")
-	plt.ylabel("y")
+		plt.xlim((-2, 10))
+		plt.ylim((-2, 10))
+
+		background_image = imageio.imread("four_room_domain.png")
+		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2, 10., -2, 10.])
+
+		plt.xlabel("x")
+		plt.ylabel("y")
+		plt.legend()
+		plt.title("{} has_key = {}".format(option.name, has_key))
+
+	generate_subplot(False)
+	generate_subplot(True)
+
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
+	plt.close()
+
+def plot_two_class_initiation_classifier(option, episode=None, experiment_name=""):
+	plt.figure(figsize=(8.0, 5.0))
+
+	positive_feature_matrix = option.construct_aspace_matrix(option.positive_examples)
+	negative_feature_matrix = option.construct_aspace_matrix(option.negative_examples)
+	flattened_examples = list(itertools.chain.from_iterable(option.positive_examples)) +\
+						 list(itertools.chain.from_iterable(option.negative_examples))
+
+	try:
+		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+	except:
+		pdb.set_trace()
+		X = positive_feature_matrix
+	predictions = option.batched_is_init_true(X)
+
+	pos_predicted_idx = np.where(predictions == 1)[0]
+	neg_predicted_idx = np.where(predictions != 1)[0]
+
+	pos_predicted_examples = [flattened_examples[i] for i in pos_predicted_idx]
+	neg_predicted_examples = [flattened_examples[i] for i in neg_predicted_idx]
+
+	def generate_subplot(has_key):
+		positive_positions = np.array([example.position for example in pos_predicted_examples if example.has_key == has_key])
+		negative_positions = np.array([example.position for example in neg_predicted_examples if example.has_key == has_key])
+
+		plt.subplot(1, 2, int(has_key) + 1)
+
+		if positive_positions.shape[0] > 0:
+			plt.scatter(positive_positions[:, 0], positive_positions[:, 1], label="positive", c="green")
+		if negative_positions.shape[0] > 0:
+			plt.scatter(negative_positions[:, 0], negative_positions[:, 1], label="negative", c="black")
+
+		plt.xlim((-2, 10))
+		plt.ylim((-2, 10))
+
+		background_image = imageio.imread("four_room_domain.png")
+		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2, 10., -2, 10.])
+
+		plt.xlabel("x")
+		plt.ylabel("y")
+		plt.legend()
+		plt.title("{} has_key = {}".format(option.name, has_key))
+
+	generate_subplot(False)
+	generate_subplot(True)
+	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+	plt.savefig("initiation_set_plots/{}/{}_{}_two_class_svm.png".format(experiment_name, name, option.seed))
 	plt.close()
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
@@ -244,6 +310,60 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
 	plt.title("# updates = {}".format(len(smdp_transitions)))
 	plt.savefig("value_function_plots/{}/DQN_SMDP_Updates.png".format(experiment_name))
 	plt.close()
+
+def visualize_option_end_states_in_pspace(global_solver, experiment_name=""):
+	plt.figure(figsize=(8, 5))
+	for option_idx in range(1, len(global_solver.trained_options)):
+		# Get all the transitions from the replay buffer of the policy over options that concern `option_idx`
+		smdp_transitions = list(filter(lambda e: isinstance(e.action, int) and e.action == option_idx, global_solver.replay_buffer.memory))
+
+		# Transitions that satisfy the goal of the MDP
+		terminal_transitions = list(filter(lambda e: e.done == 1, smdp_transitions))
+
+		# All other s' in (s, o, r, s') tuples where o is `option_idx`
+		negative_transitions = list(filter(lambda e: e.done == 0, smdp_transitions))
+
+		positive_end_x = [e.next_state[0] for e in terminal_transitions]
+		positive_end_y = [e.next_state[1] for e in terminal_transitions]
+		negative_end_x = [e.next_state[0] for e in negative_transitions]
+		negative_end_y = [e.next_state[1] for e in negative_transitions]
+
+		plt.scatter(positive_end_x + negative_end_x, positive_end_y + negative_end_y, alpha=0.01, label="Option {}".format(option_idx))
+
+	plt.legend()
+	plt.title("Samples of Option Termination Sets")
+	plt.savefig("value_function_plots/{}/DQN_SMDP_Updates.png".format(experiment_name))
+	plt.close()
+
+def visualize_option_term_states_in_aspace(option, experiment_name=""):
+	plt.figure(figsize=(16, 10))
+	terminal_transitions = [transition for transition in option.solver.replay_buffer.memory if transition[-1] == 1]
+	terminal_next_states = [transition[3] for transition in terminal_transitions]
+	terminal_next_state_matrix = np.array(terminal_next_states)
+	feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
+	feature_matrix = terminal_next_state_matrix[:, feature_idx]
+	door1_distances = feature_matrix[:, 0]
+	door2_distances = feature_matrix[:, 1]
+	key_distances   = feature_matrix[:, 2]
+	lock_distances  = feature_matrix[:, 3]
+	has_keys		= feature_matrix[:, 4]
+
+	plt.subplot(2, 2, 1)
+	plt.hist2d(door1_distances, door2_distances, bins=100)
+	plt.xlabel("Door 1"); plt.ylabel("Door 2")
+	plt.subplot(2, 2, 2)
+	plt.hist(key_distances, bins=100)
+	plt.xlabel("Key Distance")
+	plt.subplot(2, 2, 3)
+	plt.hist(lock_distances, bins=100)
+	plt.xlabel("Lock Distance")
+	plt.subplot(2, 2, 4)
+	plt.hist(has_keys, bins=2)
+	plt.xlabel("Has Key")
+	plt.suptitle("Option {} Sampled Termination Set".format(option.option_idx))
+	plt.savefig("value_function_plots/{}/Option{}_SampledTermSet.svg".format(experiment_name, option.option_idx))
+	plt.close()
+
 
 def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name=""):
 	next_states = [experience[3] for experience in solver.replay_buffer.memory]

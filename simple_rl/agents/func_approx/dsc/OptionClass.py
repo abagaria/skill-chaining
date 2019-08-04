@@ -6,9 +6,7 @@ import pdb
 from copy import deepcopy
 import torch
 from sklearn import svm
-from sklearn.covariance import EllipticEnvelope
 import itertools
-from scipy.spatial import distance
 
 # Other imports.
 from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePointMazeState
@@ -23,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=150, initiation_period=0,  generate_plots=False,
+				 enable_timeout=True, timeout=50, initiation_period=10,  generate_plots=False,
 				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -89,6 +87,7 @@ class Option(object):
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
+		self.two_class_classifier = None
 
 		# If we are not the global or the goal option, we want to include the positive examples of all options
 		# above us as our own negative examples
@@ -153,74 +152,23 @@ class Option(object):
 
 		feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
 		feature_matrix = aspace_state_matrix[:, feature_idx]
-		door_distance_idx = 0 if self.overall_mdp.train_mode else 1
 
-		door_distances = aspace_state_matrix[:, door_distance_idx]
-		key_distances = feature_matrix[:, 0]
-		lock_distances = feature_matrix[:, 1]
-		has_keys = feature_matrix[:, -1]
-
-		if self.name == "overall_goal_policy":
-			return np.logical_and(lock_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 1)
-
-		elif self.name == "option_1":
-			return np.logical_and(key_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 1)
-
-		elif self.name == "option_2":
-			return np.logical_and(key_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 0)
-
-		elif self.name == "option_3":
-			# Either I am not in the lock room or if I am, then I don't have the key
-			lock_condition = np.logical_or(lock_distances >= INIT_SET_DISTANCE_THRESHOLD,
-										   np.logical_and(lock_distances < INIT_SET_DISTANCE_THRESHOLD, has_keys == 0))
-			return np.logical_and(key_distances >= INIT_SET_DISTANCE_THRESHOLD, lock_condition,
-								  door_distances >= DOOR_OPTION_INIT_DISTANCE)
-
-		else:
-			svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
-			return svm_decisions
+		svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
+		return svm_decisions
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
 
-		door_distance_idx = 0 if self.overall_mdp.train_mode else 1
-
 		if isinstance(ground_state, PortablePointMazeState):
 			features = ground_state.initiation_classifier_features()
-			door_distance = ground_state.door_obs[door_distance_idx]
 		else:
 			features = ground_state[PortablePointMazeState.initiation_classifier_feature_indices()]
-			door_distance = ground_state[door_distance_idx]
 
-		key_distance = features[0]
-		lock_distance = features[1]
-		has_key = features[2]
-
-		if self.name == "overall_goal_policy":
-			return lock_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 1
-		elif self.name == "option_1":
-			return key_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 1
-		elif self.name == "option_2":
-			return key_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 0
-		elif self.name == "option_3":
-			lock_condition = (lock_distance >= INIT_SET_DISTANCE_THRESHOLD) or \
-							 (lock_distance < INIT_SET_DISTANCE_THRESHOLD and has_key == 0)
-			return key_distance >= INIT_SET_DISTANCE_THRESHOLD and lock_condition and \
-					door_distance >= DOOR_OPTION_INIT_DISTANCE
-		else:
-			svm_decision = self.initiation_classifier.predict([features])[0] == 1
-			return svm_decision
+		svm_decision = self.initiation_classifier.predict([features])[0] == 1
+		return svm_decision
 
 	def is_term_true(self, ground_state):
-
-		if self.name == "option_3":
-			door_distance_idx = 0 if self.overall_mdp.train_mode else 1
-			if isinstance(ground_state, PortablePointMazeState):
-				return ground_state.aspace_features()[door_distance_idx] <= DOOR_OPTION_COMPLETION_DISTANCE
-			else:
-				return ground_state[door_distance_idx] <= DOOR_OPTION_COMPLETION_DISTANCE
-
 		if self.parent is not None:
 			parent_option = self.parent
 			while parent_option is not None:
@@ -233,13 +181,17 @@ class Option(object):
 			assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
 			return self.overall_mdp.is_goal_state(ground_state)
 
+	@staticmethod
+	def get_features_for_initiation_classifier(segmented_states):
+		segmented_positions = [segmented_state.initiation_classifier_features() for segmented_state in segmented_states]
+		return segmented_positions
+
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
 		segmented_states = deepcopy(states)
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
-		segmented_positions = [segmented_state.initiation_classifier_features() for segmented_state in segmented_states]
-		self.positive_examples.append(segmented_positions)
+		self.positive_examples.append(segmented_states)
 
 	def add_experience_buffer(self, experience_queue):
 		assert type(experience_queue) == list, "Expected initiation experience sample to be a list"
@@ -251,8 +203,17 @@ class Option(object):
 
 	@staticmethod
 	def construct_feature_matrix(examples):
-		states = list(itertools.chain.from_iterable(examples))
+		example_features = [Option.get_features_for_initiation_classifier(trajectory) for trajectory in examples]
+		states = list(itertools.chain.from_iterable(example_features))
 		return np.array(states)
+
+	@staticmethod
+	def construct_aspace_matrix(trajectories):
+		aspace_trajectories = []
+		for trajectory in trajectories:
+			aspace_trajectory = [state.aspace_features() for state in trajectory]
+			aspace_trajectories.append(aspace_trajectory)
+		return np.array(list(itertools.chain.from_iterable(aspace_trajectories)))
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
@@ -268,7 +229,7 @@ class Option(object):
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="auto")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 	def train_initiation_classifier(self):
@@ -286,17 +247,15 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-		two_class_initiation_classifier = svm.SVC(kernel="rbf", gamma="scale", class_weight="balanced")
-		two_class_initiation_classifier.fit(X, Y)
+		self.two_class_classifier = svm.SVC(gamma="scale", kernel="linear", random_state=self.seed)
+		self.two_class_classifier.fit(X, Y)
 
-		training_predictions = self.initiation_classifier.predict(X)
+		training_predictions = self.two_class_classifier.predict(X)
 		positive_training_data = X[training_predictions == 1]
 
 		if positive_training_data.shape[0] > 0:
-			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="scale")
+			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="auto")
 			self.initiation_classifier.fit(positive_training_data)
-
 			self.classifier_type = "tcsvm"
 
 	def initialize_option_policy(self):
@@ -441,7 +400,10 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
-			if self.get_training_phase() == "initiation":
+			if self.is_term_true(state):
+				self.num_goal_hits += 1
+
+			if self.get_training_phase() == "initiation" and self.name != "global_option":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
 			if self.writer is not None:
@@ -454,22 +416,11 @@ class Option(object):
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
 										 outer_step_number):
 		if self.is_term_true(final_state):  # success
-			self.num_goal_hits += 1
 			positive_states = [start_state] + visited_states[-self.buffer_length:]
-			positive_examples = [state.initiation_classifier_features() for state in positive_states]
-			self.positive_examples.append(positive_examples)
-
-			# For every new positive example we add, we will sample a parent positive as a negative example
-			# This will prevent our learned initiation set from overlapping heavily with that of our parent's
-			if len(self.parent_positive_examples) > 0:
-				num_parents = self.get_num_parents()
-				for _ in range(num_parents):
-					sampled_parent_positive = random.choice(self.parent_positive_examples)
-					self.negative_examples.append([sampled_parent_positive])
+			self.positive_examples.append(positive_states)
 
 		elif num_steps == self.timeout:
-			negative_examples = [start_state.initiation_classifier_features()]
-			self.negative_examples.append(negative_examples)
+			self.negative_examples.append([start_state])
 		else:
 			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
 				"Hit else case, but {} was not terminal".format(final_state)

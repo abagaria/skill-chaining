@@ -343,12 +343,10 @@ class SkillChaining(object):
 						uo_episode_terminated = True
 						if self.untrained_option.train(experience_buffer, state_buffer):
 							self.augment_agent_with_new_option(self.untrained_option)
-							# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
-							# self.trained_options.append(self.untrained_option)
-
-					if self.should_create_more_options() and self.untrained_option.get_training_phase() == "initiation_done":
-						new_option = self.create_child_option(self.untrained_option)
-						self.untrained_option = new_option
+					if self.untrained_option.get_training_phase() == "initiation_done":
+						if self.should_create_more_options():
+							new_option = self.create_child_option(self.untrained_option)
+							self.untrained_option = new_option
 
 				if state.is_terminal():
 					break
@@ -407,21 +405,8 @@ class SkillChaining(object):
 			pickle.dump(self.validation_scores, _f)
 
 	def perform_experiments(self):
-		for option in self.trained_options:
-			visualize_dqn_replay_buffer(option.solver, self.experiment_name)
-		# render_sampled_value_function(self.global_option.solver, episode=args.episodes, experiment_name=args.experiment_name)
-		for i, o in enumerate(self.trained_options):
-			plt.subplot(1, len(self.trained_options), i + 1)
-			plt.plot(self.option_qvalues[o.name])
-			plt.title(o.name)
-		plt.savefig("value_function_plots/{}/sampled_q_so_{}.png".format(self.experiment_name, self.seed))
-		plt.close()
-
-		for option in self.trained_options:
-			visualize_next_state_reward_heat_map(option.solver, self.max_episodes, self.experiment_name)
-
 		for option in self.trained_options[1:]:
-			render_sampled_initiation_classifier(option, self.max_episodes, self.experiment_name)
+			plot_two_class_initiation_classifier(option, self.max_episodes, self.experiment_name)
 
 	def trained_forward_pass(self, render=True):
 		"""
