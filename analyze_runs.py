@@ -4,12 +4,14 @@ import pickle
 import glob
 import numpy as np
 import pdb
+from matplotlib.ticker import ScalarFormatter
 
 sns.set()
+sns.set_context("talk")
 
 RMAX = 10.
 
-def moving_average(a, n=10) :
+def moving_average(a, n=50) :
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
@@ -61,11 +63,11 @@ def plot_training_scores(training_scores, experiment_name):
     plt.close()
 
 def plot_comparison_training_scores(training_scores_batch, experiment_names, experiment="sc"):
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(12, 6))
     for training_scores, experiment_name in zip(training_scores_batch, experiment_names):
         median_scores, top, bottom = get_plot_params(training_scores)
-        plt.plot(moving_average(median_scores), linewidth=4, label=experiment_name.replace("_hard_pinball", ""))
-        plt.fill_between(range(len(median_scores)), top, bottom, alpha=0.1)
+        plt.plot(median_scores, label=experiment_name.split("_")[-1])
+        plt.fill_between(range(len(median_scores)), top, bottom, alpha=0.2)
         # plt.ylim((5, 10))
     plt.title("Episodic Scores (Training)")
     plt.ylabel("Reward")
@@ -74,12 +76,28 @@ def plot_comparison_training_scores(training_scores_batch, experiment_names, exp
     plt.savefig("{}_training_scores_comparison.png".format(experiment))
     plt.close()
 
+def plot_comparison_training_scores_variance(training_scores_batch, experiment_names, experiment="sc"):
+    cr_skills = []
+    for i in range(len(training_scores_batch)):
+        experiment_scores = training_scores_batch[i]  # n_seeds, n_episodes
+        x = np.array(experiment_scores)
+        cr_i_skills = np.sum(x, axis=1)
+        cr_skills.append(cr_i_skills)
+    cr_means = [cr.mean() / 1000 for cr in cr_skills]
+    cr_stds  = [cr.std() / 1000 for cr in cr_skills]
+    fig, ax = plt.subplots(1, 1)
+    ax1 = sns.barplot(list(range(2, len(training_scores_batch) + 2)), cr_means, yerr=cr_stds)
+    plt.xlabel("Number of skills")
+    plt.ylabel("Mean cumulative reward (x1000)")
+    plt.title("DSC on Point-Maze after 300 episodes")
+    plt.show()
+
 def plot_comparison_training_durations(training_durations_batch, experiment_names, experiment="sc"):
-    plt.figure(figsize=(8, 5))
+    # plt.figure(figsize=(8, 5))
     for training_durations, experiment_name in zip(training_durations_batch, experiment_names):
         median_scores, top, bottom = get_plot_params(training_durations, clamp_top=False)
-        plt.plot(median_scores, linewidth=4, label=experiment_name.replace("_hard_pinball", ""))
-        plt.fill_between( range(len(median_scores)), top, bottom, alpha=0.1 )
+        plt.plot(median_scores, label=experiment_name.split()[-1])
+        plt.fill_between( range(len(median_scores)), top, bottom, alpha=0.2 )
     plt.yscale("log")
     plt.title("Episodic Durations (Training)")
     plt.ylabel("Durations (# steps)")
@@ -121,13 +139,11 @@ def get_plot_params(scores, clamp_top=True, variable_sized=False):
         bot = np.min(s, axis=0)
     return medians, top, bot
 
-def get_scores(experiment_name):
-    if "sc" in experiment_name:
-        score_names = experiment_name + "/" + "sc_pretrained_False_training_scores_*.pkl".format(experiment_name)
-        duration_names = experiment_name + "/" + "sc_pretrained_False_training_durations_*.pkl".format(experiment_name)
-    else:
-        score_names = experiment_name + "/" + experiment_name + "*_training_scores.pkl"
-        duration_names = experiment_name + "/" + experiment_name + "*_training_durations.pkl"
+def get_scores(experiment_name):    
+    score_names = experiment_name + "/" + "*_training_scores_*.pkl"
+    duration_names = experiment_name + "/" + "*_training_durations_*.pkl"
+    # score_names = experiment_name + "/" + experiment_name + "*_training_scores.pkl"
+    # duration_names = experiment_name + "/" + experiment_name + "*_training_durations.pkl"
     training_scores, training_durations = [], []
     for score_file in glob.glob(score_names):
         with open(score_file, "rb") as f:
@@ -137,7 +153,9 @@ def get_scores(experiment_name):
         with open(duration_file, "rb") as f:
             durations = pickle.load(f)
             training_durations.append(durations)
-    return training_scores, training_durations
+    scores = [moving_average(score_list) for score_list in training_scores]
+    durations = [moving_average(duration_list) for duration_list in training_durations]
+    return scores, durations
 
 def get_option_executions(experiment_name):
     names = experiment_name + "/" + "sc_pretrained_False_option_executions_*.pkl"
@@ -148,8 +166,17 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "point_lr_curves"
-    experiment_names = ["lr_actor_1e_3", "lr_c_1e_3"]
+    # meta_experiment_name = "performance_vs_num_skills"
+    # experiment_names = ["pm_sparse_smdp1_bufferLen20_sg0_g6_onlyGoalOption", 
+    #                     "pm_sparse_smdp1_bufferLen20_sg0_onlyGoalAndOption1",
+    #                     "pm_sparse_smdp1_bufferLen20_sg0_onlyGoalOption1AndOption2",
+    #                     "pm_sparse_smdp1_bufferLen20_sg0_g6_goalO1O2O3"]
+    # experiment_names = ["pm_sparse_smdp1_bufferLen20_sg0_nSkills2",
+    #                     "pm_sparse_smdp1_bufferLen20_sg0_g6_numSkills3",
+    #                     "pm_sparse_smdp1_bufferLen20_sg0_g6_numSkills4"]
+    meta_experiment_name = "FixedInitSetsNoDoorHack"
+    experiment_names = ["sc_src_adjacentRooms_sg100g10i10", "sc_transfer_adjacentRooms_sg100g10i10"]
+    #["fixed_option_idx_src_task", "fixed_option_idx_transfer_task"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:
@@ -160,6 +187,7 @@ def produce_comparison_plots():
         # plot_option_executions(get_option_executions(experiment_name), experiment_name)
     plot_comparison_training_scores(training_scores_batch, experiment_names, experiment=meta_experiment_name)
     plot_comparison_training_durations(training_durations_batch, experiment_names, experiment=meta_experiment_name)
+    # plot_comparison_training_scores_variance(training_scores_batch, experiment_names, experiment=meta_experiment_name)
 
 def produce_experiment_plots():
     experiment_name = "acrobot_sc_1"
