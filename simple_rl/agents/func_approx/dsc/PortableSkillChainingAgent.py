@@ -96,8 +96,27 @@ class PortableSkillChainingAgent(object):
                 self.transfer_dsc_agent.augment_agent_with_new_option(o1, init_q=0.)
                 self.transfer_dsc_agent.augment_agent_with_new_option(o2, init_q=0.)
                 current_option_idx += 2
+                print("No merge")
                 print("Added {} with idx {} replay buffer size {}".format(o1.name, o1.option_idx, len(o1.solver.replay_buffer)))
                 print("Added {} with idx {} replay buffer size {}".format(o2.name, o2.option_idx, len(o2.solver.replay_buffer)))
+
+        # If either agent has more options than the other, we need to add them to the transfer agent
+        if len(self.dsc_agent_1.trained_options[1:]) > len(self.dsc_agent_2.trained_options[1:]):
+            for i in range(len(self.dsc_agent_2.trained_options[1:]), len(self.dsc_agent_1.trained_options[1:])):
+                option = self.dsc_agent_1.trained_options[i+1]
+                option.option_idx = current_option_idx
+                self.transfer_dsc_agent.augment_agent_with_new_option(option, init_q=0.)
+                current_option_idx += 1
+                print("Added {} from Agent 1 with idx {} replay buffer size {}".format(option.name, option.option_idx,
+                                                                                     len(option.solver.replay_buffer)))
+        elif len(self.dsc_agent_2.trained_options[1:]) > len(self.dsc_agent_1.trained_options[1:]):
+            for i in range(len(self.dsc_agent_1.trained_options[1:]), len(self.dsc_agent_2.trained_options[1:])):
+                option = self.dsc_agent_2.trained_options[i+1]
+                option.option_idx = current_option_idx
+                self.transfer_dsc_agent.augment_agent_with_new_option(option, init_q=0.)
+                current_option_idx += 1
+                print("Added {} from Agent 2 with idx {} replay buffer size {}".format(option.name, option.option_idx,
+                                                                                     len(option.solver.replay_buffer)))
         self.transfer_dsc_agent.untrained_option = None
 
     def evaluate(self):

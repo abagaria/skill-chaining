@@ -247,7 +247,13 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		self.two_class_classifier = svm.SVC(gamma="scale", kernel="linear", random_state=self.seed)
+		if len(self.negative_examples) >= 5:
+			print("Using balanced 2-class SVM")
+			kwargs = {"gamma": "scale", "kernel": "linear", "class_weight": "balanced", "random_state": self.seed}
+		else:
+			kwargs = {"gamma": "scale", "kernel": "linear", "random_state": self.seed}
+
+		self.two_class_classifier = svm.SVC(**kwargs)
 		self.two_class_classifier.fit(X, Y)
 
 		training_predictions = self.two_class_classifier.predict(X)
