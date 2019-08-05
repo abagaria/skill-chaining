@@ -191,12 +191,9 @@ if __name__ == '__main__':
     training_scores, training_durations = portable_agent.train()
     portable_agent.dsc_agent_1.save_all_scores(pretrained=False, scores=training_scores[0], durations=training_durations[0])
     portable_agent.dsc_agent_2.save_all_scores(pretrained=True, scores=training_scores[1], durations=training_durations[1])
-    portable_agent.dsc_agent_1.save_all_models(pretrained=False)
-    portable_agent.dsc_agent_2.save_all_models(pretrained=True)
 
     portable_agent.create_transfer_agent()
 
     eval_scores, eval_durations = portable_agent.evaluate()
     portable_agent.transfer_dsc_agent.save_all_scores(pretrained=True, scores=eval_scores, durations=eval_durations)
-    portable_agent.transfer_dsc_agent.save_all_models(pretrained=True)
     portable_agent.transfer_dsc_agent.perform_experiments()
