@@ -51,19 +51,30 @@ def can_move(movable):
   return can_move_x(movable) or can_move_y(movable) or can_move_z(movable)
 
 
-def construct_maze(maze_id='Maze'):
+def construct_maze(maze_id='Maze', train_mode=True):
   if maze_id == 'Maze':
-    structure = [
-        [1, 1,  1,   1, 1, 1, 1, 1, 1],
-        [1, 0,  0,   0, 1, 0, 0, 0, 1],
-        [1, 0, 'r',  0, 0, 0, 0, 0, 1],
-        [1, 0,  0,   0, 1, 0, 0, 0, 1],
-        [1, 1,  0,   1, 1, 1, 0, 1, 1],
-        [1, 0,  0,   0, 1, 0, 0, 0, 1],
-        [1, 0,  0,   0, 0, 0, 0, 0, 1],
-        [1, 0,  0,   0, 1, 0, 0, 0, 1],
-        [1, 1,  1,   1, 1, 1, 1, 1, 1],
-    ]
+      if train_mode:
+          structure = [
+              [1, 1, 1, 1, 1],
+              [1, 1, 1, 0, 1],
+              [1, 1, 1, 0, 1],
+              [1, 'r', 0, 0, 1],
+              [1, 1, 1, 0, 1],
+              [1, 1, 1, 0, 1],
+              [1, 1, 1, Move.XY, 1],
+              [1, 1, 1, 1, 1],
+          ]
+      else:
+          structure = [
+              [1, 1, 1, 1, 1],
+              [1, 1, 1, Move.XY, 1],
+              [1, 1, 1, 0, 1],
+              [1, 1, 1, 0, 1],
+              [1, 'r', 0, 0, 1],
+              [1, 1, 1, 0, 1],
+              [1, 1, 1, 0, 1],
+              [1, 1, 1, 1, 1],
+          ]
   elif maze_id == 'Push':
     structure = [
         [1, 1,  1,  1,   1],

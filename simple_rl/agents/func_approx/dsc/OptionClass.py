@@ -21,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=50, initiation_period=10,  generate_plots=False,
+				 enable_timeout=True, timeout=30, initiation_period=10,  generate_plots=False,
 				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -152,6 +152,16 @@ class Option(object):
 
 		feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
 		feature_matrix = aspace_state_matrix[:, feature_idx]
+		non_zero_rows = np.where(feature_matrix.any(axis=1) > 0)
+
+		# if self.name == "overall_goal_policy":
+		# 	decisions = np.zeros((aspace_state_matrix.shape[0]))
+		# 	decisions[non_zero_rows] = 1
+		# 	return decisions
+		# if self.name == "option_1":
+		# 	decisions = np.ones((aspace_state_matrix.shape[0]))
+		# 	decisions[non_zero_rows] = 0
+		# 	return decisions
 
 		svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
 		return svm_decisions
@@ -164,6 +174,11 @@ class Option(object):
 			features = ground_state.initiation_classifier_features()
 		else:
 			features = ground_state[PortablePointMazeState.initiation_classifier_feature_indices()]
+
+		# if self.name == "overall_goal_policy":
+		# 	return features.any() > 0
+		# if self.name == "option_1":
+		# 	return features.all() == 0.
 
 		svm_decision = self.initiation_classifier.predict([features])[0] == 1
 		return svm_decision
@@ -247,22 +262,26 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		if len(self.negative_examples) >= 5:
-			print("Using balanced 2-class SVM")
-			kwargs = {"gamma": "scale", "kernel": "linear", "class_weight": "balanced", "random_state": self.seed}
+		if len(list(itertools.chain.from_iterable(self.positive_examples))) > len(self.negative_examples) > 20:
+			kwargs = {"gamma": "scale", "kernel": "rbf", "random_state": self.seed, "class_weight": "balanced"}
 		else:
-			kwargs = {"gamma": "scale", "kernel": "linear", "random_state": self.seed}
+			kwargs = {"gamma": "scale", "kernel": "rbf", "random_state": self.seed}
 
 		self.two_class_classifier = svm.SVC(**kwargs)
 		self.two_class_classifier.fit(X, Y)
 
-		training_predictions = self.two_class_classifier.predict(X)
-		positive_training_data = X[training_predictions == 1]
+		self.initiation_classifier = self.two_class_classifier
+		self.classifier_type = "tcsvm"
 
-		if positive_training_data.shape[0] > 0:
-			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="auto")
-			self.initiation_classifier.fit(positive_training_data)
-			self.classifier_type = "tcsvm"
+		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period - 1):
+			pdb.set_trace()
+			training_predictions = self.two_class_classifier.predict(X)
+			positive_training_data = X[training_predictions == 1]
+
+			if positive_training_data.shape[0] > 0:
+				self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="auto")
+				self.initiation_classifier.fit(positive_training_data)
+				self.classifier_type = "tcsvm"
 
 	def initialize_option_policy(self):
 		# TODO: Will need a new data structure to hold PortableState objects from global agent's experiences

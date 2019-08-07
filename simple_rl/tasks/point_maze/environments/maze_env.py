@@ -77,7 +77,7 @@ class MazeEnv(gym.Env):
     self._top_down_view = top_down_view
     self._manual_collision = manual_collision
 
-    self.MAZE_STRUCTURE = structure = maze_env_utils.construct_maze(maze_id=self._maze_id)
+    self.MAZE_STRUCTURE = structure = maze_env_utils.construct_maze(maze_id=self._maze_id, train_mode=train_mode)
     self.elevated = any(-1 in row for row in structure)  # Elevate the maze to allow for falling.
     self.blocks = any(
         any(maze_env_utils.can_move(r) for r in row)
@@ -93,18 +93,6 @@ class MazeEnv(gym.Env):
     self._xy_to_rowcol = lambda x, y: (2 + (y + size_scaling / 2) / size_scaling,
                                        2 + (x + size_scaling / 2) / size_scaling)
     self._view = np.zeros([5, 5, 3])  # walls (immovable), chasms (fall), movable blocks
-
-    # Map specifying the index positions of all doors in the Maze Structure
-    self.door_map = {
-        "rooms_1_2": (4, 2),
-        "rooms_1_4": (2, 4),
-        "rooms_2_3": (6, 4),
-        "rooms_3_4": (4, 6)
-    }
-
-    self.dt = 0.02              # Taken from point.xml
-    self.max_distance = 100.    # Larger than the actual max distance
-    self.max_angle = 2*np.pi    # radians
 
     height_offset = 0.
     if self.elevated:
@@ -252,26 +240,14 @@ class MazeEnv(gym.Env):
 
     goal_xy = tree.find(".//geom[@name='target']").attrib["pos"].split()
     self.goal_xy = np.array([float(goal_xy[0]), float(goal_xy[1])])
-
-    key_xy = tree.find(".//geom[@name='key']").attrib["pos"].split()
-    self.key_xy = np.array([float(key_xy[0]), float(key_xy[1])])
-
     print("Goal position: ", self.goal_xy)
-    print("Key  position: ", self.key_xy)
 
     self.train_mode = train_mode
-    self.has_key = False
 
     _, file_path = tempfile.mkstemp(text=True, suffix=".xml")
     tree.write(file_path)
 
     self.wrapped_env = model_cls(*args, file_path=file_path, **kwargs)
-
-    # Debug info
-    door_coord_map = self._find_doors()
-    center_x, center_y = self._get_center_point(door_coord_map)
-    print("Door coord map: ", door_coord_map)
-    print("center: ", center_x, center_y)
 
   def get_ori(self):
     return self.wrapped_env.get_ori()
@@ -360,244 +336,8 @@ class MazeEnv(gym.Env):
 
     return self._view
 
-
-  def _find_doors(self):
-      """
-      |--------------------|
-      |  room4  |  room3   |
-      |--------------------|
-      |  room1  |  room2   |
-      |--------------------|
-      """
-      door_coord_map = {
-          "rooms_1_4" : (0., 4.),
-          "rooms_1_2" : (4., 0.),
-          "rooms_2_3" : (8., 4.),
-          "rooms_3_4" : (4., 8.)
-      }
-      return door_coord_map
-
-  def room_to_doors(self, room):
-      """ This method defines the ordering of doors in the observation feature vector. """
-      # if self.train_mode:
-      if room == "room1":
-          return "rooms_1_2", "rooms_1_4"
-      if room == "room2":
-          return "rooms_2_3", "rooms_1_2"
-      if room == "room3":
-          return "rooms_3_4", "rooms_2_3"
-      if room == "room4":
-          return "rooms_1_4", "rooms_3_4"
-          # return "rooms_3_4", "rooms_1_4"
-      raise ValueError("got room {}".format(room))
-      # else:
-      #     if room == "room1":
-      #         return "rooms_1_4", "rooms_1_2"
-      #     if room == "room2":
-      #         return "rooms_2_3", "rooms_1_2"
-      #     if room == "room3":
-      #         return "rooms_2_3", "rooms_3_4"
-      #     if room == "room4":
-      #         return "rooms_3_4", "rooms_1_4"
-      #     raise ValueError("got room {}".format(room))
-
-  def get_agent_room_doors(self):
-      agent_room = self.get_agent_room()
-      return self.room_to_doors(agent_room)
-
-  @staticmethod
-  def _get_center_point(door_coord_map):
-      center_x = (door_coord_map["rooms_1_4"][0] + door_coord_map["rooms_2_3"][0]) / 2.
-      center_y = (door_coord_map["rooms_1_2"][1] + door_coord_map["rooms_3_4"][1]) / 2.
-      return center_x, center_y
-
-  def location_to_room(self, x, y):
-      door_coord_map = self._find_doors()
-      center_x, center_y = self._get_center_point(door_coord_map)
-
-      if x <= center_x and y <= center_y:
-          return "room1"
-      if x >= center_x and y <= center_y:
-          return "room2"
-      if x <= center_x and y >= center_y:
-          return "room4"
-      if x >= center_x and y >= center_y:
-          return "room3"
-
-      pdb.set_trace()
-
-  def get_key_distance(self, agent_position):
-      distance_vector = self.key_xy - agent_position
-      return np.linalg.norm(distance_vector)
-
-  def get_lock_distance(self, agent_position):
-      distance_vector = self.goal_xy - agent_position
-      return np.linalg.norm(distance_vector)
-
-  def get_lock_room_doors(self):
-      lock_room = self.get_lock_room()
-      return self.room_to_doors(lock_room)
-
-  def get_adjacent_lock_room_door(self):
-      if self.get_agent_room() != self.get_key_room():
-          return None
-      door1, door2 = self.get_agent_room_doors()
-      lock_room_doors = self.get_lock_room_doors()
-      if door1 in lock_room_doors:
-          return door1
-      elif door2 in lock_room_doors:
-          return door2
-      pdb.set_trace()  # How can we not be adjacent to the lock-room if we are in the key-room?
-
-  def get_door_distances(self, agent_position):
-      door1, door2 = self.get_agent_room_doors()
-      door_coord_map = self._find_doors()
-
-      # If we are in the key-room, we only get the distance to the lock-room
-      # adjacent_lock_room_door = self.get_adjacent_lock_room_door()
-      # if adjacent_lock_room_door is not None:
-      #     lock_room_door_location = door_coord_map[adjacent_lock_room_door]
-      #     lock_room_door_distance = np.linalg.norm(agent_position - lock_room_door_location)
-      #     return lock_room_door_distance, self.max_distance
-
-      door1_location = door_coord_map[door1]
-      door2_location = door_coord_map[door2]
-      door1_distance = np.linalg.norm(agent_position - door1_location)
-      door2_distance = np.linalg.norm(agent_position - door2_location)
-      return door1_distance, door2_distance
-      # return door1_distance, self.max_distance
-
-  @staticmethod
-  def wrap(angle):
-      return (angle + np.pi) % (2 * np.pi) - np.pi
-
-  def get_key_angle(self, agent_position, agent_orientation):
-      distance_vector = self.key_xy - agent_position
-      x_key, y_key = distance_vector[0], distance_vector[1]
-      key_angle = np.arctan2(y_key, x_key)
-      agent_key_angle = key_angle - self.wrap(agent_orientation)
-      return self.wrap(agent_key_angle)
-
-  def get_lock_angle(self, agent_position, agent_orientation):
-      distance_vector = self.goal_xy - agent_position
-      x_lock, y_lock = distance_vector[0], distance_vector[1]
-      lock_angle = np.arctan2(y_lock, x_lock)
-      agent_lock_angle = lock_angle - self.wrap(agent_orientation)
-      return self.wrap(agent_lock_angle)
-
-  def get_door_angles(self, agent_position, agent_orientation):
-      def get_door_angle(door):
-          door_location = door_coord_map[door]
-          door_distance_vector = door_location - agent_position
-          door_angle = np.arctan2(door_distance_vector[1], door_distance_vector[0])
-          agent_door_angle = door_angle - self.wrap(agent_orientation)
-          return self.wrap(agent_door_angle)
-      door1, door2 = self.get_agent_room_doors()
-      door_coord_map = self._find_doors()
-
-      # If we are in the key-room, we only get the distance to the lock-room
-      # adjacent_lock_room_door = self.get_adjacent_lock_room_door()
-      # if adjacent_lock_room_door is not None:
-      #     agent_lock_room_door_angle = get_door_angle(adjacent_lock_room_door)
-      #     return agent_lock_room_door_angle, self.max_angle
-
-      agent_door1_angle = get_door_angle(door1)
-      agent_door2_angle = get_door_angle(door2)
-      return agent_door1_angle, agent_door2_angle
-      # return agent_door1_angle, self.max_angle
-
   def get_egocentric_obs(self):
-      key_obs = self.get_key_obs()                 # [d, theta, v, omega]
-      lock_obs = self.get_lock_obs()               # [d, theta, v, omega]
-      door_obs = self.get_door_obs()               # [d1, d2, theta1, theta2, v1, v2, omega1, omega2]
-      return door_obs + key_obs + lock_obs + [self.has_key]
-
-  def get_key_obs(self):
-      key_room = self.get_key_room()
-      agent_room = self.get_agent_room()
-      if key_room == agent_room:
-
-          agent_previous_position = self.previous_agent_xy
-          agent_previous_orientation = self.previous_agent_ori
-          agent_current_position = self.wrapped_env.get_xy()
-          agent_current_orientation = self.wrapped_env.get_ori()
-
-          current_key_distance = self.get_key_distance(agent_current_position)
-          current_key_angle = self.get_key_angle(agent_current_position, agent_current_orientation)
-
-          previous_key_distance = self.get_key_distance(agent_previous_position)
-          previous_key_angle = self.get_key_angle(agent_previous_position, agent_previous_orientation)
-          linear_velocity = (current_key_distance - previous_key_distance) / self.dt
-          angular_velocity = (current_key_angle - previous_key_angle) / self.dt
-
-          return [current_key_distance, current_key_angle, linear_velocity, angular_velocity]
-
-      return [self.max_distance, self.max_angle, 0., 0.]
-
-  def get_lock_obs(self):
-      lock_room = self.get_lock_room()
-      agent_room = self.get_agent_room()
-      if lock_room == agent_room:
-
-          agent_previous_position = self.previous_agent_xy
-          agent_previous_orientation = self.previous_agent_ori
-          agent_current_position = self.wrapped_env.get_xy()
-          agent_current_orientation = self.wrapped_env.get_ori()
-
-          current_lock_distance = self.get_lock_distance(agent_current_position)
-          current_lock_angle = self.get_lock_angle(agent_current_position, agent_current_orientation)
-
-          previous_lock_distance = self.get_lock_distance(agent_previous_position)
-          previous_lock_angle = self.get_lock_angle(agent_previous_position, agent_previous_orientation)
-          linear_velocity = (current_lock_distance - previous_lock_distance) / self.dt
-          angular_velocity = (current_lock_angle - previous_lock_angle) / self.dt
-
-          return [current_lock_distance, current_lock_angle, linear_velocity, angular_velocity]
-
-      return [self.max_distance, self.max_angle, 0., 0.]
-
-  def get_door_obs(self):
-      agent_previous_position = self.previous_agent_xy
-      agent_previous_orientation = self.previous_agent_ori
-      agent_current_position = self.wrapped_env.get_xy()
-      agent_current_orientation = self.wrapped_env.get_ori()
-
-      current_door_distances = self.get_door_distances(agent_current_position)
-      current_door_angles = self.get_door_angles(agent_current_position, agent_current_orientation)
-
-      agent_current_room = self.get_agent_room()
-      agent_previous_room = self.location_to_room(agent_previous_position[0], agent_previous_position[1])
-
-      # If the agent has not changed rooms, compute and return the door related velocities
-      if agent_current_room == agent_previous_room:
-          previous_door_distances = self.get_door_distances(agent_previous_position)
-          previous_door_angles = self.get_door_angles(agent_previous_position, agent_previous_orientation)
-
-          door1_linear_velocity = (current_door_distances[0] - previous_door_distances[0]) / self.dt
-          door2_linear_velocity = (current_door_distances[1] - previous_door_distances[1]) / self.dt
-          door1_angular_velocity = (current_door_angles[0] - previous_door_angles[0]) / self.dt
-          door2_angular_velocity = (current_door_angles[1] - previous_door_angles[1]) / self.dt
-
-          return [current_door_distances[0], current_door_distances[1], current_door_angles[0], current_door_angles[1],
-                  door1_linear_velocity, door2_linear_velocity, door1_angular_velocity, door2_angular_velocity]
-
-      # If the agent has just transitioned b/w rooms, the velocity to the current room's doors is undefined
-      return [current_door_distances[0], current_door_distances[1], current_door_angles[0], current_door_angles[1], 0., 0., 0., 0.]
-
-  def get_agent_room(self):
-      agent_position = self.wrapped_env.get_xy()
-      agent_room = self.location_to_room(agent_position[0], agent_position[1])
-      return agent_room
-
-  def get_key_room(self):
-      key_position = self.key_xy
-      key_room = self.location_to_room(key_position[0], key_position[1])
-      return key_room
-
-  def get_lock_room(self):
-      lock_position = self.goal_xy
-      lock_room = self.location_to_room(lock_position[0], lock_position[1])
-      return lock_room
+      return self.get_range_sensor_obs()
 
   def get_range_sensor_obs(self):
     """Returns egocentric range sensor observations of maze."""
@@ -653,7 +393,7 @@ class MazeEnv(gym.Env):
               type=block_type,
           ))
 
-    sensor_readings = np.zeros((self._n_bins, 3))  # 3 for wall, drop-off, block
+    sensor_readings = np.zeros((self._n_bins, 2))  # 3 for wall, drop-off, block
     for ray_idx in range(self._n_bins):
       ray_ori = (ori - self._sensor_span * 0.5 +
                  (2 * ray_idx + 1.0) / (2 * self._n_bins) * self._sensor_span)
@@ -675,8 +415,8 @@ class MazeEnv(gym.Env):
         first_seg = sorted(ray_segments, key=lambda x: x["distance"])[0]
         seg_type = first_seg["type"]
         idx = (0 if seg_type == 1 else  # Wall.
-               1 if seg_type == -1 else  # Drop-off.
-               2 if maze_env_utils.can_move(seg_type) else  # Block.
+               1 if maze_env_utils.can_move(seg_type) else  # Block
+               # 2 if maze_env_utils.can_move(seg_type) else  # Block.
                None)
         if first_seg["distance"] <= self._sensor_range:
           sensor_readings[ray_idx][idx] = (self._sensor_range - first_seg["distance"]) / self._sensor_range
@@ -697,8 +437,7 @@ class MazeEnv(gym.Env):
       wrapped_obs = np.concatenate([wrapped_obs[:3]] + additional_obs +
                                    [wrapped_obs[3:]])
 
-    wrapped_obs = np.hstack([wrapped_obs[:2]] + [self.has_key] + [wrapped_obs[2:]])
-    range_sensor_obs = self.get_range_sensor_obs()
+    range_sensor_obs = np.zeros((0, 3))  # self.get_range_sensor_obs()
     return np.concatenate([wrapped_obs,
                            range_sensor_obs.flat] +
                            view + [[self.t * 0.001]])
@@ -707,7 +446,6 @@ class MazeEnv(gym.Env):
     self.t = 0
     self.trajectory = []
     self.wrapped_env.reset()
-    self.has_key = False
     self.previous_agent_xy = np.array([0., 0.])
     self.previous_agent_ori = 0.
     init_pspace = self._get_obs()
@@ -769,14 +507,8 @@ class MazeEnv(gym.Env):
   def is_in_goal_position(self, pos):
     return self.distance_to_goal_position(pos) <= 0.6
 
-  def is_in_key_position(self, pos):
-      return self.distance_to_key_position(pos) <= 0.6
-
   def distance_to_goal_position(self, pos):
-    return np.linalg.norm(pos - self.goal_xy)
-
-  def distance_to_key_position(self, pos):
-      return np.linalg.norm(pos - self.key_xy)
+    return np.abs(self.goal_xy[1] - pos[1])
 
   def step(self, action):
     outer_reward = 0.
@@ -793,15 +525,11 @@ class MazeEnv(gym.Env):
       if self._is_in_collision(new_pos):
         self.wrapped_env.set_xy(old_pos)
 
-      if self.is_in_key_position(new_pos):
-          self.has_key = True
-
       # Point-env will give -1 reward for every step
       # Reaching the goal neutralizes the step penalty
       if self.is_in_goal_position(new_pos):
-        if self.has_key:
-            outer_reward = 1.
-            done = True
+        outer_reward = 1.
+        done = True
     else:
       inner_next_obs, inner_reward, done, info = self.wrapped_env.step(action)
     next_obs = self._get_obs()

@@ -24,14 +24,15 @@ class PortablePointMazeMDP(MDP):
         # Configure env
         gym_mujoco_kwargs = {
             'maze_id': 'Maze',
-            'n_bins': 0,
+            'n_bins': 4,
             'observe_blocks': False,
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 2,
+            'maze_size_scaling': 10,
             'train_mode': train_mode,
-            'test_mode': test_mode
+            'test_mode': test_mode,
+            'sensor_range': 2
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy
@@ -44,6 +45,7 @@ class PortablePointMazeMDP(MDP):
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_global_obs, next_egocentric_obs, done)
+        assert done == self.is_goal_state(self.next_state)
         return reward
 
     def _transition_func(self, state, action):
@@ -53,7 +55,7 @@ class PortablePointMazeMDP(MDP):
     def _get_state(pspace_obs, aspace_obs, done):
         """ Convert np obs array from gym into a State object. """
         # Ignoring obs[7] which corresponds to time elapsed in seconds
-        state = PortablePointMazeState(pspace_obs[:7], aspace_obs, done)
+        state = PortablePointMazeState(pspace_obs[:6], aspace_obs, done)
         return state
 
     def execute_agent_action(self, action, option_idx=None):
@@ -65,14 +67,13 @@ class PortablePointMazeMDP(MDP):
         if isinstance(state, PortablePointMazeState):
             return state.is_terminal()
         position = state[:2]
-        key = state[2]
-        return self.env.is_in_goal_position(position) and bool(key)
+        return self.env.is_in_goal_position(position)
 
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 
     def state_space_size(self):
-        return 7
+        return self.init_state.pspace_features().shape[0]
 
     @staticmethod
     def action_space_size():

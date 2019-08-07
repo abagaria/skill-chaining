@@ -13,7 +13,7 @@ from simple_rl.tasks.point_maze.PortablePointMazeMDPClass import PortablePointMa
 
 
 class PortableSkillChainingAgent(object):
-    def __init__(self, train_mdp_1, train_mdp_2, test_mdp, train_episodes, train_steps, test_episodes, test_steps, lr_actor, lr_critic,
+    def __init__(self, train_mdp_1, test_mdp, train_episodes, train_steps, test_episodes, test_steps, lr_actor, lr_critic,
                  ddpg_batch_size, device, max_num_options=5, subgoal_reward=0., enable_option_timeout=True,
                  buffer_length=20, num_subgoal_hits_required=3, experiment_name="portable_skill_experiment",
                  classifier_type="ocsvm", generate_plots=False, use_full_smdp_update=False,
@@ -25,10 +25,6 @@ class PortableSkillChainingAgent(object):
                                    experiment_name, max_num_options, subgoal_reward, enable_option_timeout, buffer_length,
                                    num_subgoal_hits_required, classifier_type, generate_plots, use_full_smdp_update,
                                    log_dir, seed, tensor_log)
-        self.train_dsc_params_2 = (train_mdp_2, train_episodes, train_steps, lr_actor, lr_critic, ddpg_batch_size, device,
-                                   experiment_name, max_num_options, subgoal_reward, enable_option_timeout, buffer_length,
-                                   num_subgoal_hits_required, classifier_type, generate_plots, use_full_smdp_update,
-                                   log_dir, seed, tensor_log)
         self.test_dsc_params = (test_mdp, test_episodes, test_steps, lr_actor, lr_critic, ddpg_batch_size, device,
                            experiment_name, max_num_options, subgoal_reward, enable_option_timeout, buffer_length,
                            num_subgoal_hits_required, classifier_type, generate_plots, use_full_smdp_update,
@@ -36,12 +32,10 @@ class PortableSkillChainingAgent(object):
 
         # Create our train + test agents
         self.dsc_agent_1 = SkillChaining(*self.train_dsc_params_1)
-        self.dsc_agent_2 = SkillChaining(*self.train_dsc_params_2)
         self.transfer_dsc_agent = SkillChaining(*self.test_dsc_params)
 
         # Book keeping params
         self.train_mdp_1 = train_mdp_1
-        self.train_mdp_2 = train_mdp_2
         self.test_mdp = test_mdp
         self.num_training_episodes = num_training_episodes
         self.num_training_steps = num_training_steps
@@ -50,73 +44,11 @@ class PortableSkillChainingAgent(object):
 
     def train(self):
         scores1, durations1 = self.dsc_agent_1.skill_chaining(self.num_training_episodes, self.num_training_steps)
-        scores2, durations2 = self.dsc_agent_2.skill_chaining(self.num_training_episodes, self.num_training_steps)
-        return [scores1, scores2], [durations1, durations2]
-
-    @staticmethod
-    def should_merge(o1, o2):
-        def get_term_states(option):
-            return np.array([experience[3] for experience in option.solver.replay_buffer.memory if experience[-1] == 1])
-        o1_term_states = get_term_states(o1)
-        o2_term_states = get_term_states(o2)
-        clf = svm.OneClassSVM(nu=0.1, gamma="auto")
-        distance_idx = [0, 1, 8, 12]  # door1, door2, key, lock
-        o1_distances = o1_term_states[:, distance_idx]
-        o2_distances = o2_term_states[:, distance_idx]
-        clf.fit(o1_distances)
-        o2_predictions = clf.predict(o2_distances).tolist()
-        positive_ratio = o2_predictions.count(1) / len(o2_predictions)
-        print(positive_ratio)
-        return positive_ratio >= 0.5 and (o1.parent == o2.parent)
-
-    @staticmethod
-    def merge(o1, o2, strategy="return_better"):
-        if strategy == "return_better":
-            return o1 if len(o1.solver.replay_buffer) <= len(o2.solver.replay_buffer) else o2
-
-        for exp in o2.solver.replay_buffer.memory:
-            if o1.is_init_true(exp[0]):
-                o1.solver.step(*exp)
-        return o1
+        return scores1, durations1
 
     def create_transfer_agent(self):
-        current_option_idx = 1
-        for o1, o2 in zip(self.dsc_agent_1.trained_options[1:], self.dsc_agent_2.trained_options[1:]):
-            if self.should_merge(o1, o2):
-                merged_option = self.merge(o1, o2)
-                merged_option.option_idx = current_option_idx
-                self.transfer_dsc_agent.augment_agent_with_new_option(merged_option, init_q=0.)
-                current_option_idx += 1
-                print("Merged")
-                print("Added {} with idx {} replay buffer size {}".format(merged_option.name, merged_option.option_idx,
-                                                                          len(merged_option.solver.replay_buffer)))
-            else:
-                o1.option_idx = current_option_idx
-                o2.option_idx = current_option_idx + 1
-                self.transfer_dsc_agent.augment_agent_with_new_option(o1, init_q=0.)
-                self.transfer_dsc_agent.augment_agent_with_new_option(o2, init_q=0.)
-                current_option_idx += 2
-                print("No merge")
-                print("Added {} with idx {} replay buffer size {}".format(o1.name, o1.option_idx, len(o1.solver.replay_buffer)))
-                print("Added {} with idx {} replay buffer size {}".format(o2.name, o2.option_idx, len(o2.solver.replay_buffer)))
-
-        # If either agent has more options than the other, we need to add them to the transfer agent
-        if len(self.dsc_agent_1.trained_options[1:]) > len(self.dsc_agent_2.trained_options[1:]):
-            for i in range(len(self.dsc_agent_2.trained_options[1:]), len(self.dsc_agent_1.trained_options[1:])):
-                option = self.dsc_agent_1.trained_options[i+1]
-                option.option_idx = current_option_idx
-                self.transfer_dsc_agent.augment_agent_with_new_option(option, init_q=0.)
-                current_option_idx += 1
-                print("Added {} from Agent 1 with idx {} replay buffer size {}".format(option.name, option.option_idx,
-                                                                                     len(option.solver.replay_buffer)))
-        elif len(self.dsc_agent_2.trained_options[1:]) > len(self.dsc_agent_1.trained_options[1:]):
-            for i in range(len(self.dsc_agent_1.trained_options[1:]), len(self.dsc_agent_2.trained_options[1:])):
-                option = self.dsc_agent_2.trained_options[i+1]
-                option.option_idx = current_option_idx
-                self.transfer_dsc_agent.augment_agent_with_new_option(option, init_q=0.)
-                current_option_idx += 1
-                print("Added {} from Agent 2 with idx {} replay buffer size {}".format(option.name, option.option_idx,
-                                                                                     len(option.solver.replay_buffer)))
+        for option in self.dsc_agent_1.trained_options[1:]:
+            self.transfer_dsc_agent.augment_agent_with_new_option(option, init_q=0.)
         self.transfer_dsc_agent.untrained_option = None
 
     def evaluate(self):
@@ -160,7 +92,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     train_env_1 = PortablePointMazeMDP(args.seed, train_mode=True, test_mode=False, dense_reward=args.dense_reward, render=args.render)
-    train_env_2 = PortablePointMazeMDP(args.seed, train_mode=False, test_mode=False, dense_reward=args.dense_reward, render=args.render)
     test_env = PortablePointMazeMDP(args.seed, train_mode=False, test_mode=True, dense_reward=args.dense_reward, render=args.render)
 
     # Create folders for saving various things
@@ -174,7 +105,7 @@ if __name__ == '__main__':
     print("Training skill chaining agent with subgoal reward {} and buffer_len = {}".format(args.subgoal_reward,
                                                                                             args.buffer_len))
 
-    portable_agent = PortableSkillChainingAgent(train_mdp_1=train_env_1, train_mdp_2=train_env_2, test_mdp=test_env,
+    portable_agent = PortableSkillChainingAgent(train_mdp_1=train_env_1, test_mdp=test_env,
                                                 train_episodes=args.train_episodes,
                                                 train_steps=args.train_steps,
                                                 test_episodes=args.test_episodes, test_steps=args.test_steps,
@@ -189,8 +120,7 @@ if __name__ == '__main__':
                                                 num_test_episodes=args.test_episodes, num_test_steps=args.test_steps)
 
     training_scores, training_durations = portable_agent.train()
-    portable_agent.dsc_agent_1.save_all_scores(pretrained=False, scores=training_scores[0], durations=training_durations[0])
-    portable_agent.dsc_agent_2.save_all_scores(pretrained=True, scores=training_scores[1], durations=training_durations[1])
+    portable_agent.dsc_agent_1.save_all_scores(pretrained=False, scores=training_scores, durations=training_durations)
 
     portable_agent.create_transfer_agent()
 

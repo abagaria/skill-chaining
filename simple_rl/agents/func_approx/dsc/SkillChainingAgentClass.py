@@ -302,8 +302,8 @@ class SkillChaining(object):
 			for option in local_options:  # type: Option
 				if option.is_init_true(start_state):
 					return False
-		# return True
-		return len(self.trained_options) < self.max_num_options
+		return True
+		# return len(self.trained_options) < self.max_num_options
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -342,8 +342,10 @@ class SkillChaining(object):
 							self.max_num_options > 0 and self.untrained_option.get_training_phase() == "gestation":
 						uo_episode_terminated = True
 						if self.untrained_option.train(experience_buffer, state_buffer):
+							plot_one_class_initiation_classifier(self.untrained_option, episode, self.experiment_name)
 							self.augment_agent_with_new_option(self.untrained_option)
 					if self.untrained_option.get_training_phase() == "initiation_done":
+						plot_two_class_initiation_classifier(self.untrained_option, episode, self.experiment_name)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option

@@ -186,29 +186,23 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 	pos_predicted_examples = [flattened_examples[i] for i in pos_predicted_idx]
 	neg_predicted_examples = [flattened_examples[i] for i in neg_predicted_idx]
 
-	def generate_subplot(has_key):
-		positive_positions = np.array([example.position for example in pos_predicted_examples if example.has_key == has_key])
-		negative_positions = np.array([example.position for example in neg_predicted_examples if example.has_key == has_key])
+	def generate_subplot():
+		positive_positions = np.array([example.position for example in pos_predicted_examples])
+		negative_positions = np.array([example.position for example in neg_predicted_examples])
 
-		plt.subplot(1, 2, int(has_key) + 1)
 		if positive_positions.shape[0] > 0:
 			plt.scatter(positive_positions[:, 0], positive_positions[:, 1], label="positive")
 		if negative_positions.shape[0] > 0:
 			plt.scatter(negative_positions[:, 0], negative_positions[:, 1], label="negative")
 
-		plt.xlim((-2, 10))
-		plt.ylim((-2, 10))
-
-		background_image = imageio.imread("four_room_domain.png")
-		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2, 10., -2, 10.])
-
+		plt.xlim((-10, 30))
+		plt.ylim((-30, 30))
 		plt.xlabel("x")
 		plt.ylabel("y")
 		plt.legend()
-		plt.title("{} has_key = {}".format(option.name, has_key))
+		plt.title("{}".format(option.name))
 
-	generate_subplot(False)
-	generate_subplot(True)
+	generate_subplot()
 
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
@@ -225,7 +219,6 @@ def plot_two_class_initiation_classifier(option, episode=None, experiment_name="
 	try:
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 	except:
-		pdb.set_trace()
 		X = positive_feature_matrix
 	predictions = option.batched_is_init_true(X)
 
@@ -235,30 +228,23 @@ def plot_two_class_initiation_classifier(option, episode=None, experiment_name="
 	pos_predicted_examples = [flattened_examples[i] for i in pos_predicted_idx]
 	neg_predicted_examples = [flattened_examples[i] for i in neg_predicted_idx]
 
-	def generate_subplot(has_key):
-		positive_positions = np.array([example.position for example in pos_predicted_examples if example.has_key == has_key])
-		negative_positions = np.array([example.position for example in neg_predicted_examples if example.has_key == has_key])
-
-		plt.subplot(1, 2, int(has_key) + 1)
+	def generate_subplot():
+		positive_positions = np.array([example.position for example in pos_predicted_examples])
+		negative_positions = np.array([example.position for example in neg_predicted_examples])
 
 		if positive_positions.shape[0] > 0:
 			plt.scatter(positive_positions[:, 0], positive_positions[:, 1], label="positive", c="green")
 		if negative_positions.shape[0] > 0:
 			plt.scatter(negative_positions[:, 0], negative_positions[:, 1], label="negative", c="black")
 
-		plt.xlim((-2, 10))
-		plt.ylim((-2, 10))
-
-		background_image = imageio.imread("four_room_domain.png")
-		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2, 10., -2, 10.])
-
 		plt.xlabel("x")
 		plt.ylabel("y")
+		plt.xlim((-10, 30))
+		plt.ylim((-30, 30))
 		plt.legend()
-		plt.title("{} has_key = {}".format(option.name, has_key))
+		plt.title("{}".format(option.name))
 
-	generate_subplot(False)
-	generate_subplot(True)
+	generate_subplot()
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("initiation_set_plots/{}/{}_{}_two_class_svm.png".format(experiment_name, name, option.seed))
 	plt.close()
@@ -373,12 +359,17 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 
 	plt.scatter(x, y, None, c=rewards, cmap=plt.cm.coolwarm)
 	plt.colorbar()
+	plt.xlim((-5, 20))
+	plt.ylim((-20, 20))
 	plt.xlabel("x")
 	plt.ylabel("y")
 	plt.title("Replay Buffer Reward Heat Map")
-	plt.xlim((-2, 10))
-	plt.ylim((-2, 10))
 
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
 	plt.close()
+
+def visualize_init_set(classifier, states):
+	positions = [state.position for state in states]
+	features = [state.initiation_classifier_features() for state in states]
+
