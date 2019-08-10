@@ -247,7 +247,7 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		if len(self.negative_examples) >= 5:
+		if len(self.negative_examples) >= 20:
 			print("Using balanced 2-class SVM")
 			kwargs = {"gamma": "scale", "kernel": "linear", "class_weight": "balanced", "random_state": self.seed}
 		else:

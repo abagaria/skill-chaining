@@ -225,7 +225,6 @@ def plot_two_class_initiation_classifier(option, episode=None, experiment_name="
 	try:
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 	except:
-		pdb.set_trace()
 		X = positive_feature_matrix
 	predictions = option.batched_is_init_true(X)
 

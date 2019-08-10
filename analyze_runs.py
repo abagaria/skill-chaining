@@ -14,6 +14,14 @@ def moving_average(a, n=30) :
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
 
+def smoothen_data(scores, n=25):
+    print(scores.shape)
+    smoothened_cols = scores.shape[1] - n + 1
+    smoothened_data = np.zeros((scores.shape[0], smoothened_cols))
+    for i in range(scores.shape[0]):
+        smoothened_data[i, :] = moving_average(scores[i, :], n=n)
+    return smoothened_data
+
 def plot_option_executions(experiment_executions, experiment_name):
     """
     exeperiment_executions is a list of dictionaries
@@ -110,6 +118,8 @@ def get_plot_params(scores, clamp_top=True, variable_sized=False):
         s = np.array(truncated_scores)
     else:
         s = np.array(scores)
+
+    s = smoothen_data(s)
     medians = np.median(s, axis=0)
     means = np.mean(s, axis=0)
     stds = np.std(s, axis=0)
@@ -123,8 +133,8 @@ def get_plot_params(scores, clamp_top=True, variable_sized=False):
 
 def get_scores(experiment_name):
     if "sc" in experiment_name:
-        score_names = experiment_name + "/" + "sc_pretrained_False_training_scores_*.pkl".format(experiment_name)
-        duration_names = experiment_name + "/" + "sc_pretrained_False_training_durations_*.pkl".format(experiment_name)
+        score_names = experiment_name + "/" + "*_training_scores_*.pkl".format(experiment_name)
+        duration_names = experiment_name + "/" + "*_training_durations_*.pkl".format(experiment_name)
     else:
         score_names = experiment_name + "/" + experiment_name + "*_training_scores.pkl"
         duration_names = experiment_name + "/" + experiment_name + "*_training_durations.pkl"
@@ -148,8 +158,8 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "Skill Chaining in Point Maze Environment"
-    experiment_names = ["point_maze_ddpg_dense", "point_maze_ddpg_sparse", "point_sparse_real_smaller_inits", "point_dense_real_smaller_inits"]
+    meta_experiment_name = "Portable 4 Rooms"
+    experiment_names = ["sc_source_g10i10bl20t500t500", "sc_transfer_g10i10bl20t500t500"] #["point_maze_ddpg_dense", "point_maze_ddpg_sparse", "point_sparse_real_smaller_inits", "point_dense_real_smaller_inits"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:
