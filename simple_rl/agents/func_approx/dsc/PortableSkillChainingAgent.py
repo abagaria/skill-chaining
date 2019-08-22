@@ -18,7 +18,7 @@ class PortableSkillChainingAgent(object):
                  buffer_length=20, num_subgoal_hits_required=3, experiment_name="portable_skill_experiment",
                  classifier_type="ocsvm", generate_plots=False, use_full_smdp_update=False,
                  log_dir="", seed=0, tensor_log=False, num_training_episodes=750, num_training_steps=2000,
-                 num_test_episodes=750, num_test_steps=2000):
+                 num_test_episodes=750, num_test_steps=2000, clear_replay_buffer=False):
 
         # Enumerate input params for our Skill Chaining Agents
         self.train_dsc_params_1 = (train_mdp_1, train_episodes, train_steps, lr_actor, lr_critic, ddpg_batch_size, device,
@@ -41,6 +41,7 @@ class PortableSkillChainingAgent(object):
         self.num_training_steps = num_training_steps
         self.num_test_episodes = num_test_episodes
         self.num_test_steps = num_test_steps
+        self.clear_replay_buffer = clear_replay_buffer
 
     def train(self):
         scores1, durations1 = self.dsc_agent_1.skill_chaining(self.num_training_episodes, self.num_training_steps)
@@ -48,6 +49,8 @@ class PortableSkillChainingAgent(object):
 
     def create_transfer_agent(self):
         for option in self.dsc_agent_1.trained_options[1:]:
+            if self.clear_replay_buffer:
+                option.solver.replay_buffer.clear()
             self.transfer_dsc_agent.augment_agent_with_new_option(option, init_q=0.)
         self.transfer_dsc_agent.untrained_option = None
 
@@ -71,17 +74,17 @@ if __name__ == '__main__':
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
-    parser.add_argument("--train_episodes", type=int, help="# episodes", default=750)
-    parser.add_argument("--train_steps", type=int, help="# steps", default=2000)
-    parser.add_argument("--test_episodes", type=int, help="# eval episodes", default=750)
-    parser.add_argument("--test_steps", type=int, help="# steps per eval episode", default=2000)
+    parser.add_argument("--train_episodes", type=int, help="# episodes", default=500)
+    parser.add_argument("--train_steps", type=int, help="# steps", default=1000)
+    parser.add_argument("--test_episodes", type=int, help="# eval episodes", default=500)
+    parser.add_argument("--test_steps", type=int, help="# steps per eval episode", default=1000)
     parser.add_argument("--subgoal_reward", type=float, help="SkillChaining subgoal reward", default=0.)
     parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
     parser.add_argument("--lr_a", type=float, help="DDPG Actor learning rate", default=1e-4)
     parser.add_argument("--lr_c", type=float, help="DDPG Critic learning rate", default=1e-3)
     parser.add_argument("--ddpg_batch_size", type=int, help="DDPG Batch Size", default=64)
     parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
-    parser.add_argument("--option_timeout", type=bool, help="Whether option times out at 200 steps", default=False)
+    parser.add_argument("--option_timeout", type=bool, help="Whether option times out at T steps", default=False)
     parser.add_argument("--generate_plots", type=bool, help="Whether or not to generate plots", default=False)
     parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
     parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
@@ -89,6 +92,7 @@ if __name__ == '__main__':
     parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
     parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
     parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+    parser.add_argument("--clear_replay_buffer", type=bool, help="Keep or discard buffer from src task", default=False)
     args = parser.parse_args()
 
     train_env_1 = PortablePointMazeMDP(args.seed, train_mode=True, test_mode=False, dense_reward=args.dense_reward, render=args.render)
@@ -117,7 +121,8 @@ if __name__ == '__main__':
                                                 use_full_smdp_update=args.use_smdp_update,
                                                 tensor_log=args.tensor_log, device=args.device,
                                                 num_training_episodes=args.train_episodes, num_training_steps=args.train_steps,
-                                                num_test_episodes=args.test_episodes, num_test_steps=args.test_steps)
+                                                num_test_episodes=args.test_episodes, num_test_steps=args.test_steps,
+                                                clear_replay_buffer=args.clear_replay_buffer)
 
     training_scores, training_durations = portable_agent.train()
     portable_agent.dsc_agent_1.save_all_scores(pretrained=False, scores=training_scores, durations=training_durations)

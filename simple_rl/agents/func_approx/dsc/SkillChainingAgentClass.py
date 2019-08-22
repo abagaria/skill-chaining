@@ -319,7 +319,7 @@ class SkillChaining(object):
 			score = 0.
 			step_number = 0
 			uo_episode_terminated = False
-			state = deepcopy(self.mdp.init_state)
+			state = deepcopy(self.mdp.cur_state)
 			self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []

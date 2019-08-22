@@ -26,9 +26,7 @@ class PortablePointMazeState(PortableState):
     def initiation_classifier_features(self):
         features = self.aspace_features()
         return features
-        # return np.array([features[1], features[3], features[5], features[7]])
 
     @staticmethod
     def initiation_classifier_feature_indices():
-        # return [1, 3, 5, 7]
-        return list(range(8))
+        return list(range(16))  # n_bins = 8

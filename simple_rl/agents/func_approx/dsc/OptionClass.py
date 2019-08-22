@@ -7,6 +7,7 @@ from copy import deepcopy
 import torch
 from sklearn import svm
 import itertools
+import pickle
 
 # Other imports.
 from simple_rl.tasks.point_maze.PortablePointMazeStateClass import PortablePointMazeState
@@ -21,7 +22,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=30, initiation_period=10,  generate_plots=False,
+				 enable_timeout=True, timeout=30, initiation_period=15,  generate_plots=False,
 				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -125,6 +126,11 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	def load_svm_from_file(self, filename):
+		with open(filename, "rb") as f:
+			self.initiation_classifier= pickle.load(f)
+		self.classifier_type = "tcsvm"
 
 	# TODO: To learn option policies in agent space, we need to keep around a buffer w/ PortableState objects
 	def initialize_with_global_ddpg(self):
@@ -233,9 +239,11 @@ class Option(object):
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
 			return "gestation"
-		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
+		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period) or \
+				len(self.negative_examples) < self.initiation_period // 2:
 			return "initiation"
-		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
+		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period) and \
+				len(self.negative_examples) >= self.initiation_period // 2:
 			return "initiation_done"
 		return "trained"
 
@@ -262,7 +270,9 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		if len(list(itertools.chain.from_iterable(self.positive_examples))) > len(self.negative_examples) > 20:
+		# If we balance on a very small number of -ives, the classifier can vanish
+		neg_to_pos_ratio = len(self.negative_examples) / len(list(itertools.chain.from_iterable(self.positive_examples)))
+		if neg_to_pos_ratio > 0.2:
 			kwargs = {"gamma": "scale", "kernel": "rbf", "random_state": self.seed, "class_weight": "balanced"}
 		else:
 			kwargs = {"gamma": "scale", "kernel": "rbf", "random_state": self.seed}
@@ -273,15 +283,14 @@ class Option(object):
 		self.initiation_classifier = self.two_class_classifier
 		self.classifier_type = "tcsvm"
 
-		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period - 1):
-			pdb.set_trace()
-			training_predictions = self.two_class_classifier.predict(X)
-			positive_training_data = X[training_predictions == 1]
-
-			if positive_training_data.shape[0] > 0:
-				self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="auto")
-				self.initiation_classifier.fit(positive_training_data)
-				self.classifier_type = "tcsvm"
+		# if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period - 1)
+		# 	training_predictions = self.two_class_classifier.predict(X)
+		# 	positive_training_data = X[training_predictions == 1]
+		#
+		# 	if positive_training_data.shape[0] > 0:
+		# 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="scale")
+		# 		self.initiation_classifier.fit(positive_training_data)
+		# 		self.classifier_type = "tcsvm"
 
 	def initialize_option_policy(self):
 		# TODO: Will need a new data structure to hold PortableState objects from global agent's experiences
@@ -441,7 +450,8 @@ class Option(object):
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
 										 outer_step_number):
 		if self.is_term_true(final_state):  # success
-			positive_states = [start_state] + visited_states[-self.buffer_length:]
+			buffer_length = self.buffer_length // 4  # These states have a lot of false positives
+			positive_states = [start_state] + visited_states[-buffer_length:]
 			self.positive_examples.append(positive_states)
 
 		elif num_steps == self.timeout:

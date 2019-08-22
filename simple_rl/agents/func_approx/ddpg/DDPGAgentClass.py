@@ -23,13 +23,14 @@ from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, action_bound, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent"):
+                 batch_size=BATCH_SIZE, eps_min=EPS_MIN, tensor_log=False, writer=None, name="Global-DDPG-Agent"):
         self.state_size = state_size
         self.action_size = action_size
         self.action_bound = action_bound
         self.actor_learning_rate = lr_actor
         self.critic_learning_rate = lr_critic
         self.batch_size = batch_size
+        self.eps_min = eps_min
 
         self.seed = random.seed(seed)
         np.random.seed(seed)
@@ -71,9 +72,9 @@ class DDPGAgent(Agent):
 
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
-        noise = np.random.normal(0., self.epsilon, size=self.action_size)
-        if not evaluation_mode:
-            action += noise
+        epsilon = self.eps_min if evaluation_mode else self.epsilon
+        noise = np.random.normal(0., epsilon, size=self.action_size)
+        action += noise
         action = np.clip(action, -self.action_bound, self.action_bound)
 
 
@@ -149,9 +150,9 @@ class DDPGAgent(Agent):
 
     def update_epsilon(self):
         if "global" in self.name.lower():
-            self.epsilon = max(EPS_MIN, self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
+            self.epsilon = max(self.eps_min, self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
         else:
-            self.epsilon = max(EPS_MIN, self.epsilon - OPTION_LINEAR_EPS_DECAY)
+            self.epsilon = max(self.eps_min, self.epsilon - OPTION_LINEAR_EPS_DECAY)
 
     def get_value(self, state):
         action = self.actor.get_action(state)

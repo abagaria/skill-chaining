@@ -322,30 +322,20 @@ def visualize_option_end_states_in_pspace(global_solver, experiment_name=""):
 	plt.close()
 
 def visualize_option_term_states_in_aspace(option, experiment_name=""):
-	plt.figure(figsize=(16, 10))
+	n_bins = 6
+	plt.figure(figsize=(8, 5))
 	terminal_transitions = [transition for transition in option.solver.replay_buffer.memory if transition[-1] == 1]
 	terminal_next_states = [transition[3] for transition in terminal_transitions]
 	terminal_next_state_matrix = np.array(terminal_next_states)
-	feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
-	feature_matrix = terminal_next_state_matrix[:, feature_idx]
-	door1_distances = feature_matrix[:, 0]
-	door2_distances = feature_matrix[:, 1]
-	key_distances   = feature_matrix[:, 2]
-	lock_distances  = feature_matrix[:, 3]
-	has_keys		= feature_matrix[:, 4]
+	red_feature_idx = list(range(1, 2*n_bins, 2))   # Goal range readings
+	black_feature_idx = list(range(0, 2*n_bins, 2)) # Wall range readings
+	red_feature_matrix = terminal_next_state_matrix[:, red_feature_idx]
+	black_feature_matrix = terminal_next_state_matrix[:, black_feature_idx]
 
-	plt.subplot(2, 2, 1)
-	plt.hist2d(door1_distances, door2_distances, bins=100)
-	plt.xlabel("Door 1"); plt.ylabel("Door 2")
-	plt.subplot(2, 2, 2)
-	plt.hist(key_distances, bins=100)
-	plt.xlabel("Key Distance")
-	plt.subplot(2, 2, 3)
-	plt.hist(lock_distances, bins=100)
-	plt.xlabel("Lock Distance")
-	plt.subplot(2, 2, 4)
-	plt.hist(has_keys, bins=2)
-	plt.xlabel("Has Key")
+	plt.hist2d(red_feature_matrix.sum(axis=1), black_feature_matrix.sum(axis=1), bins=100)
+	plt.xlabel("Red Light Intensity")
+	plt.ylabel("Black Light Intensity")
+
 	plt.suptitle("Option {} Sampled Termination Set".format(option.option_idx))
 	plt.savefig("value_function_plots/{}/Option{}_SampledTermSet.svg".format(experiment_name, option.option_idx))
 	plt.close()

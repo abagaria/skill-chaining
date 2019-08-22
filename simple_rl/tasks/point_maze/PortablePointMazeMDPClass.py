@@ -24,12 +24,12 @@ class PortablePointMazeMDP(MDP):
         # Configure env
         gym_mujoco_kwargs = {
             'maze_id': 'Maze',
-            'n_bins': 4,
+            'n_bins': 8,
             'observe_blocks': False,
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 10,
+            'maze_size_scaling': 6,
             'train_mode': train_mode,
             'test_mode': test_mode,
             'sensor_range': 2
@@ -68,9 +68,6 @@ class PortablePointMazeMDP(MDP):
             return state.is_terminal()
         position = state[:2]
         return self.env.is_in_goal_position(position)
-
-    def distance_to_goal(self, position):
-        return self.env.distance_to_goal_position(position)
 
     def state_space_size(self):
         return self.init_state.pspace_features().shape[0]

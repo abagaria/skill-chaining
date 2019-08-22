@@ -70,7 +70,7 @@ class PointEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
   def reset_model(self):
     qpos = self.init_qpos + self.np_random.uniform(
-        size=self.physics.model.nq, low=-.1, high=.1)
+        size=self.physics.model.nq, low=-1., high=1.)
     qvel = self.init_qvel + self.np_random.randn(self.physics.model.nv) * .1
 
     # Set everything other than point to original position and 0 velocity.

@@ -27,7 +27,7 @@ from simple_rl.tasks.point_maze.environments import maze_env_utils
 
 # Directory that contains mujoco xml files.
 # MODEL_DIR = '/Users/akhil/git-repos/models/research/efficient-hrl/environments/assets'
-MODEL_DIR = 'simple_rl/tasks/point_maze/environments/assets'
+MODEL_DIR = '/home/abagaria/skill-chaining/simple_rl/tasks/point_maze/environments/assets'
 
 
 class MazeEnv(gym.Env):
@@ -505,10 +505,9 @@ class MazeEnv(gym.Env):
     return False
 
   def is_in_goal_position(self, pos):
-    return self.distance_to_goal_position(pos) <= 0.6
-
-  def distance_to_goal_position(self, pos):
-    return np.abs(self.goal_xy[1] - pos[1])
+    x_distance = np.abs(self.goal_xy[0] - pos[0])
+    y_distance = np.abs(self.goal_xy[1] - pos[1])
+    return x_distance <= 1 and y_distance <= 4
 
   def step(self, action):
     outer_reward = 0.

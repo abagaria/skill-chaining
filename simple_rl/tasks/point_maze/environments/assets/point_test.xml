@@ -24,7 +24,7 @@
         </body>
 
         <!-- Goal / target position -->
-        <geom name="target" type="sphere" size="0.5" pos="20 -24 0" rgba="1. 0. 0. 0.6" />
+        <geom name="target" type="sphere" size="0.5" pos="26 -12 0" rgba="1. 0. 0. 0.6" />
     </worldbody>
     <actuator>
         <!-- Those are just dummy actuators for providing ranges -->
