@@ -262,6 +262,25 @@ def plot_two_class_initiation_classifier(option, episode=None, experiment_name="
 	plt.savefig("initiation_set_plots/{}/{}_{}_two_class_svm.png".format(experiment_name, name, option.seed))
 	plt.close()
 
+def plot_initiation_training_examples(option, episode=None, experiment_name=""):
+	getx = lambda l: [x[0] for x in l]
+	gety = lambda l: [x[1] for x in l]
+	pos = list(itertools.chain.from_iterable(option.positive_examples))
+	neg = list(itertools.chain.from_iterable(option.negative_examples))
+	position_pos_has_key = [state.position for state in pos if state.has_key == 1]
+	position_pos_no_key  = [state.position for state in pos if state.has_key == 0]
+	position_neg_has_key = [state.position for state in neg if state.has_key == 1]
+	position_neg_no_key  = [state.position for state in neg if state.has_key == 0]
+	plt.figure()
+	plt.scatter(getx(position_pos_has_key), gety(position_pos_has_key), label="+ has key")
+	plt.scatter(getx(position_pos_no_key), gety(position_pos_no_key), label="+ no key")
+	plt.scatter(getx(position_neg_has_key), gety(position_neg_has_key), label="- has key")
+	plt.scatter(getx(position_neg_no_key), gety(position_neg_no_key), label="- no key")
+	plt.legend()
+	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+	plt.savefig("initiation_set_plots/{}/{}_{}_svm_training_egs.png".format(experiment_name, name, option.seed))
+	plt.close()
+
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))
 	cliff_transitions = list(filter(lambda e: e[2] < 0 and e[4] == 1, solver.replay_buffer.memory))
@@ -327,7 +346,7 @@ def visualize_option_end_states_in_pspace(global_solver, experiment_name=""):
 		negative_end_x = [e.next_state[0] for e in negative_transitions]
 		negative_end_y = [e.next_state[1] for e in negative_transitions]
 
-		plt.scatter(positive_end_x + negative_end_x, positive_end_y + negative_end_y, alpha=0.01, label="Option {}".format(option_idx))
+		plt.scatter(positive_end_x + negative_end_x, positive_end_y + negative_end_y, alpha=0.1, label="Option {}".format(option_idx))
 
 	plt.legend()
 	plt.title("Samples of Option Termination Sets")

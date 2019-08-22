@@ -21,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=50, initiation_period=10,  generate_plots=False,
+				 enable_timeout=True, timeout=50, initiation_period=15,  generate_plots=False,
 				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -103,6 +103,10 @@ class Option(object):
 
 		self.overall_mdp = overall_mdp
 		self.final_transitions = []
+
+		# After the first time we complete the initiation phase of the option, make sure that it is able
+		# to progress to the next training phase of `trained`.
+		self.completed_initiation_phase = False
 
 		# Debug member variables
 		self.num_executions = 0
@@ -218,9 +222,12 @@ class Option(object):
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
 			return "gestation"
-		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
+		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period) \
+				or len(self.negative_examples) <= self.initiation_period:
 			return "initiation"
-		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
+		if self.num_goal_hits >= (self.num_subgoal_hits_required + self.initiation_period) \
+				and len(self.negative_examples) > self.initiation_period and not self.completed_initiation_phase:
+			self.completed_initiation_phase = True
 			return "initiation_done"
 		return "trained"
 
@@ -247,22 +254,27 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		if len(self.negative_examples) >= 20:
+		if len(list(itertools.chain.from_iterable(self.positive_examples))) > len(self.negative_examples) >= (self.initiation_period - 1):
 			print("Using balanced 2-class SVM")
-			kwargs = {"gamma": "scale", "kernel": "linear", "class_weight": "balanced", "random_state": self.seed}
+			kwargs = {"gamma": "scale", "kernel": "rbf", "class_weight": "balanced", "random_state": self.seed}
 		else:
-			kwargs = {"gamma": "scale", "kernel": "linear", "random_state": self.seed}
+			kwargs = {"gamma": "scale", "kernel": "rbf", "random_state": self.seed}
 
 		self.two_class_classifier = svm.SVC(**kwargs)
 		self.two_class_classifier.fit(X, Y)
+		self.initiation_classifier = self.two_class_classifier
+		self.classifier_type = "tcsvm"
 
-		training_predictions = self.two_class_classifier.predict(X)
-		positive_training_data = X[training_predictions == 1]
-
-		if positive_training_data.shape[0] > 0:
-			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.01, gamma="auto")
-			self.initiation_classifier.fit(positive_training_data)
-			self.classifier_type = "tcsvm"
+		# training_predictions = self.two_class_classifier.predict(X)
+		# positive_training_data = X[training_predictions == 1]
+		#
+		# if positive_training_data.shape[0] > 0:
+		# 	# Even when I am in the same room as the lock, I may not see it if I am not facing it
+		# 	# assuming that a random policy will not see the lock about 1/2 the time, we expect
+		# 	# about 50% false positives in the positive training data
+		# 	self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.5, gamma="auto")
+		# 	self.initiation_classifier.fit(positive_training_data)
+		# 	self.classifier_type = "tcsvm"
 
 	def initialize_option_policy(self):
 		# TODO: Will need a new data structure to hold PortableState objects from global agent's experiences
@@ -422,7 +434,7 @@ class Option(object):
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
 										 outer_step_number):
 		if self.is_term_true(final_state):  # success
-			positive_states = [start_state] + visited_states[-self.buffer_length:]
+			positive_states = [start_state] + visited_states[-self.buffer_length // 4:]
 			self.positive_examples.append(positive_states)
 
 		elif num_steps == self.timeout:

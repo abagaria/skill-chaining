@@ -343,8 +343,10 @@ class SkillChaining(object):
 						uo_episode_terminated = True
 						if self.untrained_option.train(experience_buffer, state_buffer):
 							self.augment_agent_with_new_option(self.untrained_option)
-					if self.untrained_option.get_training_phase() == "initiation_done":
+					if self.untrained_option.get_training_phase() == "initiation_done" \
+							or self.untrained_option.completed_initiation_phase:
 						plot_two_class_initiation_classifier(self.untrained_option, episode, self.experiment_name)
+						plot_initiation_training_examples(self.untrained_option, episode, self.experiment_name)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option

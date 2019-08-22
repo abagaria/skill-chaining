@@ -77,7 +77,7 @@ class MazeEnv(gym.Env):
     self._top_down_view = top_down_view
     self._manual_collision = manual_collision
 
-    self.MAZE_STRUCTURE = structure = maze_env_utils.construct_maze(maze_id=self._maze_id)
+    self.MAZE_STRUCTURE = structure = maze_env_utils.construct_maze(maze_id=self._maze_id, train_mode=train_mode, test_mode=test_mode)
     self.elevated = any(-1 in row for row in structure)  # Elevate the maze to allow for falling.
     self.blocks = any(
         any(maze_env_utils.can_move(r) for r in row)
@@ -119,6 +119,7 @@ class MazeEnv(gym.Env):
       default.find('.//geom').set('solimp', '.995 .995 .01')
 
     self.movable_blocks = []
+    self.objects = []  # Lock and Key
     for i in range(len(structure)):
       for j in range(len(structure[0])):
         struct = structure[i][j]
@@ -159,6 +160,63 @@ class MazeEnv(gym.Env):
               conaffinity="1",
               rgba="0.4 0.4 0.4 1",
           )
+        elif struct == 2:
+            height_shrink = 0.35
+            name = "block_key_%d_%d" % (i, j)
+            self.objects.append((name, struct))
+            ET.SubElement(
+                worldbody, "body",
+                name=name,
+                pos="%f %f %f" % (j * size_scaling - torso_x,
+                                  i * size_scaling - torso_y,
+                                  height_offset +
+                                  height / 2 * size_scaling),
+            )
+            ET.SubElement(
+                worldbody, "geom",
+                name=name,
+                pos="%f %f %f" % (j * size_scaling - torso_x,
+                                  i * size_scaling - torso_y,
+                                  height_offset +
+                                  height / 2 * size_scaling),
+                size="%f %f %f" % (0.5 * size_scaling * height_shrink,
+                                   0.5 * size_scaling * height_shrink,
+                                   height / 2 * size_scaling),
+                type="box",
+                material="",
+                contype="1",
+                conaffinity="1",
+                rgba="0.4 0.4 1 1",
+            )
+        elif struct == 3:
+            height_shrink = 0.35
+            name = "block_lock_%d_%d" % (i, j)
+            self.objects.append((name, struct))
+            # Offset all coordinates so that robot starts at the origin.
+            ET.SubElement(
+                worldbody, "body",
+                name=name,
+                pos="%f %f %f" % (j * size_scaling - torso_x,
+                                  i * size_scaling - torso_y,
+                                  height_offset +
+                                  height / 2 * size_scaling),
+            )
+            ET.SubElement(
+                worldbody, "geom",
+                name=name,
+                pos="%f %f %f" % (j * size_scaling - torso_x,
+                                  i * size_scaling - torso_y,
+                                  height_offset +
+                                  height / 2 * size_scaling),
+                size="%f %f %f" % (0.5 * size_scaling * height_shrink,
+                                   0.5 * size_scaling * height_shrink,
+                                   height / 2 * size_scaling),
+                type="box",
+                material="",
+                contype="1",
+                conaffinity="1",
+                rgba="1 0.4 0.4 1",
+            )
         elif maze_env_utils.can_move(struct):  # Movable block.
           # The "falling" blocks are shrunk slightly and increased in mass to
           # ensure that it can fall easily through a gap in the platform blocks.
@@ -507,10 +565,13 @@ class MazeEnv(gym.Env):
       # return agent_door1_angle, self.max_angle
 
   def get_egocentric_obs(self):
-      key_obs = self.get_key_obs()                 # [d, theta, v, omega]
-      lock_obs = self.get_lock_obs()               # [d, theta, v, omega]
-      door_obs = self.get_door_obs()               # [d1, d2, theta1, theta2, v1, v2, omega1, omega2]
-      return door_obs + key_obs + lock_obs + [self.has_key]
+      # key_obs = self.get_key_obs()                 # [d, theta, v, omega]
+      # lock_obs = self.get_lock_obs()               # [d, theta, v, omega]
+      # door_obs = self.get_door_obs()               # [d1, d2, theta1, theta2, v1, v2, omega1, omega2]
+      #
+      # return door_obs + key_obs + lock_obs + [self.has_key]
+      range_sensor = self.get_range_sensor_obs()
+      return np.append(range_sensor, [self.has_key])
 
   def get_key_obs(self):
       key_room = self.get_key_room()
@@ -633,7 +694,7 @@ class MazeEnv(gym.Env):
             ))
     # Get line segments (corresponding to outer boundary) of each movable
     # block within the agent's z-view.
-    for block_name, block_type in self.movable_blocks:
+    for block_name, block_type in self.objects:
       block_x, block_y, block_z = self.wrapped_env.get_body_com(block_name)[:3]
       if (block_z + height * size_scaling / 2 >= robot_z and
           robot_z >= block_z - height * size_scaling / 2):  # Block in view.
@@ -675,13 +736,13 @@ class MazeEnv(gym.Env):
         first_seg = sorted(ray_segments, key=lambda x: x["distance"])[0]
         seg_type = first_seg["type"]
         idx = (0 if seg_type == 1 else  # Wall.
-               1 if seg_type == -1 else  # Drop-off.
-               2 if maze_env_utils.can_move(seg_type) else  # Block.
+               1 if seg_type == 2 else  # Key.
+               2 if seg_type == 3 else  # Lock.
                None)
         if first_seg["distance"] <= self._sensor_range:
           sensor_readings[ray_idx][idx] = (self._sensor_range - first_seg["distance"]) / self._sensor_range
 
-    return sensor_readings
+    return sensor_readings.flatten()
 
   def _get_obs(self):
     wrapped_obs = self.wrapped_env._get_obs()
@@ -698,9 +759,7 @@ class MazeEnv(gym.Env):
                                    [wrapped_obs[3:]])
 
     wrapped_obs = np.hstack([wrapped_obs[:2]] + [self.has_key] + [wrapped_obs[2:]])
-    range_sensor_obs = self.get_range_sensor_obs()
-    return np.concatenate([wrapped_obs,
-                           range_sensor_obs.flat] +
+    return np.concatenate([wrapped_obs] +
                            view + [[self.t * 0.001]])
 
   def reset(self):
@@ -767,10 +826,10 @@ class MazeEnv(gym.Env):
     return False
 
   def is_in_goal_position(self, pos):
-    return self.distance_to_goal_position(pos) <= 0.6
+    return self.distance_to_goal_position(pos) <= 1.2
 
   def is_in_key_position(self, pos):
-      return self.distance_to_key_position(pos) <= 0.6
+      return self.distance_to_key_position(pos) <= 1.2
 
   def distance_to_goal_position(self, pos):
     return np.linalg.norm(pos - self.goal_xy)

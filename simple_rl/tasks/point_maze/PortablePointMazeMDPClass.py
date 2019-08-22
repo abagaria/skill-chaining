@@ -24,12 +24,13 @@ class PortablePointMazeMDP(MDP):
         # Configure env
         gym_mujoco_kwargs = {
             'maze_id': 'Maze',
-            'n_bins': 0,
+            'n_bins': 6,
             'observe_blocks': False,
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
             'maze_size_scaling': 2,
+            'sensor_range': 3,
             'train_mode': train_mode,
             'test_mode': test_mode
         }
