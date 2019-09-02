@@ -1,14 +1,10 @@
 # Python imports
-import numpy as np
 from PIL import Image
 
 # Local imports
 from simple_rl.mdp.StateClass import State
 
-''' GymStateClass.py: Contains a State class for Gym. '''
-
-class GymState(State):
-    ''' Gym State class '''
+class LunarLanderState(State):
 
     def __init__(self, data=[], is_terminal=False):
         self.data = data

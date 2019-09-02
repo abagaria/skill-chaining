@@ -21,14 +21,19 @@ from tensorboardX import SummaryWriter
 
 from simple_rl.agents.AgentClass import Agent
 from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
+from simple_rl.agents.func_approx.dqn.replay_buffer import ReplayBuffer
+from simple_rl.agents.func_approx.dqn.model import ConvQNetwork
+from simple_rl.tasks.gym.GymMDPClass import GymMDP
+from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
+
 
 ## Hyperparameters
-BUFFER_SIZE = int(1e6)  # replay buffer size
-BATCH_SIZE = 64  # minibatch size
+BUFFER_SIZE = int(5e6)  # replay buffer size
+BATCH_SIZE = 32  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
 LR = 1e-4  # learning rate
-UPDATE_EVERY = 1  # how often to update the network
+UPDATE_EVERY = 4  # how often to update the network
 NUM_EPISODES = 3500
 NUM_STEPS = 10000
 
@@ -47,7 +52,7 @@ class GlobalEpsilonSchedule(EpsilonSchedule):
     def __init__(self, eps_start):
         EPS_END = 0.05
         EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 50000
+        EPS_LINEAR_DECAY_LENGTH = 500000
         super(GlobalEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
 
     def update_epsilon(self, current_epsilon, num_executions):
@@ -66,80 +71,6 @@ class OptionEpsilonSchedule(EpsilonSchedule):
 
     def update_epsilon(self, current_epsilon, num_executions):
         return max(self.eps_end, self.eps_exp_decay * current_epsilon)
-
-class QNetwork(nn.Module):
-    """Actor (Policy) Model."""
-
-    def __init__(self, state_size, action_size, seed, fc1_units=256, fc2_units=128):
-        """
-        Set up the layers of the DQN
-        Args:
-            state_size (int): number of states in the state variable (can be continuous)
-            action_size (int): number of actions in the discrete action domain
-            seed (int): random seed
-            fc1_units (int): size of the hidden layer
-            fc2_units (int): size of the hidden layer
-        """
-        super(QNetwork, self).__init__()
-        self.seed = torch.manual_seed(seed)
-        self.fc1 = nn.Linear(state_size, fc1_units)
-        self.fc2 = nn.Linear(fc1_units, fc2_units)
-        self.fc3 = nn.Linear(fc2_units, action_size)
-
-    def forward(self, state):
-        """
-        DQN forward pass
-        Args:
-            state (torch.tensor): convert env.state into a tensor
-
-        Returns:
-            logits (torch.tensor): score for each possible action (1, num_actions)
-        """
-        x = F.relu(self.fc1(state))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
-
-    def initialize_with_bigger_network(self, bigger_net):
-        """
-        { Used only when learning options in environments with discrete action spaces }.
-        Given a policy network or target network from the global DQN, initialize the corresponding option DQN
-        Args:
-            bigger_net (QNetwork): Outputs q values over larger number of actions
-        """
-        for local_param, global_param in zip(self.fc1.parameters(), bigger_net.fc1.parameters()):
-            local_param.data.copy_(global_param)
-        for local_param, global_param in zip(self.fc2.parameters(), bigger_net.fc2.parameters()):
-            local_param.data.copy_(global_param)
-
-        num_original_actions = 4 # TODO: Assuming that we are in pinball domain
-        self.fc3.weight.data.copy_(bigger_net.fc3.weight[:num_original_actions, :])
-        self.fc3.bias.data.copy_(bigger_net.fc3.bias[:num_original_actions])
-
-        assert self.fc3.out_features == 4, "Expected LunarLander with 4 actions, not {} ".format(self.fc3.out_features)
-
-    def initialize_with_smaller_network(self, smaller_net, init_q_value):
-        """
-        Given a DQN over K actions, create a DQN over K + 1 actions. This is needed when we augment the
-        MDP with a new action in the form of a learned option.
-        Args:
-            smaller_net (QNetwork)
-            init_q_value (float)
-        """
-        for my_param, source_param in zip(self.fc1.parameters(), smaller_net.fc1.parameters()):
-            my_param.data.copy_(source_param)
-        for my_param, source_param in zip(self.fc2.parameters(), smaller_net.fc2.parameters()):
-            my_param.data.copy_(source_param)
-
-        smaller_num_labels = smaller_net.fc3.out_features
-        self.fc3.weight[:smaller_num_labels, :].data.copy_(smaller_net.fc3.weight)
-        self.fc3.bias[:smaller_num_labels].data.copy_(smaller_net.fc3.bias)
-
-        new_action_idx = self.fc3.out_features - 1
-
-        # Old way of initializing the weights and biases of the new option node:
-        # self.fc3.weight[new_action_idx].data.copy_(torch.max(smaller_net.fc3.weight, dim=0)[0])
-        # self.fc3.bias[new_action_idx].data.copy_(torch.max(smaller_net.fc3.bias, dim=0)[0])
-        self.fc3.bias[new_action_idx].data.fill_(init_q_value)
 
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
@@ -161,8 +92,8 @@ class DQNAgent(Agent):
         self.device = device
 
         # Q-Network
-        self.policy_network = QNetwork(state_size, action_size, seed).to(self.device)
-        self.target_network = QNetwork(state_size, action_size, seed).to(self.device)
+        self.policy_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
+        self.target_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
 
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
@@ -187,15 +118,6 @@ class DQNAgent(Agent):
                                                                                self.use_ddqn, BUFFER_SIZE))
 
         Agent.__init__(self, name, range(action_size), GAMMA)
-
-    def set_new_learning_rate(self, learning_rate):
-        self.learning_rate = learning_rate
-        for group in self.optimizer.param_groups:
-            group['lr'] = learning_rate
-
-    def reduce_learning_rate(self):
-        new_learning_rate = self.learning_rate / 100.
-        self.set_new_learning_rate(new_learning_rate)
 
     def get_impossible_option_idx(self, state):
 
@@ -233,6 +155,7 @@ class DQNAgent(Agent):
         self.num_executions += 1
         epsilon = self.epsilon if train_mode else self.evaluation_epsilon
 
+        state = np.array(state)  # Lazy Frame
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
@@ -249,7 +172,7 @@ class DQNAgent(Agent):
         if random.random() > epsilon:
             return np.argmax(action_values)
 
-        all_option_idx = list(range(len(self.trained_options)))
+        all_option_idx = list(range(len(self.trained_options))) if len(self.trained_options) > 0 else self.actions
         possible_option_idx = list(set(all_option_idx).difference(impossible_option_idx))
         randomly_chosen_option = random.choice(possible_option_idx)
 
@@ -337,7 +260,7 @@ class DQNAgent(Agent):
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
             if len(self.replay_buffer) > BATCH_SIZE:
-                experiences = self.replay_buffer.sample()
+                experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
                 self._learn(experiences, GAMMA)
                 if self.tensor_log:
                     self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
@@ -424,76 +347,18 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
-class ReplayBuffer:
-    """Fixed-size buffer to store experience tuples."""
-
-    def __init__(self, action_size, buffer_size, batch_size, seed, device):
-        """
-        Initialize a ReplayBuffer object.
-        Args:
-            action_size (int): dimension of each action
-            buffer_size (int): maximum size of buffer
-            batch_size (int): size of each training batch
-            seed (int): random seed
-            device (torch.device): cpu / cuda:0 / cuda:1
-        """
-        self.action_size = action_size
-        self.memory = deque(maxlen=buffer_size)
-        self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
-        self.seed = random.seed(seed)
-        self.device = device
-
-        self.positive_transitions = []
-
-    def add(self, state, action, reward, next_state, done, num_steps):
-        """
-        Add new experience to memory.
-        Args:
-            state (np.array): We add numpy arrays from gym env to the buffer, but sampling from buffer returns tensor
-            action (int)
-            reward (float_
-            next_state (np.array)
-            done (bool)
-            num_steps (int): number of steps taken by the action/option to terminate
-        """
-        e = self.experience(state, action, reward, next_state, done, num_steps)
-        self.memory.append(e)
-
-    def sample(self, batch_size=None):
-        """Randomly sample a batch of experiences from memory."""
-        size = self.batch_size if batch_size is None else batch_size
-        experiences = random.sample(self.memory, k=size)
-
-        # Log the number of times we see a non-negative reward (should be sparse)
-        num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])
-        self.positive_transitions.append(num_positive_transitions)
-
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(self.device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(self.device)
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(self.device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
-        steps = torch.from_numpy(np.vstack([e.num_steps for e in experiences if e is not None])).float().to(self.device)
-
-        return states, actions, rewards, next_states, dones, steps
-
-    def __len__(self):
-        """Return the current size of internal memory."""
-        return len(self.memory)
-
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
-    last_10_scores = deque(maxlen=10)
+    last_10_scores = deque(maxlen=100)
     iteration_counter = 0
 
     for episode in range(episodes):
         mdp.reset()
         state = deepcopy(mdp.init_state)
         score = 0.
-        for step in range(steps):
+        while not state.is_terminal():
             iteration_counter += 1
-            action = agent.act(state.features(), agent.epsilon)
+            action = agent.act(state.features(), train_mode=True)
             reward, next_state = mdp.execute_agent_action(action)
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), num_steps=1)
             agent.update_epsilon()
@@ -501,14 +366,12 @@ def train(agent, mdp, episodes, steps):
             score += reward
             if agent.tensor_log:
                 agent.writer.add_scalar("Score", score, iteration_counter)
-            if state.is_terminal():
-                break
         last_10_scores.append(score)
         per_episode_scores.append(score)
 
-        print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)), end="")
+        print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
         if episode % 10 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)))
+            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
     return per_episode_scores
 
 def test_forward_pass(dqn_agent, mdp):
@@ -557,11 +420,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logdir = create_log_dir(args.experiment_name)
-    learning_rate = 1e-4
+    learning_rate = 1e-4 # 0.00025 for pong
 
-    overall_mdp = GymMDP(env_name="LunarLander-v2", render=args.render)
-    ddqn_agent = DQNAgent(state_size=overall_mdp.init_state.features().shape[0], action_size=len(overall_mdp.actions),
-                          trained_options=[], seed=args.seed,
+    # overall_mdp = GymMDP(env_name="LunarLander-v2", render=args.render)
+    overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
+    ddqn_agent = DQNAgent(state_size=overall_mdp.env.observation_space.shape, action_size=len(overall_mdp.actions),
+                          trained_options=[], seed=args.seed, device=torch.device("cuda"),
                           name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True)
     ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
     save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)

@@ -12,20 +12,8 @@ import random
 import gym
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.gym.GymStateClass import GymState
+from simple_rl.tasks.gym.wrappers import *
 
-
-class NormalizedEnv(gym.ActionWrapper):
-    """ Wrap action """
-
-    def action(self, action):
-        act_k = (self.action_space.high - self.action_space.low)/ 2.
-        act_b = (self.action_space.high + self.action_space.low)/ 2.
-        return act_k * action + act_b
-
-    def reverse_action(self, action):
-        act_k_inv = 2./(self.action_space.high - self.action_space.low)
-        act_b = (self.action_space.high + self.action_space.low)/ 2.
-        return act_k_inv * (action - act_b)
 
 class GymMDP(MDP):
     ''' Class for Gym MDPs '''
@@ -36,9 +24,13 @@ class GymMDP(MDP):
             env_name (str)
         '''
         self.env_name = env_name
-        self.env = NormalizedEnv(gym.make(env_name))
+        self.env = FrameStack(AtariPreprocessing(gym.make(env_name)), num_stack=4)
         self.render = render
-        MDP.__init__(self, range(self.env.action_space.shape[0]), self._transition_func, self._reward_func, init_state=GymState(self.env.reset()))
+
+        init_obs = self.env.reset()
+
+        MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func,
+                     init_state=GymState(init_obs))
 
     def _reward_func(self, state, action):
         '''
@@ -56,7 +48,11 @@ class GymMDP(MDP):
 
         self.next_state = GymState(obs, is_terminal=is_terminal)
 
-        return reward
+        if reward < 0:
+            return -1.
+        if reward > 0:
+            return 1.
+        return 0.
 
     def _transition_func(self, state, action):
         '''
