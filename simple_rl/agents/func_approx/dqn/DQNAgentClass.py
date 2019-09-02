@@ -22,62 +22,29 @@ from tensorboardX import SummaryWriter
 from simple_rl.agents.AgentClass import Agent
 from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
 from simple_rl.agents.func_approx.dqn.replay_buffer import ReplayBuffer
-from simple_rl.agents.func_approx.dqn.model import ConvQNetwork
+from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
+from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
 
 
 ## Hyperparameters
-BUFFER_SIZE = int(5e6)  # replay buffer size
+BUFFER_SIZE = int(1e6)  # replay buffer size
 BATCH_SIZE = 32  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
 LR = 1e-4  # learning rate
-UPDATE_EVERY = 4  # how often to update the network
+UPDATE_EVERY = 1  # how often to update the network
 NUM_EPISODES = 3500
 NUM_STEPS = 10000
-
-class EpsilonSchedule:
-    def __init__(self, eps_start, eps_end, eps_exp_decay, eps_linear_decay_length):
-        self.eps_start = eps_start
-        self.eps_end = eps_end
-        self.eps_exp_decay = eps_exp_decay
-        self.eps_linear_decay_length = eps_linear_decay_length
-        self.eps_linear_decay = (eps_start - eps_end) / eps_linear_decay_length
-
-    def update_epsilon(self, current_epsilon, num_executions):
-        pass
-
-class GlobalEpsilonSchedule(EpsilonSchedule):
-    def __init__(self, eps_start):
-        EPS_END = 0.05
-        EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 500000
-        super(GlobalEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
-
-    def update_epsilon(self, current_epsilon, num_executions):
-        if num_executions < self.eps_linear_decay_length:
-            return current_epsilon - self.eps_linear_decay
-        if num_executions == self.eps_linear_decay_length:
-            print("Global Epsilon schedule switching to exponential decay")
-        return max(self.eps_end, self.eps_exp_decay * current_epsilon)
-
-class OptionEpsilonSchedule(EpsilonSchedule):
-    def __init__(self, eps_start):
-        EPS_END = 0.05
-        EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 10000
-        super(OptionEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
-
-    def update_epsilon(self, current_epsilon, num_executions):
-        return max(self.eps_end, self.eps_exp_decay * current_epsilon)
 
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
-                 gradient_clip=None, evaluation_epsilon=0.05, writer=None):
+                 gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-greedy",
+                 pixel_observation=False, writer=None):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -87,24 +54,37 @@ class DQNAgent(Agent):
         self.loss_function = loss_function
         self.gradient_clip = gradient_clip
         self.evaluation_epsilon = evaluation_epsilon
+        self.exploration_method = exploration_method
+        self.pixel_observation = pixel_observation
         self.seed = random.seed(seed)
         self.tensor_log = tensor_log
         self.device = device
 
         # Q-Network
-        self.policy_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
-        self.target_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
+        if pixel_observation:
+            self.policy_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
+            self.target_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
+        else:
+            self.policy_network = DenseQNetwork(state_size, action_size, seed).to(self.device)
+            self.target_network = DenseQNetwork(state_size, action_size, seed).to(self.device)
 
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
         # Replay memory
-        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.device)
+        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.device, pixel_observation)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
         # Epsilon strategy
-        self.epsilon_schedule = GlobalEpsilonSchedule(eps_start) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
-        self.epsilon = eps_start
+        if exploration_method == "eps-greedy":
+            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
+            self.epsilon = eps_start
+        elif exploration_method == "rnd":
+            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
+            self.epsilon = evaluation_epsilon
+        else:
+            raise NotImplementedError("{} not implemented", exploration_method)
+
         self.num_executions = 0 # Number of times act() is called (used for eps-decay)
 
         # Debugging attributes
@@ -417,15 +397,25 @@ if __name__ == '__main__':
     parser.add_argument("--episodes", type=int, help="# episodes", default=NUM_EPISODES)
     parser.add_argument("--steps", type=int, help="# steps", default=NUM_STEPS)
     parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
+    parser.add_argument("--pixel_observation", type=bool, help="Images / Dense input", default=False)
+    parser.add_argument("--exploration_method", type=str, default="eps-greedy")
+    parser.add_argument("--eval_eps", type=float, default=0.05)
     args = parser.parse_args()
 
     logdir = create_log_dir(args.experiment_name)
-    learning_rate = 1e-4 # 0.00025 for pong
+    learning_rate = 1e-3 # 0.00025 for pong
 
-    # overall_mdp = GymMDP(env_name="LunarLander-v2", render=args.render)
-    overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
-    ddqn_agent = DQNAgent(state_size=overall_mdp.env.observation_space.shape, action_size=len(overall_mdp.actions),
-                          trained_options=[], seed=args.seed, device=torch.device("cuda"),
-                          name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True)
+    overall_mdp = GymMDP(env_name="MountainCar-v0", pixel_observation=args.pixel_observation, render=args.render,
+                         clip_rewards=False, term_func=lambda o, r: r > 0.)
+    # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
+
+    state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    ddqn_agent = DQNAgent(state_size=state_dim, action_size=len(overall_mdp.actions),
+                          trained_options=[], seed=args.seed, device=device,
+                          name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True,
+                          exploration_method=args.exploration_method, pixel_observation=args.pixel_observation,
+                          evaluation_epsilon=args.eval_eps)
     ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
     save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)

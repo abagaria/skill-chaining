@@ -11,7 +11,7 @@ Transition = namedtuple('Transition', ("state", "action", "reward", "next_state"
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
-    def __init__(self, action_size, buffer_size, batch_size, seed, device):
+    def __init__(self, action_size, buffer_size, batch_size, seed, device, pixel_observation):
         """
         Initialize a ReplayBuffer object.
         Args:
@@ -20,6 +20,7 @@ class ReplayBuffer:
             batch_size (int): size of each training batch
             seed (int): random seed
             device (torch.device): cpu / cuda:0 / cuda:1
+            pixel_observation (bool): Whether observations are dense or images
         """
         self.action_size = action_size
         self.memory = deque(maxlen=buffer_size)
@@ -27,6 +28,7 @@ class ReplayBuffer:
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
         self.seed = random.seed(seed)
         self.device = device
+        self.pixel_observation = pixel_observation
 
         self.positive_transitions = []
 
@@ -53,10 +55,17 @@ class ReplayBuffer:
         num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])
         self.positive_transitions.append(num_positive_transitions)
 
-        states = torch.from_numpy(np.vstack([e.state[None, ...] for e in experiences if e is not None])).float().to(self.device)
+        # With image observations, we need to add another dimension to the tensor before stacking
+        if self.pixel_observation:
+            states = torch.from_numpy(np.vstack([e.state[None, ...] for e in experiences if e is not None])).float().to(self.device)
+        else:
+            states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(self.device)
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(self.device)
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(self.device)
-        next_states = torch.from_numpy(np.vstack([e.next_state[None, ...] for e in experiences if e is not None])).float().to(self.device)
+        if self.pixel_observation:
+            next_states = torch.from_numpy(np.vstack([e.next_state[None, ...] for e in experiences if e is not None])).float().to(self.device)
+        else:
+            next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
         steps = torch.from_numpy(np.vstack([e.num_steps for e in experiences if e is not None])).float().to(self.device)
 
@@ -64,27 +73,4 @@ class ReplayBuffer:
 
     def __len__(self):
         """Return the current size of internal memory."""
-        return len(self.memory)
-
-
-class ImageReplayBuffer(object):
-    def __init__(self, capacity, seed):
-        self.capacity = capacity
-        self.memory = []
-        self.position = 0
-
-        # Set seed for sampling
-        random.seed(seed)
-        np.random.seed(seed)
-
-    def add(self, *args):
-        if len(self.memory) < self.capacity:
-            self.memory.append(None)
-        self.memory[self.position] = Transition(*args)
-        self.position = (self.position + 1) % self.capacity
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def __len__(self):
         return len(self.memory)
