@@ -46,3 +46,14 @@ class PortablePointMazeState(PortableState):
     @staticmethod
     def initiation_classifier_feature_indices():
         return list(range(19))
+
+    def pspace_initiation_classifier_features(self):
+        return [self.position[0], self.position[1], self.has_key]
+
+    @staticmethod
+    def pspace_initiation_classifier_feature_indices_in_flat_state():
+        return [19, 20, 21]
+
+    @staticmethod
+    def pspace_initiation_classifier_feature_indices_in_pspace_state():
+        return [0, 1, 2]

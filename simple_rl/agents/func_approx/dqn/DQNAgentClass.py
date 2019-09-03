@@ -197,7 +197,7 @@ class DQNAgent(Agent):
         new_learning_rate = self.learning_rate / 100.
         self.set_new_learning_rate(new_learning_rate)
 
-    def get_impossible_option_idx(self, state):
+    def get_impossible_option_idx(self, aspace_state, pspace_state):
 
         # Arg-max only over actions that can be executed from the current state
         # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
@@ -207,13 +207,16 @@ class DQNAgent(Agent):
 
         impossible_option_idx = []
         for idx, option in enumerate(self.trained_options):
-            np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
+            np_aspace_state = aspace_state.cpu().data.numpy()[0] if not isinstance(aspace_state, np.ndarray) else aspace_state
+            np_pspace_state = pspace_state.cpu().data.numpy()[0] if not isinstance(pspace_state, np.ndarray) else pspace_state
+
+            overall_state = np.concatenate((np_aspace_state, np_pspace_state), axis=0)
 
             if option.parent is None:
                 assert option.name == "overall_goal_policy" or option.name == "global_option"
-                impossible = not option.is_init_true(np_state)
+                impossible = not option.is_init_true(overall_state)
             else:
-                impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
+                impossible = (not option.is_init_true(overall_state)) or option.is_term_true(overall_state)
 
             if impossible:
                 impossible_option_idx.append(idx)
@@ -240,7 +243,7 @@ class DQNAgent(Agent):
             action_values = self.policy_network(pspace_state)
         self.policy_network.train()
 
-        impossible_option_idx = self.get_impossible_option_idx(aspace_state)
+        impossible_option_idx = self.get_impossible_option_idx(aspace_state, pspace_state)
 
         for impossible_idx in impossible_option_idx:
             action_values[0][impossible_idx] = torch.min(action_values, dim=1)[0] - 1.
@@ -305,12 +308,13 @@ class DQNAgent(Agent):
         if len(self.trained_options) > 0:
             # Move the states and action values to the cpu to allow numpy computations
             aspace_states = aspace_states.cpu().data.numpy()
+            pspace_states = pspace_states.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
 
             for idx, option in enumerate(self.trained_options): # type: Option
                 try:
-                    inits = option.batched_is_init_true(aspace_states)
-                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(aspace_states)
+                    inits = option.batched_is_init_true(aspace_states, pspace_states)
+                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(aspace_states, pspace_states)
                     action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
                 except:
                     pdb.set_trace()

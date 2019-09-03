@@ -93,9 +93,8 @@ def get_initiation_set_values(option, has_key):
 	values = []
 	for x in np.arange(-2., 11., 1.):
 		for y in np.arange(-2., 11., 1.):
-			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
-							   theta=0, theta_dot=0, has_key=has_key, done=False)
-			values.append(option.is_init_true(s))
+			X = np.array([x, y, has_key])
+			values.append(option.pspace_initiation_classifier.predict(X.reshape(1, -1)))
 
 	return values
 
@@ -150,12 +149,12 @@ def render_sampled_initiation_classifier(option, episode, experiment_name):
 		plt.colorbar()
 
 		# Plot trajectories
-		positive_examples = option.construct_feature_matrix(option.positive_examples)
-		negative_examples = option.construct_feature_matrix(option.negative_examples)
-		plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+		pos_aspace_matrix, pos_pspace_matrix = option.construct_feature_matrix(option.positive_examples)
+		neg_aspace_matrix, neg_pspace_matrix = option.construct_feature_matrix(option.negative_examples)
+		plt.scatter(pos_pspace_matrix[:, 0], pos_pspace_matrix[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
 
-		if negative_examples.shape[0] > 0:
-			plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+		if neg_pspace_matrix.shape[0] > 0:
+			plt.scatter(neg_pspace_matrix[:, 0], neg_pspace_matrix[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
 		background_image = imageio.imread("four_room_domain.png")
 		plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
@@ -178,8 +177,8 @@ def make_meshgrid(x, y, h=.02):
 def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))
 	flattened_examples = list(itertools.chain.from_iterable(option.positive_examples))
-	X = option.construct_aspace_matrix(option.positive_examples)
-	Y = option.batched_is_init_true(X)
+	X_aspace, X_pspace = option.construct_feature_matrix(option.positive_examples)
+	Y = option.batched_is_init_true(X_aspace, X_pspace)
 
 	pos_predicted_idx = np.where(Y == 1)[0]
 	neg_predicted_idx = np.where(Y == -1)[0]
@@ -217,16 +216,18 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 def plot_two_class_initiation_classifier(option, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))
 
-	positive_feature_matrix = option.construct_aspace_matrix(option.positive_examples)
-	negative_feature_matrix = option.construct_aspace_matrix(option.negative_examples)
+	positive_aspace_matrix, positive_pspace_matrix = option.construct_feature_matrix(option.positive_examples)
+	negative_aspace_matrix, negative_pspace_matrix = option.construct_feature_matrix(option.negative_examples)
 	flattened_examples = list(itertools.chain.from_iterable(option.positive_examples)) +\
 						 list(itertools.chain.from_iterable(option.negative_examples))
 
 	try:
-		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+		X_aspace = np.concatenate((positive_aspace_matrix, negative_aspace_matrix))
+		X_pspace = np.concatenate((positive_pspace_matrix, negative_pspace_matrix))
 	except:
-		X = positive_feature_matrix
-	predictions = option.batched_is_init_true(X)
+		X_aspace = positive_aspace_matrix
+		X_pspace = positive_pspace_matrix
+	predictions = option.batched_is_init_true(X_aspace, X_pspace)
 
 	pos_predicted_idx = np.where(predictions == 1)[0]
 	neg_predicted_idx = np.where(predictions != 1)[0]
@@ -348,7 +349,9 @@ def visualize_option_end_states_in_pspace(global_solver, experiment_name=""):
 
 		plt.scatter(positive_end_x + negative_end_x, positive_end_y + negative_end_y, alpha=0.1, label="Option {}".format(option_idx))
 
-	plt.legend()
+	leg = plt.legend()
+	for lh in leg.legendHandles:
+		lh.set_alpha(1)
 	plt.title("Samples of Option Termination Sets")
 	plt.savefig("value_function_plots/{}/DQN_SMDP_Updates.png".format(experiment_name))
 	plt.close()

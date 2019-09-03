@@ -21,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 enable_timeout=True, timeout=50, initiation_period=15,  generate_plots=False,
+				 enable_timeout=True, timeout=100, initiation_period=15,  generate_plots=False,
 				 device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -84,10 +84,12 @@ class Option(object):
 		self.negative_examples = []
 		self.parent_positive_examples = []
 		self.experience_buffer = []
-		self.initiation_classifier = None
+		self.aspace_initiation_classifier = None
+		self.pspace_initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
 		self.two_class_classifier = None
+		self.learn_only_pspace_classifiers = False
 
 		# If we are not the global or the goal option, we want to include the positive examples of all options
 		# above us as our own negative examples
@@ -112,6 +114,7 @@ class Option(object):
 		self.num_executions = 0
 		self.starting_points = []
 		self.ending_points 	 = []
+		self.num_steps_per_execution = []
 
 	def __str__(self):
 		return self.name
@@ -129,6 +132,21 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	def clear_for_new_task(self):
+		self.pspace_initiation_classifier = None
+		self.learn_only_pspace_classifiers = True
+		self.completed_initiation_phase = False
+		self.num_goal_hits = 0
+		self.initiation_period = 2 * self.initiation_period // 3  # Easier to just learn pspace classifier
+		self.positive_examples = []
+		self.negative_examples = []
+		self.experience_buffer = []
+		self.classifier_type = "ocsvm"
+		self.final_transitions = []
+		self.num_executions = 0
+		self.starting_points = []
+		self.ending_points = []
 
 	# TODO: To learn option policies in agent space, we need to keep around a buffer w/ PortableState objects
 	def initialize_with_global_ddpg(self):
@@ -150,27 +168,35 @@ class Option(object):
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
-	def batched_is_init_true(self, aspace_state_matrix):
+	def batched_is_init_true(self, aspace_state_matrix, pspace_state_matrix):
 		if self.name == "global_option":
 			return np.ones((aspace_state_matrix.shape[0]))
 
-		feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
-		feature_matrix = aspace_state_matrix[:, feature_idx]
+		aspace_feature_idx = PortablePointMazeState.initiation_classifier_feature_indices()
+		aspace_feature_matrix = aspace_state_matrix[:, aspace_feature_idx]
 
-		svm_decisions = self.initiation_classifier.predict(feature_matrix) == 1
-		return svm_decisions
+		pspace_feature_idx = PortablePointMazeState.pspace_initiation_classifier_feature_indices_in_pspace_state()
+		pspace_feature_matrix = pspace_state_matrix[:, pspace_feature_idx]
+
+		aspace_decisions = self.aspace_initiation_classifier.predict(aspace_feature_matrix) == 1
+		pspace_decisions = self.pspace_initiation_classifier.predict(pspace_feature_matrix) == 1
+		return np.logical_and(aspace_decisions, pspace_decisions)
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
 
 		if isinstance(ground_state, PortablePointMazeState):
-			features = ground_state.initiation_classifier_features()
+			aspace_features = ground_state.initiation_classifier_features()
+			pspace_features = ground_state.pspace_initiation_classifier_features()
 		else:
-			features = ground_state[PortablePointMazeState.initiation_classifier_feature_indices()]
+			assert ground_state.shape == (26,)
+			aspace_features = ground_state[PortablePointMazeState.initiation_classifier_feature_indices()]
+			pspace_features = ground_state[PortablePointMazeState.pspace_initiation_classifier_feature_indices_in_flat_state()]
 
-		svm_decision = self.initiation_classifier.predict([features])[0] == 1
-		return svm_decision
+		agent_space_decision = self.aspace_initiation_classifier.predict([aspace_features])[0] == 1
+		problem_space_decision = self.pspace_initiation_classifier.predict([pspace_features])[0] == 1
+		return agent_space_decision and problem_space_decision
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -187,8 +213,9 @@ class Option(object):
 
 	@staticmethod
 	def get_features_for_initiation_classifier(segmented_states):
-		segmented_positions = [segmented_state.initiation_classifier_features() for segmented_state in segmented_states]
-		return segmented_positions
+		aspace_features = [segmented_state.initiation_classifier_features() for segmented_state in segmented_states]
+		pspace_features = [segmented_state.pspace_initiation_classifier_features() for segmented_state in segmented_states]
+		return aspace_features, pspace_features
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -207,19 +234,17 @@ class Option(object):
 
 	@staticmethod
 	def construct_feature_matrix(examples):
-		example_features = [Option.get_features_for_initiation_classifier(trajectory) for trajectory in examples]
-		states = list(itertools.chain.from_iterable(example_features))
-		return np.array(states)
+		aspace_feature_list = []
+		pspace_feature_list = []
+		for trajectory in examples:
+			aspace_features, pspace_features = Option.get_features_for_initiation_classifier(trajectory)
+			aspace_feature_list.append(aspace_features)
+			pspace_feature_list.append(pspace_features)
+		aspace_feature_matrix = np.array(list(itertools.chain.from_iterable(aspace_feature_list)))
+		pspace_feature_matrix = np.array(list(itertools.chain.from_iterable(pspace_feature_list)))
+		return aspace_feature_matrix, pspace_feature_matrix
 
-	@staticmethod
-	def construct_aspace_matrix(trajectories):
-		aspace_trajectories = []
-		for trajectory in trajectories:
-			aspace_trajectory = [state.aspace_features() for state in trajectory]
-			aspace_trajectories.append(aspace_trajectory)
-		return np.array(list(itertools.chain.from_iterable(aspace_trajectories)))
-
-	def get_training_phase(self):
+	def get_source_task_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
 			return "gestation"
 		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period) \
@@ -231,13 +256,35 @@ class Option(object):
 			return "initiation_done"
 		return "trained"
 
+	def get_transfer_task_training_phase(self):
+		if self.num_goal_hits < self.num_subgoal_hits_required:
+			return "gestation"
+		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
+			return "initiation"
+		if self.num_goal_hits >= (self.num_subgoal_hits_required + self.initiation_period) and \
+				not self.completed_initiation_phase:
+			self.completed_initiation_phase = True
+			return "initiation_done"
+		return "trained"
+
+	def get_training_phase(self):
+		# Transfer Task
+		if self.learn_only_pspace_classifiers:
+			return self.get_transfer_task_training_phase()
+		# Source Task
+		return self.get_source_task_training_phase()
+
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		positive_aspace_feature_matrix, positive_pspace_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="auto")
-		self.initiation_classifier.fit(positive_feature_matrix)
+		if not self.learn_only_pspace_classifiers:
+			self.aspace_initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="auto")
+			self.aspace_initiation_classifier.fit(positive_aspace_feature_matrix)
+
+		self.pspace_initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="auto")
+		self.pspace_initiation_classifier.fit(positive_pspace_feature_matrix)
 
 	def train_initiation_classifier(self):
 		if self.classifier_type == "ocsvm":
@@ -246,35 +293,35 @@ class Option(object):
 			raise NotImplementedError("{} not supported".format(self.classifier_type))
 
 	def train_two_class_classifier(self):
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-		negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
-		positive_labels = [1] * positive_feature_matrix.shape[0]
-		negative_labels = [0] * negative_feature_matrix.shape[0]
+		positive_aspace_matrix, positive_pspace_matrix = self.construct_feature_matrix(self.positive_examples)
+		negative_aspace_matrix, negative_pspace_matrix = self.construct_feature_matrix(self.negative_examples)
 
-		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+		# -- Learn Initiation Classifier in Agent-Space
+		positive_labels = [1] * positive_aspace_matrix.shape[0]
+		negative_labels = [0] * negative_aspace_matrix.shape[0]
+
+		X = np.concatenate((positive_aspace_matrix, negative_aspace_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
 		if len(list(itertools.chain.from_iterable(self.positive_examples))) > len(self.negative_examples) >= (self.initiation_period - 1):
-			print("Using balanced 2-class SVM")
 			kwargs = {"gamma": "scale", "kernel": "rbf", "class_weight": "balanced", "random_state": self.seed}
 		else:
 			kwargs = {"gamma": "scale", "kernel": "rbf", "random_state": self.seed}
 
-		self.two_class_classifier = svm.SVC(**kwargs)
-		self.two_class_classifier.fit(X, Y)
-		self.initiation_classifier = self.two_class_classifier
-		self.classifier_type = "tcsvm"
+		if not self.learn_only_pspace_classifiers:
+			self.aspace_initiation_classifier = svm.SVC(**kwargs)
+			self.aspace_initiation_classifier.fit(X, Y)
 
-		# training_predictions = self.two_class_classifier.predict(X)
-		# positive_training_data = X[training_predictions == 1]
-		#
-		# if positive_training_data.shape[0] > 0:
-		# 	# Even when I am in the same room as the lock, I may not see it if I am not facing it
-		# 	# assuming that a random policy will not see the lock about 1/2 the time, we expect
-		# 	# about 50% false positives in the positive training data
-		# 	self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.5, gamma="auto")
-		# 	self.initiation_classifier.fit(positive_training_data)
-		# 	self.classifier_type = "tcsvm"
+		# -- Learn Initiation Set Classifier in Problem-Space
+		positive_labels = [1] * positive_pspace_matrix.shape[0]
+		negative_labels = [0] * negative_pspace_matrix.shape[0]
+
+		X = np.concatenate((positive_pspace_matrix, negative_pspace_matrix))
+		Y = np.concatenate((positive_labels, negative_labels))
+
+		self.pspace_initiation_classifier = svm.SVC(**kwargs)
+		self.pspace_initiation_classifier.fit(X, Y)
+		self.classifier_type = "tcsvm"
 
 	def initialize_option_policy(self):
 		# TODO: Will need a new data structure to hold PortableState objects from global agent's experiences
@@ -417,6 +464,7 @@ class Option(object):
 
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
+			self.num_steps_per_execution.append(num_steps)
 
 			if self.is_term_true(state):
 				self.num_goal_hits += 1

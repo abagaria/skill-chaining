@@ -136,8 +136,8 @@ def get_scores(experiment_name):
         score_names = experiment_name + "/" + "*_training_scores_*.pkl".format(experiment_name)
         duration_names = experiment_name + "/" + "*_training_durations_*.pkl".format(experiment_name)
     else:
-        score_names = experiment_name + "/" + experiment_name + "*_training_scores.pkl"
-        duration_names = experiment_name + "/" + experiment_name + "*_training_durations.pkl"
+        score_names = experiment_name + "/" + "*_training_scores_*.pkl"
+        duration_names = experiment_name + "/" + "*_training_durations_*.pkl"
     training_scores, training_durations = [], []
     for score_file in glob.glob(score_names):
         with open(score_file, "rb") as f:
@@ -158,8 +158,10 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "Portable 4 Rooms"
-    experiment_names = ["sc_source_g10i10bl20t500t500", "sc_transfer_g10i10bl20t500t500"] #["point_maze_ddpg_dense", "point_maze_ddpg_sparse", "point_sparse_real_smaller_inits", "point_dense_real_smaller_inits"]
+    meta_experiment_name = "Portable-4-Rooms-Timeout-100"
+    experiment_names = ["AspaceAndPspaceTimeout100g3i10_src", "ApsaceAndPspaceTimeout100g3i10_transfer"]
+    #["AspaceAndPspaceTimeout120FasterTransferTrain", "AspaceAndPspaceTimeout120FasterTransferTest"]
+# ["sc_source_g10i10bl20t500t500", "sc_transfer_g10i10bl20t500t500"] #["point_maze_ddpg_dense", "point_maze_ddpg_sparse", "point_sparse_real_smaller_inits", "point_dense_real_smaller_inits"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:

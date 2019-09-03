@@ -69,9 +69,6 @@ class PortablePointMazeMDP(MDP):
         key = state[2]
         return self.env.is_in_goal_position(position) and bool(key)
 
-    def distance_to_goal(self, position):
-        return self.env.distance_to_goal_position(position)
-
     def state_space_size(self):
         return 7
 
