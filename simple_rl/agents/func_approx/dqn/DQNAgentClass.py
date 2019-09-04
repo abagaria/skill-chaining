@@ -26,6 +26,7 @@ from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
 from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
+from simple_rl.agents.func_approx.dqn.RandomNetworkDistillationClass import RND
 
 
 ## Hyperparameters
@@ -65,8 +66,8 @@ class DQNAgent(Agent):
             self.policy_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
             self.target_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
         else:
-            self.policy_network = DenseQNetwork(state_size, action_size, seed).to(self.device)
-            self.target_network = DenseQNetwork(state_size, action_size, seed).to(self.device)
+            self.policy_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
+            self.target_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
 
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
@@ -77,11 +78,12 @@ class DQNAgent(Agent):
 
         # Epsilon strategy
         if exploration_method == "eps-greedy":
-            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
+            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
             self.epsilon = eps_start
         elif exploration_method == "rnd":
-            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
-            self.epsilon = evaluation_epsilon
+            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon)  # ConstantEpsilonSchedule(evaluation_epsilon)
+            self.epsilon = eps_start
+            self.rnd = RND(state_dim, out_dim=64, n_hid=124, device=self.device)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -255,6 +257,10 @@ class DQNAgent(Agent):
         """
         states, actions, rewards, next_states, dones, steps = experiences
 
+        if self.exploration_method == "rnd":
+            intrinsic_rewards = self.rnd.get_reward(states)
+            self.rnd.update(intrinsic_rewards)
+
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
 
@@ -331,28 +337,35 @@ def train(agent, mdp, episodes, steps):
     per_episode_scores = []
     last_10_scores = deque(maxlen=100)
     iteration_counter = 0
+    state_ri_buffer = []
 
     for episode in range(episodes):
         mdp.reset()
         state = deepcopy(mdp.init_state)
         score = 0.
-        while not state.is_terminal():
+        for step in range(steps):
             iteration_counter += 1
             action = agent.act(state.features(), train_mode=True)
             reward, next_state = mdp.execute_agent_action(action)
+            if agent.exploration_method == "rnd":
+                intrinsic_reward = 10. * agent.rnd.get_single_reward(state.features())
+                state_ri_buffer.append((state, intrinsic_reward))
+                reward += intrinsic_reward
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), num_steps=1)
             agent.update_epsilon()
             state = next_state
             score += reward
             if agent.tensor_log:
                 agent.writer.add_scalar("Score", score, iteration_counter)
+            if state.is_terminal():
+                break
         last_10_scores.append(score)
         per_episode_scores.append(score)
 
         print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
-        if episode % 10 == 0:
+        if episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
-    return per_episode_scores
+    return per_episode_scores, state_ri_buffer
 
 def test_forward_pass(dqn_agent, mdp):
     # load the weights from file
@@ -406,7 +419,7 @@ if __name__ == '__main__':
     learning_rate = 1e-3 # 0.00025 for pong
 
     overall_mdp = GymMDP(env_name="MountainCar-v0", pixel_observation=args.pixel_observation, render=args.render,
-                         clip_rewards=False, term_func=lambda o, r: r > 0.)
+                         clip_rewards=False, term_func=None, seed=args.seed)
     # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
 
     state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
@@ -417,5 +430,5 @@ if __name__ == '__main__':
                           name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True,
                           exploration_method=args.exploration_method, pixel_observation=args.pixel_observation,
                           evaluation_epsilon=args.eval_eps)
-    ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
+    ddqn_episode_scores, s_ri_buffer = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
     save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)

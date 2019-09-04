@@ -19,7 +19,7 @@ class GymMDP(MDP):
     ''' Class for Gym MDPs '''
 
     def __init__(self, env_name='CartPole-v0', pixel_observation=False,
-                 clip_rewards=False, term_func=None, render=False):
+                 clip_rewards=False, term_func=None, render=False, seed=0):
         '''
         Args:
             env_name (str)
@@ -30,6 +30,8 @@ class GymMDP(MDP):
             self.env = FrameStack(AtariPreprocessing(gym.make(env_name)), num_stack=4)
         else:
             self.env = gym.make(env_name)
+
+        self.env.seed(seed)
 
         self.clip_rewards = clip_rewards
         self.term_func = term_func
