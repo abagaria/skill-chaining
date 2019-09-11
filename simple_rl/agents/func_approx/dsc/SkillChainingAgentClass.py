@@ -450,16 +450,20 @@ class SkillChaining(object):
 		overall_reward = 0.
 		self.mdp.render = render
 		num_steps = 0
+		option_trajectories = []
 
 		while not state.is_terminal() and num_steps < self.max_steps:
 			selected_option = self.act(state)
 
-			option_reward, next_state, num_steps = selected_option.trained_option_execution(self.mdp, num_steps)
+			option_reward, next_state, num_steps, option_state_trajectory = selected_option.trained_option_execution(self.mdp, num_steps)
 			overall_reward += option_reward
+
+			# option_state_trajectory is a list of (o, s) tuples
+			option_trajectories.append(option_state_trajectory)
 
 			state = next_state
 
-		return overall_reward
+		return overall_reward, option_trajectories
 
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
