@@ -9,7 +9,7 @@ from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
 from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
 class PointMazeMDP(MDP):
-    def __init__(self, seed, dense_reward=False, render=False):
+    def __init__(self, seed, color_str="", dense_reward=False, render=False):
         self.env_name = "point_maze"
         self.seed = seed
         self.dense_reward = dense_reward
@@ -27,7 +27,8 @@ class PointMazeMDP(MDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 4
+            'maze_size_scaling': 4,
+            'color_str': color_str
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy

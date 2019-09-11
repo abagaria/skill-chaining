@@ -19,8 +19,8 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, generate_plots=False, device=torch.device("cpu"),
-				 writer=None):
+				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=1, option_idx=None,
+				 max_num_children=2, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -48,6 +48,8 @@ class Option(object):
 		self.parent = parent
 		self.dense_reward = dense_reward
 		self.enable_timeout = enable_timeout
+		self.initiation_period = initiation_period
+		self.max_num_children = max_num_children
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
@@ -63,7 +65,7 @@ class Option(object):
 		elif self.name == "overall_goal_policy":
 			self.option_idx = 1
 		else:
-			self.option_idx = self.parent.option_idx + 1
+			self.option_idx = option_idx
 
 		print("Creating {} with enable_timeout={}".format(name, enable_timeout))
 
@@ -80,6 +82,7 @@ class Option(object):
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
 		self.positive_examples = []
+		self.negative_examples = []
 		self.experience_buffer = []
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
@@ -87,6 +90,7 @@ class Option(object):
 
 		self.overall_mdp = overall_mdp
 		self.final_transitions = []
+		self.children = []
 
 		# Debug member variables
 		self.num_executions = 0
@@ -109,6 +113,38 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	def get_sibling_option(self):
+		if self.parent is not None:
+			parent_children = self.parent.children
+			for child in parent_children:
+				if child != self:
+					return child
+		return None
+
+	def is_valid_init_data(self, state_buffer):
+		sibling = self.get_sibling_option()  # type: Option
+
+		if sibling is None:
+			return True
+
+		if len(state_buffer) == 0:
+			return False
+
+		sibling_count = 0.
+		for state in state_buffer:
+			sibling_count += sibling.is_init_true(state)
+
+		return 0 < (sibling_count / len(state_buffer)) <= 0.1
+
+	def get_training_phase(self):
+		if self.num_goal_hits < self.num_subgoal_hits_required:
+			return "gestation"
+		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
+			return "initiation"
+		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
+			return "initiation_done"
+		return "trained"
 
 	def initialize_with_global_ddpg(self):
 		for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
@@ -197,20 +233,62 @@ class Option(object):
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
-	def train_elliptic_envelope_classifier(self):
-		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		return True
 
-		self.initiation_classifier = EllipticEnvelope(contamination=0.2)
-		self.initiation_classifier.fit(positive_feature_matrix)
+	def train_two_class_classifier(self):
+		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
+		positive_labels = [1] * positive_feature_matrix.shape[0]
+		negative_labels = [0] * negative_feature_matrix.shape[0]
+
+		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+		Y = np.concatenate((positive_labels, negative_labels))
+
+		# if len(self.negative_examples) >= 10:
+		# 	kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
+		# else:
+		kwargs = {"kernel": "linear", "gamma": "scale"}
+
+		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
+		initiation_classifier = svm.SVC(**kwargs)
+		initiation_classifier.fit(X, Y)
+
+		training_predictions = initiation_classifier.predict(X)
+		positive_training_examples = X[training_predictions == 1]
+
+		if positive_training_examples.shape[0] > 0:
+			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+			self.initiation_classifier.fit(positive_training_examples)
+
+			self.classifier_type = "tcsvm"
+			return True
+		else:
+			print("\r Couldn't fit linear SVM for {}".format(self.name))
+			kwargs = {"kernel": "rbf", "gamma": "scale"}
+
+			# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
+			initiation_classifier = svm.SVC(**kwargs)
+			initiation_classifier.fit(X, Y)
+
+			training_predictions = initiation_classifier.predict(X)
+			positive_training_examples = X[training_predictions == 1]
+
+			if positive_training_examples.shape[0] > 0:
+				self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+				self.initiation_classifier.fit(positive_training_examples)
+
+				self.classifier_type = "tcsvm"
+				return True
+			else:
+				print("Couldn't fit any classifier for ", self.name)
+				return False
 
 	def train_initiation_classifier(self):
-		if self.classifier_type == "ocsvm":
-			self.train_one_class_svm()
-		elif self.classifier_type == "elliptic":
-			self.train_elliptic_envelope_classifier()
+		if self.classifier_type == "ocsvm" and len(self.negative_examples) == 0:
+			trained = self.train_one_class_svm()
 		else:
-			raise NotImplementedError("{} not supported".format(self.classifier_type))
+			trained = self.train_two_class_classifier()
+		return trained
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
@@ -238,9 +316,10 @@ class Option(object):
 		self.num_goal_hits += 1
 
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
-			self.train_initiation_classifier()
-			self.initialize_option_policy()
-			return True
+			trained = self.train_initiation_classifier()
+			if trained:
+				self.initialize_option_policy()
+			return trained
 		return False
 
 	def get_subgoal_reward(self, state):
@@ -315,6 +394,7 @@ class Option(object):
 			option_transitions (list): list of (s, a, r, s') tuples
 			discounted_reward (float): cumulative discounted reward obtained by executing the option
 		"""
+		start_state = deepcopy(mdp.cur_state)
 		state = mdp.cur_state
 
 		if self.is_init_true(state):
@@ -322,6 +402,7 @@ class Option(object):
 			total_reward = 0.
 			self.num_executions += 1
 			num_steps = 0
+			visited_states = []
 
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
@@ -340,6 +421,7 @@ class Option(object):
 
 				self.solver.update_epsilon()
 				option_transitions.append((state, action, reward, next_state))
+				visited_states.append(state)
 
 				total_reward += reward
 				state = next_state
@@ -349,6 +431,15 @@ class Option(object):
 				step_number += 1
 				num_steps += 1
 
+			# Don't forget to add the final state to the followed trajectory
+			visited_states.append(state)
+
+			if self.is_term_true(state):
+				self.num_goal_hits += 1
+
+			if self.get_training_phase() == "initiation" and self.name != "global_option":
+				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
+
 			if self.writer is not None:
 				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
 
@@ -356,16 +447,38 @@ class Option(object):
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
 
+	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
+										 outer_step_number):
+		if self.is_term_true(final_state):  # success
+			positive_states = [start_state] + visited_states[-self.buffer_length:]
+			positive_examples = [state.position for state in positive_states]
+			self.positive_examples.append(positive_examples)
+
+		elif num_steps == self.timeout:
+			negative_examples = [start_state.position]
+			self.negative_examples.append(negative_examples)
+		else:
+			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
+				"Hit else case, but {} was not terminal".format(final_state)
+
+		# Refine the initiation set classifier
+		if len(self.negative_examples) > 0:
+			self.train_two_class_classifier()
+
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state
 		score, step_number = 0., deepcopy(outer_step_counter)
 		num_steps = 0
+		state_option_trajectory = []
 
 		while not self.is_term_true(state) and not state.is_terminal()\
 				and step_number < self.max_steps and num_steps < self.timeout:
+			state_option_trajectory.append((self.option_idx, deepcopy(state)))
 			action = self.solver.act(state.features(), evaluation_mode=True)
 			reward, state = mdp.execute_agent_action(action, option_idx=self.option_idx)
+
 			score += reward
 			step_number += 1
 			num_steps += 1
-		return score, state, step_number
+
+		return score, state, step_number, state_option_trajectory

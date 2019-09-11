@@ -13,6 +13,7 @@ import random
 import numpy as np
 from tensorboardX import SummaryWriter
 import torch
+import itertools
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -109,10 +110,12 @@ class SkillChaining(object):
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
 		# 2. This option has an untrained initialization set and policy, which we need to train from experience
-		self.untrained_option = goal_option
+		self.untrained_options = [goal_option]
 
 		# List of init states seen while running this algorithm
 		self.init_states = []
+
+		self.current_option_idx = 1
 
 		# Debug variables
 		self.global_execution_states = []
@@ -121,10 +124,38 @@ class SkillChaining(object):
 		self.option_qvalues = defaultdict(lambda : [])
 		self.num_options_history = []
 
+	def add_negative_examples(self, new_option):
+		for option in self.trained_options[1:]:
+			new_option.negative_examples += option.positive_examples
+
+	def init_state_in_option(self, option):
+		for start_state in self.init_states:
+			if option.is_init_true(start_state):
+				return True
+		return False
+
+	def state_in_any_option(self, state):
+		for option in self.trained_options[1:]:
+			if option.is_init_true(state):
+				return True
+		return False
+
+	def create_children_options(self, option):
+		o1 = self.create_child_option(option)
+		o2 = self.create_child_option(option.parent) if option.parent is not None else None
+		return o1, o2
+
 	def create_child_option(self, parent_option):
+
+		# Don't create a child option if you already include the init state of the MDP
+		# Also enforce the max branching factor of our skill tree
+		if self.init_state_in_option(parent_option) or len(parent_option.children) >= parent_option.max_num_children:
+			return None
+
 		# Create new option whose termination is the initiation of the option we just trained
-		name = "option_{}".format(str(len(self.trained_options) - 1))
-		print("Creating {}".format(name))
+		prefix = "option_1" if parent_option.name == "overall_goal_policy" else parent_option.name
+		name = prefix + "_{}".format(len(parent_option.children))
+		print("Creating {} with parent {}".format(name, parent_option.name))
 
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
@@ -142,6 +173,8 @@ class SkillChaining(object):
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
 		assert id(new_untrained_option.parent) == old_untrained_option_id, "Checking python references"
+
+		parent_option.children.append(new_untrained_option)
 
 		return new_untrained_option
 
@@ -203,6 +236,10 @@ class SkillChaining(object):
 		if newly_trained_option not in self.trained_options:
 			self.trained_options.append(newly_trained_option)
 
+		# Set the option_idx for the newly added option
+		newly_trained_option.option_idx = self.current_option_idx
+		self.current_option_idx += 1
+
 		# Augment the global DQN with the newly trained option
 		num_actions = len(self.trained_options)
 		new_global_agent = DQNAgent(self.agent_over_options.state_size, num_actions, self.trained_options,
@@ -261,8 +298,9 @@ class SkillChaining(object):
 		next_state = self.get_next_state_from_experiences(option_transitions)
 
 		# If we triggered the untrained option's termination condition, add to its buffer of terminal transitions
-		if self.untrained_option.is_term_true(next_state) and not self.untrained_option.is_term_true(state):
-			self.untrained_option.final_transitions.append((state, selected_option.option_idx))
+		for untrained_option in self.untrained_options:
+			if untrained_option.is_term_true(next_state) and not untrained_option.is_term_true(state):
+				untrained_option.final_transitions.append((state, selected_option.option_idx))
 
 		# Add data to train Q(s, o)
 		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
@@ -301,13 +339,11 @@ class SkillChaining(object):
 		return total_reward
 
 	def should_create_more_options(self):
-		local_options = self.trained_options[1:]
-		for start_state in self.init_states:
-			for option in local_options:  # type: Option
-				if option.is_init_true(start_state):
-					print("Init state is in {}'s initiation set classifier".format(option.name))
-					return False
-		return True
+		start_states = self.mdp.env._init_positions
+		assert len(start_states) == 2, start_states
+		decision1 = self.state_in_any_option(start_states[0])
+		decision2 = self.state_in_any_option(start_states[1])
+		return decision1 == False or decision2 == False
 		# return len(self.trained_options) < self.max_num_options
 
 	def skill_chaining(self, num_episodes, num_steps):
@@ -323,7 +359,7 @@ class SkillChaining(object):
 			self.mdp.reset()
 			score = 0.
 			step_number = 0
-			uo_episode_terminated = False
+			uo_episode_terminated = False  # TODO: Does this flag's logic need to be changed?
 			state = deepcopy(self.mdp.init_state)
 			self.init_states.append(deepcopy(state))
 			experience_buffer = []
@@ -342,15 +378,28 @@ class SkillChaining(object):
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
 
-				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
-						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
-					uo_episode_terminated = True
-					if self.untrained_option.train(experience_buffer, state_buffer):
-						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
-						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
-						if self.should_create_more_options():
-							new_option = self.create_child_option(self.untrained_option)
-							self.untrained_option = new_option
+				for untrained_option in self.untrained_options:
+					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
+							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
+							untrained_option.is_valid_init_data(state_buffer):
+						uo_episode_terminated = True
+						if untrained_option.train(experience_buffer, state_buffer):
+							self._augment_agent_with_new_option(untrained_option, self.init_q)
+							if untrained_option.classifier_type == "ocsvm":
+								plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
+							else:
+								plot_two_class_classifier(untrained_option, episode, args.experiment_name)
+
+					if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done":
+						plot_two_class_classifier(untrained_option, episode, args.experiment_name)
+						self.untrained_options.remove(untrained_option)
+						new_option_1, new_option_2 = self.create_children_options(untrained_option)
+						if new_option_1 is not None:
+							self.untrained_options.append(new_option_1)
+							self.add_negative_examples(new_option_1)
+						if new_option_2 is not None:
+							self.untrained_options.append(new_option_2)
+							self.add_negative_examples(new_option_2)
 
 				if state.is_terminal():
 					break
@@ -379,7 +428,7 @@ class SkillChaining(object):
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		if episode > 0 and episode % 100 == 0:
-			eval_score = self.trained_forward_pass(render=False)
+			eval_score, trajectory = self.trained_forward_pass(render=False)
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
@@ -450,16 +499,33 @@ class SkillChaining(object):
 		overall_reward = 0.
 		self.mdp.render = render
 		num_steps = 0
+		option_trajectories = []
+
+		colors = ["0 0 0 1", "0 0 1 1", "0.6 0.8 1 1", "1 0 0 1", "0 0 0.6 1", "1 1 0 1", "0 0 0.6 1", "0.6 0.3 0 1"]
 
 		while not state.is_terminal() and num_steps < self.max_steps:
 			selected_option = self.act(state)
 
-			option_reward, next_state, num_steps = selected_option.trained_option_execution(self.mdp, num_steps)
+			# Save simulator state
+			qpos = np.copy(self.mdp.env.wrapped_env.data.qpos)
+			qvel = np.copy(self.mdp.env.wrapped_env.data.qvel)
+
+			# Create copy of the MDP that the option will act in
+			color = colors[selected_option.option_idx % len(colors)]
+			self.mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=render, color_str=color)
+
+			option_reward, next_state, num_steps, option_state_trajectory = selected_option.trained_option_execution(self.mdp, num_steps)
 			overall_reward += option_reward
+
+			# Restore simulator state
+			self.mdp.env.wrapped_env.set_state(qpos, qvel)
+
+			# option_state_trajectory is a list of (o, s) tuples
+			option_trajectories.append(option_state_trajectory)
 
 			state = next_state
 
-		return overall_reward
+		return overall_reward, option_trajectories
 
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
