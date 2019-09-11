@@ -48,6 +48,7 @@ class MazeEnv(gym.Env):
       put_spin_near_agent=False,
       top_down_view=False,
       manual_collision=False,
+      color_str="",
       *args,
       **kwargs):
     self._maze_id = maze_id
@@ -229,6 +230,12 @@ class MazeEnv(gym.Env):
       if 'name' not in geom.attrib:
         raise Exception("Every geom of the torso must have a name "
                         "defined")
+
+    self.color_str = color_str
+
+    if color_str:
+        for geom in geoms:
+            geom.attrib["rgba"] = color_str
 
     goal_xy = tree.find(".//geom[@name='target']").attrib["pos"].split()
     self.goal_xy = np.array([float(goal_xy[0]), float(goal_xy[1])])

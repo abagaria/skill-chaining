@@ -7,9 +7,12 @@ import time
 import torch
 import seaborn as sns
 sns.set()
+import imageio
+from PIL import Image
 
 # Other imports.
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
+from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
 
 class Experience(object):
 	def __init__(self, s, a, r, s_prime):
@@ -66,6 +69,18 @@ def get_grid_states():
 							   theta=0., theta_dot=0., done=False)
 			ss.append(s)
 	return ss
+
+
+def get_initiation_set_values(option):
+	values = []
+	for x in np.arange(-2., 11., 1.):
+		for y in np.arange(-2., 18., 1.):
+			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
+							   theta=0, theta_dot=0, done=False)
+			values.append(option.is_init_true(s))
+
+	return values
+
 
 def get_values(solver, init_values=False):
 	values = []
@@ -159,6 +174,40 @@ def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_analysis.png".format(experiment_name, solver.name))
 	plt.close()
 
+def plot_two_class_classifier(option, episode, experiment_name):
+	states = get_grid_states()
+	values = get_initiation_set_values(option)
+
+	x = np.array([state.position[0] for state in states])
+	y = np.array([state.position[1] for state in states])
+	xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+	xx, yy = np.meshgrid(xi, yi)
+	rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
+	zz = rbf(xx, yy)
+	plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower",
+			   alpha=0.6, cmap=plt.cm.bwr)
+	#plt.colorbar()
+
+	# Plot trajectories
+	positive_examples = option.construct_feature_matrix(option.positive_examples)
+	negative_examples = option.construct_feature_matrix(option.negative_examples)
+	plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+
+	if negative_examples.shape[0] > 0:
+		plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm,
+					alpha=0.3)
+
+	background_image = imageio.imread("point_maze_domain.png")
+	plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
+
+	plt.xticks([])
+	plt.yticks([])
+
+	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+	plt.title("{} Initiation Set".format(option.name))
+	plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
+	plt.close()
+
 def visualize_smdp_updates(global_solver, experiment_name=""):
 	smdp_transitions = list(filter(lambda e: isinstance(e.action, int) and e.action > 0, global_solver.replay_buffer.memory))
 	negative_transitions = list(filter(lambda e: e.done == 0, smdp_transitions))
@@ -199,3 +248,20 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
 	plt.close()
+
+
+def replay_trajectory(trajectory, dir_name):
+	colors = ["0 0 0 1", "0 0 1 1", "0 1 0 1", "1 0 0 1", "1 1 0 1", "1 1 1 1", "1 0 1 1", ""]
+
+	for i, (option, state) in enumerate(trajectory):
+		color = colors[option % len(colors)]
+		mdp = PointMazeMDP(seed=0, render=True, color_str=color)
+
+		qpos = np.copy(state.features()[:3])
+		qvel = np.copy(state.features()[3:])
+
+		mdp.env.wrapped_env.set_state(qpos, qvel)
+		mdp.env.render()
+		img_array = mdp.env.render(mode="rgb_array")
+		img = Image.fromarray(img_array)
+		img.save("{}/frame{}.png".format(dir_name, i))
