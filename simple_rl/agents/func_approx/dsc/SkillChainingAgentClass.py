@@ -385,13 +385,13 @@ class SkillChaining(object):
 						uo_episode_terminated = True
 						if untrained_option.train(experience_buffer, state_buffer):
 							self._augment_agent_with_new_option(untrained_option, self.init_q)
-							if untrained_option.classifier_type == "ocsvm":
-								plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
-							else:
-								plot_two_class_classifier(untrained_option, episode, args.experiment_name)
+							# if untrained_option.classifier_type == "ocsvm":
+							# 	plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
+							# else:
+							# 	plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 
 					if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done":
-						plot_two_class_classifier(untrained_option, episode, args.experiment_name)
+						# plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 						self.untrained_options.remove(untrained_option)
 						new_option_1, new_option_2 = self.create_children_options(untrained_option)
 						if new_option_1 is not None:
@@ -427,10 +427,10 @@ class SkillChaining(object):
 			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
-		if episode > 0 and episode % 100 == 0:
-			eval_score, trajectory = self.trained_forward_pass(render=False)
-			self.validation_scores.append(eval_score)
-			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+		# if episode > 0 and episode % 100 == 0:
+		eval_score, trajectory = self.trained_forward_pass(render=False)
+		self.validation_scores.append(eval_score)
+		print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
 		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
@@ -501,24 +501,11 @@ class SkillChaining(object):
 		num_steps = 0
 		option_trajectories = []
 
-		colors = ["0 0 0 1", "0 0 1 1", "0.6 0.8 1 1", "1 0 0 1", "0 0 0.6 1", "1 1 0 1", "0 0 0.6 1", "0.6 0.3 0 1"]
-
 		while not state.is_terminal() and num_steps < self.max_steps:
 			selected_option = self.act(state)
 
-			# Save simulator state
-			qpos = np.copy(self.mdp.env.wrapped_env.data.qpos)
-			qvel = np.copy(self.mdp.env.wrapped_env.data.qvel)
-
-			# Create copy of the MDP that the option will act in
-			color = colors[selected_option.option_idx % len(colors)]
-			self.mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=render, color_str=color)
-
 			option_reward, next_state, num_steps, option_state_trajectory = selected_option.trained_option_execution(self.mdp, num_steps)
 			overall_reward += option_reward
-
-			# Restore simulator state
-			self.mdp.env.wrapped_env.set_state(qpos, qvel)
 
 			# option_state_trajectory is a list of (o, s) tuples
 			option_trajectories.append(option_state_trajectory)
@@ -608,6 +595,6 @@ if __name__ == '__main__':
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
-	chainer.save_all_models()
-	chainer.perform_experiments()
+	# chainer.save_all_models()
+	# chainer.perform_experiments()
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
