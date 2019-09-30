@@ -64,6 +64,7 @@ class GymMDP(MDP):
             if reward < 0:
                 return -1.
             if reward > 0:
+                pdb.set_trace()
                 return 1.
             return 0.
         else:
@@ -85,3 +86,23 @@ class GymMDP(MDP):
 
     def __str__(self):
         return "gym-" + str(self.env_name)
+
+    @staticmethod
+    def _getIndex(address):
+        assert type(address) == str and len(address) == 2
+        row, col = tuple(address)
+        row = int(row, 16) - 8
+        col = int(col, 16)
+        return row * 16 + col
+
+    @staticmethod
+    def getByte(ram, address):
+        # Return the byte at the specified emulator RAM location
+        idx = GymMDP._getIndex(address)
+        return ram[idx]
+
+    def get_player_position(self):
+        ram = self.env.env.ale.getRAM()
+        x = int(self.getByte(ram, 'aa'))
+        y = int(self.getByte(ram, 'ab'))
+        return x, y

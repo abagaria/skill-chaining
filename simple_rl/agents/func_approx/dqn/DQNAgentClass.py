@@ -26,7 +26,7 @@ from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
 from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
-from simple_rl.agents.func_approx.dqn.RandomNetworkDistillationClass import RND
+from simple_rl.agents.func_approx.dqn.RandomNetworkDistillationClass import RNDModel, RunningMeanStd
 
 
 ## Hyperparameters
@@ -63,8 +63,8 @@ class DQNAgent(Agent):
 
         # Q-Network
         if pixel_observation:
-            self.policy_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
-            self.target_network = ConvQNetwork(in_channels=6, n_actions=action_size).to(self.device)
+            self.policy_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
+            self.target_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
         else:
             self.policy_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
             self.target_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
@@ -83,7 +83,7 @@ class DQNAgent(Agent):
         elif exploration_method == "rnd":
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon)  # ConstantEpsilonSchedule(evaluation_epsilon)
             self.epsilon = eps_start
-            self.rnd = RND(state_dim, out_dim=64, n_hid=124, device=self.device)
+            self.rnd = RNDModel(device=device)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -258,7 +258,8 @@ class DQNAgent(Agent):
         states, actions, rewards, next_states, dones, steps = experiences
 
         if self.exploration_method == "rnd":
-            intrinsic_rewards = self.rnd.get_reward(states)
+            observations = states[:, -1, :, :].unsqueeze(1)
+            intrinsic_rewards = self.rnd(observations)
             self.rnd.update(intrinsic_rewards)
 
         # Get max predicted Q values (for next states) from target model
@@ -333,24 +334,67 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
-def train(agent, mdp, episodes, steps):
+def train(agent, mdp, episodes, steps, init_episodes=10):
     per_episode_scores = []
     last_10_scores = deque(maxlen=100)
     iteration_counter = 0
     state_ri_buffer = []
 
+    # Observation and reward normalization
+    reward_rms = RunningMeanStd()
+    obs_rms = RunningMeanStd(shape=(1, 84, 84))
+
+    # Initialize the RMS normalizers
+    for episode in range(init_episodes):
+        observation_buffer = []
+        mdp.reset()
+        init_observation = np.array(mdp.init_state.features())[-1, :, :]
+        assert init_observation.shape == (84, 84), init_observation.shape
+        observation_buffer.append(init_observation)
+        while True:
+            action = np.random.randint(0, overall_mdp.env.action_space.n)
+            r, state = mdp.execute_agent_action(action)
+            observation = np.array(state.features())[-1, :, :]
+            observation_buffer.append(observation)
+            if state.is_terminal():
+                break
+        observation_batch = np.stack(observation_buffer)
+        obs_rms.update(observation_batch)
+
     for episode in range(episodes):
         mdp.reset()
         state = deepcopy(mdp.init_state)
+
+        observation_buffer = []
+        intrinsic_reward_buffer = []
+
+        init_observation = np.array(mdp.init_state.features())[-1, :, :]
+        assert init_observation.shape == (84, 84), init_observation.shape
+        observation_buffer.append(init_observation)
+
         score = 0.
-        for step in range(steps):
+        while True:
             iteration_counter += 1
             action = agent.act(state.features(), train_mode=True)
             reward, next_state = mdp.execute_agent_action(action)
+
             if agent.exploration_method == "rnd":
-                intrinsic_reward = 10. * agent.rnd.get_single_reward(state.features())
-                state_ri_buffer.append((state, intrinsic_reward))
-                reward += intrinsic_reward
+                observation = np.array(state.features())[-1, :, :]
+                normalized_observation = ((observation - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5)
+                intrinsic_reward = agent.rnd.get_single_reward(normalized_observation)
+
+                observation_buffer.append(observation)
+                intrinsic_reward_buffer.append(intrinsic_reward)
+                normalized_intrinsic_reward = (intrinsic_reward - reward_rms.mean) / np.sqrt(reward_rms.var)
+
+                # Logging
+                player_position = mdp.get_player_position()
+                state_ri_buffer.append((player_position, normalized_intrinsic_reward))
+                reward += normalized_intrinsic_reward
+
+                if agent.tensor_log:
+                    agent.writer.add_scalar("Normalized Ri", normalized_intrinsic_reward, iteration_counter)
+
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), num_steps=1)
             agent.update_epsilon()
             state = next_state
@@ -359,6 +403,10 @@ def train(agent, mdp, episodes, steps):
                 agent.writer.add_scalar("Score", score, iteration_counter)
             if state.is_terminal():
                 break
+
+        reward_rms.update(np.stack(intrinsic_reward_buffer))
+        obs_rms.update(np.stack(observation_buffer))
+
         last_10_scores.append(score)
         per_episode_scores.append(score)
 
@@ -413,12 +461,13 @@ if __name__ == '__main__':
     parser.add_argument("--pixel_observation", type=bool, help="Images / Dense input", default=False)
     parser.add_argument("--exploration_method", type=str, default="eps-greedy")
     parser.add_argument("--eval_eps", type=float, default=0.05)
+    parser.add_argument("--tensor_log", type=bool, default=False)
     args = parser.parse_args()
 
     logdir = create_log_dir(args.experiment_name)
     learning_rate = 1e-3 # 0.00025 for pong
 
-    overall_mdp = GymMDP(env_name="MountainCar-v0", pixel_observation=args.pixel_observation, render=args.render,
+    overall_mdp = GymMDP(env_name="MontezumaRevengeNoFrameskip-v4", pixel_observation=args.pixel_observation, render=args.render,
                          clip_rewards=False, term_func=None, seed=args.seed)
     # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
 
@@ -427,7 +476,7 @@ if __name__ == '__main__':
 
     ddqn_agent = DQNAgent(state_size=state_dim, action_size=len(overall_mdp.actions),
                           trained_options=[], seed=args.seed, device=device,
-                          name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True,
+                          name="GlobalDDQN", lr=learning_rate, tensor_log=args.tensor_log, use_double_dqn=True,
                           exploration_method=args.exploration_method, pixel_observation=args.pixel_observation,
                           evaluation_epsilon=args.eval_eps)
     ddqn_episode_scores, s_ri_buffer = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
