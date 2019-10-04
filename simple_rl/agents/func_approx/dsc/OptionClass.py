@@ -9,17 +9,24 @@ from sklearn import svm
 from sklearn.covariance import EllipticEnvelope
 import itertools
 from scipy.spatial import distance
+import torch.nn as nn
+from torch import optim
+from tqdm import tqdm
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
+from simple_rl.agents.func_approx.dqn.model import ConvInitiationClassifier
+from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
+from simple_rl.tasks.gym.wrappers import LazyFrames
+
 
 class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2,
+				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2, pixel_observations=True,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -53,6 +60,13 @@ class Option(object):
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
+		self.device = device
+		self.pixel_observations = pixel_observations
+
+		# TODO: Get rid of this so that it can apply to both DQN and DDPG
+		self.lr_actor = lr_actor
+		self.lr_critic = lr_critic
+		self.batch_size = ddpg_batch_size
 
 		self.timeout = np.inf
 
@@ -75,9 +89,19 @@ class Option(object):
 		state_size = overall_mdp.state_space_size()
 		action_size = overall_mdp.action_space_size()
 
-		solver_name = "{}_ddpg_agent".format(self.name)
-		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
-		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=(writer is not None), writer=writer, name=solver_name)
+		if overall_mdp.is_action_space_discrete():
+			solver_name = "{}_ddqn_agent".format(self.name)
+			self.global_solver = DQNAgent(state_size, action_size, [], seed, device,
+										  name=solver_name, pixel_observation=pixel_observations) \
+				if name == "global_option" else global_solver
+			self.solver = DQNAgent(state_size, action_size, [], seed, device, tensor_log=(writer is not None),
+								   writer=writer, name=solver_name, pixel_observation=pixel_observations)
+		else:
+			solver_name = "{}_ddpg_agent".format(self.name)
+			self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
+										   name=solver_name) if name == "global_option" else global_solver
+			self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
+									tensor_log=(writer is not None), writer=writer, name=solver_name)
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -122,6 +146,24 @@ class Option(object):
 			return "initiation_done"
 		return "trained"
 
+	def initialize_with_global_dqn(self):
+		assert isinstance(self.solver, DQNAgent), self.solver
+		assert isinstance(self.global_solver, DQNAgent), self.global_solver
+
+		for my_param, global_param in zip(self.solver.policy_network.parameters(), self.global_solver.policy_network.parameters()):
+			my_param.data.copy_(global_param.data)
+		for my_param, global_param in zip(self.solver.target_network.parameters(), self.global_solver.target_network.parameters()):
+			my_param.data.copy_(global_param.data)
+
+		# # Not using off_policy_update() because we have numpy arrays not state objects here
+		# for state, action, reward, next_state, done, num_steps in self.global_solver.replay_buffer.memory:
+		# 	if self.is_init_true(state):
+		# 		if self.is_term_true(next_state):
+		# 			self.solver.step(state, action, self.subgoal_reward, next_state, True, num_steps)
+		# 		else:
+		# 			subgoal_reward = self.get_subgoal_reward(next_state)
+		# 			self.solver.step(state, action, subgoal_reward, next_state, done, num_steps)
+
 	def initialize_with_global_ddpg(self):
 		for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
 			my_param.data.copy_(global_param.data)
@@ -142,14 +184,39 @@ class Option(object):
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
+
+		# Lazy frame -> numpy array
+		if isinstance(state_matrix, LazyFrames):
+			state_matrix = np.array(state_matrix)
+
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
-		position_matrix = state_matrix[:, :2]
-		return self.initiation_classifier.predict(position_matrix) == 1
+
+		if self.pixel_observations:
+			images = state_matrix[:, -1, :, :]
+			tensor = torch.from_numpy(images).to(self.device)
+			predictions = self.initiation_classifier.predict(tensor)
+			return predictions.cpu().numpy() == 1
+		else:
+			position_matrix = state_matrix[:, :2]
+			return self.initiation_classifier.predict(position_matrix) == 1
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
+
+		if self.pixel_observations:
+			ground_state = ground_state.features() if isinstance(ground_state, State) else ground_state
+
+			# Lazy frame -> numpy array
+			if isinstance(ground_state, LazyFrames):
+				ground_state = np.array(ground_state)
+
+			image = ground_state[-1, :, :]  # (4, 84, 84) -> (84, 84)
+			tensor = torch.from_numpy(image).unsqueeze(0).to(self.device)
+			label = self.initiation_classifier.predict(tensor) == 1
+			return label
+
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		return self.initiation_classifier.predict([features])[0] == 1
 
@@ -166,8 +233,11 @@ class Option(object):
 		segmented_states = deepcopy(states)
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
-		segmented_positions = [segmented_state.position for segmented_state in segmented_states]
-		self.positive_examples.append(segmented_positions)
+		if self.pixel_observations:
+			examples = [np.array(segmented_state.features())[-1, :, :] for segmented_state in segmented_states]
+		else:
+			examples = [segmented_state.position for segmented_state in segmented_states]
+		self.positive_examples.append(examples)
 
 	def add_experience_buffer(self, experience_queue):
 		assert type(experience_queue) == list, "Expected initiation experience sample to be a list"
@@ -182,6 +252,19 @@ class Option(object):
 		states = list(itertools.chain.from_iterable(examples))
 		return np.array(states)
 
+	@staticmethod
+	def construct_image_feature_matrix(examples):
+		states = list(itertools.chain.from_iterable(examples))
+		state_matrix = np.array(states)  # (N, 84, 84)
+		return state_matrix
+
+	def construct_negative_data_for_one_class_classifier(self):
+		""" Randomly sample states from the global solver's replay buffer and assume they are negative examples. """
+		states = [np.array(experience.state)[-1, :, :] for experience in self.global_solver.replay_buffer.memory]
+		num_positive_examples = len(list(itertools.chain.from_iterable(self.positive_examples)))
+		sampled_states = random.sample(states, k=num_positive_examples)
+		return np.array(sampled_states)
+
 	def get_distances_to_goal(self, position_matrix):
 		if self.parent is None:
 			goal_position = self.overall_mdp.goal_position
@@ -190,16 +273,6 @@ class Option(object):
 		distances = -self.parent.initiation_classifier.decision_function(position_matrix)
 		distances[distances <= 0.] = 0.
 		return distances
-
-	@staticmethod
-	def distance_to_weights(distances):
-		weights = np.copy(distances)
-		for row in range(weights.shape[0]):
-			if weights[row] > 0.:
-				weights[row] = np.exp(-1. * weights[row])
-			else:
-				weights[row] = 1.
-		return weights
 
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
@@ -242,17 +315,101 @@ class Option(object):
 
 		self.classifier_type = "tcsvm"
 
+	def train_conv_image_classifier(self, loader, n_epochs):
+
+		# Model
+		loss_function = nn.BCEWithLogitsLoss().to(self.device)  # TODO: Add pos_weight to balance classes
+		initiation_classifier = ConvInitiationClassifier(device=self.device, seed=self.seed)
+		optimizer = optim.Adam(initiation_classifier.parameters())
+
+		initiation_classifier.train()
+
+		for epoch in range(n_epochs):
+
+			random.shuffle(loader)  # Shuffle data for iid
+			epoch_loss = []
+
+			for data, label in loader:
+				# Move the data to the GPU
+				classifier_input = torch.from_numpy(data).unsqueeze(0).to(self.device)
+				classifier_label = torch.FloatTensor([label]).unsqueeze(0).to(self.device)
+
+				optimizer.zero_grad()
+
+				logits = initiation_classifier(classifier_input)
+				loss = loss_function(logits, classifier_label)
+
+				loss.backward()
+				optimizer.step()
+
+				epoch_loss.append(loss.item())
+
+			print("Epoch {} \t Loss: {}".format(epoch, np.mean(epoch_loss)))
+
+		return initiation_classifier
+
+	def train_two_class_image_classifier(self, n_epochs=5):
+
+		# Data
+		positive_feature_matrix = self.construct_image_feature_matrix(self.positive_examples)
+		negative_feature_matrix = self.construct_image_feature_matrix(self.negative_examples)
+		positive_labels = [1] * positive_feature_matrix.shape[0]
+		negative_labels = [0] * negative_feature_matrix.shape[0]
+
+		def prepare_data(pos_data, neg_data, pos_labels, neg_labels):
+			training_data = []
+			for pos_datum, pos_label in zip(pos_data, pos_labels):
+				training_data.append((pos_datum, pos_label))
+			for neg_datum, neg_label in zip(neg_data, neg_labels):
+				training_data.append((neg_datum, neg_label))
+			return training_data
+
+		loader = prepare_data(positive_feature_matrix, negative_feature_matrix, positive_labels, negative_labels)
+
+		print("\rTraining 2-class Binary Convolutional Classifier...")
+		self.initiation_classifier = self.train_conv_image_classifier(loader, n_epochs)
+		self.classifier_type = "tcbcn"
+
+	def train_one_class_image_classifier(self, n_epochs=5):
+
+		# Data
+		positive_feature_matrix = self.construct_image_feature_matrix(self.positive_examples)
+		negative_feature_matrix = self.construct_negative_data_for_one_class_classifier()
+		positive_labels = [1] * positive_feature_matrix.shape[0]
+		negative_labels = [0] * negative_feature_matrix.shape[0]
+
+		def prepare_data(pos_data, neg_data, pos_labels, neg_labels):
+			training_data = []
+			for pos_datum, pos_label in zip(pos_data, pos_labels):
+				training_data.append((pos_datum, pos_label))
+			for neg_datum, neg_label in zip(neg_data, neg_labels):
+				training_data.append((neg_datum, neg_label))
+			return training_data
+
+		loader = prepare_data(positive_feature_matrix, negative_feature_matrix, positive_labels, negative_labels)
+
+		print("\rTraining 1-class Binary Convolutional Classifier")
+		self.initiation_classifier = self.train_conv_image_classifier(loader, n_epochs)
+		self.classifier_type = "ocbcn"
+
 	def train_initiation_classifier(self):
 		if self.classifier_type == "ocsvm":
 			self.train_one_class_svm()
 		elif self.classifier_type == "elliptic":
 			self.train_elliptic_envelope_classifier()
+		elif self.classifier_type == "ocbcn":
+			self.train_one_class_image_classifier()
+		elif self.classifier_type == "tcbcn":
+			self.train_two_class_image_classifier()
 		else:
 			raise NotImplementedError("{} not supported".format(self.classifier_type))
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		self.initialize_with_global_ddpg()
+		if self.overall_mdp.is_action_space_discrete():
+			self.initialize_with_global_dqn()
+		else:
+			self.initialize_with_global_ddpg()
 
 		self.solver.epsilon = self.global_solver.epsilon
 
@@ -366,13 +523,17 @@ class Option(object):
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
-				action = self.solver.act(state.features(), evaluation_mode=False)
-				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
+				if isinstance(self.solver, DDPGAgent):
+					action = self.solver.act(state.features(), evaluation_mode=False)
+				else:
+					action = self.solver.act(state.features(), train_mode=True)
+
+				reward, next_state = mdp.execute_agent_action(action)
 
 				self.update_option_solver(state, action, reward, next_state)
 
 				# Note: We are not using the option augmented subgoal reward while making off-policy updates to global DQN
-				assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
+				# assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
 
 				if self.name != "global_option":
 					self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
@@ -409,11 +570,11 @@ class Option(object):
 										 outer_step_number):
 		if self.is_term_true(final_state):  # success
 			positive_states = [start_state] + visited_states[-self.buffer_length:]
-			positive_examples = [state.position for state in positive_states]
+			positive_examples = [np.array(state.features())[-1, :, :] for state in positive_states]
 			self.positive_examples.append(positive_examples)
 
 		elif num_steps == self.timeout:
-			negative_examples = [start_state.position]
+			negative_examples = [np.array(start_state.features())[-1, :, :]]
 			self.negative_examples.append(negative_examples)
 		else:
 			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
@@ -421,7 +582,10 @@ class Option(object):
 
 		# Refine the initiation set classifier
 		if len(self.negative_examples) > 0:
-			self.train_two_class_classifier()
+			if self.pixel_observations:
+				self.train_two_class_image_classifier()
+			else:
+				self.train_two_class_classifier()
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state
@@ -432,8 +596,11 @@ class Option(object):
 		while not self.is_term_true(state) and not state.is_terminal()\
 				and step_number < self.max_steps and num_steps < self.timeout:
 			state_option_trajectory.append((self.option_idx, deepcopy(state)))
-			action = self.solver.act(state.features(), evaluation_mode=True)
-			reward, state = mdp.execute_agent_action(action, option_idx=self.option_idx)
+			if isinstance(self.solver, DDPGAgent):
+				action = self.solver.act(state.features(), evaluation_mode=True)
+			else:
+				action = self.solver.act(state.features(), train_mode=False)
+			reward, state = mdp.execute_agent_action(action)
 			score += reward
 			step_number += 1
 			num_steps += 1

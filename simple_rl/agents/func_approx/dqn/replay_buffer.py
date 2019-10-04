@@ -27,6 +27,7 @@ class ReplayBuffer:
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
         self.seed = random.seed(seed)
+        np.random.seed(seed)
         self.device = device
         self.pixel_observation = pixel_observation
 

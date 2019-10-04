@@ -104,7 +104,8 @@ class SkillChaining(object):
 		# options, this agent will predict Q-values for them as well
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
-										   use_double_dqn=True, writer=self.writer, device=self.device)
+										   use_double_dqn=True, writer=self.writer, device=self.device,
+										   pixel_observation=True)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -128,9 +129,9 @@ class SkillChaining(object):
 
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
-									  lr_actor=parent_option.solver.actor_learning_rate,
-									  lr_critic=parent_option.solver.critic_learning_rate,
-									  ddpg_batch_size=parent_option.solver.batch_size,
+									  lr_actor=parent_option.lr_actor,
+									  lr_critic=parent_option.lr_critic,
+									  ddpg_batch_size=parent_option.batch_size,
 									  subgoal_reward=self.subgoal_reward,
 									  buffer_length=self.buffer_length,
 									  classifier_type=self.classifier_type,
@@ -187,7 +188,7 @@ class SkillChaining(object):
 		state_option_pairs = newly_trained_option.final_transitions
 		q_values = []
 		for state, option_idx in state_option_pairs:
-			q_value = global_solver.get_qvalue(state.features(), option_idx)
+			q_value = global_solver.get_qvalue(np.array(state.features()), option_idx)
 			q_values.append(q_value)
 		return np.max(q_values)
 
@@ -211,13 +212,13 @@ class SkillChaining(object):
 									tensor_log=self.agent_over_options.tensor_log,
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
-									writer=self.writer, device=self.device)
+									writer=self.writer, device=self.device, pixel_observation=True)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
 		print("Initializing new option node with q value {}".format(init_q))
-		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q)
-		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q)
+		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network)
+		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network)
 
 		self.agent_over_options = new_global_agent
 
@@ -271,7 +272,7 @@ class SkillChaining(object):
 		episode_option_executions[selected_option.name] += 1
 		self.option_rewards[selected_option.name].append(discounted_reward)
 
-		sampled_q_value = self.sample_qvalue(selected_option)
+		sampled_q_value = 0  # self.sample_qvalue(selected_option)
 		self.option_qvalues[selected_option.name].append(sampled_q_value)
 		if self.writer is not None:
 			self.writer.add_scalar("{}_q_value".format(selected_option.name),
@@ -290,7 +291,10 @@ class SkillChaining(object):
 
 	@staticmethod
 	def get_next_state_from_experiences(experiences):
-		return experiences[-1][-1]
+		try:
+			return experiences[-1][-1]
+		except:
+			pdb.set_trace()
 
 	@staticmethod
 	def get_reward_from_experiences(experiences):
@@ -346,13 +350,16 @@ class SkillChaining(object):
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
-						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+
+						# TODO: Write visualization function for image based initiation classifier
+						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option
 
-				if state.is_terminal():
+				game_over = self.mdp.game_over if hasattr(self.mdp, "game_over") else False
+				if state.is_terminal() or game_over:
 					break
 
 			last_10_scores.append(score)
@@ -379,7 +386,7 @@ class SkillChaining(object):
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		if episode > 0 and episode % 100 == 0:
-			eval_score = self.trained_forward_pass(render=False)
+			eval_score, _ = self.trained_forward_pass(render=False)
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
@@ -451,8 +458,9 @@ class SkillChaining(object):
 		self.mdp.render = render
 		num_steps = 0
 		option_trajectories = []
+		game_over = False
 
-		while not state.is_terminal() and num_steps < self.max_steps:
+		while not state.is_terminal() and num_steps < self.max_steps and game_over == False:
 			selected_option = self.act(state)
 
 			option_reward, next_state, num_steps, option_state_trajectory = selected_option.trained_option_execution(self.mdp, num_steps)
@@ -462,6 +470,8 @@ class SkillChaining(object):
 			option_trajectories.append(option_state_trajectory)
 
 			state = next_state
+
+			game_over = self.mdp.game_over if hasattr(self.mdp, "game_over") else False
 
 		return overall_reward, option_trajectories
 
@@ -520,9 +530,9 @@ if __name__ == '__main__':
 		action_dim = 2
 	else:
 		from simple_rl.tasks.gym.GymMDPClass import GymMDP
-		overall_mdp = GymMDP(args.env, render=args.render)
-		state_dim = overall_mdp.env.observation_space.shape[0]
-		action_dim = overall_mdp.env.action_space.shape[0]
+		overall_mdp = GymMDP(args.env, render=args.render, pixel_observation=True)
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
 		overall_mdp.env.seed(args.seed)
 
 	# Create folders for saving various things
@@ -532,6 +542,10 @@ if __name__ == '__main__':
 	create_log_dir("initiation_set_plots")
 	create_log_dir("value_function_plots/{}".format(args.experiment_name))
 	create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
+	create_log_dir("initiation_set_plots/{}/{}".format(args.experiment_name, args.seed))
+	create_log_dir("initiation_set_plots/{}/{}/positive_examples".format(args.experiment_name, args.seed))
+	create_log_dir("initiation_set_plots/{}/{}/negative_examples".format(args.experiment_name, args.seed))
+	create_log_dir("initiation_set_plots/{}/{}/term_states".format(args.experiment_name, args.seed))
 
 	print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
 	print("MDP InitState = ", overall_mdp.init_state)
@@ -541,11 +555,12 @@ if __name__ == '__main__':
 	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
+							classifier_type=args.classifier_type,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
-	chainer.save_all_models()
-	chainer.perform_experiments()
+	# chainer.save_all_models()
+	# chainer.perform_experiments()
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)

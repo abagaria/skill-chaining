@@ -249,6 +249,28 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
 	plt.close()
 
+def save_initiation_examples_to_disk(option, experiment_name, seed):
+	def save_examples(examples, dir_name):
+		num_frames = 0
+		for trajectory in examples:
+			for obs in trajectory:  # type: np.ndarray
+				num_frames += 1
+				img = Image.fromarray(obs)
+				img.save("initiation_set_plots/{}/{}/{}/{}_frame{}.png".format(experiment_name, seed, dir_name,
+																			   option.name, num_frames))
+	save_examples(option.positive_examples, "positive_examples")
+	save_examples(option.negative_examples, "negative_examples")
+
+def save_samples_from_option_terminal_states(option, experiment_name, seed):
+	terms = [experience.next_state for experience in option.solver.replay_buffer.memory if experience.done == 1]
+
+	num_frames = 0
+	for stacked_obs in terms:  # type: np.ndarray
+		num_frames += 1
+		obs = np.array(stacked_obs)[-1, :, :]  # Last lazy frame
+		img = Image.fromarray(obs)
+		img.save("initiation_set_plots/{}/{}/term_states/{}_frame{}.png".format(experiment_name, seed,
+																				option.name, num_frames))
 
 def replay_trajectory(trajectory, dir_name):
 	colors = ["0 0 0 1", "0 0 1 1", "0 1 0 1", "1 0 0 1", "1 1 0 1", "1 1 1 1", "1 0 1 1", ""]

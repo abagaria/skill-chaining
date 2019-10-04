@@ -43,7 +43,7 @@ class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
-                 eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
+                 eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-greedy",
                  pixel_observation=False, writer=None):
         self.state_size = state_size
@@ -58,6 +58,7 @@ class DQNAgent(Agent):
         self.exploration_method = exploration_method
         self.pixel_observation = pixel_observation
         self.seed = random.seed(seed)
+        np.random.seed(seed)
         self.tensor_log = tensor_log
         self.device = device
 
@@ -214,7 +215,7 @@ class DQNAgent(Agent):
                 try:
                     inits = option.batched_is_init_true(states)
                     terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
-                    action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
+                    action_values[(inits.squeeze() != 1) | (terms.squeeze() == 1), idx] = np.min(action_values) - 1.
                 except:
                     pdb.set_trace()
 
@@ -223,7 +224,7 @@ class DQNAgent(Agent):
 
         return action_values
 
-    def step(self, state, action, reward, next_state, done, num_steps):
+    def step(self, state, action, reward, next_state, done, num_steps=1):
         """
         Interface method to perform 1 step of learning/optimization during training.
         Args:
@@ -345,21 +346,22 @@ def train(agent, mdp, episodes, steps, init_episodes=10):
     obs_rms = RunningMeanStd(shape=(1, 84, 84))
 
     # Initialize the RMS normalizers
-    for episode in range(init_episodes):
-        observation_buffer = []
-        mdp.reset()
-        init_observation = np.array(mdp.init_state.features())[-1, :, :]
-        assert init_observation.shape == (84, 84), init_observation.shape
-        observation_buffer.append(init_observation)
-        while True:
-            action = np.random.randint(0, overall_mdp.env.action_space.n)
-            r, state = mdp.execute_agent_action(action)
-            observation = np.array(state.features())[-1, :, :]
-            observation_buffer.append(observation)
-            if state.is_terminal():
-                break
-        observation_batch = np.stack(observation_buffer)
-        obs_rms.update(observation_batch)
+    if agent.exploration_method == "rnd":
+        for episode in range(init_episodes):
+            observation_buffer = []
+            mdp.reset()
+            init_observation = np.array(mdp.init_state.features())[-1, :, :]
+            assert init_observation.shape == (84, 84), init_observation.shape
+            observation_buffer.append(init_observation)
+            while True:
+                action = np.random.randint(0, overall_mdp.env.action_space.n)
+                r, state = mdp.execute_agent_action(action)
+                observation = np.array(state.features())[-1, :, :]
+                observation_buffer.append(observation)
+                if state.is_terminal():
+                    break
+            observation_batch = np.stack(observation_buffer)
+            obs_rms.update(observation_batch)
 
     for episode in range(episodes):
         mdp.reset()
@@ -401,11 +403,14 @@ def train(agent, mdp, episodes, steps, init_episodes=10):
             score += reward
             if agent.tensor_log:
                 agent.writer.add_scalar("Score", score, iteration_counter)
-            if state.is_terminal():
+
+            game_over = mdp.game_over if hasattr(mdp, 'game_over') else False
+            if state.is_terminal() or game_over:
                 break
 
-        reward_rms.update(np.stack(intrinsic_reward_buffer))
-        obs_rms.update(np.stack(observation_buffer))
+        if agent.exploration_method == "rnd":
+            reward_rms.update(np.stack(intrinsic_reward_buffer))
+            obs_rms.update(np.stack(observation_buffer))
 
         last_10_scores.append(score)
         per_episode_scores.append(score)
