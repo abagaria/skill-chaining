@@ -53,9 +53,9 @@ class PointMazeMDP(MDP):
         """ Convert np obs array from gym into a State object. """
         obs = np.copy(observation)
         position = obs[:2]
-        theta = obs[2]
+        theta = obs[2] / 180.0 # This is to normalize the variance as theta takes -180 to 180.
         velocity = obs[3:5]
-        theta_dot = obs[5]
+        theta_dot = obs[5] / 180.0
         # Ignoring obs[6] which corresponds to time elapsed in seconds
         state = PointMazeState(position, theta, velocity, theta_dot, done)
         return state

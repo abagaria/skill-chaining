@@ -16,6 +16,7 @@ faulthandler.enable()
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
+from simple_rl.agents.RandomAgentClass import RandomContAgent
 
 class Option(object):
 
@@ -78,7 +79,11 @@ class Option(object):
                 action_size = overall_mdp.action_space_size()
 
                 solver_name = "{}_ddpg_agent".format(self.name)
-                self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
+
+                self.global_solver = RandomContAgent(action_size, (-np.ones(action_size), np.ones(action_size)), name=solver_name) if name == "global_option" else global_solver
+                # self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
+
+                
                 self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=(writer is not None), writer=writer, name=solver_name)
 
                 # Attributes related to initiation set classifiers
@@ -206,9 +211,9 @@ class Option(object):
         def train_one_class_svm(self):
                 assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
                 positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-
                 # Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-                self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+                self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1)
+                # self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
                 self.initiation_classifier.fit(positive_feature_matrix)
 
         def train_elliptic_envelope_classifier(self):

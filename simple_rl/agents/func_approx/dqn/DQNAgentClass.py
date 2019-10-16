@@ -310,7 +310,8 @@ class DQNAgent(Agent):
                     inits = option.batched_is_init_true(states)
                     terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
                     action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
-                except:
+                except Exception as e:
+                    print("ERROR: ", e)
                     pdb.set_trace()
 
             # Move the q-values back the GPU

@@ -60,7 +60,7 @@ class MDP(object):
     # -- Core --
     # ----------
 
-    def execute_agent_action(self, action):
+    def execute_agent_action(self, action, option_idx=None):
         '''
         Args:
             action (str)
@@ -77,6 +77,10 @@ class MDP(object):
         self.cur_state = next_state
 
         return reward, next_state
+
+    @staticmethod
+    def is_primitive_action(action):
+        return True
 
     def reset(self):
         self.cur_state = copy.deepcopy(self.init_state)

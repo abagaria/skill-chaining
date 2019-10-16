@@ -12,7 +12,7 @@ from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 class PointEnvMDP(MDP):
     def __init__(self, init_mean=(-0.2, -0.2), control_cost=False, dense_reward=False, render=False):
-        xml = os.path.join(os.path.expanduser("~"), "git-repos/dm_control/dm_control/suite/point_mass.xml")
+        xml = os.path.join(os.path.expanduser("~"), 'workspace/deep-skill-chaining/simple_rl/tasks/point_maze/environments/assets/point.xml')
         model = load_model_from_path(xml)
         self.sim = MjSim(model)
         self.render = render

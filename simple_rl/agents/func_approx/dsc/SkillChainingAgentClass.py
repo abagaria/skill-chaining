@@ -63,7 +63,12 @@ class SkillChaining(object):
                 self.device = torch.device(device)
                 self.max_num_options = max_num_options
                 self.classifier_type = classifier_type
-                self.dense_reward = mdp.dense_reward
+
+                # If dense_reward is set to false, then it incurs a step cost of -1.
+                if hasattr(mdp, 'dense_reward'):
+                        self.dense_reward = mdp.dense_reward
+                else:
+                        self.dense_reward = False
 
                 tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
                 self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -340,8 +345,12 @@ class SkillChaining(object):
 
                         if (covering_options_freq > 0) and (episode > 0) and (episode == covering_options_freq):
                                 print('GENERATE SUBGOAL')
-                                replay_buffer = self.global_option.solver.replay_buffer
-                                c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), option_idx=len(self.trained_options) - 1) # TODO: Set option index appropriately.
+                                replay_buffer = self.agent_over_options.replay_buffer
+                                c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=args.feature, num_training_steps=args.eigen_training_steps, option_idx=len(self.trained_options) - 1, name="covering-options-" + str(len(self.trained_options))) # TODO: Set option index appropriately.
+
+                                plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer, experiment_name=args.experiment_name)
+                                # plot_covering_options(c_option, replay_buffer=self.agent_over_options.replay_buffer, experiment_name=args.experiment_name)
+                                # plot_two_class_classifier(c_option, episode, args.experiment_name)
                                 new_option = self.create_child_option(c_option)
                                 self.untrained_option = new_option
                         
@@ -375,6 +384,7 @@ class SkillChaining(object):
                                                 uo_episode_terminated = True
                                                 if self.untrained_option.train(experience_buffer, state_buffer):
                                                         plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+                                                        
                                                         self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
                                                         if self.should_create_more_options():
                                                                 new_option = self.create_child_option(self.untrained_option)
@@ -531,6 +541,8 @@ if __name__ == '__main__':
         parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 
         parser.add_argument("--covering_options_freq", type=int, help="number of episodes to generate covering options")
+        parser.add_argument("--eigen_training_steps", type=int, default=100, help="number of episodes to generate covering options")
+        parser.add_argument("--feature", type=str, default=None)
         args = parser.parse_args()
 
         if "reacher" in args.env.lower():
@@ -552,6 +564,8 @@ if __name__ == '__main__':
                 from simple_rl.tasks.gym.GymMDPClass import GymMDP
                 overall_mdp = GymMDP(args.env, render=args.render)
                 state_dim = overall_mdp.env.observation_space.shape[0]
+
+                # TODO: The code is implemented only for continuous action domain
                 action_dim = overall_mdp.env.action_space.shape[0]
                 overall_mdp.env.seed(args.seed)
 

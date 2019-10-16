@@ -38,7 +38,13 @@ class GymMDP(MDP):
         self.env_name = env_name
         self.env = NormalizedEnv(gym.make(env_name))
         self.render = render
-        MDP.__init__(self, range(self.env.action_space.shape[0]), self._transition_func, self._reward_func, init_state=GymState(self.env.reset()))
+
+        if self.env.action_space.shape == ():
+            # If the action space is discrete
+            MDP.__init__(self, self.env.action_space, self._transition_func, self._reward_func, init_state=GymState(self.env.reset()))
+        else:
+            # action space is continuous
+            MDP.__init__(self, range(self.env.action_space.shape[0]), self._transition_func, self._reward_func, init_state=GymState(self.env.reset()))
 
     def _reward_func(self, state, action):
         '''
@@ -68,6 +74,16 @@ class GymMDP(MDP):
             (State)
         '''
         return self.next_state
+
+    # These functions are required for Skill Chaining.
+    def state_space_size(self):
+        return self.env.observation_space.shape[0]
+    
+    def action_space_size(self):
+        return self.env.action_space.shape[0]
+
+    def is_goal_state(self, state):
+        return state.is_terminal()
 
     def reset(self):
         self.env.reset()
