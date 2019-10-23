@@ -38,8 +38,9 @@ class GymMDP(MDP):
         self.render = render
 
         init_obs = self.env.reset()
+        action_dim = range(self.env.action_space.n) if hasattr(self.env.action_space, "n") else self.env.action_space.shape[0]
 
-        MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func,
+        MDP.__init__(self, action_dim, self._transition_func, self._reward_func,
                      init_state=GymState(init_obs))
 
     def _reward_func(self, state, action):

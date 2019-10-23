@@ -15,7 +15,7 @@ class GridWorldState(State):
         return hash(tuple(self.data))
 
     def __str__(self):
-        return "s: (" + str(self.x) + "," + str(self.y) + ")"
+        return "s: (" + str(self.x) + "," + str(self.y) + ")" + "\t" + "Terminal: {}".format(self.is_terminal())
 
     def __repr__(self):
         return self.__str__()

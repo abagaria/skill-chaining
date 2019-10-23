@@ -11,6 +11,7 @@ import os
 import time
 import argparse
 import pickle
+from numpy import array, array_equal, allclose
 
 import torch.optim as optim
 
@@ -18,6 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
+from sklearn import svm
 
 from simple_rl.agents.AgentClass import Agent
 from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
@@ -26,12 +28,14 @@ from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
 from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
+from simple_rl.tasks.four_room.FourRoomMDPClass import FourRoomMDP
+from simple_rl.tasks.grid_world.GridWorldMDPClass import GridWorldMDP
 from simple_rl.agents.func_approx.dqn.RandomNetworkDistillationClass import RND
 
 
 ## Hyperparameters
 BUFFER_SIZE = int(1e6)  # replay buffer size
-BATCH_SIZE = 32  # minibatch size
+BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
 LR = 1e-4  # learning rate
@@ -45,7 +49,7 @@ class DQNAgent(Agent):
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-greedy",
-                 pixel_observation=False, writer=None):
+                 novelty_detection_method="oracle", pixel_observation=False, writer=None):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -56,6 +60,7 @@ class DQNAgent(Agent):
         self.gradient_clip = gradient_clip
         self.evaluation_epsilon = evaluation_epsilon
         self.exploration_method = exploration_method
+        self.novelty_detection_method = novelty_detection_method
         self.pixel_observation = pixel_observation
         self.seed = random.seed(seed)
         self.tensor_log = tensor_log
@@ -80,13 +85,32 @@ class DQNAgent(Agent):
         if exploration_method == "eps-greedy":
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
             self.epsilon = eps_start
+        elif exploration_method == "const-eps-greedy":
+            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
+            self.epsilon = evaluation_epsilon
         elif exploration_method == "rnd":
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon)  # ConstantEpsilonSchedule(evaluation_epsilon)
             self.epsilon = eps_start
             self.rnd = RND(state_dim, out_dim=64, n_hid=124, device=self.device)
+        elif exploration_method == "rmax":
+            self.visited_states = set()
+            self.visited_state_action_pairs = set()
+            self.one_class_classifier = None
+            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
+            self.epsilon = evaluation_epsilon
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
+        if overall_mdp.env_name == "MountainCar-v0":
+            assert isinstance(overall_mdp, GymMDP)
+            x_low = overall_mdp.env.observation_space.low[0]
+            x_high = overall_mdp.env.observation_space.high[0]
+            x_dot_low = overall_mdp.env.observation_space.low[1]
+            x_dot_high = overall_mdp.env.observation_space.high[1]
+            self.state_space = self.get_mountain_car_state_space(x_low, x_high, x_dot_low, x_dot_high)
+        else:
+            assert isinstance(overall_mdp, FourRoomMDP)
+            self.state_space = self.get_state_space()
         self.num_executions = 0 # Number of times act() is called (used for eps-decay)
 
         # Debugging attributes
@@ -237,6 +261,17 @@ class DQNAgent(Agent):
         # Save experience in replay memory
         self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
+        if self.exploration_method == "rmax":
+            # self.visited_states.add((state[0], state[1]))  # Adding the x, y position
+            if overall_mdp.env_name == "MountainCar-v0":
+                # x = np.round(state[0], 1)
+                # xdot = np.round(state[1], 2)
+                x = state[0]
+                xdot = state[1]
+                self.visited_state_action_pairs.add((x, xdot, action))
+            else:
+                self.visited_state_action_pairs.add((state[0], state[1], action))  # Adding x, y position and action
+
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
@@ -244,6 +279,15 @@ class DQNAgent(Agent):
             if len(self.replay_buffer) > BATCH_SIZE:
                 experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
                 self._learn(experiences, GAMMA)
+
+                # if self.exploration_method == "rmax":
+                #     self._rmax_learn()
+
+                # Ablation: Make sure the difference in performance between epsilon greedy and
+                # R-Max is not because we are taking 2 gradient steps every time-step in R-Max.
+                # if self.exploration_method == "const-eps-greedy" or self.exploration_method == "eps-greedy":
+                #     self._learn(experiences, GAMMA)
+
                 if self.tensor_log:
                     self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
                 self.num_updates += 1
@@ -287,6 +331,18 @@ class DQNAgent(Agent):
         # Get expected Q values from local model
         Q_expected = self.policy_network(states).gather(1, actions)
 
+        if self.exploration_method == "rmax" and ((self.novelty_detection_method == "ocsvm"
+                                                   and self.one_class_classifier is not None)
+                                                   or self.novelty_detection_method == "oracle"):
+            novel_states, novel_actions = self.get_novel_state_action_pairs()
+            novel_states = torch.from_numpy(novel_states).float().to(self.device)
+            novel_actions = torch.from_numpy(novel_actions).to(self.device).unsqueeze(1)
+            novel_Q_expected = self.policy_network(novel_states).gather(1, novel_actions)
+            novel_Q_targets = torch.zeros_like(novel_Q_expected).to(self.device)
+
+            Q_expected = torch.cat((Q_expected, novel_Q_expected), dim=0)
+            Q_targets = torch.cat((Q_targets, novel_Q_targets), dim=0)
+
         # Compute loss
         if self.loss_function == "huber":
             loss = F.smooth_l1_loss(Q_expected, Q_targets)
@@ -306,6 +362,9 @@ class DQNAgent(Agent):
 
         self.optimizer.step()
 
+        # if self.exploration_method == "rmax":
+        #     self._rmax_iid_learn(states)
+
         if self.tensor_log:
             self.writer.add_scalar("DQN-Loss", loss.item(), self.num_updates)
             self.writer.add_scalar("DQN-AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
@@ -314,6 +373,53 @@ class DQNAgent(Agent):
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)
+
+    def _rmax_learn(self):
+        novel_states = self.get_novel_states()  # type: np.ndarray
+        if len(novel_states.shape) == 0:
+            print("\r Have seen every state at least once! ")
+        novel_states = torch.from_numpy(novel_states).float().to(self.device)
+        predicted_values = torch.max(self.policy_network(novel_states), dim=1)[0]
+        target_values = torch.ones(novel_states.shape[0]).to(self.device)
+
+        if self.loss_function == "huber":
+            loss = F.smooth_l1_loss(predicted_values, target_values)
+        elif self.loss_function == "mse":
+            loss = F.mse_loss(predicted_values, target_values)
+        else:
+            raise NotImplementedError("{} loss function type not implemented".format(self.loss_function))
+
+        # Minimize the loss
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+    def _rmax_iid_learn(self, non_novel_states):
+        novel_states = self.get_novel_states()  # type: np.ndarray
+        novel_states = torch.from_numpy(novel_states).float().to(self.device)
+
+        # For novel states, the value target is r-max
+        predicted_values = torch.max(self.policy_network(novel_states), dim=1)[0]
+        target_values = torch.ones(novel_states.shape[0]).to(self.device)
+
+        # For non-novel states, the value target is determined by the target network
+        non_novel_value_predictions = torch.max(self.policy_network(non_novel_states), dim=1)[0]
+        non_novel_value_targets = torch.max(self.target_network(non_novel_states), dim=1)[0]
+
+        values = torch.cat((predicted_values, non_novel_value_predictions), dim=0)
+        targets = torch.cat((target_values, non_novel_value_targets), dim=0)
+
+        if self.loss_function == "huber":
+            loss = F.smooth_l1_loss(values, targets)
+        elif self.loss_function == "mse":
+            loss = F.mse_loss(values, targets)
+        else:
+            raise NotImplementedError("{} loss function type not implemented".format(self.loss_function))
+
+        # Minimize the loss
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
     def soft_update(self, local_model, target_model, tau):
         """
@@ -333,11 +439,91 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
+    def get_novel_states(self):
+        state_array = self.state_space
+        novel_states = []
+        for state in state_array:  # type: tuple
+            novelty = state not in self.visited_states
+            if novelty:
+                novel_states.append(state)
+        return np.array(novel_states)
+
+    # TODO: This is written specifically for FourRooms domain
+    def get_state_space(self):
+        states = []
+        for x in range(1, overall_mdp.width + 1):
+            for y in range(1, overall_mdp.height + 1):
+                if (x, y) not in overall_mdp.walls:
+                    states.append([x, y])
+        return np.array(states)
+
+    def get_mountain_car_state_space(self, x_low, x_high, x_dot_low, x_dot_high):
+        states = []
+        for x in np.arange(x_low, x_high, 0.01):
+            for x_dot in np.arange(x_dot_low, x_dot_high, 0.01):
+                states.append([np.round(x, 1), np.round(x_dot, 2)])
+        return np.array(states)
+
+    def get_novel_state_action_pairs(self, batch_size=BATCH_SIZE):
+        """ Novelty oracle. """
+        state_array = self.state_space
+        np.random.shuffle(state_array)
+        novel_states, novel_actions = [], []
+        for state in state_array:
+            for action in self.actions:
+                s_a_pair = (state[0], state[1], action)
+                if self.novelty_detection_method == "oracle":
+                    novelty = s_a_pair not in self.visited_state_action_pairs
+                elif self.novelty_detection_method == "ocsvm":
+                    novelty = self.one_class_classifier.predict(np.array(s_a_pair).reshape(1, -1)) != 1
+                    # oracle_novelty = s_a_pair not in self.visited_state_action_pairs
+                else:
+                    raise NotImplementedError(self.novelty_detection_method)
+
+                if novelty:
+                    novel_states.append(state)
+                    novel_actions.append(action)
+
+                assert len(novel_states) == len(novel_actions)
+
+                if len(novel_states) == batch_size:
+                    return np.array(novel_states), np.array(novel_actions)
+
+        # In case we did not collect batch_size number of novel s, a pairs
+        return np.array(novel_states), np.array(novel_actions)
+
+    def get_classification_errors(self):
+        """ When training OC-SVM, compute false positive and false negative rates during training. """
+        state_array = self.state_space
+        np.random.shuffle(state_array)
+
+        # False negative and false positive (s, a) pairs
+        missed_novelty, false_positives = [], []
+
+        for state in state_array:
+            for action in self.actions:
+                s_a_pair = (state[0], state[1], action)
+                novelty = self.one_class_classifier.predict(np.array(s_a_pair).reshape(1, -1)) != 1
+                oracle_novelty = s_a_pair not in self.visited_state_action_pairs
+                if oracle_novelty and not novelty:
+                    missed_novelty.append(s_a_pair)
+                if novelty and not oracle_novelty:
+                    false_positives.append(s_a_pair)
+
+        return missed_novelty, false_positives
+
+    def train_novelty_detector(self):
+        state_action_matrix = np.array(list(self.visited_state_action_pairs))
+
+        self.one_class_classifier = svm.OneClassSVM(kernel="rbf", gamma="scale", nu=args.nu)
+        self.one_class_classifier.fit(state_action_matrix)
+
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
     last_10_scores = deque(maxlen=100)
     iteration_counter = 0
     state_ri_buffer = []
+    false_positive_rates, false_negative_rates = [], []
 
     for episode in range(episodes):
         mdp.reset()
@@ -346,7 +532,7 @@ def train(agent, mdp, episodes, steps):
         for step in range(steps):
             iteration_counter += 1
             action = agent.act(state.features(), train_mode=True)
-            reward, next_state = mdp.execute_agent_action(action)
+            reward, next_state = mdp.execute_agent_action(mdp.actions[action])
             if agent.exploration_method == "rnd":
                 intrinsic_reward = 10. * agent.rnd.get_single_reward(state.features())
                 state_ri_buffer.append((state, intrinsic_reward))
@@ -362,10 +548,45 @@ def train(agent, mdp, episodes, steps):
         last_10_scores.append(score)
         per_episode_scores.append(score)
 
-        print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
+        # After every episode, we fit our novelty detector on the (s, a) pairs seen so far
+        ddqn_agent.train_novelty_detector()
+
+        # Compute the false positive and false negative rates
+        num_state_action_pairs = len(ddqn_agent.state_space) * len(ddqn_agent.actions)
+        false_negatives, false_positives = [0], [0] #ddqn_agent.get_classification_errors()
+        fn_rate = len(false_negatives) / num_state_action_pairs
+        fp_rate = len(false_positives) / num_state_action_pairs
+        false_negative_rates.append(fn_rate)
+        false_positive_rates.append(fp_rate)
+
+        print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tFN Rate: {:.2f}\tFP Rate: {:.2f}'.format(episode, np.mean(last_10_scores),
+                                                                                                              agent.epsilon, fn_rate, fp_rate), end="")
         if episode % 100 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
+            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tFN Rate: {:.2f}\tFP Rate: {:.2f}'.format(episode, np.mean(last_10_scores),
+                                                                                                                  agent.epsilon, fn_rate, fp_rate))
+        if episode % 25 == 0:
+            visualize_value_function(agent, args.experiment_name, episode, args.seed)
     return per_episode_scores, state_ri_buffer
+
+
+def visualize_value_function(agent, experiment_name, episode, seed):
+    states = agent.state_space  # numpy array of shape |S| x 2
+    ddqn_agent.policy_network.eval()
+    with torch.no_grad():
+        values = torch.max(ddqn_agent.policy_network(torch.from_numpy(states).float().to(ddqn_agent.device)), dim=1)[0]
+    ddqn_agent.policy_network.train()
+    values = values.cpu().numpy()
+    x = []; y = []; v = []
+
+    for state, value in zip(states, values):
+        x.append(state[0])
+        y.append(state[1])
+        v.append(value)
+
+    plt.scatter(x, y, c=v)
+    plt.colorbar()
+    plt.savefig("{}/value_function_episode_{}_seed_{}".format(experiment_name, episode, seed))
+    plt.close()
 
 def test_forward_pass(dqn_agent, mdp):
     # load the weights from file
@@ -413,6 +634,8 @@ if __name__ == '__main__':
     parser.add_argument("--pixel_observation", type=bool, help="Images / Dense input", default=False)
     parser.add_argument("--exploration_method", type=str, default="eps-greedy")
     parser.add_argument("--eval_eps", type=float, default=0.05)
+    parser.add_argument("--novelty_method", type=str, choices=["oracle", "ocsvm"], default="oracle")
+    parser.add_argument("--nu", type=float, default=0.1)
     args = parser.parse_args()
 
     logdir = create_log_dir(args.experiment_name)
@@ -421,14 +644,17 @@ if __name__ == '__main__':
     overall_mdp = GymMDP(env_name="MountainCar-v0", pixel_observation=args.pixel_observation, render=args.render,
                          clip_rewards=False, term_func=None, seed=args.seed)
     # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
+    # overall_mdp = FourRoomMDP(11, 11, goal_locs=[(11, 11)], step_cost=1.0)
+    # overall_mdp = GridWorldMDP(width=9, height=9, goal_locs=[(9, 9)], step_cost=1.0)
 
-    state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
+    # state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
+    state_dim = 2
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ddqn_agent = DQNAgent(state_size=state_dim, action_size=len(overall_mdp.actions),
                           trained_options=[], seed=args.seed, device=device,
                           name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True,
                           exploration_method=args.exploration_method, pixel_observation=args.pixel_observation,
-                          evaluation_epsilon=args.eval_eps)
+                          evaluation_epsilon=args.eval_eps, novelty_detection_method=args.novelty_method)
     ddqn_episode_scores, s_ri_buffer = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
     save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)
