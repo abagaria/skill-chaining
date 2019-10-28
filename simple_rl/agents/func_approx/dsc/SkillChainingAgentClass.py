@@ -339,11 +339,8 @@ class SkillChaining(object):
 		return total_reward
 
 	def should_create_more_options(self):
-		start_states = self.mdp.env._init_positions
-		assert len(start_states) == 2, start_states
-		decision1 = self.state_in_any_option(start_states[0])
-		decision2 = self.state_in_any_option(start_states[1])
-		return decision1 == False or decision2 == False
+		""" Continue chaining as long as any init state is not covered by a learned skill. """
+		return any([not self.state_in_any_option(s) for s in self.mdp.env._init_positions])
 		# return len(self.trained_options) < self.max_num_options
 
 	def skill_chaining(self, num_episodes, num_steps):
