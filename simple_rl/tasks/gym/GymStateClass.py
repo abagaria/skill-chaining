@@ -10,8 +10,9 @@ from simple_rl.mdp.StateClass import State
 class GymState(State):
     ''' Gym State class '''
 
-    def __init__(self, data=[], is_terminal=False):
+    def __init__(self, data, position, is_terminal=False):
         self.data = data
+        self.position = position
         State.__init__(self, data=data, is_terminal=is_terminal)
 
     def features(self):

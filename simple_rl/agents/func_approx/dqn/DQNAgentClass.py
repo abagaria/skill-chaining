@@ -102,7 +102,7 @@ class DQNAgent(Agent):
 
         Agent.__init__(self, name, range(action_size), GAMMA)
 
-    def get_impossible_option_idx(self, state):
+    def get_impossible_option_idx(self, state, position):
 
         # Arg-max only over actions that can be executed from the current state
         # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
@@ -115,21 +115,22 @@ class DQNAgent(Agent):
             np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
 
             if option.parent is None:
-                assert option.name == "overall_goal_policy" or option.name == "global_option"
-                impossible = not option.is_init_true(np_state)
+                assert option.name == "overall_goal_policy" or option.name == "global_option" or option.name == "goal_option_2"
+                impossible = not option.is_init_true(np_state, position)
             else:
-                impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
+                impossible = (not option.is_init_true(np_state, position)) or option.is_term_true(np_state, position)
 
             if impossible:
                 impossible_option_idx.append(idx)
 
         return impossible_option_idx
 
-    def act(self, state, train_mode=True):
+    def act(self, state, position, train_mode=True):
         """
         Interface to the DQN agent: state can be output of env.step() and returned action can be input into next step().
         Args:
             state (np.array): numpy array state from Gym env
+            position (np.array)
             train_mode (bool): if training, use the internal epsilon. If evaluating, set epsilon to min epsilon
 
         Returns:
@@ -145,7 +146,7 @@ class DQNAgent(Agent):
             action_values = self.policy_network(state)
         self.policy_network.train()
 
-        impossible_option_idx = self.get_impossible_option_idx(state)
+        impossible_option_idx = self.get_impossible_option_idx(state, position)
 
         for impossible_idx in impossible_option_idx:
             action_values[0][impossible_idx] = torch.min(action_values, dim=1)[0] - 1.
@@ -161,8 +162,8 @@ class DQNAgent(Agent):
 
         return randomly_chosen_option
 
-    def get_best_actions_batched(self, states):
-        q_values = self.get_batched_qvalues(states)
+    def get_best_actions_batched(self, states, next_positions):
+        q_values = self.get_batched_qvalues(states, next_positions)
         return torch.argmax(q_values, dim=1)
 
     def get_value(self, state):
@@ -192,11 +193,12 @@ class DQNAgent(Agent):
 
         return action_values
 
-    def get_batched_qvalues(self, states):
+    def get_batched_qvalues(self, states, positions):
         """
         Q-values corresponding to `states` for all ** permissible ** actions/options given `states`.
         Args:
             states (torch.tensor) of shape (64 x 4)
+            positions (torch.tensor) of shape (64 x 2)
 
         Returns:
             qvalues (torch.tensor) of shape (64 x |A|)
@@ -209,12 +211,13 @@ class DQNAgent(Agent):
         if len(self.trained_options) > 0:
             # Move the states and action values to the cpu to allow numpy computations
             states = states.cpu().data.numpy()
+            positions = positions.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
 
             for idx, option in enumerate(self.trained_options): # type: Option
                 try:
-                    inits = option.batched_is_init_true(states)
-                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
+                    inits = option.batched_is_init_true(states, positions)
+                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states, positions)
                     action_values[(inits.squeeze() != 1) | (terms.squeeze() == 1), idx] = np.min(action_values) - 1.
                 except:
                     pdb.set_trace()
@@ -224,19 +227,21 @@ class DQNAgent(Agent):
 
         return action_values
 
-    def step(self, state, action, reward, next_state, done, num_steps=1):
+    def step(self, state, position, action, reward, next_state, next_position, done, num_steps=1):
         """
         Interface method to perform 1 step of learning/optimization during training.
         Args:
             state (np.array): state of the underlying gym env
+            position (np.array)
             action (int)
             reward (float)
             next_state (np.array)
+            next_position (np.array)
             done (bool): is_terminal
             num_steps (int): number of steps taken by the option to terminate
         """
         # Save experience in replay memory
-        self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
+        self.replay_buffer.add(state, position, action, reward, next_state, next_position, done, num_steps)
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -256,7 +261,7 @@ class DQNAgent(Agent):
             experiences (tuple<torch.Tensor>): tuple of (s, a, r, s', done, tau) tuples
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones, steps = experiences
+        states, positions, actions, rewards, next_states, next_positions, dones, steps = experiences
 
         if self.exploration_method == "rnd":
             observations = states[:, -1, :, :].unsqueeze(1)
@@ -272,7 +277,7 @@ class DQNAgent(Agent):
                     selected_actions = self.policy_network(next_states).argmax(dim=1).unsqueeze(1)
                 self.policy_network.train()
             else:
-                selected_actions = self.get_best_actions_batched(next_states).unsqueeze(1)
+                selected_actions = self.get_best_actions_batched(next_states, next_positions).unsqueeze(1)
 
             Q_targets_next = self.target_network(next_states).detach().gather(1, selected_actions)
         else:

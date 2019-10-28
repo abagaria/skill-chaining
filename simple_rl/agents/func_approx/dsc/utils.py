@@ -9,6 +9,7 @@ import seaborn as sns
 sns.set()
 import imageio
 from PIL import Image
+import itertools
 
 # Other imports.
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
@@ -131,7 +132,11 @@ def make_meshgrid(x, y, h=.02):
 
 def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))
-	X = option.construct_feature_matrix(option.positive_examples)
+	XP = option.construct_feature_matrix(option.positive_examples)
+	XN = option.construct_feature_matrix(option.negative_examples)
+
+	X = np.concatenate((XP, XN), axis=0) if XN.shape[0] > 0 else XP
+
 	X0, X1 = X[:, 0], X[:, 1]
 	xx, yy = make_meshgrid(X0, X1)
 	Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
@@ -140,14 +145,18 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 
 	plot_all_trajectories_in_initiation_data(option.positive_examples)
 
-	plt.xlim((-3, 11))
-	plt.ylim((-3, 11))
+	if XN.shape[0] > 0:
+		plt.scatter(XN[:, 0], XN[:, 1], marker="x")
+
+	plt.xlim((0, 150))
+	plt.ylim((140, 300))
 
 	plt.xlabel("x")
 	plt.ylabel("y")
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
 	plt.close()
+
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))
@@ -207,6 +216,28 @@ def plot_two_class_classifier(option, episode, experiment_name):
 	plt.title("{} Initiation Set".format(option.name))
 	plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
 	plt.close()
+
+def visualize_image_based_initiation_classifier(option, query_states, experiment_name, episode):
+	global_images = np.array([np.array(state) for state in query_states])
+	global_x_positions = np.array([state.position[0] for state in query_states])
+	global_y_positions = np.array([state.position[1] for state in query_states])
+
+	init_predictions = option.batched_is_init_true(global_images)
+	positive_x_positions = global_x_positions[init_predictions.squeeze(1) == 1]
+	positive_y_positions = global_y_positions[init_predictions.squeeze(1) == 1]
+	negative_x_positions = global_x_positions[init_predictions.squeeze(1) != 1]
+	negative_y_positions = global_y_positions[init_predictions.squeeze(1) != 1]
+
+	plt.scatter(positive_x_positions, positive_y_positions, label="positive", alpha=0.3)
+	plt.scatter(negative_x_positions, negative_y_positions, label="negative", alpha=0.3)
+
+	plt.title("{} Initiation Classifier".format(option.name))
+	plt.legend()
+
+	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+	plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
+	plt.close()
+
 
 def visualize_smdp_updates(global_solver, experiment_name=""):
 	smdp_transitions = list(filter(lambda e: isinstance(e.action, int) and e.action > 0, global_solver.replay_buffer.memory))

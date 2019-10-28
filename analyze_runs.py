@@ -6,6 +6,7 @@ import numpy as np
 import pdb
 
 sns.set()
+# sns.set_context("talk")
 
 RMAX = 10.
 
@@ -13,6 +14,14 @@ def moving_average(a, n=10) :
     ret = np.cumsum(a, dtype=float)
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
+
+def smoothen_data(scores, n=25):
+    print(scores.shape)
+    smoothened_cols = scores.shape[1] - n + 1
+    smoothened_data = np.zeros((scores.shape[0], smoothened_cols))
+    for i in range(scores.shape[0]):
+        smoothened_data[i, :] = moving_average(scores[i, :], n=n)
+    return smoothened_data
 
 def plot_option_executions(experiment_executions, experiment_name):
     """
@@ -64,8 +73,8 @@ def plot_comparison_training_scores(training_scores_batch, experiment_names, exp
     plt.figure(figsize=(8, 5))
     for training_scores, experiment_name in zip(training_scores_batch, experiment_names):
         median_scores, top, bottom = get_plot_params(training_scores)
-        plt.plot(moving_average(median_scores), linewidth=4, label=experiment_name.replace("_hard_pinball", ""))
-        plt.fill_between(range(len(median_scores)), top, bottom, alpha=0.1)
+        plt.plot(moving_average(median_scores), alpha=0.9, label=experiment_name.split("/")[-1])
+        plt.fill_between(range(len(median_scores)), top, bottom, alpha=0.2)
         # plt.ylim((5, 10))
     plt.title("Episodic Scores (Training)")
     plt.ylabel("Reward")
@@ -118,16 +127,16 @@ def get_plot_params(scores, clamp_top=True, variable_sized=False):
         bot = means - stds
     else:
         top = means + stds
-        bot = np.min(s, axis=0)
+        bot = means - stds
     return medians, top, bot
 
 def get_scores(experiment_name):
-    if "sc" in experiment_name:
-        score_names = experiment_name + "/" + "sc_pretrained_False_training_scores_*.pkl".format(experiment_name)
-        duration_names = experiment_name + "/" + "sc_pretrained_False_training_durations_*.pkl".format(experiment_name)
-    else:
-        score_names = experiment_name + "/" + experiment_name + "*_training_scores.pkl"
-        duration_names = experiment_name + "/" + experiment_name + "*_training_durations.pkl"
+    # if "sc" in experiment_name:
+    #     score_names = experiment_name + "/" + "sc_pretrained_False_training_scores_*.pkl".format(experiment_name)
+    #     duration_names = experiment_name + "/" + "sc_pretrained_False_training_durations_*.pkl".format(experiment_name)
+    # else:
+    score_names = experiment_name + "/" + "*_training_scores.pkl"
+    duration_names = experiment_name + "/" "*_training_durations.pkl"
     training_scores, training_durations = [], []
     for score_file in glob.glob(score_names):
         with open(score_file, "rb") as f:
@@ -148,8 +157,11 @@ def get_option_executions(experiment_name):
     return executions
 
 def produce_comparison_plots():
-    meta_experiment_name = "point_lr_curves"
-    experiment_names = ["lr_actor_1e_3", "lr_c_1e_3"]
+    #meta_experiment_name = "four_rooms_ddqn_exploration_2"  # "/home/abagaria/skill-chaining/discrete_four_rooms_eps_decay", "/home/abagaria/skill-chaining/discrete_four_rooms_eps05_2gradientSteps", "/home/abagaria/skill-chaining/discrete_four_rooms_rmax"
+    #experiment_names = ["/home/abagaria/skill-chaining/discrete_four_rooms_eps05", "/home/abagaria/skill-chaining/discrete_four_rooms_rmax_iid_sa_toy", "/home/abagaria/skill-chaining/discrete_four_rooms_eps05_bs64"]
+    # , "/home/abagaria/skill-chaining/optimistic_init_mcar_ocsvm_nu_01"
+    meta_experiment_name = "mountain_car_optimistic_initialization_ocsvm"
+    experiment_names = ["/home/abagaria/skill-chaining/optimistic_init_mcar_toy", "/home/abagaria/skill-chaining/mcar_dqn_eps2", "/home/abagaria/skill-chaining/optimistic_init_mcar_ocsvm_nu_01_buffer_001_noRounding"]
     training_scores_batch = []
     training_durations_batch = []
     for experiment_name in experiment_names:
@@ -159,12 +171,13 @@ def produce_comparison_plots():
         training_durations_batch.append(durations)
         # plot_option_executions(get_option_executions(experiment_name), experiment_name)
     plot_comparison_training_scores(training_scores_batch, experiment_names, experiment=meta_experiment_name)
-    plot_comparison_training_durations(training_durations_batch, experiment_names, experiment=meta_experiment_name)
+    # plot_comparison_training_durations(training_durations_batch, experiment_names, experiment=meta_experiment_name)
 
 def produce_experiment_plots():
     experiment_name = "acrobot_sc_1"
     training_scores, training_durations = get_scores(experiment_name)
-    plot_training_scores(training_scores, experiment_name)
+    smoothened_data = smoothen_data(training_scores, 100)
+    plot_training_scores(smoothened_data, experiment_name)
     # plot_training_durations(training_durations, experiment_name)
 
 if __name__ == "__main__":

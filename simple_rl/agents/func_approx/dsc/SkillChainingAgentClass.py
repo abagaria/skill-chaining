@@ -26,7 +26,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False):
+				 use_random_global_agent=False, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -43,6 +43,7 @@ class SkillChaining(object):
 			init_q (float): If not none, we use this value to initialize the value of a new option
 			generate_plots (bool): whether or not to produce plots in this run
 			use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
+			use_random_global_agent (bool): Use random agent for global option's low-level solver
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -63,6 +64,7 @@ class SkillChaining(object):
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
 		self.dense_reward = mdp.dense_reward
+		self.use_random_global_agent = use_random_global_agent
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -75,13 +77,15 @@ class SkillChaining(object):
 		self.validation_scores = []
 
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
+		# TODO: Need to specify a different termination function
 		self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
 									lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-									dense_reward=self.dense_reward)
+									dense_reward=self.dense_reward, option_idx=0,
+									random_global_agent=use_random_global_agent)
 
 		self.trained_options = [self.global_option]
 
@@ -96,7 +100,7 @@ class SkillChaining(object):
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							 dense_reward=self.dense_reward)
+							 dense_reward=self.dense_reward, option_idx=1, random_global_agent=use_random_global_agent)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -115,6 +119,18 @@ class SkillChaining(object):
 		# List of init states seen while running this algorithm
 		self.init_states = []
 
+		# List of samples from the 1st salient event
+		self.term_states = []
+
+		# Since we are creating chains incrementally, we will first chain from the
+		# first salient event to the start state of the MDP. Once we get a new
+		# salient event, we will create a new chain from the new salient event to the
+		# first salient event
+		self.should_create_more_options = self.chain_until_start_state_condition
+		self.salient_event_number = 0
+
+		self.goal_option_allowed = True
+
 		# Debug variables
 		self.global_execution_states = []
 		self.num_option_executions = defaultdict(lambda : [])
@@ -124,7 +140,8 @@ class SkillChaining(object):
 
 	def create_child_option(self, parent_option):
 		# Create new option whose termination is the initiation of the option we just trained
-		name = "option_{}".format(str(len(self.trained_options) - 1))
+		option_idx = len(self.trained_options)
+		name = "option_{}".format(str(option_idx - 1))
 		print("Creating {}".format(name))
 
 		old_untrained_option_id = id(parent_option)
@@ -137,8 +154,9 @@ class SkillChaining(object):
 									  classifier_type=self.classifier_type,
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
 									  seed=self.seed, parent=parent_option,  max_steps=self.max_steps,
-									  enable_timeout=self.enable_option_timeout,
-									  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
+									  enable_timeout=self.enable_option_timeout, option_idx=option_idx,
+									  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
+									  random_global_agent=self.use_random_global_agent)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -161,7 +179,6 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing the option
 			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
 		"""
-		assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
 
 		def get_reward(transitions):
 			gamma = self.global_option.solver.gamma
@@ -176,12 +193,14 @@ class SkillChaining(object):
 				if self.use_full_smdp_update:
 					sub_transitions = option_transitions[i:]
 					option_reward = get_reward(sub_transitions)
-					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
-												 next_state.is_terminal(), num_steps=len(sub_transitions))
+					self.agent_over_options.step(start_state.features(), start_state.position, action, option_reward,
+												 next_state.features(), next_state.position, next_state.is_terminal(),
+												 num_steps=len(sub_transitions))
 				else:
 					option_reward = self.subgoal_reward if selected_option.is_term_true(next_state) else -1.
-					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
-												 next_state.is_terminal(), num_steps=1)
+					self.agent_over_options.step(start_state.features(), start_state.position, action, option_reward,
+												 next_state.features(), next_state.position, next_state.is_terminal(),
+												 num_steps=1)
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
 		global_solver = self.agent_over_options  # type: DQNAgent
@@ -224,20 +243,19 @@ class SkillChaining(object):
 
 	def act(self, state):
 		# Query the global Q-function to determine which option to take in the current state
-		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
+		option_idx = self.agent_over_options.act(state.features(), state.position, train_mode=True)
 		self.agent_over_options.update_epsilon()
 
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
 
-		# Debug: If it was possible to take an option, did we take it?
-		for option in self.trained_options:  # type: Option
-			if option.is_init_true(state):
-				option_taken = option.option_idx == selected_option.option_idx
-				if option.writer is not None:
-					option.writer.add_scalar("{}_taken".format(option.name), option_taken, option.n_taken_or_not)
-					option.taken_or_not.append(option_taken)
-					option.n_taken_or_not += 1
+		if selected_option.is_term_true(state):
+			selected_option = self.global_option
+
+		# Hack: If we have already executed goal option successfully this episode, disallow it
+		# 		for the remainder of the episode
+		if selected_option.name == "overall_goal_policy" and not self.goal_option_allowed:
+			selected_option = self.global_option
 
 		return selected_option
 
@@ -265,6 +283,10 @@ class SkillChaining(object):
 		if self.untrained_option.is_term_true(next_state) and not self.untrained_option.is_term_true(state):
 			self.untrained_option.final_transitions.append((state, selected_option.option_idx))
 
+		# Hack: If we successfully executed the goal option, disallow executing it again in this episode
+		if selected_option.name == "overall_goal_policy" and selected_option.is_term_true(next_state) and selected_option.parent is None:
+			self.goal_option_allowed = False
+
 		# Add data to train Q(s, o)
 		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
 
@@ -283,8 +305,8 @@ class SkillChaining(object):
 	def sample_qvalue(self, option):
 		if len(option.solver.replay_buffer) > 500:
 			sample_experiences = option.solver.replay_buffer.sample(batch_size=500)
-			sample_states = torch.from_numpy(sample_experiences[0]).float().to(self.device)
-			sample_actions = torch.from_numpy(sample_experiences[1]).float().to(self.device)
+			sample_states = sample_experiences[0]
+			sample_actions = sample_experiences[1]
 			sample_qvalues = option.solver.get_qvalues(sample_states, sample_actions)
 			return sample_qvalues.mean().item()
 		return 0.0
@@ -304,15 +326,53 @@ class SkillChaining(object):
 			total_reward += reward
 		return total_reward
 
-	def should_create_more_options(self):
+	def chain_until_start_state_condition(self):
 		local_options = self.trained_options[1:]
 		for start_state in self.init_states:
 			for option in local_options:  # type: Option
 				if option.is_init_true(start_state):
-					print("Init state is in {}'s initiation set classifier".format(option.name))
+					# print("Init state is in {}'s initiation set classifier".format(option.name))
 					return False
 		return True
 		# return len(self.trained_options) < self.max_num_options
+
+	def chain_until_previous_salient_event(self):
+		local_options = self.trained_options[2:]  # TODO: Change this to the options in the new chain
+		flag = True
+		for term_state in self.term_states:
+			for option in local_options:  # type: Option
+				if option.is_init_true(term_state):
+					flag = False
+
+		if not flag:
+			self.trained_options[1].parent = chainer.trained_options[-1]
+
+		return flag
+
+	def add_negative_examples(self, new_option):
+		for option in self.trained_options[1:]:
+			new_option.negative_examples += option.positive_examples
+
+	def is_valid_init_data(self, option, state_trajectory):
+		if self.salient_event_number == 0 or option.name == "goal_option_2":
+			return True
+
+		# Hack: if we are in the second chain, avoid options that specialize in death
+		for state in state_trajectory[-self.buffer_length:]:
+			if state.position[0] > 30 and state.position[1] > 180:
+				return False
+		return True
+
+	def truncate_option_data(self, state_buffer):
+		# Hack: The wrap around because of the agent dying leads to trajectories that lead
+		#       to death being classified as positive examples
+		if self.salient_event_number == 0:
+			new_buffer = []
+			for state in state_buffer[-self.buffer_length:]:
+				if state.position[0] > 60:
+					new_buffer.append(state)
+			return new_buffer
+		return state_buffer
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -328,6 +388,7 @@ class SkillChaining(object):
 			score = 0.
 			step_number = 0
 			uo_episode_terminated = False
+			self.goal_option_allowed = True
 			state = deepcopy(self.mdp.init_state)
 			self.init_states.append(deepcopy(state))
 			experience_buffer = []
@@ -347,16 +408,20 @@ class SkillChaining(object):
 					state_buffer.append(state)
 
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
-						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
+						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None and \
+						self.is_valid_init_data(self.untrained_option, state_buffer):
+					print("\rTriggered termination condition of {}".format(self.untrained_option))
 					uo_episode_terminated = True
+					state_buffer = self.truncate_option_data(state_buffer)
 					if self.untrained_option.train(experience_buffer, state_buffer):
-
-						# TODO: Write visualization function for image based initiation classifier
-						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
-						if self.should_create_more_options():
-							new_option = self.create_child_option(self.untrained_option)
-							self.untrained_option = new_option
+
+				if self.should_create_more_options() and self.untrained_option.get_training_phase() == "initiation_done":
+					plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+					new_option = self.create_child_option(self.untrained_option)
+					self.add_negative_examples(new_option)
+					self.untrained_option = new_option
 
 				game_over = self.mdp.game_over if hasattr(self.mdp, "game_over") else False
 				if state.is_terminal() or game_over:
@@ -386,7 +451,7 @@ class SkillChaining(object):
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		if episode > 0 and episode % 100 == 0:
-			eval_score, _ = self.trained_forward_pass(render=False)
+			eval_score = 0.  #self.trained_forward_pass(render=False)
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
@@ -475,6 +540,38 @@ class SkillChaining(object):
 
 		return overall_reward, option_trajectories
 
+	def switch_salient_events(self, num_episodes, num_steps):
+		scores, durations = self.skill_chaining(num_episodes, num_steps)
+
+		# The last option's refined init classifier was never visualized in the skill chaining loop
+		plot_one_class_initiation_classifier(self.untrained_option, args.episodes, args.experiment_name)
+
+		# Toggle salient events
+		mdp = self.mdp  # type: GymMDP
+		self.salient_event_number = 1
+
+		option_idx = len(self.trained_options) - 1
+		self.untrained_option = Option(overall_mdp=self.mdp, name='goal_option_2', global_solver=self.global_option.solver,
+									   lr_actor=self.global_option.lr_actor, lr_critic=self.global_option.lr_critic,
+									   buffer_length=self.buffer_length, ddpg_batch_size=self.global_option.batch_size,
+									   num_subgoal_hits_required=self.num_subgoal_hits_required,
+									   subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
+									   enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
+									   generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+									   dense_reward=self.dense_reward, option_idx=option_idx,
+									   random_global_agent=self.use_random_global_agent)
+
+		last_root_option = self.trained_options[1]  # type: Option
+		self.term_states = [trajectory[-1].next_state for trajectory in last_root_option.experience_buffer]
+		# self.term_states = [experience.state for experience in last_root_option.solver.replay_buffer.memory]
+		self.should_create_more_options = self.chain_until_previous_salient_event
+
+		# self.mdp.render = True
+		new_scores, new_durations = self.skill_chaining(num_episodes, num_steps)
+
+		return scores + new_scores, durations + new_durations
+
+
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
 	try:
@@ -511,6 +608,7 @@ if __name__ == '__main__':
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+	parser.add_argument("--use_random_global_agent", type=bool, help="Use random agent for global option solver", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -557,8 +655,11 @@ if __name__ == '__main__':
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							classifier_type=args.classifier_type,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
+							use_random_global_agent=args.use_random_global_agent,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
-	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+	# episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+
+	episodic_scores, episodic_durations = chainer.switch_salient_events(args.episodes, args.steps)
 
 	# Log performance metrics
 	# chainer.save_all_models()

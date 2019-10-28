@@ -17,8 +17,7 @@ from simple_rl.tasks.gym.wrappers import *
 class GymMDP(MDP):
     ''' Class for Gym MDPs '''
 
-    def __init__(self, env_name='CartPole-v0', pixel_observation=False,
-                 clip_rewards=False, term_func=None, render=False, seed=0):
+    def __init__(self, env_name='CartPole-v0', pixel_observation=False, clip_rewards=False, render=False, seed=0):
         '''
         Args:
             env_name (str)
@@ -33,20 +32,16 @@ class GymMDP(MDP):
         self.env.seed(seed)
 
         self.clip_rewards = clip_rewards
-        self.term_func = term_func
         self.render = render
         self.dense_reward = False
 
         init_obs = self.env.reset()
+        init_pos = self.get_player_position()
 
         self.game_over = False
 
         MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func,
-                     init_state=GymState(init_obs))
-
-    @staticmethod
-    def is_goal_state(state):
-        return state.is_terminal()
+                     init_state=GymState(init_obs, position=init_pos))
 
     def is_action_space_discrete(self):
         return hasattr(self.env.action_space, 'n')
@@ -57,6 +52,27 @@ class GymMDP(MDP):
     def action_space_size(self):
         return len(self.actions)
 
+    @staticmethod
+    def term_function_1(state):
+        position = state.position
+        goal_cond = 120 <= position[0] <= 140 and position[1] <= 150
+        return goal_cond
+
+    # TODO: Determine the position bounds for bottom_right
+    @staticmethod
+    def term_function_2(state):
+        position = state.position
+        goal_cond = GymMDP.key_condition(position)
+        return goal_cond
+
+    @staticmethod
+    def key_condition(pos):
+        return pos[0] <= 25 and 200 < pos[1] < 220
+
+    @staticmethod
+    def bottom_right_condition(position):
+        return position[0] <= 25 and position[1] <= 150
+
     def _reward_func(self, state, action):
         '''
         Args:
@@ -66,22 +82,23 @@ class GymMDP(MDP):
         Returns
             (float)
         '''
-        obs, reward, done, info = self.env.step(action)
+        obs, _, done, info = self.env.step(action)
+        pos = self.get_player_position()
+
+        reward = +10. if self.key_condition(pos) else 0.
 
         self.game_over = done
 
         if self.render:
             self.env.render()
 
+        # Goal of Monte for now is to pick up the key
         if "Monte" in self.env_name:
-            position = self.get_player_position()
-            goal_cond = 120 <= position[0] <= 140 and position[1] <= 150
-            is_terminal = goal_cond
-            reward = +10. if goal_cond else 0.
+            is_terminal = done or self.key_condition(pos)
         else:
-            is_terminal = self.term_func(obs, reward) if self.term_func is not None else done
+            raise Warning(self.env_name)
 
-        self.next_state = GymState(obs, is_terminal=is_terminal)
+        self.next_state = GymState(obs, position=pos, is_terminal=is_terminal)
 
         if self.clip_rewards:
             if reward < 0:
@@ -105,7 +122,8 @@ class GymMDP(MDP):
 
     def reset(self):
         init_state_array = self.env.reset()
-        self.init_state = GymState(init_state_array, is_terminal=False)
+        init_position = self.get_player_position()
+        self.init_state = GymState(init_state_array, position=init_position, is_terminal=False)
         super(GymMDP, self).reset()
 
     def __str__(self):
