@@ -62,8 +62,10 @@ class Option(object):
 
 		if self.name == "global_option":
 			self.option_idx = 0
-		elif self.name == "overall_goal_policy":
+		elif self.name == "goal_option_1":
 			self.option_idx = 1
+		elif self.name == "goal_option_2":
+			self.option_idx = 2
 		else:
 			self.option_idx = option_idx
 
@@ -182,8 +184,14 @@ class Option(object):
 			return self.parent.is_init_true(ground_state)
 
 		# If option does not have a parent, it must be the goal option or the global option
-		assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
-		return self.overall_mdp.is_goal_state(ground_state)
+		if self.name == "global_option":
+			return self.overall_mdp.is_goal_state(ground_state)
+		elif self.name == "goal_option_1":
+			return self.overall_mdp.get_target_events()[0](ground_state)
+		elif self.name == "goal_option_2":
+			return self.overall_mdp.get_target_events()[1](ground_state)
+		else:
+			raise ValueError(self.name)
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -244,10 +252,10 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		# if len(self.negative_examples) >= 10:
-		# 	kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
-		# else:
-		kwargs = {"kernel": "linear", "gamma": "scale"}
+		if len(self.negative_examples) >= 5:
+			kwargs = {"kernel": "linear", "gamma": "scale", "class_weight": "balanced"}
+		else:
+			kwargs = {"kernel": "linear", "gamma": "scale"}
 
 		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
 		initiation_classifier = svm.SVC(**kwargs)

@@ -72,12 +72,20 @@ class PointMazeMDP(MDP):
         key = state[2]
         return self.env.is_in_goal_position(position) and bool(key)
 
+    def is_in_goal_position(self, state):
+        position = state.position if isinstance(state, PointMazeState) else state[:2]
+        return self.env.is_in_goal_position(position)
+
+    def is_in_key_position(self, state):
+        position = state.position if isinstance(state, PointMazeState) else state[:2]
+        return self.env.is_in_key_position(position)
+
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 
     def get_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """
-        return [self.env.is_in_goal_position, self.env.is_in_key_position]
+        return [self.is_in_goal_position, self.is_in_key_position]
 
     @staticmethod
     def state_space_size():
