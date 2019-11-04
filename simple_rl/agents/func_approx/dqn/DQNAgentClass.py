@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 from sklearn import svm
+from collections import defaultdict
 
 from simple_rl.agents.AgentClass import Agent
 from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
@@ -65,6 +66,7 @@ class DQNAgent(Agent):
         self.seed = random.seed(seed)
         self.tensor_log = tensor_log
         self.device = device
+        self.actions = list(range(action_size))
 
         # Q-Network
         if pixel_observation:
@@ -94,23 +96,23 @@ class DQNAgent(Agent):
             self.rnd = RND(state_dim, out_dim=64, n_hid=124, device=self.device)
         elif exploration_method == "rmax":
             self.visited_states = set()
-            self.visited_state_action_pairs = set()
-            self.one_class_classifier = None
+            self.visited_state_action_pairs = defaultdict(lambda : set())
+            self.one_class_classifiers = [None] * len(self.actions)
             self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
             self.epsilon = evaluation_epsilon
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
-        if overall_mdp.env_name == "MountainCar-v0":
-            assert isinstance(overall_mdp, GymMDP)
-            x_low = overall_mdp.env.observation_space.low[0]
-            x_high = overall_mdp.env.observation_space.high[0]
-            x_dot_low = overall_mdp.env.observation_space.low[1]
-            x_dot_high = overall_mdp.env.observation_space.high[1]
-            self.state_space = self.get_mountain_car_state_space(x_low, x_high, x_dot_low, x_dot_high)
-        else:
-            assert isinstance(overall_mdp, FourRoomMDP)
-            self.state_space = self.get_state_space()
+        # if overall_mdp.env_name == "MountainCar-v0":
+        #     assert isinstance(overall_mdp, GymMDP)
+        #     x_low = overall_mdp.env.observation_space.low[0]
+        #     x_high = overall_mdp.env.observation_space.high[0]
+        #     x_dot_low = overall_mdp.env.observation_space.low[1]
+        #     x_dot_high = overall_mdp.env.observation_space.high[1]
+        #     self.state_space = self.get_mountain_car_state_space(x_low, x_high, x_dot_low, x_dot_high)
+        # else:
+        #     assert isinstance(overall_mdp, FourRoomMDP)
+        #     self.state_space = self.get_state_space()
         self.num_executions = 0 # Number of times act() is called (used for eps-decay)
 
         # Debugging attributes
@@ -262,7 +264,7 @@ class DQNAgent(Agent):
         self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
         if self.exploration_method == "rmax":
-            self.visited_state_action_pairs.add((state[0], state[1], action))  # Adding x, y position and action
+            self.visited_state_action_pairs[action].add(tuple(state))
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -275,6 +277,17 @@ class DQNAgent(Agent):
                 if self.tensor_log:
                     self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
                 self.num_updates += 1
+
+    def _modify_q_targets_next(self, Q_targets_next, next_states):
+        if self.exploration_method == "rmax" and self.novelty_detection_method == "ocsvm" and \
+                not any([classifier is None for classifier in self.one_class_classifiers]):
+            Q_targets_next = Q_targets_next.cpu().numpy()
+            np_states = next_states.cpu().numpy()
+            for action in self.actions:
+                Y = self.one_class_classifiers[action].predict(np_states)
+                Q_targets_next[np.where(Y != 1)[0]] = 0.
+            return torch.from_numpy(Q_targets_next).to(self.device)
+        return Q_targets_next
 
     def _learn(self, experiences, gamma):
         """
@@ -305,27 +318,29 @@ class DQNAgent(Agent):
             Q_targets_next = self.target_network(next_states).detach().max(1)[0].unsqueeze(1)
             raise NotImplementedError("I have not fixed the Q(s',a') problem for vanilla DQN yet")
 
+        # Optimistic initialization
+        Q_targets_next = self._modify_q_targets_next(Q_targets_next, next_states)
+
         # Options in SMDPs can take multiple steps to terminate, the Q-value needs to be discounted appropriately
         discount_factors = gamma ** steps
 
         # Compute Q targets for current states
-        # Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
         Q_targets = rewards + (discount_factors * Q_targets_next * (1 - dones))
 
         # Get expected Q values from local model
         Q_expected = self.policy_network(states).gather(1, actions)
 
-        if self.exploration_method == "rmax" and ((self.novelty_detection_method == "ocsvm"
-                                                   and self.one_class_classifier is not None)
-                                                   or self.novelty_detection_method == "oracle"):
-            novel_states, novel_actions = self.get_novel_state_action_pairs()
-            novel_states = torch.from_numpy(novel_states).float().to(self.device)
-            novel_actions = torch.from_numpy(novel_actions).to(self.device).unsqueeze(1)
-            novel_Q_expected = self.policy_network(novel_states).gather(1, novel_actions)
-            novel_Q_targets = torch.zeros_like(novel_Q_expected).to(self.device)
-
-            Q_expected = torch.cat((Q_expected, novel_Q_expected), dim=0)
-            Q_targets = torch.cat((Q_targets, novel_Q_targets), dim=0)
+        # if self.exploration_method == "rmax" and ((self.novelty_detection_method == "ocsvm"
+        #                                            and len(self.one_class_classifiers) > 0)
+        #                                            or self.novelty_detection_method == "oracle"):
+        #     novel_states, novel_actions = self.get_novel_state_action_pairs()
+        #     novel_states = torch.from_numpy(novel_states).float().to(self.device)
+        #     novel_actions = torch.from_numpy(novel_actions).to(self.device).unsqueeze(1)
+        #     novel_Q_expected = self.policy_network(novel_states).gather(1, novel_actions)
+        #     novel_Q_targets = torch.zeros_like(novel_Q_expected).to(self.device)
+        #
+        #     Q_expected = torch.cat((Q_expected, novel_Q_expected), dim=0)
+        #     Q_targets = torch.cat((Q_targets, novel_Q_targets), dim=0)
 
         # Compute loss
         if self.loss_function == "huber":
@@ -497,10 +512,10 @@ class DQNAgent(Agent):
         return missed_novelty, false_positives
 
     def train_novelty_detector(self):
-        state_action_matrix = np.array(list(self.visited_state_action_pairs))
-
-        self.one_class_classifier = svm.OneClassSVM(kernel="rbf", gamma="scale", nu=args.nu)
-        self.one_class_classifier.fit(state_action_matrix)
+        for action in self.actions:
+            visited_states = np.array(list(self.visited_state_action_pairs[action]))
+            self.one_class_classifiers[action] = svm.OneClassSVM(kernel="rbf", gamma="scale", nu=args.nu)
+            self.one_class_classifiers[action].fit(visited_states)
 
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
@@ -513,7 +528,7 @@ def train(agent, mdp, episodes, steps):
         mdp.reset()
         state = deepcopy(mdp.init_state)
         score = 0.
-        for step in range(steps):
+        while True:
             iteration_counter += 1
             action = agent.act(state.features(), train_mode=True)
             reward, next_state = mdp.execute_agent_action(mdp.actions[action])
@@ -535,21 +550,11 @@ def train(agent, mdp, episodes, steps):
         # After every episode, we fit our novelty detector on the (s, a) pairs seen so far
         ddqn_agent.train_novelty_detector()
 
-        # Compute the false positive and false negative rates
-        num_state_action_pairs = len(ddqn_agent.state_space) * len(ddqn_agent.actions)
-        false_negatives, false_positives = [0], [0] #ddqn_agent.get_classification_errors()
-        fn_rate = len(false_negatives) / num_state_action_pairs
-        fp_rate = len(false_positives) / num_state_action_pairs
-        false_negative_rates.append(fn_rate)
-        false_positive_rates.append(fp_rate)
-
-        print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tFN Rate: {:.2f}\tFP Rate: {:.2f}'.format(episode, np.mean(last_10_scores),
-                                                                                                              agent.epsilon, fn_rate, fp_rate), end="")
+        print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
         if episode % 100 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tFN Rate: {:.2f}\tFP Rate: {:.2f}'.format(episode, np.mean(last_10_scores),
-                                                                                                                  agent.epsilon, fn_rate, fp_rate))
-        if episode % 25 == 0:
-            visualize_value_function(agent, args.experiment_name, episode, args.seed)
+            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
+        # if episode % 25 == 0:
+        #     visualize_value_function(agent, args.experiment_name, episode, args.seed)
     return per_episode_scores, state_ri_buffer
 
 
@@ -611,6 +616,7 @@ def create_log_dir(experiment_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--env", type=str, help="Name of test environment")
     parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
     parser.add_argument("--episodes", type=int, help="# episodes", default=NUM_EPISODES)
     parser.add_argument("--steps", type=int, help="# steps", default=NUM_STEPS)
@@ -619,20 +625,20 @@ if __name__ == '__main__':
     parser.add_argument("--exploration_method", type=str, default="eps-greedy")
     parser.add_argument("--eval_eps", type=float, default=0.05)
     parser.add_argument("--novelty_method", type=str, choices=["oracle", "ocsvm"], default="oracle")
-    parser.add_argument("--nu", type=float, default=0.1)
+    parser.add_argument("--nu", type=float, default=0.01)
     args = parser.parse_args()
 
     logdir = create_log_dir(args.experiment_name)
     learning_rate = 1e-3 # 0.00025 for pong
 
-    overall_mdp = GymMDP(env_name="MountainCar-v0", pixel_observation=args.pixel_observation, render=args.render,
+    overall_mdp = GymMDP(env_name="Acrobot-v1", pixel_observation=args.pixel_observation, render=args.render,
                          clip_rewards=False, term_func=None, seed=args.seed)
     # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
     # overall_mdp = FourRoomMDP(11, 11, goal_locs=[(11, 11)], step_cost=1.0)
     # overall_mdp = GridWorldMDP(width=9, height=9, goal_locs=[(9, 9)], step_cost=1.0)
 
     # state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
-    state_dim = 2
+    state_dim = overall_mdp.env.observation_space.shape[0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ddqn_agent = DQNAgent(state_size=state_dim, action_size=len(overall_mdp.actions),
