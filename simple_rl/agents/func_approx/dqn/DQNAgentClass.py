@@ -262,15 +262,7 @@ class DQNAgent(Agent):
         self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
         if self.exploration_method == "rmax":
-            # self.visited_states.add((state[0], state[1]))  # Adding the x, y position
-            if overall_mdp.env_name == "MountainCar-v0":
-                # x = np.round(state[0], 1)
-                # xdot = np.round(state[1], 2)
-                x = state[0]
-                xdot = state[1]
-                self.visited_state_action_pairs.add((x, xdot, action))
-            else:
-                self.visited_state_action_pairs.add((state[0], state[1], action))  # Adding x, y position and action
+            self.visited_state_action_pairs.add((state[0], state[1], action))  # Adding x, y position and action
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -279,14 +271,6 @@ class DQNAgent(Agent):
             if len(self.replay_buffer) > BATCH_SIZE:
                 experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
                 self._learn(experiences, GAMMA)
-
-                # if self.exploration_method == "rmax":
-                #     self._rmax_learn()
-
-                # Ablation: Make sure the difference in performance between epsilon greedy and
-                # R-Max is not because we are taking 2 gradient steps every time-step in R-Max.
-                # if self.exploration_method == "const-eps-greedy" or self.exploration_method == "eps-greedy":
-                #     self._learn(experiences, GAMMA)
 
                 if self.tensor_log:
                     self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
