@@ -10,6 +10,7 @@ import random
 
 # Other imports.
 import gym
+import gym_puddle
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.gym.GymStateClass import GymState
 from simple_rl.tasks.gym.wrappers import *
@@ -55,7 +56,7 @@ class GymMDP(MDP):
         obs, reward, done, info = self.env.step(action)
 
         if self.render:
-            self.env.render()
+            self.env.render(mode="human")
 
         is_terminal = self.term_func(obs, reward) if self.term_func is not None else done
 

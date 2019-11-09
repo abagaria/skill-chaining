@@ -28,10 +28,12 @@ from simple_rl.agents.func_approx.dqn.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
 from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
+
 from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
 from simple_rl.tasks.four_room.FourRoomMDPClass import FourRoomMDP
 from simple_rl.tasks.grid_world.GridWorldMDPClass import GridWorldMDP
 from simple_rl.agents.func_approx.dqn.RandomNetworkDistillationClass import RND
+from simple_rl.tasks.pinball.PinballMDPClass import PinballMDP
 
 
 ## Hyperparameters
@@ -528,7 +530,7 @@ def train(agent, mdp, episodes, steps):
         mdp.reset()
         state = deepcopy(mdp.init_state)
         score = 0.
-        while True:
+        for step in range(steps):
             iteration_counter += 1
             action = agent.act(state.features(), train_mode=True)
             reward, next_state = mdp.execute_agent_action(mdp.actions[action])
@@ -548,7 +550,8 @@ def train(agent, mdp, episodes, steps):
         per_episode_scores.append(score)
 
         # After every episode, we fit our novelty detector on the (s, a) pairs seen so far
-        ddqn_agent.train_novelty_detector()
+        if ddqn_agent.exploration_method == "rmax":
+            ddqn_agent.train_novelty_detector()
 
         print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
         if episode % 100 == 0:
@@ -631,14 +634,19 @@ if __name__ == '__main__':
     logdir = create_log_dir(args.experiment_name)
     learning_rate = 1e-3 # 0.00025 for pong
 
-    overall_mdp = GymMDP(env_name="Acrobot-v1", pixel_observation=args.pixel_observation, render=args.render,
-                         clip_rewards=False, term_func=None, seed=args.seed)
+    if "pinball" in args.env:
+        overall_mdp = PinballMDP(render=args.render)
+        state_dim = 4
+    else:
+        overall_mdp = GymMDP(env_name=args.env, pixel_observation=args.pixel_observation, render=args.render,
+                             clip_rewards=False, term_func=None, seed=args.seed)
+        state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else \
+        overall_mdp.env.observation_space.shape[0]
     # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
     # overall_mdp = FourRoomMDP(11, 11, goal_locs=[(11, 11)], step_cost=1.0)
     # overall_mdp = GridWorldMDP(width=9, height=9, goal_locs=[(9, 9)], step_cost=1.0)
 
     # state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
-    state_dim = overall_mdp.env.observation_space.shape[0]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ddqn_agent = DQNAgent(state_size=state_dim, action_size=len(overall_mdp.actions),
