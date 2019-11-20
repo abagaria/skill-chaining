@@ -6,7 +6,7 @@ import pdb
 
 
 Transition = namedtuple('Transition', ("state", "action", "reward", "next_state", "done", "num_steps"))
-
+Experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
 
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
@@ -25,7 +25,7 @@ class ReplayBuffer:
         self.action_size = action_size
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
+        self.experience = Experience
         self.seed = random.seed(seed)
         self.device = device
         self.pixel_observation = pixel_observation

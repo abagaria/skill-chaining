@@ -43,3 +43,11 @@ class ConstantEpsilonSchedule(EpsilonSchedule):
 
     def update_epsilon(self, current_epsilon, num_executions):
         return self.eps
+
+class EpisodicEpsilonDecaySchedule(object):
+    def __init__(self, eps_start, num_episodes, eps_end=0.05):
+        self.eps = eps_start
+        self.episode_to_epsilon = lambda episode: eps_start + (((eps_end - eps_start) / num_episodes) * episode)
+
+    def update_epsilon(self, episode):
+        return self.episode_to_epsilon(episode)
