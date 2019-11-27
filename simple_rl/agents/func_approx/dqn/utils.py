@@ -5,6 +5,9 @@ import pickle
 import glob
 import seaborn as sns
 sns.set_style("white")
+import scipy
+
+from simple_rl.tasks.pinball.PinballStateClass import PinballState
 
 
 def get_novel_states(state_space, visited_states):
@@ -78,6 +81,57 @@ def get_classification_errors(self):
                 false_positives.append(s_a_pair)
 
     return missed_novelty, false_positives
+
+def get_grid_states():
+    ss = []
+    for x in np.arange(0., 1.1, 0.1):
+        for y in np.arange(0., 1.1, 0.1):
+            s = PinballState(x, y, 0, 0)
+            ss.append(s)
+    return ss
+
+def get_init_values(clf):
+    values = []
+    for x in np.arange(0., 1.1, 0.1):
+        for y in np.arange(0., 1.1, 0.1):
+            v = []
+            for vx in [-2, -1, 0., 1, 1]:
+                for vy in [-2, -1, 0., 1, 1]:
+                    features = np.array([x, y, vx, vy])
+                    v.append(clf.predict(features.reshape(1, -1)) == 1)
+            values.append(np.sum(v))
+
+    return values
+
+def plot_one_class_initiation_classifier(agent, action, episode=None, experiment_name="", seed=0):
+    plt.figure(figsize=(8.0, 5.0))
+
+    states = get_grid_states()
+    x = np.array([state[0] for state in states])
+    y = np.array([state[1] for state in states])
+    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+    xx, yy = np.meshgrid(xi, yi)
+
+    clf = agent.one_class_classifiers[action]
+
+    values = get_init_values(clf)
+
+    rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
+    zz = rbf(xx, yy)
+    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
+
+    # For pinball only
+    plt.xlim((0, 1))
+    plt.ylim((0, 1))
+    plt.gca().invert_yaxis()
+    plt.colorbar()
+
+    plt.xlabel("x")
+    plt.ylabel("y")
+    name = "{}_{}".format(experiment_name, episode)
+    plt.title("OC-SVM for Action {} @ Episode {}".format(action, episode))
+    plt.savefig("{}/{}_{}_one_class_svm_action_{}.png".format(experiment_name, name, seed, action))
+    plt.close()
 
 def visualize_value_function(agent, experiment_name, episode, seed):
     states = agent.state_space  # numpy array of shape |S| x 2

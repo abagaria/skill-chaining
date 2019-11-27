@@ -102,9 +102,9 @@ class DQNAgent(Agent):
             self.visited_state_action_pairs = defaultdict(lambda : set())
             self.discretized_visited_state_action_pairs = defaultdict(lambda : set())
             self.one_class_classifiers = [None] * len(self.actions)
-            # self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
-            self.epsilon_schedule = EpisodicEpsilonDecaySchedule(eps_start=start_epsilon, eps_end=evaluation_epsilon,
-                                                                 num_episodes=args.episodes)
+            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
+            # self.epsilon_schedule = EpisodicEpsilonDecaySchedule(eps_start=start_epsilon, eps_end=evaluation_epsilon,
+            #                                                      num_episodes=args.episodes)
             self.epsilon = evaluation_epsilon
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
@@ -293,7 +293,7 @@ class DQNAgent(Agent):
         predictions = np.array([s in self.discretized_visited_state_action_pairs[action] for s in states])
         return predictions
 
-    def _get_q_next(self, states, network, Q_MAX=0.):
+    def _get_q_next(self, states, network, Q_MAX=10.):
 
         def __get_q(s, net):
             if net == "target":
@@ -511,8 +511,12 @@ def train(agent, mdp, episodes, steps):
                 state_ri_buffer.append((state, intrinsic_reward))
                 reward += intrinsic_reward
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), num_steps=1)
+
+            # if agent.exploration_method == "rmax":
+            #     agent.episodic_update_epsilon(episode)
+            # else:
             agent.update_epsilon()
-            # agent.episodic_update_epsilon(episode)
+
             state = next_state
             score += reward
             if agent.tensor_log:
@@ -529,7 +533,7 @@ def train(agent, mdp, episodes, steps):
         print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
         if episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
-        if episode % 25 == 0 and args.generate_plots:
+        if episode % 5 == 0 and args.generate_plots:
             if overall_mdp.env_name == "MountainCar-v0":
                 x_low = overall_mdp.env.observation_space.low[0]
                 x_high = overall_mdp.env.observation_space.high[0]
@@ -541,6 +545,8 @@ def train(agent, mdp, episodes, steps):
                 y_low = 0
                 y_high = 1
                 visualize_sampled_value_function(agent, x_low, x_high, y_low, y_high, args.experiment_name, episode, args.seed)
+                # for action in agent.actions:
+                #     plot_one_class_initiation_classifier(agent, action, episode, args.experiment_name, args.seed)
         if episode % 10 == 0 and args.save_model:
             save_model(agent, episode, args.experiment_name)
 

@@ -48,7 +48,7 @@ class PinballMDP(MDP):
 
         assert done == self.is_goal_state(self.next_state), "done = {}, s' = {} should match".format(done, self.next_state)
 
-        return np.clip(reward, -1., 10.)
+        return np.clip(reward / 1000., -0.001, 10.)
 
 
     def _transition_func(self, state, action):
@@ -79,6 +79,7 @@ class PinballMDP(MDP):
         self.init_state = PinballState(*init_state)
         cur_state = copy.deepcopy(self.init_state)
         self.set_current_state(cur_state)
+        super(PinballMDP, self).reset()
 
     def set_current_state(self, new_state):
         self.cur_state = new_state
