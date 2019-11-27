@@ -10,7 +10,7 @@ import random
 
 # Other imports.
 import gym
-import gym_puddle
+# import gym_puddle
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.gym.GymStateClass import GymState
 from simple_rl.tasks.gym.wrappers import *

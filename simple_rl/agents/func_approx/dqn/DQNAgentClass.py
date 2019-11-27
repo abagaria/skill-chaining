@@ -92,8 +92,7 @@ class DQNAgent(Agent):
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
             self.epsilon = eps_start
         elif exploration_method == "const-eps-greedy":
-            self.epsilon_schedule = self.epsilon_schedule = EpisodicEpsilonDecaySchedule(eps_start=start_epsilon, eps_end=evaluation_epsilon,
-                                                                 num_episodes=args.episodes)
+            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
             self.epsilon = evaluation_epsilon
         elif exploration_method == "rnd":
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon)  # ConstantEpsilonSchedule(evaluation_epsilon)
