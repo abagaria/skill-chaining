@@ -24,6 +24,7 @@ class PinballMDP(MDP):
         init_state = tuple(init_observation[0])
 
         actions = self.domain.actions
+        self.env_name = "pinball"
 
         MDP.__init__(self, actions, self._transition_func, self._reward_func, init_state=PinballState(*init_state))
 

@@ -32,6 +32,7 @@ from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
 from simple_rl.tasks.four_room.FourRoomMDPClass import FourRoomMDP
 from simple_rl.tasks.grid_world.GridWorldMDPClass import GridWorldMDP
+from simple_rl.tasks.pinball.PinballMDPClass import PinballMDP
 from simple_rl.agents.func_approx.dqn.RandomNetworkDistillationClass import RND
 from simple_rl.agents.func_approx.dqn.utils import *
 
@@ -511,8 +512,8 @@ def train(agent, mdp, episodes, steps):
                 state_ri_buffer.append((state, intrinsic_reward))
                 reward += intrinsic_reward
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), num_steps=1)
-            # agent.update_epsilon()
-            agent.episodic_update_epsilon(episode)
+            agent.update_epsilon()
+            # agent.episodic_update_epsilon(episode)
             state = next_state
             score += reward
             if agent.tensor_log:
@@ -530,11 +531,17 @@ def train(agent, mdp, episodes, steps):
         if episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
         if episode % 25 == 0 and args.generate_plots:
-            x_low = overall_mdp.env.observation_space.low[0]
-            x_high = overall_mdp.env.observation_space.high[0]
-            x_dot_low = overall_mdp.env.observation_space.low[1]
-            x_dot_high = overall_mdp.env.observation_space.high[1]
-            visualize_sampled_value_function(agent, x_low, x_high, x_dot_low, x_dot_high, args.experiment_name, episode, args.seed)
+            if overall_mdp.env_name == "MountainCar-v0":
+                x_low = overall_mdp.env.observation_space.low[0]
+                x_high = overall_mdp.env.observation_space.high[0]
+                x_dot_low = overall_mdp.env.observation_space.low[1]
+                x_dot_high = overall_mdp.env.observation_space.high[1]
+            if overall_mdp.env_name == "pinball":
+                x_low = 0
+                x_high = 1
+                y_low = 0
+                y_high = 1
+                visualize_sampled_value_function(agent, x_low, x_high, y_low, y_high, args.experiment_name, episode, args.seed)
         if episode % 10 == 0 and args.save_model:
             save_model(agent, episode, args.experiment_name)
 
@@ -601,12 +608,14 @@ if __name__ == '__main__':
 
     logdir = create_log_dir(args.experiment_name)
     create_log_dir("{}/saved_runs".format(args.experiment_name))
-    learning_rate = 1e-3
+    learning_rate = 5e-4 #1e-3
 
-    overall_mdp = GymMDP(env_name=args.env, pixel_observation=args.pixel_observation, render=args.render,
-                         clip_rewards=False, term_func=None, seed=args.seed)
-    state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else \
-                overall_mdp.env.observation_space.shape[0]
+    # overall_mdp = GymMDP(env_name=args.env, pixel_observation=args.pixel_observation, render=args.render,
+    #                      clip_rewards=False, term_func=None, seed=args.seed)
+    # state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else \
+    #             overall_mdp.env.observation_space.shape[0]
+    overall_mdp = PinballMDP(episode_length=args.steps, reward_scale=10., render=args.render)
+    state_dim = 4
     # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
     # overall_mdp = FourRoomMDP(11, 11, goal_locs=[(11, 11)], step_cost=1.0)
     # overall_mdp = GridWorldMDP(width=9, height=9, goal_locs=[(9, 9)], step_cost=1.0)

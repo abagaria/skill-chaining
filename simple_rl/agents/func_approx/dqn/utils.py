@@ -113,6 +113,10 @@ def visualize_sampled_value_function(agent, x_low, x_high, y_low, y_high, experi
     plt.colorbar()
     plt.xlim((x_low, x_high))
     plt.ylim((y_low, y_high))
+
+    # For Pinball only
+    plt.gca().invert_yaxis()
+
     plt.savefig("{}/sampled_value_function_episode_{}_seed_{}".format(experiment_name, episode, seed))
     plt.close()
 

@@ -28,7 +28,8 @@ class GymMDP(MDP):
         self.env_name = env_name
 
         if pixel_observation:
-            self.env = FrameStack(AtariPreprocessing(gym.make(env_name)), num_stack=4)
+            # self.env = FrameStack(AtariPreprocessing(gym.make(env_name)), num_stack=4)
+            self.env = FrameStack(gym.make(env_name), num_stack=4)
         else:
             self.env = gym.make(env_name)
 
@@ -56,7 +57,7 @@ class GymMDP(MDP):
         obs, reward, done, info = self.env.step(action)
 
         if self.render:
-            self.env.render(mode="human")
+            self.env.render(mode="rgb_array")
 
         is_terminal = self.term_func(obs, reward) if self.term_func is not None else done
 
