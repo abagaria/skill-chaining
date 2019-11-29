@@ -125,6 +125,7 @@ class DQNAgent(Agent):
         self.num_updates = 0
         self.num_epsilon_updates = 0
         self.novelty_counts = []
+        self.evaluation_scores = []
 
         if self.tensor_log:
             self.writer = SummaryWriter() if writer is None else writer
@@ -417,53 +418,6 @@ class DQNAgent(Agent):
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)
 
-    def _rmax_learn(self):
-        novel_states = self.get_novel_states()  # type: np.ndarray
-        if len(novel_states.shape) == 0:
-            print("\r Have seen every state at least once! ")
-        novel_states = torch.from_numpy(novel_states).float().to(self.device)
-        predicted_values = torch.max(self.policy_network(novel_states), dim=1)[0]
-        target_values = torch.ones(novel_states.shape[0]).to(self.device)
-
-        if self.loss_function == "huber":
-            loss = F.smooth_l1_loss(predicted_values, target_values)
-        elif self.loss_function == "mse":
-            loss = F.mse_loss(predicted_values, target_values)
-        else:
-            raise NotImplementedError("{} loss function type not implemented".format(self.loss_function))
-
-        # Minimize the loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-    def _rmax_iid_learn(self, non_novel_states):
-        novel_states = self.get_novel_states()  # type: np.ndarray
-        novel_states = torch.from_numpy(novel_states).float().to(self.device)
-
-        # For novel states, the value target is r-max
-        predicted_values = torch.max(self.policy_network(novel_states), dim=1)[0]
-        target_values = torch.ones(novel_states.shape[0]).to(self.device)
-
-        # For non-novel states, the value target is determined by the target network
-        non_novel_value_predictions = torch.max(self.policy_network(non_novel_states), dim=1)[0]
-        non_novel_value_targets = torch.max(self.target_network(non_novel_states), dim=1)[0]
-
-        values = torch.cat((predicted_values, non_novel_value_predictions), dim=0)
-        targets = torch.cat((target_values, non_novel_value_targets), dim=0)
-
-        if self.loss_function == "huber":
-            loss = F.smooth_l1_loss(values, targets)
-        elif self.loss_function == "mse":
-            loss = F.mse_loss(values, targets)
-        else:
-            raise NotImplementedError("{} loss function type not implemented".format(self.loss_function))
-
-        # Minimize the loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
     def soft_update(self, local_model, target_model, tau):
         """
         Args:
@@ -493,10 +447,9 @@ class DQNAgent(Agent):
 
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
-    last_10_scores = deque(maxlen=100)
+    last_10_scores = deque(maxlen=10)
     iteration_counter = 0
     state_ri_buffer = []
-    false_positive_rates, false_negative_rates = [], []
 
     for episode in range(episodes):
         mdp.reset()
@@ -531,7 +484,7 @@ def train(agent, mdp, episodes, steps):
             ddqn_agent.train_novelty_detector()
 
         print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
-        if episode % 100 == 0:
+        if episode % 10 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
         if episode % 5 == 0 and args.generate_plots:
             if overall_mdp.env_name == "MountainCar-v0":
@@ -547,6 +500,12 @@ def train(agent, mdp, episodes, steps):
                 visualize_sampled_value_function(agent, x_low, x_high, y_low, y_high, args.experiment_name, episode, args.seed)
                 # for action in agent.actions:
                 #     plot_one_class_initiation_classifier(agent, action, episode, args.experiment_name, args.seed)
+
+        # Evaluation Roll-outs
+        if episode % 5 == 0:
+            eval_scores = [test_forward_pass(agent, overall_mdp, 10000) for _ in range(5)]
+            agent.evaluation_scores.append(np.mean(eval_scores))
+
         if episode % 10 == 0 and args.save_model:
             save_model(agent, episode, args.experiment_name)
 
@@ -556,31 +515,37 @@ def train(agent, mdp, episodes, steps):
     return per_episode_scores, state_ri_buffer
 
 
-def test_forward_pass(dqn_agent, mdp):
-    # load the weights from file
+def test_forward_pass(dqn_agent, mdp, eval_steps, render=False):
     mdp.reset()
     state = deepcopy(mdp.init_state)
     overall_reward = 0.
-    mdp.render = True
+    if render: mdp.render = True
 
-    while not state.is_terminal():
+    for step_number in range(eval_steps):
         action = dqn_agent.act(state.features(), train_mode=False)
         reward, next_state = mdp.execute_agent_action(action)
         overall_reward += reward
         state = next_state
 
-    mdp.render = False
+        if state.is_terminal():
+            break
+
+    if render: mdp.render = False
     return overall_reward
 
-def save_all_scores(experiment_name, log_dir, seed, scores):
+def save_all_scores(experiment_name, log_dir, seed, training_scores, eval_scores):
     print("\rSaving training and validation scores..")
     training_scores_file_name = "{}_{}_training_scores.pkl".format(experiment_name, seed)
+    eval_scores_file_name = "{}_{}_eval_scores.pkl".format(experiment_name, seed)
 
     if log_dir:
         training_scores_file_name = os.path.join(log_dir, training_scores_file_name)
+        eval_scores_file_name = os.path.join(log_dir, eval_scores_file_name)
 
     with open(training_scores_file_name, "wb+") as _f:
-        pickle.dump(scores, _f)
+        pickle.dump(training_scores, _f)
+    with open(eval_scores_file_name, "wb+") as _f:
+        pickle.dump(eval_scores, _f)
 
 def create_log_dir(experiment_name):
     path = os.path.join(os.getcwd(), experiment_name)
@@ -609,6 +574,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_ddqn", type=bool, default=False)
     parser.add_argument("--generate_plots", type=bool, default=False)
     parser.add_argument("--save_model", type=bool, default=False)
+    parser.add_argument("--tensor_log", type=bool, default=False)
     args = parser.parse_args()
 
     logdir = create_log_dir(args.experiment_name)
@@ -630,9 +596,9 @@ if __name__ == '__main__':
 
     ddqn_agent = DQNAgent(state_size=state_dim, action_size=len(overall_mdp.actions),
                           trained_options=[], seed=args.seed, device=device,
-                          name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=args.use_ddqn,
+                          name="GlobalDDQN", lr=learning_rate, tensor_log=args.tensor_log, use_double_dqn=args.use_ddqn,
                           start_epsilon=args.start_eps, exploration_method=args.exploration_method,
                           pixel_observation=args.pixel_observation,
                           evaluation_epsilon=args.eval_eps, novelty_detection_method=args.novelty_method)
     ddqn_episode_scores, s_ri_buffer = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
-    save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)
+    save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores, ddqn_agent.evaluation_scores)
