@@ -99,8 +99,8 @@ class DQNAgent(Agent):
             self.epsilon = eps_start
             self.rnd = RND(state_dim, out_dim=64, n_hid=124, device=self.device)
         elif exploration_method == "rmax":
-            self.visited_state_action_pairs = defaultdict(lambda : set())
-            self.discretized_visited_state_action_pairs = defaultdict(lambda : set())
+            self.visited_state_action_pairs = defaultdict(lambda : [])
+            self.discretized_visited_state_action_pairs = defaultdict(lambda : [])
             self.one_class_classifiers = [None] * len(self.actions)
             self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
             # self.epsilon_schedule = EpisodicEpsilonDecaySchedule(eps_start=start_epsilon, eps_end=evaluation_epsilon,
@@ -272,10 +272,10 @@ class DQNAgent(Agent):
         self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
         if self.exploration_method == "rmax":
-            self.visited_state_action_pairs[action].add(tuple(state))
+            self.visited_state_action_pairs[action].append(tuple(state))
 
             # For the oracle based novelty detector
-            self.discretized_visited_state_action_pairs[action].add(tuple(np.round(state, 1)))
+            # self.discretized_visited_state_action_pairs[action].append(tuple(np.round(state, 1)))
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -286,7 +286,7 @@ class DQNAgent(Agent):
                 self._learn(experiences, GAMMA)
 
                 if self.tensor_log:
-                    self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
+                    self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.num_sampled_positive_transitions[-1], self.num_updates)
                 self.num_updates += 1
 
     def get_oracle_predictions(self, states, action):
@@ -294,7 +294,7 @@ class DQNAgent(Agent):
         predictions = np.array([s in self.discretized_visited_state_action_pairs[action] for s in states])
         return predictions
 
-    def _get_q_next(self, states, network, Q_MAX=10.):
+    def _get_q_next(self, states, network, Q_MAX=5.):
 
         def __get_q(s, net):
             if net == "target":
@@ -322,7 +322,8 @@ class DQNAgent(Agent):
         # Iterate through actions and set novel Q(s, a) to Q-max
         for action in self.actions:
             if not any([clf is None for clf in self.one_class_classifiers]):
-                Y = self.one_class_classifiers[action].predict(np_states)
+                X = np_states[:, :2] if args.use_position_for_novelty else np_states
+                Y = self.one_class_classifiers[action].predict(X)
                 np_Q_next[np.where(Y != 1)[0], action] = Q_MAX
                 novelty_count += (np.where(Y != 1)[0]).shape[0]
 
@@ -410,6 +411,14 @@ class DQNAgent(Agent):
         #     self._rmax_iid_learn(states)
 
         if self.tensor_log:
+            init_state_features = overall_mdp.init_state.features()
+            init_state = torch.from_numpy(init_state_features).float().unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                pred_values = self.policy_network(init_state)
+                targ_values = self._get_q_next(init_state, network="target")
+                self.writer.add_scalar("InitState-PredictedValue", pred_values.cpu().numpy().mean(), self.num_updates)
+                self.writer.add_scalar("InitState-TargetValue", targ_values.cpu().numpy().mean(), self.num_updates)
+                self.writer.add_scalar("InitState-NumNovelActions", self.get_novel_actions_for_state(init_state_features), self.num_updates)
             self.writer.add_scalar("DQN-Loss", loss.item(), self.num_updates)
             self.writer.add_scalar("DQN-AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
             self.writer.add_scalar("DQN-AverageQValue", Q_expected.mean().item(), self.num_updates)
@@ -417,6 +426,16 @@ class DQNAgent(Agent):
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)
+
+    def get_novel_actions_for_state(self, state):
+        novel_actions = 0
+        for action in self.actions:
+            clf = self.one_class_classifiers[action]
+            if clf is not None:
+                x = state[:2] if args.use_position_for_novelty else state
+                if clf.predict(x.reshape(1, -1)) == -1:
+                    novel_actions += 1
+        return novel_actions
 
     def soft_update(self, local_model, target_model, tau):
         """
@@ -442,8 +461,9 @@ class DQNAgent(Agent):
     def train_novelty_detector(self):
         for action in self.actions:
             visited_states = np.array(list(self.visited_state_action_pairs[action]))
-            self.one_class_classifiers[action] = svm.OneClassSVM(kernel="rbf", gamma="scale", nu=args.nu)
-            self.one_class_classifiers[action].fit(visited_states)
+            self.one_class_classifiers[action] = svm.OneClassSVM(kernel="rbf", gamma=20., nu=args.nu)
+            X = visited_states[:, :2] if args.use_position_for_novelty else visited_states
+            self.one_class_classifiers[action].fit(X)
 
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
@@ -501,10 +521,10 @@ def train(agent, mdp, episodes, steps):
                 # for action in agent.actions:
                 #     plot_one_class_initiation_classifier(agent, action, episode, args.experiment_name, args.seed)
 
-        # Evaluation Roll-outs
-        if episode % 5 == 0:
-            eval_scores = [test_forward_pass(agent, overall_mdp, 10000) for _ in range(5)]
-            agent.evaluation_scores.append(np.mean(eval_scores))
+        # # Evaluation Roll-outs
+        # if episode % 5 == 0:
+        #     eval_scores = [test_forward_pass(agent, overall_mdp, 10000) for _ in range(5)]
+        #     agent.evaluation_scores.append(np.mean(eval_scores))
 
         if episode % 10 == 0 and args.save_model:
             save_model(agent, episode, args.experiment_name)
@@ -575,6 +595,7 @@ if __name__ == '__main__':
     parser.add_argument("--generate_plots", type=bool, default=False)
     parser.add_argument("--save_model", type=bool, default=False)
     parser.add_argument("--tensor_log", type=bool, default=False)
+    parser.add_argument("--use_position_for_novelty", type=bool, default=False)
     args = parser.parse_args()
 
     logdir = create_log_dir(args.experiment_name)

@@ -31,6 +31,7 @@ class ReplayBuffer:
         self.pixel_observation = pixel_observation
 
         self.positive_transitions = []
+        self.num_sampled_positive_transitions = [0]
 
     def add(self, state, action, reward, next_state, done, num_steps):
         """
@@ -46,14 +47,52 @@ class ReplayBuffer:
         e = self.experience(state, action, reward, next_state, done, num_steps)
         self.memory.append(e)
 
+    def append_positive_transition(self, states, actions, rewards, next_states, dones, steps, pos_transitions):
+        if len(pos_transitions) > 0:
+            def _to_floating_tensor(np_array):
+                return torch.from_numpy(np_array).float().unsqueeze(0).to(self.device)
+            def _to_long_tensor(np_array):
+                return torch.from_numpy(np_array).unsqueeze(0).to(self.device)
+
+            # Create tensors corresponding to the sampled positive transition
+            pos_transition = random.sample(pos_transitions, k=1)[0]  # type: Experience
+            pos_state = _to_floating_tensor(pos_transition.state)
+            pos_action = _to_long_tensor(np.array([pos_transition.action]))
+            pos_reward = _to_floating_tensor(np.array([pos_transition.reward]))
+            pos_next_state = _to_floating_tensor(pos_transition.next_state)
+            pos_done = _to_floating_tensor(np.array([float(pos_transition.done)]))
+            assert pos_done == 1, pos_done
+            pos_steps = _to_floating_tensor(np.array([1]))
+
+            # Add the positive transition tensor to the mini-batch
+            states = torch.cat((states, pos_state), dim=0)
+            actions = torch.cat((actions, pos_action), dim=0)
+            rewards = torch.cat((rewards, pos_reward), dim=0)
+            next_states = torch.cat((next_states, pos_next_state), dim=0)
+            dones = torch.cat((dones, pos_done), dim=0)
+            steps = torch.cat((steps, pos_steps), dim=0)
+
+            # Shuffle the mini-batch to maintain the IID property
+            idx = torch.randperm(states.shape[0])
+            states = states[idx, :]
+            actions = actions[idx, :]
+            rewards = rewards[idx, :]
+            next_states = next_states[idx, :]
+            dones = dones[idx, :]
+            steps = steps[idx, :]
+
+        return states, actions, rewards, next_states, dones, steps
+
     def sample(self, batch_size=None):
         """Randomly sample a batch of experiences from memory."""
         size = self.batch_size if batch_size is None else batch_size
         experiences = random.sample(self.memory, k=size)
 
         # Log the number of times we see a non-negative reward (should be sparse)
-        num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])
-        self.positive_transitions.append(num_positive_transitions)
+        positive_transitions = [transition for transition in experiences if transition.reward > 0]
+
+        if len(positive_transitions) > 0:
+            self.positive_transitions += positive_transitions
 
         # With image observations, we need to add another dimension to the tensor before stacking
         if self.pixel_observation:
@@ -68,6 +107,13 @@ class ReplayBuffer:
             next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
         steps = torch.from_numpy(np.vstack([e.num_steps for e in experiences if e is not None])).float().to(self.device)
+
+        states, actions, rewards, next_states, dones, steps = self.append_positive_transition(states, actions, rewards,
+                                                                                              next_states, dones, steps,
+                                                                                              self.positive_transitions)
+
+        self.num_sampled_positive_transitions.append(sum(rewards > 0))
+
 
         return states, actions, rewards, next_states, dones, steps
 

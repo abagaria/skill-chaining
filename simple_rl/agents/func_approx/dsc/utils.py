@@ -114,25 +114,26 @@ def make_meshgrid(x, y, h=.02):
 						 np.arange(y_min, y_max, h))
 	return xx, yy
 
-def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
+def plot_one_class_initiation_classifier(X, clf, action, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))
-	X = option.construct_feature_matrix(option.positive_examples)
+
 	X0, X1 = X[:, 0], X[:, 1]
 	xx, yy = make_meshgrid(X0, X1)
-	Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
+	Z1 = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
 	Z1 = Z1.reshape(xx.shape)
 	plt.contour(xx, yy, Z1, levels=[0], linewidths=2, cmap=plt.cm.bone)
 
-	plot_all_trajectories_in_initiation_data(option.positive_examples)
+	plt.scatter(X0, X1, alpha=0.15)
 
-	plt.xlim((-3, 11))
-	plt.ylim((-3, 11))
+	plt.xlim((0, 1))
+	plt.ylim((0, 1))
 
 	plt.xlabel("x")
-	plt.ylabel("y")
-	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-	plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
+	plt.ylabel("y"); plt.gca().invert_yaxis()
+	name = "{}_{}".format(experiment_name, episode)
+	plt.savefig("{}/{}_{}_one_class_svm_action{}.png".format(experiment_name, name, 1, action))
 	plt.close()
+
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))
@@ -193,8 +194,8 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
 	plt.xlabel("x")
 	plt.ylabel("y")
 	plt.title("Replay Buffer Reward Heat Map")
-	plt.xlim((-3, 11))
-	plt.ylim((-3, 11))
+	plt.xlim((0, 1))
+	plt.ylim((0, 1))
 
 	name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
