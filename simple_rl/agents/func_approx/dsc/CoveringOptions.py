@@ -64,7 +64,7 @@ class CoveringOptions(Option):
 
     def train(self, replay_buffer):
         for _ in range(self.num_training_steps):
-            s, a, r, s2, t, _ = replay_buffer.sample(self.batch_size)
+            s, a, r, s2, t, _ = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
 
             s = s.numpy()
             s2 = s2.numpy()
@@ -116,7 +116,7 @@ class CoveringOptions(Option):
 
         f_srt = np.sort(f_values)
         
-        print('f_srt=', f_srt)
+        # print('f_srt=', f_srt)
 
         # print('n_samples=', n_samples)
         # print('len(s)=', len(s))
@@ -177,15 +177,16 @@ class SpectrumNetwork():
 
     def network(self, scope):
         indim = self.obs_dim
-        obs = tf.placeholder(tf.float32, [None, indim], name=self.name+"_obs")
 
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             if self.conv:
-                reshaped_obs = tf.reshape(obs, [-1, 105, 80, 3])
-                net = tflearn.conv_2d(reshaped_obs, 32, 8, strides=4, activation='relu')
+                obs = tf.placeholder(tf.float32, [None, 4, 84, 84], name=self.name+"_obs")
+                # obs = tf.placeholder(tf.float32, [None, 105, 80, 3], name=self.name+"_obs")
+                net = tflearn.conv_2d(obs, 32, 8, strides=4, activation='relu')
                 net = tflearn.conv_2d(net, 64, 4, strides=2, activation='relu')
                 out = tflearn.fully_connected(net, 1, weights_init=tflearn.initializations.uniform(minval=-0.003, maxval=0.003))
             else:
+                obs = tf.placeholder(tf.float32, [None, indim], name=self.name+"_obs")
                 # net = tflearn.fully_connected(obs, self.n_units, name='d1', weights_init=tflearn.initializations.truncated_normal(stddev=1.0/float(indim)))
                 # net = tflearn.fully_connected(net, self.n_units, name='d2', weights_init=tflearn.initializations.truncated_normal(stddev=1.0/float(self.n_units)))
                 # net = tflearn.fully_connected(net, self.n_units, name='d3', weights_init=tflearn.initializations.truncated_normal(stddev=1.0/float(self.n_units)))
@@ -204,6 +205,9 @@ class SpectrumNetwork():
         # print('next_f_value=', next_f_value)
         # print('type(obs)=', type(obs))
         # print('type(next_f_value)=', type(next_f_value))
+        
+        obs = [np.asarray(s) for s in obs]
+        
         self.sess.run(self.optimize, feed_dict={
             self.obs: obs,
             self.next_f_value: next_f_value
@@ -213,8 +217,12 @@ class SpectrumNetwork():
         self.sess.run(self.initializer, feed_dict={})
 
     def f_ret(self, state):
+        assert(isinstance(state, list))
+
+        obs = [np.asarray(s) for s in state]
+        
         return self.sess.run(self.f_value, feed_dict={
-            self.obs: state
+            self.obs: obs
         })
 
     def f_from_features(self, features):

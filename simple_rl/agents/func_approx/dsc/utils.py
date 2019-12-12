@@ -135,6 +135,7 @@ def make_meshgrid(x, y, h=.02):
         return xx, yy
 
 def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name=""):
+        return
         plt.figure(figsize=(8.0, 5.0))
         ax = plt.gca()
 
@@ -165,7 +166,7 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
         # plt.close()
         # return
 
-        states, _, _, _, _ = replay_buffer.sample(2000)
+        states, _, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
 
         # states_cp = []
         # for s in states:

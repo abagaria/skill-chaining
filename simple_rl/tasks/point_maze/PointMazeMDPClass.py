@@ -92,3 +92,6 @@ class PointMazeMDP(MDP):
 
     def __str__(self):
         return self.env_name
+
+    def is_action_space_discrete(self):
+        return hasattr(self.env.action_space, 'n')

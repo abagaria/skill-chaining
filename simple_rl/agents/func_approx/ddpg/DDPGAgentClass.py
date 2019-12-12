@@ -68,10 +68,10 @@ class DDPGAgent(Agent):
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
-    def act(self, state, evaluation_mode=False):
+    def act(self, state, train_mode=False):
         action = self.actor.get_action(state)
         noise = self.noise()
-        if not evaluation_mode:
+        if train_mode:
             action += (noise * self.epsilon)
         action = np.clip(action, -1., 1.)
 
@@ -171,7 +171,7 @@ def trained_forward_pass(agent, mdp, steps, render=False):
     mdp.render = render
 
     for _ in range(steps):
-        action = agent.act(state.features(), evaluation_mode=True)
+        action = agent.act(state.features(), train_mode=False)
         reward, next_state = mdp.execute_agent_action(action)
         overall_reward += reward
         state = next_state

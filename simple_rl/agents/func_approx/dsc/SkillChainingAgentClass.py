@@ -18,7 +18,9 @@ import torch
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
-from simple_rl.agents.func_approx.ddpg.utils import *
+
+# TODO: how to keep to util functions?
+from simple_rl.agents.func_approx.dqn.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
 from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
@@ -27,7 +29,7 @@ class SkillChaining(object):
         def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
                                  subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
                                  classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-                                 log_dir="", seed=0, tensor_log=False):
+                                 log_dir="", seed=0,  pixel_observation=False, random_agent=False, tensor_log=False):
                 """
                 Args:
                         mdp (MDP): Underlying domain we have to solve
@@ -63,6 +65,9 @@ class SkillChaining(object):
                 self.device = torch.device(device)
                 self.max_num_options = max_num_options
                 self.classifier_type = classifier_type
+                self.pixel_observation = pixel_observation
+
+                self.random_agent = random_agent
 
                 # If dense_reward is set to false, then it incurs a step cost of -1.
                 if hasattr(mdp, 'dense_reward'):
@@ -86,7 +91,7 @@ class SkillChaining(object):
                                                                         ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
                                                                         subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
                                                                         enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-                                                                        generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+                                                                        generate_plots=self.generate_plots, writer=self.writer, random_agent=self.random_agent, device=self.device,
                                                                         dense_reward=self.dense_reward)
 
                 self.trained_options = [self.global_option]
@@ -126,7 +131,7 @@ class SkillChaining(object):
                 # options, this agent will predict Q-values for them as well
                 self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
                                                                                    seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
-                                                                                   use_double_dqn=True, writer=self.writer, device=self.device)
+                                                                                   use_double_dqn=True, writer=self.writer, device=self.device, pixel_observation=self.pixel_observation)
                 # Pointer to the current option:
                 # 1. This option has the termination set which defines our current goal trigger
                 # 2. This option has an untrained initialization set and policy, which we need to train from experience
@@ -233,7 +238,7 @@ class SkillChaining(object):
                                                                         tensor_log=self.agent_over_options.tensor_log,
                                                                         use_double_dqn=self.agent_over_options.use_ddqn,
                                                                         lr=self.agent_over_options.learning_rate,
-                                                                        writer=self.writer, device=self.device)
+                                                                        writer=self.writer, device=self.device, pixel_observation=True)
                 new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
                 init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
@@ -308,6 +313,7 @@ class SkillChaining(object):
                         sample_states = torch.from_numpy(sample_experiences[0]).float().to(self.device)
                         sample_actions = torch.from_numpy(sample_experiences[1]).float().to(self.device)
                         sample_qvalues = option.solver.get_qvalues(sample_states, sample_actions)
+                        # sample_qvalues = option.solver.get_qvalue(np.squeeze(sample_experiences[0].numpy()), np.squeeze(sample_experiences[1].numpy()))
                         return sample_qvalues.mean().item()
                 return 0.0
 
@@ -540,10 +546,14 @@ if __name__ == '__main__':
         parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
         parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 
-        parser.add_argument("--covering_options_freq", type=int, help="number of episodes to generate covering options")
+        parser.add_argument("--covering_options_freq", type=int, help="number of episodes to generate covering options", default=5)
         parser.add_argument("--eigen_training_steps", type=int, default=100, help="number of episodes to generate covering options")
         parser.add_argument("--feature", type=str, default=None)
+
+        parser.add_argument("--random_agent", action="store_true", help="Use random agent if true.")
         args = parser.parse_args()
+
+        pixel_observation = False
 
         if "reacher" in args.env.lower():
                 from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
@@ -559,14 +569,12 @@ if __name__ == '__main__':
                 from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
                 overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
                 state_dim = 4
-                action_dim = 2
+                action_dim = 2                
         else:
                 from simple_rl.tasks.gym.GymMDPClass import GymMDP
-                overall_mdp = GymMDP(args.env, render=args.render)
-                state_dim = overall_mdp.env.observation_space.shape[0]
-
-                # TODO: The code is implemented only for continuous action domain
-                action_dim = overall_mdp.env.action_space.shape[0]
+                overall_mdp = GymMDP(args.env, render=args.render, pixel_observation=True)
+                state_dim = overall_mdp.state_space_size()
+                action_dim = overall_mdp.action_space_size()
                 overall_mdp.env.seed(args.seed)
 
         # Create folders for saving various things
@@ -586,11 +594,12 @@ if __name__ == '__main__':
                                                         seed=args.seed, subgoal_reward=args.subgoal_reward,
                                                         log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
                                                         enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-                                                        generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
+                                                        generate_plots=args.generate_plots, tensor_log=args.tensor_log, pixel_observation=pixel_observation, random_agent=args.random_agent, device=args.device)
         print('initializing SkillChaining done')
         episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps, args.covering_options_freq)
-
+        
         # Log performance metrics
         chainer.save_all_models()
+        exit(0)
         chainer.perform_experiments()
         chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
