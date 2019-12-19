@@ -461,7 +461,7 @@ class DQNAgent(Agent):
     def train_novelty_detector(self):
         for action in self.actions:
             visited_states = np.array(list(self.visited_state_action_pairs[action]))
-            self.one_class_classifiers[action] = svm.OneClassSVM(kernel="rbf", gamma=20., nu=args.nu)
+            self.one_class_classifiers[action] = svm.OneClassSVM(kernel="rbf", gamma=50., nu=args.nu)
             X = visited_states[:, :2] if args.use_position_for_novelty else visited_states
             self.one_class_classifiers[action].fit(X)
 
@@ -518,6 +518,8 @@ def train(agent, mdp, episodes, steps):
                 y_low = 0
                 y_high = 1
                 visualize_sampled_value_function(agent, x_low, x_high, y_low, y_high, args.experiment_name, episode, args.seed)
+                visited_states = np.array(ddqn_agent.visited_state_action_pairs[0])
+                plot_one_class_initiation_classifier(visited_states, ddqn_agent.one_class_classifiers[0], 0, episode, args.experiment_name)
                 # for action in agent.actions:
                 #     plot_one_class_initiation_classifier(agent, action, episode, args.experiment_name, args.seed)
 

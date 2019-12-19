@@ -103,35 +103,32 @@ def get_init_values(clf):
 
     return values
 
-def plot_one_class_initiation_classifier(agent, action, episode=None, experiment_name="", seed=0):
+def make_meshgrid(x, y, h=.02):
+    x_min, x_max = x.min() - 1, x.max() + 1
+    y_min, y_max = y.min() - 1, y.max() + 1
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    return xx, yy
+
+def plot_one_class_initiation_classifier(X, clf, action, episode=None, experiment_name="", seed=0):
     plt.figure(figsize=(8.0, 5.0))
+    X0, X1 = X[:, 0], X[:, 1]
+    xx, yy = make_meshgrid(X0, X1)
+    Z1 = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
+    Z1 = Z1.reshape(xx.shape)
+    plt.contour(xx, yy, Z1, levels=[0], linewidths=2, cmap=plt.cm.bone)
 
-    states = get_grid_states()
-    x = np.array([state[0] for state in states])
-    y = np.array([state[1] for state in states])
-    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
-    xx, yy = np.meshgrid(xi, yi)
+    plt.scatter(X0, X1, alpha=0.15)
 
-    clf = agent.one_class_classifiers[action]
-
-    values = get_init_values(clf)
-
-    rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
-    zz = rbf(xx, yy)
-    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
-
-    # For pinball only
     plt.xlim((0, 1))
     plt.ylim((0, 1))
-    plt.gca().invert_yaxis()
-    plt.colorbar()
 
     plt.xlabel("x")
-    plt.ylabel("y")
+    plt.ylabel("y"); plt.gca().invert_yaxis()
     name = "{}_{}".format(experiment_name, episode)
-    plt.title("OC-SVM for Action {} @ Episode {}".format(action, episode))
-    plt.savefig("{}/{}_{}_one_class_svm_action_{}.png".format(experiment_name, name, seed, action))
+    plt.savefig("{}/{}_{}_one_class_svm_action{}.png".format(experiment_name, name, seed, action))
     plt.close()
+
 
 def visualize_value_function(agent, experiment_name, episode, seed):
     states = agent.state_space  # numpy array of shape |S| x 2
