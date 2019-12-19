@@ -87,6 +87,9 @@ class PointMazeMDP(MDP):
         """ Return list of predicate functions that indicate salience in this MDP. """
         return [self.is_in_goal_position, self.is_in_key_position]
 
+    def get_batched_target_events(self):
+        return [self.env.batched_is_in_goal_position, self.env.batched_is_in_key_position]
+
     @staticmethod
     def state_space_size():
         return 7

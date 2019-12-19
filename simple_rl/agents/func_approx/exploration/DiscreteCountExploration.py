@@ -1,5 +1,6 @@
 import numpy as np
 from collections import defaultdict
+import pdb
 
 
 class CountBasedDensityModel(object):
@@ -48,3 +49,7 @@ class CountBasedDensityModel(object):
         self._update_single_count(state, action)
         self._update_single_bonus(state, action, bonus)
         return bonus
+
+    def reset(self):
+        self.s_a_counts = defaultdict(lambda: defaultdict(lambda: 0))
+        self.s_a_bonus = defaultdict(lambda: defaultdict(lambda: 0))

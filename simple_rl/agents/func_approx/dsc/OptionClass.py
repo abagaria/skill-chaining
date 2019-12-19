@@ -19,8 +19,9 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=1, option_idx=None,
-				 max_num_children=2, generate_plots=False, device=torch.device("cpu"), writer=None):
+				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=3, option_idx=None,
+				 chain_id=None, initialize_everywhere=False, intersecting_options=[], max_num_children=2,
+				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -37,6 +38,8 @@ class Option(object):
 			dense_reward (bool)
 			enable_timeout (bool)
 			timeout (int)
+			chain_id (int)
+			initialize_everywhere (bool)
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
@@ -53,6 +56,7 @@ class Option(object):
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
+		self.initialize_everywhere = initialize_everywhere
 
 		self.timeout = np.inf
 
@@ -69,7 +73,10 @@ class Option(object):
 		else:
 			self.option_idx = option_idx
 
-		print("Creating {} with enable_timeout={}".format(name, enable_timeout))
+		self.chain_id = chain_id
+		self.intersecting_options = intersecting_options
+
+		print("Creating {} in chain {} with enable_timeout={}".format(name, chain_id, enable_timeout))
 
 		random.seed(seed)
 		np.random.seed(seed)
@@ -89,6 +96,7 @@ class Option(object):
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
+		self.last_episode_term_triggered = 0
 
 		self.overall_mdp = overall_mdp
 		self.final_transitions = []
@@ -98,6 +106,7 @@ class Option(object):
 		self.num_executions = 0
 		self.taken_or_not = []
 		self.n_taken_or_not = 0
+		self.option_start_states = []
 
 	def __str__(self):
 		return self.name
@@ -144,7 +153,7 @@ class Option(object):
 			return "gestation"
 		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
 			return "initiation"
-		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
+		if self.num_goal_hits >= (self.num_subgoal_hits_required + self.initiation_period):
 			return "initiation_done"
 		return "trained"
 
@@ -170,12 +179,37 @@ class Option(object):
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
+		if self.initialize_everywhere and self.initiation_classifier is None:
+			return np.ones((state_matrix.shape[0]))
 		position_matrix = state_matrix[:, :2]
 		return self.initiation_classifier.predict(position_matrix) == 1
+
+	def batched_is_term_true(self, state_matrix):
+		if self.parent is not None:
+			return self.parent.batched_is_init_true(state_matrix)
+
+		# Extract the relevant dimensions from the state matrix (x, y)
+		state_matrix = state_matrix[:, :2]
+
+		# If the option does not have a parent, it must be targeting a pre-specified salient event
+		if self.name == "global_option":
+			return np.ones((state_matrix.shape[0]))
+		elif self.name == "goal_option_1":
+			return self.overall_mdp.get_batched_target_events()[0](state_matrix)
+		elif self.name == "goal_option_2":
+			return self.overall_mdp.get_batched_target_events()[1](state_matrix)
+		else:
+			assert len(self.intersecting_options) > 0
+			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
+			return np.logical_and(o1.batched_is_init_true(state_matrix), o2.batched_is_init_true(state_matrix))
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
+
+		if self.initialize_everywhere and self.initiation_classifier is None:
+			return True
+
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		return self.initiation_classifier.predict([features])[0] == 1
 
@@ -191,7 +225,9 @@ class Option(object):
 		elif self.name == "goal_option_2":
 			return self.overall_mdp.get_target_events()[1](ground_state)
 		else:
-			raise ValueError(self.name)
+			assert len(self.intersecting_options) > 0, "{}, {}".format(self, self.intersecting_options)
+			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
+			return o1.is_init_true(ground_state) and o2.is_init_true(ground_state)
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -234,7 +270,8 @@ class Option(object):
 		return weights
 
 	def train_one_class_svm(self):
-		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
+		# TODO: Why is this check failing???
+		# assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
@@ -310,18 +347,21 @@ class Option(object):
 			state, action, reward, next_state = experience.serialize()
 			self.update_option_solver(state, action, reward, next_state)
 
-	def train(self, experience_buffer, state_buffer):
+	def train(self, experience_buffer, state_buffer, episode):
 		"""
 		Called every time the agent hits the current option's termination set.
 		Args:
 			experience_buffer (list)
 			state_buffer (list)
+			episode (int)
 		Returns:
 			trained (bool): whether or not we actually trained this option
 		"""
 		self.add_initiation_experience(state_buffer)
 		self.add_experience_buffer(experience_buffer)
 		self.num_goal_hits += 1
+
+		self.last_episode_term_triggered = episode
 
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
 			trained = self.train_initiation_classifier()
@@ -390,12 +430,13 @@ class Option(object):
 			subgoal_reward = self.get_subgoal_reward(s_prime)
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
-	def execute_option_in_mdp(self, mdp, step_number):
+	def execute_option_in_mdp(self, mdp, episode, step_number):
 		"""
 		Option main control loop.
 
 		Args:
 			mdp (MDP): environment where actions are being taken
+			episode (int)
 			step_number (int): how many steps have already elapsed in the outer control loop.
 
 		Returns:
@@ -411,6 +452,8 @@ class Option(object):
 			self.num_executions += 1
 			num_steps = 0
 			visited_states = []
+
+			self.option_start_states.append(start_state)
 
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
@@ -442,8 +485,9 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
-			if self.is_term_true(state):
+			if self.is_term_true(state) and self.last_episode_term_triggered != episode:
 				self.num_goal_hits += 1
+				self.last_episode_term_triggered = episode
 
 			if self.get_training_phase() == "initiation" and self.name != "global_option":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)

@@ -23,6 +23,7 @@ import numpy as np
 import gym
 import pdb
 import random
+from scipy.spatial import distance
 
 from simple_rl.tasks.point_maze.environments import maze_env_utils
 
@@ -518,6 +519,20 @@ class MazeEnv(gym.Env):
 
   def distance_to_key_position(self, pos):
       return np.linalg.norm(pos - self.key_xy)
+
+  def batched_is_in_goal_position(self, position_matrix):
+      in_goal_pos = self.batched_distance_to_goal_position(position_matrix) <= 0.6
+      return in_goal_pos.squeeze(1)
+
+  def batched_is_in_key_position(self, position_matrix):
+      in_key_pos = self.batched_distance_to_key_position(position_matrix) <= 0.6
+      return in_key_pos.squeeze(1)
+
+  def batched_distance_to_goal_position(self, position_matrix):
+      return distance.cdist(position_matrix, self.goal_xy[None, :])
+
+  def batched_distance_to_key_position(self, position_matrix):
+      return distance.cdist(position_matrix, self.key_xy[None, ...])
 
   def step(self, action):
     outer_reward = 0.

@@ -157,7 +157,7 @@ class DQNAgent(Agent):
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
-                 exploration_strategy="eps-greedy", state_rounding_decimals=2, use_position_only_for_exploration=False,
+                 exploration_strategy="eps-greedy", state_rounding_decimals=1, use_position_only_for_exploration=False,
                  gradient_clip=None, evaluation_epsilon=0.05, writer=None):
         self.state_size = state_size
         self.action_size = action_size
@@ -198,7 +198,8 @@ class DQNAgent(Agent):
             self.num_executions = 0
             self.fitting_interval = 200  # every episode
         elif exploration_strategy == "counts":
-            self.density_model = CountBasedDensityModel(state_rounding_decimals=state_rounding_decimals)
+            self.density_model = CountBasedDensityModel(state_rounding_decimals=state_rounding_decimals,
+                                                        use_position_only=use_position_only_for_exploration)
             self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
             self.epsilon = evaluation_epsilon
             self.num_executions = 0
@@ -228,11 +229,11 @@ class DQNAgent(Agent):
         for idx, option in enumerate(self.trained_options):
             np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
 
-            if option.parent is None:
-                assert "goal_option" in option.name or option.name == "global_option"
-                impossible = not option.is_init_true(np_state)
-            else:
-                impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
+            # if option.parent is None:
+            #     assert "goal_option" in option.name or option.name == "global_option" or option.name == "intersection_option", option.name
+            #     impossible = not option.is_init_true(np_state)
+            # else:
+            impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
 
             if impossible:
                 impossible_option_idx.append(idx)
@@ -327,7 +328,8 @@ class DQNAgent(Agent):
             for idx, option in enumerate(self.trained_options): # type: Option
                 try:
                     inits = option.batched_is_init_true(states)
-                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
+                    # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
+                    terms = option.batched_is_term_true(states)
                     action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
                 except:
                     pdb.set_trace()
