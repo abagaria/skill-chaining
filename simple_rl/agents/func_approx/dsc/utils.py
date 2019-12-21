@@ -66,7 +66,7 @@ def get_grid_states():
 	for x in np.arange(-2., 17., 1.):
 		for y in np.arange(-8., 8., 0.5):
 			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-							   theta=0., theta_dot=0., done=False, has_key=False)
+							   theta=0., theta_dot=0., done=False)
 			ss.append(s)
 	return ss
 
@@ -75,7 +75,7 @@ def get_initiation_set_values(option, has_key):
 	for x in np.arange(-2., 17., 1.):
 		for y in np.arange(-8., 8., 0.5):
 			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
-							   theta=0, theta_dot=0, done=False, has_key=has_key)
+							   theta=0, theta_dot=0, done=False)
 			values.append(option.is_init_true(s))
 
 	return values
@@ -276,3 +276,43 @@ def replay_trajectory(trajectory, dir_name):
 		img_array = mdp.env.render(mode="rgb_array")
 		img = Image.fromarray(img_array)
 		img.save("{}/frame{}.png".format(dir_name, i))
+
+
+def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name=""):
+	plt.figure(figsize=(8.0, 5.0))
+	ax = plt.gca()
+
+	states, _, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
+
+	non_goal_states = [s for s in states if not option.is_init_true(s)]
+	nxs = [s.data[0] for s in non_goal_states]
+	nys = [s.data[1] for s in non_goal_states]
+
+	cmap = matplotlib.cm.get_cmap('Blues')
+	values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in non_goal_states]
+	normalize = matplotlib.colors.Normalize(vmin=min(values), vmax=option.threshold_value)
+	colors = [cmap(normalize(v)) for v in values]
+
+	# print('nxs=', nxs)
+	# print('nys=', nys)
+	# print('colors=', colors)
+	ax.scatter(x=np.asarray(nxs), y=np.asarray(nys), c=np.asarray(colors))
+
+	goal_states = [s for s in states if option.is_init_true(s)]
+
+	gxs = [s.data[0] for s in goal_states]
+	gys = [s.data[1] for s in goal_states]
+
+	ax.scatter(x=gxs, y=gys, c="red")
+
+	low_bound_x, up_bound_x = -3, 11
+	low_bound_y, up_bound_y = -3, 11
+
+	plt.xlim((low_bound_x, up_bound_x))
+	plt.ylim((low_bound_y, up_bound_y))
+
+	plt.xlabel("x")
+	plt.ylabel("y")
+	name = option.name
+	plt.savefig("initiation_set_plots/{}/{}_covering-options.png".format(experiment_name, name))
+	plt.close()

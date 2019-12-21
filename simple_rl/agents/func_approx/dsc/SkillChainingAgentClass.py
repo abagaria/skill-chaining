@@ -23,6 +23,7 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
+from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 
 
 class SkillChaining(object):
@@ -100,13 +101,6 @@ class SkillChaining(object):
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 							 dense_reward=self.dense_reward, chain_id=1)
-		goal_option_2 = Option(overall_mdp=self.mdp, name='goal_option_2', global_solver=self.global_option.solver,
-							   lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
-							   ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
-							   subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
-							   enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-							   generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							   dense_reward=self.dense_reward, chain_id=2)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -120,16 +114,18 @@ class SkillChaining(object):
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
 		# 2. This option has an untrained initialization set and policy, which we need to train from experience
-		self.untrained_options = [goal_option_1, goal_option_2]
+		self.untrained_options = [goal_option_1]
 
 		# Keep track of which chain each created option belongs to
-		s0 = self.mdp.env._init_positions
-		self.chains = [SkillChain(s0, target, [], i+1, []) for i, target in enumerate(self.mdp.get_target_events())]
+		self.s0 = self.mdp.env._init_positions
+		self.chains = [SkillChain(self.s0, target, [], i+1, []) for i, target in enumerate(self.mdp.get_target_events())]
 
 		# List of init states seen while running this algorithm
 		self.init_states = []
 
 		self.current_option_idx = 1
+		self.generated_salient_events = []
+		self.covering_options_freq = num_subgoal_hits_required
 
 		# Debug variables
 		self.global_execution_states = []
@@ -306,15 +302,6 @@ class SkillChaining(object):
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
 
-		# Debug: If it was possible to take an option, did we take it?
-		for option in self.trained_options:  # type: Option
-			if option.is_init_true(state):
-				option_taken = option.option_idx == selected_option.option_idx
-				if option.writer is not None:
-					option.writer.add_scalar("{}_taken".format(option.name), option_taken, option.n_taken_or_not)
-					option.taken_or_not.append(option_taken)
-					option.n_taken_or_not += 1
-
 		return selected_option
 
 	def take_action(self, state, episode_number, step_number, episode_option_executions):
@@ -393,17 +380,18 @@ class SkillChaining(object):
 				return intersecting_options
 		return None
 
+	@staticmethod
+	def get_option_terminal_states(root_option):
+		""" Given a root option, get the final (goal) states from successful trajectories. """
+		successful_trajectories = root_option.experience_buffer
+		option_goal_states = [trajectory[-1].next_state for trajectory in successful_trajectories]
+		return option_goal_states
+
 	def get_current_salient_events(self):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
 
-		def get_option_terminal_states(root_option):
-			""" Given a root option, get the final (goal) states from successful trajectories. """
-			successful_trajectories = root_option.experience_buffer
-			option_goal_states = [trajectory[-1].next_state for trajectory in successful_trajectories]
-			return option_goal_states
-
 		root_options = [chain.options[0] for chain in self.chains if chain.options[0].parent is None]
-		salient_states = [get_option_terminal_states(option) for option in root_options]
+		salient_states = [self.get_option_terminal_states(option) for option in root_options]
 		salient_states = list(itertools.chain.from_iterable(salient_states))
 		return salient_states
 
@@ -446,6 +434,36 @@ class SkillChaining(object):
 
 		return new_option
 
+	def create_new_salient_event(self):
+		""" Call to deep covering options: create new salient event and corresponding skill chain. """
+
+		replay_buffer = self.agent_over_options.replay_buffer
+		c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+								   num_training_steps=5,
+								   chain_id=len(self.chains) + 1,
+								   option_idx=len(self.generated_salient_events),
+								   name="covering-options-" + str(len(self.generated_salient_events)))
+
+		# plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
+		# 					  experiment_name=args.experiment_name)
+
+		pdb.set_trace()
+
+		# Determine start state for new skill chain:
+		s0 = self.get_option_terminal_states(self.generated_salient_events[-1].children[0]) \
+				if len(self.generated_salient_events) > 0 else self.s0
+
+		# Add new salient event to the list of generated salient events so far
+		self.generated_salient_events.append(c_option)
+
+		new_option = self.create_child_option(c_option)
+		self.untrained_options.append(new_option)
+
+		# TODO: Do we need to maintain an explicit list of the target predicates?
+		new_chain = SkillChain(start_states=s0, target_predicate=c_option.is_term_true,
+							   chain_id=len(self.chains), options=[], intersecting_options=[])
+		self.chains.append(new_chain)
+
 	def skill_chaining(self, num_episodes, num_steps):
 
 		# For logging purposes
@@ -455,6 +473,9 @@ class SkillChaining(object):
 		last_10_durations = deque(maxlen=10)
 
 		for episode in range(num_episodes):
+
+			if episode > 0 and (episode % self.covering_options_freq == 0):
+				self.create_new_salient_event()
 
 			self.mdp.reset()
 			score = 0.
@@ -560,8 +581,8 @@ class SkillChaining(object):
 		if episode % 10 == 0:
 			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
-			visualize_bonus_for_actions(self.agent_over_options.density_model, self.trained_options, episode,
-										args.experiment_name, args.seed)
+			# visualize_bonus_for_actions(self.agent_over_options.density_model, self.trained_options, episode,
+			# 							args.experiment_name, args.seed)
 
 		if episode > 0 and episode % 100 == 0:
 			# eval_score, trajectory = self.trained_forward_pass(render=False)

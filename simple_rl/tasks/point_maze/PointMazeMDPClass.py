@@ -27,7 +27,7 @@ class PointMazeMDP(MDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 3,
+            'maze_size_scaling': 4,
             'color_str': color_str
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
@@ -53,12 +53,12 @@ class PointMazeMDP(MDP):
         """ Convert np obs array from gym into a State object. """
         obs = np.copy(observation)
         position = obs[:2]
-        has_key = obs[2]
+        
         theta = obs[3]
         velocity = obs[4:6]
         theta_dot = obs[6]
         # Ignoring obs[7] which corresponds to time elapsed in seconds
-        state = PointMazeState(position, has_key, theta, velocity, theta_dot, done)
+        state = PointMazeState(position, theta, velocity, theta_dot, done)
         return state
 
     def execute_agent_action(self, action, option_idx=None):
@@ -69,30 +69,25 @@ class PointMazeMDP(MDP):
         if isinstance(state, PointMazeState):
             return state.is_terminal()
         position = state[:2]
-        key = state[2]
-        return self.env.is_in_goal_position(position) and bool(key)
+        return self.env.is_in_goal_position(position)
 
     def is_in_goal_position(self, state):
         position = state.position if isinstance(state, PointMazeState) else state[:2]
         return self.env.is_in_goal_position(position)
-
-    def is_in_key_position(self, state):
-        position = state.position if isinstance(state, PointMazeState) else state[:2]
-        return self.env.is_in_key_position(position)
 
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 
     def get_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """
-        return [self.is_in_goal_position, self.is_in_key_position]
+        return [self.is_in_goal_position]
 
     def get_batched_target_events(self):
-        return [self.env.batched_is_in_goal_position, self.env.batched_is_in_key_position]
+        return [self.env.batched_is_in_goal_position]
 
     @staticmethod
     def state_space_size():
-        return 7
+        return 6
 
     @staticmethod
     def action_space_size():

@@ -19,7 +19,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=3, option_idx=None,
+				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=1, option_idx=None,
 				 chain_id=None, initialize_everywhere=False, intersecting_options=[], max_num_children=2,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
@@ -191,13 +191,15 @@ class Option(object):
 		# Extract the relevant dimensions from the state matrix (x, y)
 		state_matrix = state_matrix[:, :2]
 
+		mdp_targets = self.overall_mdp.get_batched_target_events()
+
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
 		elif self.name == "goal_option_1":
-			return self.overall_mdp.get_batched_target_events()[0](state_matrix)
-		elif self.name == "goal_option_2":
-			return self.overall_mdp.get_batched_target_events()[1](state_matrix)
+			return mdp_targets[0](state_matrix)
+		elif self.name == "goal_option_2" and len(mdp_targets) > 1:
+			return mdp_targets[1](state_matrix)
 		else:
 			assert len(self.intersecting_options) > 0
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
@@ -217,13 +219,15 @@ class Option(object):
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
 
+		mdp_targets = self.overall_mdp.get_target_events()
+
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option":
 			return self.overall_mdp.is_goal_state(ground_state)
 		elif self.name == "goal_option_1":
-			return self.overall_mdp.get_target_events()[0](ground_state)
-		elif self.name == "goal_option_2":
-			return self.overall_mdp.get_target_events()[1](ground_state)
+			return mdp_targets[0](ground_state)
+		elif self.name == "goal_option_2" and len(mdp_targets) > 1:
+			return mdp_targets[1](ground_state)
 		else:
 			assert len(self.intersecting_options) > 0, "{}, {}".format(self, self.intersecting_options)
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]

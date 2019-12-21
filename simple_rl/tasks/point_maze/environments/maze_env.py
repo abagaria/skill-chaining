@@ -243,13 +243,7 @@ class MazeEnv(gym.Env):
     goal_xy = tree.find(".//geom[@name='target']").attrib["pos"].split()
     self.goal_xy = np.array([float(goal_xy[0]), float(goal_xy[1])])
 
-    key_xy = tree.find(".//geom[@name='key']").attrib["pos"].split()
-    self.key_xy = np.array([float(key_xy[0]), float(key_xy[1])])
-
     print("Goal position: ", self.goal_xy)
-    print("Key  position: ", self.key_xy)
-
-    self.has_key = False
 
     _, file_path = tempfile.mkstemp(text=True, suffix=".xml")
     tree.write(file_path)
@@ -440,7 +434,7 @@ class MazeEnv(gym.Env):
         additional_obs.append(self.wrapped_env.get_body_com(block_name))
       wrapped_obs = np.concatenate([wrapped_obs[:3]] + additional_obs +
                                    [wrapped_obs[3:]])
-    wrapped_obs = np.hstack([wrapped_obs[:2]] + [self.has_key] + [wrapped_obs[2:]])
+    wrapped_obs = np.hstack([wrapped_obs[:2]] + [wrapped_obs[2:]])
     range_sensor_obs = self.get_range_sensor_obs()
     return np.concatenate([wrapped_obs,
                            range_sensor_obs.flat] +
@@ -450,7 +444,6 @@ class MazeEnv(gym.Env):
     self.t = 0
     self.trajectory = []
     self.wrapped_env.reset()
-    self.has_key = False
     if len(self._init_positions) > 1:
       xy = random.choice(self._init_positions)
       self.wrapped_env.set_xy(xy)
@@ -511,28 +504,15 @@ class MazeEnv(gym.Env):
   def is_in_goal_position(self, pos):
     return self.distance_to_goal_position(pos) <= 0.6
 
-  def is_in_key_position(self, pos):
-      return self.distance_to_key_position(pos) <= 0.6
-
   def distance_to_goal_position(self, pos):
     return np.linalg.norm(pos - self.goal_xy)
-
-  def distance_to_key_position(self, pos):
-      return np.linalg.norm(pos - self.key_xy)
 
   def batched_is_in_goal_position(self, position_matrix):
       in_goal_pos = self.batched_distance_to_goal_position(position_matrix) <= 0.6
       return in_goal_pos.squeeze(1)
 
-  def batched_is_in_key_position(self, position_matrix):
-      in_key_pos = self.batched_distance_to_key_position(position_matrix) <= 0.6
-      return in_key_pos.squeeze(1)
-
   def batched_distance_to_goal_position(self, position_matrix):
       return distance.cdist(position_matrix, self.goal_xy[None, :])
-
-  def batched_distance_to_key_position(self, position_matrix):
-      return distance.cdist(position_matrix, self.key_xy[None, ...])
 
   def step(self, action):
     outer_reward = 0.
@@ -547,12 +527,9 @@ class MazeEnv(gym.Env):
       if self._is_in_collision(new_pos):
         self.wrapped_env.set_xy(old_pos)
 
-      if self.is_in_key_position(new_pos):
-          self.has_key = True
-
       # Point-env will give -1 reward for every step
       # Reaching the goal neutralizes the step penalty
-      if self.is_in_goal_position(new_pos) and self.has_key:
+      if self.is_in_goal_position(new_pos):
         outer_reward = 1.
         done = True
     else:
