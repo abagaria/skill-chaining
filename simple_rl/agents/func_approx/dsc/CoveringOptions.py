@@ -70,8 +70,8 @@ class CoveringOptions(Option):
         for _ in range(self.num_training_steps):
             s, a, r, s2, t, _ = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
 
-            s = s.numpy()
-            s2 = s2.numpy()
+            s = s.cpu().numpy()
+            s2 = s2.cpu().numpy()
 
             # obs = list(obs)
             # print('s2=', s2)
@@ -109,7 +109,7 @@ class CoveringOptions(Option):
 
         # s = [experience_buffer.memory[i][0] for i in range(len(experience_buffer.memory))]
         s, _, _, _, _, _ = experience_buffer.sample(n_samples)
-        s = s.numpy()
+        s = s.cpu().numpy()
         obs = self.states_to_tensor(s)
         f_values = self.initiation_classifier(obs)
         if type(f_values) is list:
