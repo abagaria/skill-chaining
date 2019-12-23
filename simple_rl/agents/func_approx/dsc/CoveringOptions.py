@@ -12,7 +12,7 @@ class CoveringOptions(Option):
     # This class identifies a subgoal by Laplacian method.
     # We feed this option to the skill chaining as a parent and generate its child options.
 
-    def __init__(self, replay_buffer, obs_dim, feature=None, threshold=0.9, num_units=200, num_training_steps=1000,
+    def __init__(self, replay_buffer, obs_dim, feature=None, threshold=0.95, num_units=200, num_training_steps=1000,
                  actor_learning_rate=0.0001, critic_learning_rate=0.0001, batch_size=64, option_idx=None,
                  chain_id=1, name="covering-options"):
         self.obs_dim = obs_dim
@@ -23,6 +23,11 @@ class CoveringOptions(Option):
         self.chain_id = chain_id
         self.option_idx = option_idx
         self.name = name
+
+        # SkillChainingClass expects all options to have these attributes
+        self.children = []
+        self.max_num_children = 2
+        self.initialize_everywhere = False
 
         if feature == "fourier":
             self.feature = Fourier(obs_dim, (-np.ones(obs_dim), np.ones(obs_dim)), 3)
@@ -68,10 +73,11 @@ class CoveringOptions(Option):
 
     def train(self, replay_buffer):
         for _ in range(self.num_training_steps):
-            s, a, r, s2, t, _ = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
+            s, a, r, s2, t = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
 
-            s = s.cpu().numpy()
-            s2 = s2.cpu().numpy()
+            if not isinstance(s, np.ndarray):
+                s = s.cpu().numpy()
+                s2 = s2.cpu().numpy()
 
             # obs = list(obs)
             # print('s2=', s2)
@@ -108,8 +114,9 @@ class CoveringOptions(Option):
         # n_samples = buf_size
 
         # s = [experience_buffer.memory[i][0] for i in range(len(experience_buffer.memory))]
-        s, _, _, _, _, _ = experience_buffer.sample(n_samples)
-        s = s.cpu().numpy()
+        s, _, _, _, _ = experience_buffer.sample(n_samples)
+        if not isinstance(s, np.ndarray):
+            s = s.cpu().numpy()
         obs = self.states_to_tensor(s)
         f_values = self.initiation_classifier(obs)
         if type(f_values) is list:
@@ -199,8 +206,11 @@ class SpectrumNetwork():
                 # net = tflearn.activations.relu(net)
 
                 w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-                # net = tflearn.fully_connected(net, 1, weights_init=w_init)
                 net = tflearn.fully_connected(obs, 1, weights_init=w_init)
+
+                # @Yuu Jinnai: Do we not need any non-linearities here?
+                #net = tflearn.fully_connected(obs, 3, weights_init=w_init, activation="relu")
+                #net = tflearn.fully_connected(net, 1, weights_init=w_init)
                 out = net
         return obs, out
 

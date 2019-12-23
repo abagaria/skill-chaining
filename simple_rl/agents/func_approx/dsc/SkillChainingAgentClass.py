@@ -125,7 +125,7 @@ class SkillChaining(object):
 
 		self.current_option_idx = 1
 		self.generated_salient_events = []
-		self.covering_options_freq = num_subgoal_hits_required
+		self.covering_options_freq = 400
 
 		# Debug variables
 		self.global_execution_states = []
@@ -176,6 +176,7 @@ class SkillChaining(object):
 		# Don't create a child option if you already include the init state of the MDP
 		# Also enforce the max branching factor of our skill tree
 		if self.init_state_in_option(parent_option) or len(parent_option.children) >= parent_option.max_num_children:
+			pdb.set_trace()
 			return None
 
 		# Create new option whose termination is the initiation of the option we just trained
@@ -437,15 +438,15 @@ class SkillChaining(object):
 	def create_new_salient_event(self):
 		""" Call to deep covering options: create new salient event and corresponding skill chain. """
 
-		replay_buffer = self.agent_over_options.replay_buffer
+		replay_buffer = self.global_option.solver.replay_buffer
 		c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-								   num_training_steps=5,
+								   num_training_steps=1000,
 								   chain_id=len(self.chains) + 1,
 								   option_idx=len(self.generated_salient_events),
 								   name="covering-options-" + str(len(self.generated_salient_events)))
 
-		# plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
-		# 					  experiment_name=args.experiment_name)
+		plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
+							  experiment_name=args.experiment_name)
 
 		pdb.set_trace()
 

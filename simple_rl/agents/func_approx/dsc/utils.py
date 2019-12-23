@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import time
 import torch
 import imageio
+import matplotlib
 import seaborn as sns
 sns.set()
 from PIL import Image
@@ -282,7 +283,7 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
 	plt.figure(figsize=(8.0, 5.0))
 	ax = plt.gca()
 
-	states, _, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
+	states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
 
 	non_goal_states = [s for s in states if not option.is_init_true(s)]
 	nxs = [s.data[0] for s in non_goal_states]
