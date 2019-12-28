@@ -150,8 +150,8 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 	# plt.xticks([])
 	# plt.yticks([])
 
-	plt.xlim((-2, 17))
-	plt.ylim((-8, 8))
+	plt.xlim((-2, 10))
+	plt.ylim((-2, 10))
 
 	plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
@@ -184,8 +184,8 @@ def plot_two_class_classifier(option, episode, experiment_name):
 		# background_image = imageio.imread("four_room_domain.png")
 		# plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-		plt.xlim((-2, 17))
-		plt.ylim((-8, 8))
+		plt.xlim((-2, 10))
+		plt.ylim((-2, 10))
 
 		name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 		plt.title("{} Initiation Set".format(option.name))
@@ -193,7 +193,7 @@ def plot_two_class_classifier(option, episode, experiment_name):
 		plt.close()
 
 	generate_plot(has_key=True)
-	generate_plot(has_key=False)
+	# generate_plot(has_key=False)
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))

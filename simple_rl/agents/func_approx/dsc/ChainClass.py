@@ -64,7 +64,7 @@ class SkillChain(object):
         start_state_in_chain = any([self._state_in_chain(s) for s in self.start_states])
 
         # Continue if no chain intersections have been found yet
-        chain_itersects_another = any([self.is_intersecting(chain) for chain in chains]) if self.chain_id != 3 else False
+        chain_itersects_another = any([self.is_intersecting(chain) for chain in chains])
 
         # Stop chaining if either condition says to stop
         return not start_state_in_chain and not chain_itersects_another

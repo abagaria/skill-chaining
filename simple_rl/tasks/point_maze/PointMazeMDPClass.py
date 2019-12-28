@@ -78,12 +78,24 @@ class PointMazeMDP(MDP):
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 
+    @staticmethod
+    def is_in_sub_goal_position(state):
+        sub_goal_position = np.array([8., 4.])
+        position = state.position if isinstance(state, PointMazeState) else state[:2]
+        return np.linalg.norm(position - sub_goal_position) <= 0.6
+
+    @staticmethod
+    def batched_is_in_subgoal_position(state_matrix):
+        sub_goal_position = np.array([8., 4.])
+        position_matrix = state_matrix if state_matrix.shape[1] == 2 else state_matrix[:, :2]
+        return np.linalg.norm(position_matrix - sub_goal_position[None, ...]) <= 0.6
+
     def get_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """
-        return [self.is_in_goal_position]
+        return [self.is_in_goal_position, self.is_in_sub_goal_position]
 
     def get_batched_target_events(self):
-        return [self.env.batched_is_in_goal_position]
+        return [self.env.batched_is_in_goal_position, self.batched_is_in_subgoal_position]
 
     @staticmethod
     def state_space_size():

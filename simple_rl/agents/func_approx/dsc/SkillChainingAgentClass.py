@@ -108,8 +108,7 @@ class SkillChaining(object):
 		# options, this agent will predict Q-values for them as well
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
-										   use_double_dqn=True, writer=self.writer, device=self.device,
-										   exploration_strategy="counts", use_position_only_for_exploration=True)
+										   use_double_dqn=True, writer=self.writer, device=self.device)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -125,7 +124,7 @@ class SkillChaining(object):
 
 		self.current_option_idx = 1
 		self.generated_salient_events = []
-		self.covering_options_freq = 400
+		self.covering_options_freq = 5
 
 		# Debug variables
 		self.global_execution_states = []
@@ -135,23 +134,8 @@ class SkillChaining(object):
 		self.num_options_history = []
 
 	def add_negative_examples(self, new_option):
-		# TODO: Cannot do this in skill graphs because the forward and backward skills have to overlap
-
-		if not new_option.initialize_everywhere:
-			for option in self.trained_options[1:]:
-				new_option.negative_examples += option.positive_examples
-
-		else:
-
-			# get the pair of intersecting options
-			chain = self.chains[2]
-			intersecting_options = chain.intersecting_options
-
-			# go through all the children of the intersecting options and add their positive examples
-			for option in intersecting_options:
-				for child_option in option.children:
-					if child_option in self.trained_options:
-						new_option.negative_examples += child_option.positive_examples
+		for option in self.trained_options[1:]:
+			new_option.negative_examples += option.positive_examples
 
 	def init_state_in_option(self, option):
 		for start_state in self.init_states:
@@ -200,8 +184,7 @@ class SkillChaining(object):
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
 									  seed=self.seed, parent=parent_option,  max_steps=self.max_steps,
 									  enable_timeout=self.enable_option_timeout, chain_id=parent_option.chain_id,
-									  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-									  initialize_everywhere=parent_option.initialize_everywhere)
+									  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -210,11 +193,6 @@ class SkillChaining(object):
 		parent_option.children.append(new_untrained_option)
 
 		return new_untrained_option
-
-	def make_off_policy_updates_for_options(self, state, action, reward, next_state):
-		for option in self.trained_options: # type: Option
-			option.off_policy_update(state, action, reward, next_state)\
-
 
 	def make_smdp_update(self, state, action, total_discounted_reward, next_state, option_transitions):
 		"""
@@ -284,8 +262,7 @@ class SkillChaining(object):
 									tensor_log=self.agent_over_options.tensor_log,
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
-									writer=self.writer, device=self.device,
-									exploration_strategy="counts", use_position_only_for_exploration=True)
+									writer=self.writer, device=self.device)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
@@ -374,13 +351,6 @@ class SkillChaining(object):
 		""" Continue chaining as long as any chain is still accepting new options. """
 		return any([chain.should_continue_chaining(self.chains) for chain in self.chains])
 
-	def get_intersecting_options(self):
-		for chain in self.chains:  # type: SkillChain
-			intersecting_options = chain.detect_intersection_with_other_chains(self.chains)
-			if intersecting_options is not None:
-				return intersecting_options
-		return None
-
 	@staticmethod
 	def get_option_terminal_states(root_option):
 		""" Given a root option, get the final (goal) states from successful trajectories. """
@@ -396,72 +366,49 @@ class SkillChaining(object):
 		salient_states = list(itertools.chain.from_iterable(salient_states))
 		return salient_states
 
-	def create_intersection_salient_event(self, option1, option2):
-		"""
-		When 2 chains intersect, we treat the region of intersection as a target region. This method
-		returns an Option whose termination region is such a region of intersection.
-		Args:
-			option1 (Option): intersecting option from chain 1
-			option2 (Option): intersecting option from chain 2
-
-		Returns:
-			new_option (Option): whose termination set is the intersection of initiation sets of o1 and o2
-		"""
-
-		new_option = Option(self.mdp, name="intersection_option", global_solver=self.global_option.solver,
-							  lr_actor=option1.solver.actor_learning_rate,
-							  lr_critic=option1.solver.critic_learning_rate,
-							  ddpg_batch_size=option1.solver.batch_size,
-							  subgoal_reward=self.subgoal_reward,
-							  buffer_length=self.buffer_length,
-							  classifier_type=self.classifier_type,
-							  num_subgoal_hits_required=self.num_subgoal_hits_required,
-							  seed=self.seed, parent=None,  max_steps=self.max_steps,
-							  enable_timeout=self.enable_option_timeout, chain_id=3,
-							  intersecting_options=[option1, option2],
-							  initialize_everywhere=True,
-							  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
-
-		current_salient_states = self.get_current_salient_events()
-		new_chain = SkillChain(start_states=current_salient_states, target_predicate=None, chain_id=3,
-							   options=[], intersecting_options=[option1, option2])
-		self.chains.append(new_chain)
-
-		# Allow agent to use this option to encourage chaining to it
-		self._augment_agent_with_new_option(new_option, 0.)
-
-		# Also reset the exploration module to encourage adding skills to the new chain
-		# self.agent_over_options.density_model.reset()
-
-		return new_option
-
 	def create_new_salient_event(self):
 		""" Call to deep covering options: create new salient event and corresponding skill chain. """
 
-		replay_buffer = self.global_option.solver.replay_buffer
-		c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-								   num_training_steps=1000,
-								   chain_id=len(self.chains) + 1,
-								   option_idx=len(self.generated_salient_events),
-								   name="covering-options-" + str(len(self.generated_salient_events)))
+		# replay_buffer = self.global_option.solver.replay_buffer
+		# c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+		# 						   num_training_steps=1000,
+		# 						   chain_id=len(self.chains) + 1,
+		# 						   option_idx=len(self.generated_salient_events),
+		# 						   name="covering-options-" + str(len(self.generated_salient_events)))
+		#
+		# plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
+		# 					  experiment_name=args.experiment_name)
 
-		plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
-							  experiment_name=args.experiment_name)
+		def target_predicate_1(state):
+			target = np.array([8., 4.])
+			return np.linalg.norm(state.position - target) <= 0.6
 
-		pdb.set_trace()
+		if len(self.generated_salient_events) == 0:
+			target_predicate = target_predicate_1
+		else:
+			target_predicate = self.global_option.is_term_true
 
 		# Determine start state for new skill chain:
 		s0 = self.get_option_terminal_states(self.generated_salient_events[-1].children[0]) \
 				if len(self.generated_salient_events) > 0 else self.s0
 
 		# Add new salient event to the list of generated salient events so far
-		self.generated_salient_events.append(c_option)
+		self.generated_salient_events.append(target_predicate)
 
-		new_option = self.create_child_option(c_option)
+		new_option = Option(overall_mdp=self.mdp, name='goal_option_2', global_solver=self.global_option.solver,
+							 lr_actor=self.global_option.solver.actor_learning_rate,
+							 lr_critic=self.global_option.solver.critic_learning_rate,
+							 buffer_length=self.global_option.buffer_length,
+							 ddpg_batch_size=self.global_option.solver.batch_size,
+							 num_subgoal_hits_required=self.num_subgoal_hits_required,
+							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
+							 enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
+							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+							 dense_reward=self.dense_reward, chain_id=len(self.chains))
 		self.untrained_options.append(new_option)
 
 		# TODO: Do we need to maintain an explicit list of the target predicates?
-		new_chain = SkillChain(start_states=s0, target_predicate=c_option.is_term_true,
+		new_chain = SkillChain(start_states=s0, target_predicate=target_predicate,
 							   chain_id=len(self.chains), options=[], intersecting_options=[])
 		self.chains.append(new_chain)
 
@@ -518,8 +465,7 @@ class SkillChaining(object):
 						if untrained_option.train(experience_buffer, state_buffer, episode):
 
 							# If we are in chain # 3, we have already augmented with the option
-							if not untrained_option.initialize_everywhere:
-								self._augment_agent_with_new_option(untrained_option, self.init_q)
+							self._augment_agent_with_new_option(untrained_option, self.init_q)
 
 							# Visualize option you just learned
 							if untrained_option.classifier_type == "ocsvm":
@@ -542,20 +488,10 @@ class SkillChaining(object):
 						if new_option_1 is not None:
 							self.untrained_options.append(new_option_1)
 							self.add_negative_examples(new_option_1)
-							if new_option_1.initialize_everywhere:
-								self._augment_agent_with_new_option(new_option_1, 0.)
 
 						if new_option_2 is not None:
 							self.untrained_options.append(new_option_2)
 							self.add_negative_examples(new_option_2)
-							if new_option_2.initialize_everywhere:
-								self._augment_agent_with_new_option(new_option_2, 0.)
-
-				# Detect intersection salience to start building skill graph
-				intersecting_options = self.get_intersecting_options()
-				if intersecting_options is not None and len(self.chains) < 3:
-					new_option = self.create_intersection_salient_event(intersecting_options[0], intersecting_options[1])
-					self.untrained_options.append(new_option)
 
 				if state.is_terminal():
 					break

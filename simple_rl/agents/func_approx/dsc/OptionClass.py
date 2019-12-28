@@ -20,7 +20,7 @@ class Option(object):
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=1, option_idx=None,
-				 chain_id=None, initialize_everywhere=False, intersecting_options=[], max_num_children=2,
+				 chain_id=None, intersecting_options=[], max_num_children=2,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -39,7 +39,6 @@ class Option(object):
 			enable_timeout (bool)
 			timeout (int)
 			chain_id (int)
-			initialize_everywhere (bool)
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
@@ -56,7 +55,6 @@ class Option(object):
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
-		self.initialize_everywhere = initialize_everywhere
 
 		self.timeout = np.inf
 
@@ -179,8 +177,6 @@ class Option(object):
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
-		if self.initialize_everywhere and self.initiation_classifier is None:
-			return np.ones((state_matrix.shape[0]))
 		position_matrix = state_matrix[:, :2]
 		return self.initiation_classifier.predict(position_matrix) == 1
 
@@ -207,9 +203,6 @@ class Option(object):
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
-			return True
-
-		if self.initialize_everywhere and self.initiation_classifier is None:
 			return True
 
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
@@ -254,28 +247,8 @@ class Option(object):
 		states = list(itertools.chain.from_iterable(examples))
 		return np.array(states)
 
-	def get_distances_to_goal(self, position_matrix):
-		if self.parent is None:
-			goal_position = self.overall_mdp.goal_position
-			return distance.cdist(goal_position[None, ...], position_matrix, "euclidean")
-
-		distances = -self.parent.initiation_classifier.decision_function(position_matrix)
-		distances[distances <= 0.] = 0.
-		return distances
-
-	@staticmethod
-	def distance_to_weights(distances):
-		weights = np.copy(distances)
-		for row in range(weights.shape[0]):
-			if weights[row] > 0.:
-				weights[row] = np.exp(-1. * weights[row])
-			else:
-				weights[row] = 1.
-		return weights
-
 	def train_one_class_svm(self):
-		# TODO: Why is this check failing???
-		# assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
+		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
