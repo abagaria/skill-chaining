@@ -117,7 +117,7 @@ class SkillChaining(object):
 
 		# Keep track of which chain each created option belongs to
 		self.s0 = self.mdp.env._init_positions
-		self.chains = [SkillChain(self.s0, target, [], i+1, []) for i, target in enumerate(self.mdp.get_target_events())]
+		self.chains = [SkillChain(self.s0, self.mdp.get_target_events()[0], [], 1, [])]
 
 		# List of init states seen while running this algorithm
 		self.init_states = []
@@ -152,7 +152,7 @@ class SkillChaining(object):
 	# TODO: HACK: Only generate trees for the the intersection skill chain for now
 	def create_children_options(self, option):
 		o1 = self.create_child_option(option)
-		o2 = self.create_child_option(option.parent) if option.parent is not None and option.chain_id != 3 else None
+		o2 = self.create_child_option(option.parent) if option.parent is not None else None
 		return o1, o2
 
 	def create_child_option(self, parent_option):
@@ -388,9 +388,8 @@ class SkillChaining(object):
 		else:
 			target_predicate = self.global_option.is_term_true
 
-		# Determine start state for new skill chain:
-		s0 = self.get_option_terminal_states(self.generated_salient_events[-1].children[0]) \
-				if len(self.generated_salient_events) > 0 else self.s0
+		# Determine start state for new skill chain
+		s0 = self.s0
 
 		# Add new salient event to the list of generated salient events so far
 		self.generated_salient_events.append(target_predicate)
@@ -422,7 +421,7 @@ class SkillChaining(object):
 
 		for episode in range(num_episodes):
 
-			if episode > 0 and (episode % self.covering_options_freq == 0):
+			if episode == self.covering_options_freq:
 				self.create_new_salient_event()
 
 			self.mdp.reset()
