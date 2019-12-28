@@ -102,6 +102,17 @@ class SkillChaining(object):
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 							 dense_reward=self.dense_reward, chain_id=1)
 
+		# This is our temporally extended exploration option
+		# We use it to drive the agent towards unseen parts of the state-space
+		# The temporally extended nature of the option allows the agent to solve the "option sink" problem
+		exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=None,
+									lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
+									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
+									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
+									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
+									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+									dense_reward=self.dense_reward, chain_id=None)
+
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
 		# We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
@@ -125,6 +136,9 @@ class SkillChaining(object):
 		self.current_option_idx = 1
 		self.generated_salient_events = []
 		self.covering_options_freq = 5
+
+		# Add the exploration option to the policy over options
+		self._augment_agent_with_new_option(exploration_option, 0.)
 
 		# Debug variables
 		self.global_execution_states = []
@@ -247,8 +261,9 @@ class SkillChaining(object):
 			self.trained_options.append(newly_trained_option)
 
 		# Add the newly trained option to the corresponding skill chain
-		chain_idx = newly_trained_option.chain_id - 1
-		self.chains[chain_idx].options.append(newly_trained_option)
+		if newly_trained_option.chain_id is not None:
+			chain_idx = newly_trained_option.chain_id - 1
+			self.chains[chain_idx].options.append(newly_trained_option)
 
 		# Set the option_idx for the newly added option
 		newly_trained_option.option_idx = self.current_option_idx

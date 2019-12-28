@@ -33,15 +33,21 @@ class CountBasedDensityModel(object):
 
     def get_single_count(self, state, action):
         state, action = self._round_state_action(state, action)
-        return self.s_a_counts[tuple(state)][action]
+        state_key = tuple(state)
+        action_key = tuple(action) if self.action_rounding_decimals is not None else action
+        return self.s_a_counts[state_key][action_key]
 
     def _update_single_count(self, state, action):
         state, action = self._round_state_action(state, action)
-        self.s_a_counts[tuple(state)][action] += 1
+        state_key = tuple(state)
+        action_key = tuple(action) if self.action_rounding_decimals is not None else action
+        self.s_a_counts[state_key][action_key] += 1
 
     def _update_single_bonus(self, state, action, bonus):
         state, action = self._round_state_action(state, action)
-        self.s_a_bonus[tuple(state)][action] = bonus
+        state_key = tuple(state)
+        action_key = tuple(action) if self.action_rounding_decimals is not None else action
+        self.s_a_bonus[state_key][action_key] = bonus
 
     def get_online_exploration_bonus(self, state, action, beta=5e-3):
         count = self.get_single_count(state, action)
@@ -49,6 +55,13 @@ class CountBasedDensityModel(object):
         self._update_single_count(state, action)
         self._update_single_bonus(state, action, bonus)
         return bonus
+
+    def batched_get_exploration_bonus(self, states, actions, beta=5e-3):
+        bonuses = []
+        for state, action in zip(states, actions):
+            bonus = self.get_online_exploration_bonus(state, action, beta)
+            bonuses.append(bonus)
+        return np.array(bonuses)
 
     def reset(self):
         self.s_a_counts = defaultdict(lambda: defaultdict(lambda: 0))
