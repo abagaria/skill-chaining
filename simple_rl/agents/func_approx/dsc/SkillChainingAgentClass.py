@@ -404,12 +404,12 @@ class SkillChaining(object):
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							 dense_reward=self.dense_reward, chain_id=len(self.chains))
+							 dense_reward=self.dense_reward, chain_id=len(self.chains)+1)
 		self.untrained_options.append(new_option)
 
 		# TODO: Do we need to maintain an explicit list of the target predicates?
 		new_chain = SkillChain(start_states=s0, target_predicate=target_predicate,
-							   chain_id=len(self.chains), options=[], intersecting_options=[])
+							   chain_id=len(self.chains)+1, options=[], intersecting_options=[])
 		self.chains.append(new_chain)
 
 		# This is our temporally extended exploration option
@@ -424,7 +424,7 @@ class SkillChaining(object):
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-									dense_reward=self.dense_reward, chain_id=None)
+									dense_reward=self.dense_reward, chain_id=None, timeout=30)
 
 		# Add the exploration option to the policy over options
 		self._augment_agent_with_new_option(exploration_option, 0.)
