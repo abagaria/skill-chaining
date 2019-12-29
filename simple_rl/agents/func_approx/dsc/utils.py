@@ -215,6 +215,9 @@ def visualize_dqn_replay_buffer(solver, experiment_name=""):
 	plt.scatter(goal_x, goal_y, alpha=0.67, label="goal")
 	# plt.imshow(background_image, zorder=0, alpha=0.5, extent=[0., 1., 1., 0.])
 
+	plt.xlim((-2, 10))
+	plt.ylim((-2, 10))
+
 	plt.legend()
 	plt.title("# transitions = {}".format(len(solver.replay_buffer)))
 	plt.savefig("value_function_plots/{}/{}_replay_buffer_analysis.png".format(experiment_name, solver.name))

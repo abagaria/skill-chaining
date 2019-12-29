@@ -179,8 +179,14 @@ class Option(object):
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
-		if self.name == "global_option" or self.name == "exploration_option":
+		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
+
+		# TODO: Hack - hard coded salient event
+		if self.name == "exploration_option":
+			predicate = self.overall_mdp.get_batched_target_events()[1]
+			return predicate(state_matrix)
+
 		position_matrix = state_matrix[:, :2]
 		return self.initiation_classifier.predict(position_matrix) == 1
 
@@ -206,8 +212,13 @@ class Option(object):
 			return np.logical_and(o1.batched_is_init_true(state_matrix), o2.batched_is_init_true(state_matrix))
 
 	def is_init_true(self, ground_state):
-		if self.name == "global_option" or self.name == "exploration_option":
+		if self.name == "global_option":
 			return True
+
+		# TODO: Hack - hard coded salient event
+		if self.name == "exploration_option":
+			predicate = self.overall_mdp.get_target_events()[1]
+			return predicate(ground_state)
 
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		return self.initiation_classifier.predict([features])[0] == 1
