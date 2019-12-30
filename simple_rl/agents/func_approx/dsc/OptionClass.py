@@ -21,6 +21,7 @@ class Option(object):
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=3, option_idx=None,
 				 chain_id=None, initialize_everywhere=False, intersecting_options=[], max_num_children=2,
+				 init_predicate=None, batched_init_predicate=None,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -40,6 +41,8 @@ class Option(object):
 			timeout (int)
 			chain_id (int)
 			initialize_everywhere (bool)
+			init_predicate (f: s -> bool)
+			batched_init_predicate (f: s -> bool)
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
@@ -57,6 +60,8 @@ class Option(object):
 		self.generate_plots = generate_plots
 		self.writer = writer
 		self.initialize_everywhere = initialize_everywhere
+		self.init_predicate = init_predicate
+		self.batched_init_predicate = batched_init_predicate
 
 		self.timeout = np.inf
 
@@ -66,15 +71,18 @@ class Option(object):
 
 		if self.name == "global_option":
 			self.option_idx = 0
-		elif self.name == "goal_option_1":
+		elif self.name == "exploration_option":
 			self.option_idx = 1
-		elif self.name == "goal_option_2":
+		elif self.name == "goal_option_1":
 			self.option_idx = 2
+		elif self.name == "goal_option_2":
+			self.option_idx = 3
 		else:
 			self.option_idx = option_idx
 
 		self.chain_id = chain_id
 		self.intersecting_options = intersecting_options
+		exploration = "counts" if name == "exploration_option" else ""
 
 		print("Creating {} in chain {} with enable_timeout={}".format(name, chain_id, enable_timeout))
 
@@ -86,7 +94,8 @@ class Option(object):
 
 		solver_name = "{}_ddpg_agent".format(self.name)
 		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
-		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, tensor_log=(writer is not None), writer=writer, name=solver_name)
+		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
+								tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -177,6 +186,8 @@ class Option(object):
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
+		if self.batched_init_predicate is not None:
+			return self.batched_init_predicate(state_matrix)
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
 		if self.initialize_everywhere and self.initiation_classifier is None:
@@ -192,8 +203,8 @@ class Option(object):
 		state_matrix = state_matrix[:, :2]
 
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
-		if self.name == "global_option":
-			return np.ones((state_matrix.shape[0]))
+		if self.name == "global_option" or self.name == "exploration_option":
+			return np.zeros((state_matrix.shape[0]))
 		elif self.name == "goal_option_1":
 			return self.overall_mdp.get_batched_target_events()[0](state_matrix)
 		elif self.name == "goal_option_2":
@@ -204,6 +215,9 @@ class Option(object):
 			return np.logical_and(o1.batched_is_init_true(state_matrix), o2.batched_is_init_true(state_matrix))
 
 	def is_init_true(self, ground_state):
+		if self.init_predicate is not None:
+			return self.init_predicate(ground_state)
+
 		if self.name == "global_option":
 			return True
 
@@ -218,7 +232,7 @@ class Option(object):
 			return self.parent.is_init_true(ground_state)
 
 		# If option does not have a parent, it must be the goal option or the global option
-		if self.name == "global_option":
+		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
 		elif self.name == "goal_option_1":
 			return self.overall_mdp.get_target_events()[0](ground_state)

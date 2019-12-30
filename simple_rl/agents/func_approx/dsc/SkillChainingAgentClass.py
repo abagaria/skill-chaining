@@ -131,6 +131,28 @@ class SkillChaining(object):
 
 		self.current_option_idx = 1
 
+		# This is our temporally extended exploration option
+		# We use it to drive the agent towards unseen parts of the state-space
+		# The temporally extended nature of the option allows the agent to solve the "option sink" problem
+		# Note that we use a smaller timeout for this option so as to permit creating new options after it
+		target_predicate = lambda s: goal_option_1.is_term_true(s) or goal_option_2.is_term_true(s)
+		batched_target_predicate = lambda s: np.logical_or(goal_option_1.batched_is_term_true(s),
+														   goal_option_2.batched_is_term_true(s))
+		exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=None,
+									lr_actor=self.global_option.solver.actor_learning_rate,
+									lr_critic=self.global_option.solver.critic_learning_rate,
+									buffer_length=self.global_option.buffer_length,
+									ddpg_batch_size=self.global_option.solver.batch_size,
+									num_subgoal_hits_required=self.num_subgoal_hits_required,
+									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
+									enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
+									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+									dense_reward=self.dense_reward, chain_id=None, timeout=30,
+									init_predicate=target_predicate, batched_init_predicate=batched_target_predicate)
+
+		# Add the exploration option to the policy over options
+		self._augment_agent_with_new_option(exploration_option, 0.)
+
 		# Debug variables
 		self.global_execution_states = []
 		self.num_option_executions = defaultdict(lambda : [])
@@ -272,8 +294,9 @@ class SkillChaining(object):
 			self.trained_options.append(newly_trained_option)
 
 		# Add the newly trained option to the corresponding skill chain
-		chain_idx = newly_trained_option.chain_id - 1
-		self.chains[chain_idx].options.append(newly_trained_option)
+		if newly_trained_option.chain_id is not None:
+			chain_idx = newly_trained_option.chain_id - 1
+			self.chains[chain_idx].options.append(newly_trained_option)
 
 		# Set the option_idx for the newly added option
 		newly_trained_option.option_idx = self.current_option_idx
@@ -560,8 +583,8 @@ class SkillChaining(object):
 		if episode % 10 == 0:
 			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
-			visualize_bonus_for_actions(self.agent_over_options.density_model, self.trained_options, episode,
-										args.experiment_name, args.seed)
+			# visualize_bonus_for_actions(self.agent_over_options.density_model, self.trained_options, episode,
+			# 							args.experiment_name, args.seed)
 
 		if episode > 0 and episode % 100 == 0:
 			# eval_score, trajectory = self.trained_forward_pass(render=False)

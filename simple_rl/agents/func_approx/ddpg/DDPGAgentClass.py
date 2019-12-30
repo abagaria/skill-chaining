@@ -19,16 +19,18 @@ from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function, visualize_next_state_reward_heat_map
+from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
 
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent"):
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration=""):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
         self.critic_learning_rate = lr_critic
         self.batch_size = batch_size
+        self.exploration_method = exploration
 
         self.seed = random.seed(seed)
         np.random.seed(seed)
@@ -58,6 +60,11 @@ class DDPGAgent(Agent):
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
         self.epsilon = 1.0
+
+        if exploration == "counts":
+            self.density_model = CountBasedDensityModel(state_rounding_decimals=2,
+                                                        action_rounding_decimals=2,
+                                                        use_position_only=True)
 
         # Tensorboard logging
         self.writer = None
@@ -97,6 +104,12 @@ class DDPGAgent(Agent):
 
     def _learn(self, experiences, gamma):
         states, actions, rewards, next_states, dones = experiences
+
+        # Before pushing to the GPU, augment the reward with exploration bonus
+        if self.exploration_method == "counts":
+            bonuses = self.density_model.batched_get_exploration_bonus(states, actions)
+            rewards += bonuses
+
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.FloatTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
