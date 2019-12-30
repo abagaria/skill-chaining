@@ -21,6 +21,7 @@ class Option(object):
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=1, option_idx=None,
 				 chain_id=None, intersecting_options=[], max_num_children=2,
+				 init_predicate=None, batched_init_predicate=None,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -39,6 +40,8 @@ class Option(object):
 			enable_timeout (bool)
 			timeout (int)
 			chain_id (int)
+			init_predicate (function: s -> bool)
+			batched_init_predicate (function s -> bool)
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
@@ -55,6 +58,8 @@ class Option(object):
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
+		self.init_predicate = init_predicate
+		self.batched_init_predicate = batched_init_predicate
 
 		self.timeout = np.inf
 
@@ -179,13 +184,12 @@ class Option(object):
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
+
+		if self.batched_init_predicate is not None:
+			return self.batched_init_predicate(state_matrix)
+
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
-
-		# TODO: Hack - hard coded salient event
-		if self.name == "exploration_option":
-			predicate = self.overall_mdp.get_batched_target_events()[1]
-			return predicate(state_matrix)
 
 		position_matrix = state_matrix[:, :2]
 		return self.initiation_classifier.predict(position_matrix) == 1
@@ -201,7 +205,7 @@ class Option(object):
 
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option" or self.name == "exploration_option":
-			return np.zeros((state_matrix.shape[0]))  # TODO: Should this be ones OR zeros?
+			return np.zeros((state_matrix.shape[0])) # TODO: Should just attach this to the global target?
 		elif self.name == "goal_option_1":
 			return mdp_targets[0](state_matrix)
 		elif self.name == "goal_option_2" and len(mdp_targets) > 1:
@@ -212,13 +216,12 @@ class Option(object):
 			return np.logical_and(o1.batched_is_init_true(state_matrix), o2.batched_is_init_true(state_matrix))
 
 	def is_init_true(self, ground_state):
+
+		if self.init_predicate is not None:
+			return self.init_predicate(ground_state)
+
 		if self.name == "global_option":
 			return True
-
-		# TODO: Hack - hard coded salient event
-		if self.name == "exploration_option":
-			predicate = self.overall_mdp.get_target_events()[1]
-			return predicate(ground_state)
 
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		return self.initiation_classifier.predict([features])[0] == 1

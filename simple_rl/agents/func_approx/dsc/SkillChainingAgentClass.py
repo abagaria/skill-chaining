@@ -149,7 +149,6 @@ class SkillChaining(object):
 				return True
 		return False
 
-	# TODO: HACK: Only generate trees for the the intersection skill chain for now
 	def create_children_options(self, option):
 		o1 = self.create_child_option(option)
 		o2 = self.create_child_option(option.parent) if option.parent is not None else None
@@ -283,14 +282,13 @@ class SkillChaining(object):
 
 		return selected_option
 
-	def take_action(self, state, episode_number, step_number, episode_option_executions):
+	def take_action(self, state, episode_number, step_number):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
 		Args:
 			state (State)
 			episode_number (int)
 			step_number (int): which iteration of the control loop we are on
-			episode_option_executions (defaultdict)
 
 		Returns:
 			experiences (list): list of (s, a, r, s') tuples
@@ -316,7 +314,6 @@ class SkillChaining(object):
 		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
 
 		# Debug logging
-		episode_option_executions[selected_option.name] += 1
 		self.option_rewards[selected_option.name].append(discounted_reward)
 
 		sampled_q_value = self.sample_qvalue(selected_option)
@@ -380,14 +377,13 @@ class SkillChaining(object):
 		# plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
 		# 					  experiment_name=args.experiment_name)
 
-		def target_predicate_1(state):
-			target = np.array([8., 4.])
-			return np.linalg.norm(state.position - target) <= 0.6
-
+		# TODO: Hack - hard coded salient event
 		if len(self.generated_salient_events) == 0:
-			target_predicate = target_predicate_1
+			target_predicate = self.mdp.get_target_events()[1]
+			batched_target_predicate = self.mdp.get_batched_target_events()[1]
 		else:
 			target_predicate = self.global_option.is_term_true
+			batched_target_predicate = self.global_option.batched_is_term_true
 
 		# Determine start state for new skill chain
 		s0 = self.s0
@@ -415,6 +411,7 @@ class SkillChaining(object):
 		# This is our temporally extended exploration option
 		# We use it to drive the agent towards unseen parts of the state-space
 		# The temporally extended nature of the option allows the agent to solve the "option sink" problem
+		# Note that we use a smaller timeout for this option so as to permit creating new options after it
 		exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=None,
 									lr_actor=self.global_option.solver.actor_learning_rate,
 									lr_critic=self.global_option.solver.critic_learning_rate,
@@ -424,7 +421,8 @@ class SkillChaining(object):
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-									dense_reward=self.dense_reward, chain_id=None, timeout=30)
+									dense_reward=self.dense_reward, chain_id=None, timeout=30,
+									init_predicate=target_predicate, batched_init_predicate=batched_target_predicate)
 
 		# Add the exploration option to the policy over options
 		self._augment_agent_with_new_option(exploration_option, 0.)
@@ -453,11 +451,9 @@ class SkillChaining(object):
 			self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []
-			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				# pdb.set_trace()
-				experiences, reward, state, steps = self.take_action(state, episode, step_number, episode_option_executions)
+				experiences, reward, state, steps = self.take_action(state, episode, step_number)
 				score += reward
 				step_number += steps
 				for experience in experiences:
@@ -481,7 +477,6 @@ class SkillChaining(object):
 						uo_episode_terminated = True
 						if untrained_option.train(experience_buffer, state_buffer, episode):
 
-							# If we are in chain # 3, we have already augmented with the option
 							self._augment_agent_with_new_option(untrained_option, self.init_q)
 
 							# Visualize option you just learned
@@ -518,11 +513,11 @@ class SkillChaining(object):
 			per_episode_scores.append(score)
 			per_episode_durations.append(step_number)
 
-			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
+			self._log_dqn_status(episode, last_10_scores, last_10_durations)
 
 		return per_episode_scores, per_episode_durations
 
-	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
+	def _log_dqn_status(self, episode, last_10_scores, last_10_durations):
 
 		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
@@ -546,12 +541,6 @@ class SkillChaining(object):
 
 		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
-
-		for trained_option in self.trained_options:  # type: Option
-			self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
-			if self.writer is not None:
-				self.writer.add_scalar("{}_executions".format(trained_option.name),
-									   episode_option_executions[trained_option.name], episode)
 
 	def save_all_models(self):
 		for option in self.trained_options: # type: Option
