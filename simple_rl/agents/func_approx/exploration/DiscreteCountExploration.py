@@ -33,18 +33,21 @@ class CountBasedDensityModel(object):
 
     def get_single_count(self, state, action):
         state, action = self._round_state_action(state, action)
+        action = action[0] if isinstance(action, np.ndarray) and self.action_rounding_decimals is None else action
         state_key = tuple(state)
         action_key = tuple(action) if self.action_rounding_decimals is not None else action
-        return self.s_a_counts[state_key][action_key]
+        return self.s_a_counts[state_key][action_key]   
 
     def _update_single_count(self, state, action):
         state, action = self._round_state_action(state, action)
+        action = action[0] if isinstance(action, np.ndarray) and self.action_rounding_decimals is None else action
         state_key = tuple(state)
         action_key = tuple(action) if self.action_rounding_decimals is not None else action
         self.s_a_counts[state_key][action_key] += 1
 
     def _update_single_bonus(self, state, action, bonus):
         state, action = self._round_state_action(state, action)
+        action = action[0] if isinstance(action, np.ndarray) and self.action_rounding_decimals is None else action
         state_key = tuple(state)
         action_key = tuple(action) if self.action_rounding_decimals is not None else action
         self.s_a_bonus[state_key][action_key] = bonus

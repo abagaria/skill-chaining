@@ -394,8 +394,8 @@ class DQNAgent(Agent):
             np_actions = actions.cpu().numpy()
             bonuses = self.density_model.batched_get_exploration_bonus(np_states, np_actions)
             for action in np_actions:
-                self.sampled_bonus_for_action[action].append(bonuses.mean())
-            rewards += bonuses
+                self.sampled_bonus_for_action[action[0]].append(bonuses.mean())
+            rewards += torch.from_numpy(bonuses).unsqueeze(1).float().to(self.device)
 
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
