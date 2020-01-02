@@ -138,7 +138,7 @@ class SkillChaining(object):
 		target_predicate = lambda s: goal_option_1.is_term_true(s) or goal_option_2.is_term_true(s)
 		batched_target_predicate = lambda s: np.logical_or(goal_option_1.batched_is_term_true(s),
 														   goal_option_2.batched_is_term_true(s))
-		exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=None,
+		exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=self.global_option,
 									lr_actor=self.global_option.solver.actor_learning_rate,
 									lr_critic=self.global_option.solver.critic_learning_rate,
 									buffer_length=self.global_option.buffer_length,
