@@ -75,8 +75,12 @@ class SkillChain(object):
 
         # If chain intersects another, check if at least some other chain has
         # chained all the way back to the start states of the MDP
-        other_chains = chains.remove(self)
-        mdp_chained = any([chain._state_in_chain(s) for s in self.mdp_start_states for chain in other_chains])
+        mdp_chained = False
+        for chain in chains:  # type: SkillChain
+            if chain.chain_id != self.chain_id:
+                mdp_start_states_in_chain = all([chain._state_in_chain(s) for s in self.mdp_start_states])
+                if mdp_start_states_in_chain:
+                    mdp_chained = True
 
         # Stop chaining if either condition says to stop
         return not chain_itersects_another and not mdp_chained
