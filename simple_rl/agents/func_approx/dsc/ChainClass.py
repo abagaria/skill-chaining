@@ -4,13 +4,14 @@ from simple_rl.agents.func_approx.dsc.OptionClass import Option
 
 
 class SkillChain(object):
-    def __init__(self, start_states, target_predicate, options, chain_id, intersecting_options):
+    def __init__(self, start_states, mdp_start_states, target_predicate, options, chain_id, intersecting_options):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here
         may also refer to Skill Trees.
         Args:
             start_states (list): List of states at which chaining stops
+            mdp_start_states (list): list of MDP start states, if distinct from `start_states`
             target_predicate (function): f: s -> {0, 1} based on salience
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
@@ -18,6 +19,7 @@ class SkillChain(object):
         """
         self.options = options
         self.start_states = start_states
+        self.mdp_start_states = mdp_start_states
         self.target_predicate = target_predicate
         self.chain_id = chain_id
         self.intersecting_options = intersecting_options
@@ -63,11 +65,21 @@ class SkillChain(object):
         # Continue if there is any start state that is not covered
         start_state_in_chain = any([self._state_in_chain(s) for s in self.start_states])
 
+        if self.chain_id == 3:
+            return not start_state_in_chain
+
+        assert self.chain_id != 3, self.chain_id
+
         # Continue if no chain intersections have been found yet
-        chain_itersects_another = any([self.is_intersecting(chain) for chain in chains]) if self.chain_id != 3 else False
+        chain_itersects_another = any([self.is_intersecting(chain) for chain in chains])
+
+        # If chain intersects another, check if at least some other chain has
+        # chained all the way back to the start states of the MDP
+        other_chains = chains.remove(self)
+        mdp_chained = any([chain._state_in_chain(s) for s in self.mdp_start_states for chain in other_chains])
 
         # Stop chaining if either condition says to stop
-        return not start_state_in_chain and not chain_itersects_another
+        return not chain_itersects_another and not mdp_chained
 
     def detect_intersection_with_other_chains(self, other_chains):
         for chain in other_chains:
