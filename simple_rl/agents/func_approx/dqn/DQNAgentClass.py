@@ -11,6 +11,7 @@ import os
 import time
 import argparse
 import pickle
+from collections import defaultdict
 
 import torch.optim as optim
 
@@ -204,6 +205,7 @@ class DQNAgent(Agent):
             self.epsilon = evaluation_epsilon
             self.num_executions = 0
             self.fitting_interval = 200  # every episode
+            self.sampled_bonus_for_action = defaultdict(lambda : [])
 
         # Debugging attributes
         self.num_updates = 0
@@ -350,20 +352,20 @@ class DQNAgent(Agent):
             done (bool): is_terminal
             num_steps (int): number of steps taken by the option to terminate
         """
-        if self.exploration_strategy == "pseudo-counts":
-            state_buffer = np.array([transition[3] for transition in self.replay_buffer.memory])
-            if state_buffer.shape[0] > BATCH_SIZE:
-                exploration_bonus = self.density_model.get_online_exploration_bonus(state_buffer, next_state)
-            else:
-                exploration_bonus = 0.
-            augmented_reward = reward + (exploration_bonus * (1 - done))
-            self.replay_buffer.add(state, action, augmented_reward, next_state, done, num_steps)
-        elif self.exploration_strategy == "counts":
-            exploration_bonus = self.density_model.get_online_exploration_bonus(state, action)
-            augmented_reward = reward + (exploration_bonus * (1 - done))
-            self.replay_buffer.add(state, action, augmented_reward, next_state, done, num_steps)
-        else:
-            self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
+        # if self.exploration_strategy == "pseudo-counts":
+        #     state_buffer = np.array([transition[3] for transition in self.replay_buffer.memory])
+        #     if state_buffer.shape[0] > BATCH_SIZE:
+        #         exploration_bonus = self.density_model.get_online_exploration_bonus(state_buffer, next_state)
+        #     else:
+        #         exploration_bonus = 0.
+        #     augmented_reward = reward + (exploration_bonus * (1 - done))
+        #     self.replay_buffer.add(state, action, augmented_reward, next_state, done, num_steps)
+        # elif self.exploration_strategy == "counts":
+        #     exploration_bonus = self.density_model.get_online_exploration_bonus(state, action)
+        #     augmented_reward = reward + (exploration_bonus * (1 - done))
+        #     self.replay_buffer.add(state, action, augmented_reward, next_state, done, num_steps)
+        # else:
+        #     self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -384,6 +386,14 @@ class DQNAgent(Agent):
             gamma (float): discount factor
         """
         states, actions, rewards, next_states, dones, steps = experiences
+
+        if self.exploration_strategy == "counts":
+            np_states = states.cpu().numpy()
+            np_actions = actions.cpu().numpy()
+            bonuses = self.density_model.batched_get_exploration_bonus(np_states, np_actions)
+            for action in np_actions:
+                self.sampled_bonus_for_action[action].append(bonuses.mean())
+            rewards += bonuses
 
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:

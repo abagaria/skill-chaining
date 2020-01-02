@@ -191,10 +191,9 @@ class SkillChaining(object):
 				return True
 		return False
 
-	# TODO: HACK: Only generate trees for the the intersection skill chain for now
 	def create_children_options(self, option):
 		o1 = self.create_child_option(option)
-		o2 = self.create_child_option(option.parent) if option.parent is not None and option.chain_id != 3 else None
+		o2 = self.create_child_option(option.parent) if option.parent is not None else None
 		return o1, o2
 
 	def create_child_option(self, parent_option):
@@ -328,15 +327,6 @@ class SkillChaining(object):
 
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
-
-		# Debug: If it was possible to take an option, did we take it?
-		for option in self.trained_options:  # type: Option
-			if option.is_init_true(state):
-				option_taken = option.option_idx == selected_option.option_idx
-				if option.writer is not None:
-					option.writer.add_scalar("{}_taken".format(option.name), option_taken, option.n_taken_or_not)
-					option.taken_or_not.append(option_taken)
-					option.n_taken_or_not += 1
 
 		return selected_option
 
