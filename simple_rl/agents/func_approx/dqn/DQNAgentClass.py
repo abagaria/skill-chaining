@@ -367,6 +367,8 @@ class DQNAgent(Agent):
         # else:
         #     self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
+        self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
+
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
