@@ -82,7 +82,7 @@ class Option(object):
 
 		self.chain_id = chain_id
 		self.intersecting_options = intersecting_options
-		exploration = "counts" if name == "exploration_option" else ""
+		exploration = "counts" if name == "exploration_option" or chain_id == 3 else ""
 
 		print("Creating {} in chain {} with enable_timeout={}".format(name, chain_id, enable_timeout))
 
@@ -155,7 +155,22 @@ class Option(object):
 		for state in state_buffer:
 			sibling_count += sibling.is_init_true(state)
 
-		return 0 < (sibling_count / len(state_buffer)) <= 0.1
+		sibling_condition = 0 < (sibling_count / len(state_buffer)) <= 0.1
+
+		# TODO: Hack - preventing chain id 3 from chaining to the start state
+		def _start_hallway_count(states):
+			count = 0
+			for s in states:
+				if s.position[0] < 8:
+					count += 1
+			return count
+
+		if self.chain_id == 3:
+			backward_fraction = _start_hallway_count(state_buffer) / len(state_buffer)
+			backward_condition = 0 < backward_fraction <= 0.1
+			return backward_condition and sibling_condition
+
+		return sibling_condition
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
