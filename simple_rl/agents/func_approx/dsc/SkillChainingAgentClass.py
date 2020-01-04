@@ -124,7 +124,9 @@ class SkillChaining(object):
 
 		# Keep track of which chain each created option belongs to
 		s0 = self.mdp.env._init_positions
-		self.chains = [SkillChain(s0, target, [], i+1, []) for i, target in enumerate(self.mdp.get_target_events())]
+		self.s0 = s0
+		self.chains = [SkillChain(start_states=s0, target_predicate=target, options=[], chain_id=(i+1),
+		 intersecting_options=[], mdp_start_states=s0) for i, target in enumerate(self.mdp.get_target_events())]
 
 		# List of init states seen while running this algorithm
 		self.init_states = []
@@ -138,20 +140,20 @@ class SkillChaining(object):
 		target_predicate = lambda s: goal_option_1.is_term_true(s) or goal_option_2.is_term_true(s)
 		batched_target_predicate = lambda s: np.logical_or(goal_option_1.batched_is_term_true(s),
 														   goal_option_2.batched_is_term_true(s))
-		exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=self.global_option.solver,
-									lr_actor=self.global_option.solver.actor_learning_rate,
-									lr_critic=self.global_option.solver.critic_learning_rate,
-									buffer_length=self.global_option.buffer_length,
-									ddpg_batch_size=self.global_option.solver.batch_size,
-									num_subgoal_hits_required=self.num_subgoal_hits_required,
-									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
-									enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
-									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-									dense_reward=self.dense_reward, chain_id=None, timeout=30,
-									init_predicate=target_predicate, batched_init_predicate=batched_target_predicate)
+		# exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=self.global_option.solver,
+		# 							lr_actor=self.global_option.solver.actor_learning_rate,
+		# 							lr_critic=self.global_option.solver.critic_learning_rate,
+		# 							buffer_length=self.global_option.buffer_length,
+		# 							ddpg_batch_size=self.global_option.solver.batch_size,
+		# 							num_subgoal_hits_required=self.num_subgoal_hits_required,
+		# 							subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
+		# 							enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
+		# 							generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+		# 							dense_reward=self.dense_reward, chain_id=None, timeout=30,
+		# 							init_predicate=target_predicate, batched_init_predicate=batched_target_predicate)
 
-		# Add the exploration option to the policy over options
-		self._augment_agent_with_new_option(exploration_option, 0.)
+		# # Add the exploration option to the policy over options
+		# self._augment_agent_with_new_option(exploration_option, 0.)
 
 		# Debug variables
 		self.global_execution_states = []
@@ -448,7 +450,8 @@ class SkillChaining(object):
 
 		current_salient_states = self.get_current_salient_events()
 		new_chain = SkillChain(start_states=current_salient_states, target_predicate=None, chain_id=3,
-							   options=[], intersecting_options=[option1, option2])
+							   options=[], intersecting_options=[option1, option2],
+							   mdp_start_states=self.s0)
 		self.chains.append(new_chain)
 
 		# Allow agent to use this option to encourage chaining to it

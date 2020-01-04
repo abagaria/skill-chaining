@@ -514,7 +514,7 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
-			if self.is_term_true(state) and self.last_episode_term_triggered != episode:
+			if self.is_term_true(state) and self.last_episode_term_triggered != episode and self.is_valid_init_data(visited_states):
 				self.num_goal_hits += 1
 				self.last_episode_term_triggered = episode
 
@@ -532,8 +532,9 @@ class Option(object):
 										 outer_step_number):
 		if self.is_term_true(final_state):  # success
 			positive_states = [start_state] + visited_states[-self.buffer_length:]
-			positive_examples = [state.position for state in positive_states]
-			self.positive_examples.append(positive_examples)
+			if self.is_valid_init_data(positive_states):
+				positive_examples = [state.position for state in positive_states]
+				self.positive_examples.append(positive_examples)
 
 		elif num_steps == self.timeout:
 			negative_examples = [start_state.position]
@@ -543,7 +544,7 @@ class Option(object):
 				"Hit else case, but {} was not terminal".format(final_state)
 
 		# Refine the initiation set classifier
-		if len(self.negative_examples) > 0:
+		if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
 			self.train_two_class_classifier()
 
 	def trained_option_execution(self, mdp, outer_step_counter):

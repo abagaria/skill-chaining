@@ -4,7 +4,7 @@ from simple_rl.agents.func_approx.dsc.OptionClass import Option
 
 
 class SkillChain(object):
-    def __init__(self, start_states, mdp_start_states, target_predicate, options, chain_id, intersecting_options):
+    def __init__(self, start_states, mdp_start_states, target_predicate, options, chain_id, intersecting_options=[]):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here
