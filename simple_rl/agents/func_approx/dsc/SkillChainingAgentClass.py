@@ -143,9 +143,11 @@ class SkillChaining(object):
 	def create_children_options(self, option):
 		o1 = self.create_child_option(option)
 		children = [o1]
-		for i in range(option.max_num_children - 1):
-			child = self.create_child_option(option.parent) if option.parent is not None else None
-			children.append(child)
+		current_parent = option.parent
+		while current_parent is not None:
+			child_option = self.create_child_option(current_parent)
+			children.append(child_option)
+			current_parent = current_parent.parent
 		return children
 
 	def create_child_option(self, parent_option):
