@@ -142,8 +142,11 @@ class SkillChaining(object):
 
 	def create_children_options(self, option):
 		o1 = self.create_child_option(option)
-		o2 = self.create_child_option(option.parent) if option.parent is not None else None
-		return o1, o2
+		children = [o1]
+		for i in range(option.max_num_children - 1):
+			child = self.create_child_option(option.parent) if option.parent is not None else None
+			children.append(child)
+		return children
 
 	def create_child_option(self, parent_option):
 
@@ -385,21 +388,21 @@ class SkillChaining(object):
 						uo_episode_terminated = True
 						if untrained_option.train(experience_buffer, state_buffer):
 							self._augment_agent_with_new_option(untrained_option, self.init_q)
-							# if untrained_option.classifier_type == "ocsvm":
-							# 	plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
-							# else:
-							# 	plot_two_class_classifier(untrained_option, episode, args.experiment_name)
+							if untrained_option.classifier_type == "ocsvm":
+								plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
+							else:
+								plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 
 					if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done":
-						# plot_two_class_classifier(untrained_option, episode, args.experiment_name)
+						plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 						self.untrained_options.remove(untrained_option)
-						new_option_1, new_option_2 = self.create_children_options(untrained_option)
-						if new_option_1 is not None:
-							self.untrained_options.append(new_option_1)
-							self.add_negative_examples(new_option_1)
-						if new_option_2 is not None:
-							self.untrained_options.append(new_option_2)
-							self.add_negative_examples(new_option_2)
+						new_options = self.create_children_options(untrained_option)
+
+						# Iterate through all the child options and add them to the skill tree 1 by 1
+						for new_option in new_options:  # type: Option
+							if new_option is not None:
+								self.untrained_options.append(new_option)
+								self.add_negative_examples(new_option)
 
 				if state.is_terminal():
 					break
@@ -427,10 +430,10 @@ class SkillChaining(object):
 			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
-		# if episode > 0 and episode % 100 == 0:
-		eval_score, trajectory = self.trained_forward_pass(render=False)
-		self.validation_scores.append(eval_score)
-		print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+		if episode > 0 and episode % 100 == 0:
+			eval_score, trajectory = 0, []  # self.trained_forward_pass(render=False)
+			self.validation_scores.append(eval_score)
+			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
 		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)

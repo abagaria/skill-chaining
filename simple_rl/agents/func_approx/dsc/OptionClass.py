@@ -20,7 +20,7 @@ class Option(object):
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=1, option_idx=None,
-				 max_num_children=2, generate_plots=False, device=torch.device("cpu"), writer=None):
+				 max_num_children=3, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
