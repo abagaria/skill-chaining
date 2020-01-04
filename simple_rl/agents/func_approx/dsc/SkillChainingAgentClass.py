@@ -193,8 +193,11 @@ class SkillChaining(object):
 
 	def create_children_options(self, option):
 		o1 = self.create_child_option(option)
-		o2 = self.create_child_option(option.parent) if option.parent is not None else None
-		return o1, o2
+		children = [o1]
+		for i in range(option.max_num_children - 1):
+			child = self.create_child_option(option.parent) if option.parent is not None else None
+			children.append(child)
+		return children
 
 	def create_child_option(self, parent_option):
 
@@ -579,6 +582,7 @@ class SkillChaining(object):
 		if episode > 0 and episode % 100 == 0:
 			# eval_score, trajectory = self.trained_forward_pass(render=False)
 			eval_score, trajectory = 0., []
+
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
