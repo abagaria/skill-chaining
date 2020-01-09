@@ -534,19 +534,14 @@ class SkillChaining(object):
 
 						# We fix the learned option's initiation set and remove it from the list of target events
 						self.untrained_options.remove(untrained_option)
-						new_option_1, new_option_2 = self.create_children_options(untrained_option)
 
-						if new_option_1 is not None:
-							self.untrained_options.append(new_option_1)
-							self.add_negative_examples(new_option_1)
-							if new_option_1.initialize_everywhere:
-								self._augment_agent_with_new_option(new_option_1, 0.)
+						new_options = self.create_children_options(untrained_option)
 
-						if new_option_2 is not None:
-							self.untrained_options.append(new_option_2)
-							self.add_negative_examples(new_option_2)
-							if new_option_2.initialize_everywhere:
-								self._augment_agent_with_new_option(new_option_2, 0.)
+						# Iterate through all the child options and add them to the skill tree 1 by 1
+						for new_option in new_options:  # type: Option
+							if new_option is not None:
+								self.untrained_options.append(new_option)
+								self.add_negative_examples(new_option)
 
 				# Detect intersection salience to start building skill graph
 				intersecting_options = self.get_intersecting_options()
