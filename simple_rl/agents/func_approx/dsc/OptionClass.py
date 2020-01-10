@@ -134,28 +134,35 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
-	def get_sibling_option(self):
+	def get_sibling_options(self):
+		siblings = []
 		if self.parent is not None:
 			parent_children = self.parent.children
 			for child in parent_children:
 				if child != self:
-					return child
-		return None
+					siblings.append(child)
+		return siblings
 
 	def is_valid_init_data(self, state_buffer):
-		sibling = self.get_sibling_option()  # type: Option
+		siblings = self.get_sibling_options()  # type: list
 
-		if sibling is None:
+		if len(siblings) == 0:
 			return True
 
 		if len(state_buffer) == 0:
 			return False
 
-		sibling_count = 0.
-		for state in state_buffer:
-			sibling_count += sibling.is_init_true(state)
+		def _get_sibling_count(sibling, buffer):
+			if sibling.initiation_classifier is not None:
+				sibling_count = 0.
+				for state in buffer:
+					sibling_count += sibling.is_init_true(state)
+				return sibling_count
+			return 0
 
-		sibling_condition = 0 < (sibling_count / len(state_buffer)) <= 0.1
+		sibling_counts = [_get_sibling_count(sibling, state_buffer) for sibling in siblings]
+
+		sibling_condition = 0 < (max(sibling_counts) / len(state_buffer)) <= 0.1
 
 		# TODO: Hack - preventing chain id 3 from chaining to the start state
 		def _start_hallway_count(states):
