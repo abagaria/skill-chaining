@@ -99,14 +99,14 @@ class SkillChaining(object):
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							 dense_reward=self.dense_reward, chain_id=1)
+							 dense_reward=self.dense_reward, chain_id=1, max_num_children=1)
 		goal_option_2 = Option(overall_mdp=self.mdp, name='goal_option_2', global_solver=self.global_option.solver,
 							   lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 							   ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 							   subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							   enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							   generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							   dense_reward=self.dense_reward, chain_id=2)
+							   dense_reward=self.dense_reward, chain_id=2, max_num_children=1)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -154,6 +154,11 @@ class SkillChaining(object):
 
 		# # Add the exploration option to the policy over options
 		# self._augment_agent_with_new_option(exploration_option, 0.)
+
+		# If initialize_everywhere is True, also add to trained_options
+		for option in self.untrained_options:  # type: Option
+			if option.initialize_everywhere:
+				self._augment_agent_with_new_option(option, 0.)
 
 		# Debug variables
 		self.global_execution_states = []
@@ -232,7 +237,8 @@ class SkillChaining(object):
 									  seed=self.seed, parent=parent_option,  max_steps=self.max_steps,
 									  enable_timeout=self.enable_option_timeout, chain_id=parent_option.chain_id,
 									  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-									  initialize_everywhere=parent_option.initialize_everywhere)
+									  initialize_everywhere=parent_option.initialize_everywhere,
+									  max_num_children=parent_option.max_num_children)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -337,14 +343,13 @@ class SkillChaining(object):
 
 		return selected_option
 
-	def take_action(self, state, episode_number, step_number, episode_option_executions):
+	def take_action(self, state, episode_number, step_number):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
 		Args:
 			state (State)
 			episode_number (int)
 			step_number (int): which iteration of the control loop we are on
-			episode_option_executions (defaultdict)
 
 		Returns:
 			experiences (list): list of (s, a, r, s') tuples
@@ -353,6 +358,7 @@ class SkillChaining(object):
 		"""
 		selected_option = self.act(state)
 
+		# TODO: Hack - do not take option from a salient event targeting it
 		if selected_option.is_term_true(state):
 			selected_option = self.global_option
 
@@ -368,16 +374,6 @@ class SkillChaining(object):
 
 		# Add data to train Q(s, o)
 		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
-
-		# Debug logging
-		episode_option_executions[selected_option.name] += 1
-		self.option_rewards[selected_option.name].append(discounted_reward)
-
-		sampled_q_value = self.sample_qvalue(selected_option)
-		self.option_qvalues[selected_option.name].append(sampled_q_value)
-		if self.writer is not None:
-			self.writer.add_scalar("{}_q_value".format(selected_option.name),
-								   sampled_q_value, selected_option.num_executions)
 
 		return option_transitions, option_reward, next_state, len(option_transitions)
 
@@ -450,7 +446,7 @@ class SkillChaining(object):
 							  seed=self.seed, parent=None,  max_steps=self.max_steps,
 							  enable_timeout=self.enable_option_timeout, chain_id=3,
 							  intersecting_options=[option1, option2],
-							  initialize_everywhere=True,
+							  initialize_everywhere=True, max_num_children=3,
 							  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
 
 		current_salient_states = self.get_current_salient_events()
@@ -492,7 +488,7 @@ class SkillChaining(object):
 
 			while step_number < num_steps:
 				# pdb.set_trace()
-				experiences, reward, state, steps = self.take_action(state, episode, step_number, episode_option_executions)
+				experiences, reward, state, steps = self.take_action(state, episode, step_number)
 				score += reward
 				step_number += steps
 				for experience in experiences:
@@ -544,6 +540,10 @@ class SkillChaining(object):
 							if new_option is not None:
 								self.untrained_options.append(new_option)
 								self.add_negative_examples(new_option)
+
+								# If initialize_everywhere is True, also add to trained_options
+								if new_option.initialize_everywhere:
+									self._augment_agent_with_new_option(new_option, self.init_q)
 
 				# Detect intersection salience to start building skill graph
 				intersecting_options = self.get_intersecting_options()
