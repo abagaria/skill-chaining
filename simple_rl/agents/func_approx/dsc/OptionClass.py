@@ -189,15 +189,6 @@ class Option(object):
 		return "trained"
 
 	def initialize_with_global_ddpg(self):
-		for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
-			my_param.data.copy_(global_param.data)
-		for my_param, global_param in zip(self.solver.critic.parameters(), self.global_solver.critic.parameters()):
-			my_param.data.copy_(global_param.data)
-		for my_param, global_param in zip(self.solver.target_actor.parameters(), self.global_solver.target_actor.parameters()):
-			my_param.data.copy_(global_param.data)
-		for my_param, global_param in zip(self.solver.target_critic.parameters(), self.global_solver.target_critic.parameters()):
-			my_param.data.copy_(global_param.data)
-
 		# Not using off_policy_update() because we have numpy arrays not state objects here
 		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
 			if self.is_init_true(state):
