@@ -82,8 +82,9 @@ class SkillChain(object):
                 if mdp_start_states_in_chain:
                     mdp_chained = True
 
-        # Stop chaining if either condition says to stop
-        return not chain_itersects_another and not mdp_chained
+        # If the chains do not intersect, continue until the MDP is chained
+        stop_condition = start_state_in_chain or (chain_itersects_another and mdp_chained)
+        return not stop_condition
 
     def detect_intersection_with_other_chains(self, other_chains):
         for chain in other_chains:
