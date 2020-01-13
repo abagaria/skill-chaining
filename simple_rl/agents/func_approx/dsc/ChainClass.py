@@ -45,7 +45,7 @@ class SkillChain(object):
     def _state_in_chain(self, state):
         """ Is state inside the initiation set of any of the options in the chain. """
         for option in self.options:  # type: Option
-            if option.is_init_true(state):
+            if option.initiation_classifier is not None and option.is_init_true(state):
                 return True
         return False
 
