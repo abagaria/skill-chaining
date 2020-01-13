@@ -19,8 +19,8 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=1, option_idx=None,
-				 chain_id=None, initialize_everywhere=False, intersecting_options=[], max_num_children=3,
+				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2, option_idx=None,
+				 chain_id=None, initialize_everywhere=True, intersecting_options=[], max_num_children=3,
 				 init_predicate=None, batched_init_predicate=None,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
@@ -479,6 +479,9 @@ class Option(object):
 			self.num_executions += 1
 			num_steps = 0
 			visited_states = []
+
+			if self.name != "global_option":
+				print("Executing {}".format(self.name))
 
 			self.option_start_states.append(start_state)
 
