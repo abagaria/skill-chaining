@@ -122,8 +122,10 @@ class SkillChain(object):
                     intersections = np.logical_and(my_predictions, other_predictions)
 
                     # If at least one state is inside the initiation classifier of both options,
-                    # we have found our salient intersection event.
-                    if intersections.sum() > 0:
+                    # we have found our salient intersection event. Also verify that we have fit initiation
+                    # classifiers for both options - this is needed if option's initialize_everywhere property is true
+                    if intersections.sum() > 0 and my_option.initiation_classifier is not None and \
+                            other_option.initiation_classifier is not None:
                         return my_option, other_option
 
         return None
