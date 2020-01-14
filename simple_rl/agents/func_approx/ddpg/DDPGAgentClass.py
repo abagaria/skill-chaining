@@ -24,13 +24,15 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration=""):
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="",
+                 trained_options=[]):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
         self.critic_learning_rate = lr_critic
         self.batch_size = batch_size
         self.exploration_method = exploration
+        self.trained_options = trained_options
 
         self.seed = random.seed(seed)
         np.random.seed(seed)
@@ -105,16 +107,31 @@ class DDPGAgent(Agent):
     def _learn(self, experiences, gamma):
         states, actions, rewards, next_states, dones = experiences
 
-        # Before pushing to the GPU, augment the reward with exploration bonus
-        if self.exploration_method == "counts":
-            bonuses = self.density_model.batched_get_exploration_bonus(states, actions)
-            rewards += bonuses
+        np_states = np.copy(states)
+        np_actions = np.copy(actions)
+        np_next_states = np.copy(next_states)
 
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.FloatTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
+
+        # Before pushing to the GPU, augment the reward with exploration bonus
+        if self.exploration_method == "counts":
+            bonuses = self.density_model.batched_get_exploration_bonus(np_states, np_actions)
+            rewards += torch.FloatTensor(bonuses).unsqueeze(1).to(self.device)
+        elif self.exploration_method == "shaping":
+            if len(self.trained_options) > 0 and self.name == "global_option_ddpg_agent":
+                for option in self.trained_options:
+                    if option.name != "global_option" and option.get_training_phase() == "initiation":
+                        # TODO: How is this shaping best done?
+                        # phi(s') - phi(s) is more correct, but it is hard to sample those pairs
+                        # of states such that phi(s') is 1 but phi(s) is 0. Moreover, this might be ok because the
+                        # augmented shaped reward is still negative, while the goal is a terminating non-negative reward
+                        phi = option.batched_is_init_true
+                        shaped_bonus = 0.1 * phi(np_next_states)
+                        rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
 
         next_actions = self.target_actor(next_states)
         Q_targets_next = self.target_critic(next_states, next_actions)

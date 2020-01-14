@@ -304,6 +304,7 @@ class SkillChaining(object):
 		# Add the trained option to the action set of the global solver
 		if newly_trained_option not in self.trained_options:
 			self.trained_options.append(newly_trained_option)
+			self.global_option.solver.trained_options.append(newly_trained_option)
 
 		# Add the newly trained option to the corresponding skill chain
 		if newly_trained_option.chain_id is not None:
