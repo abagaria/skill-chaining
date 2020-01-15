@@ -82,8 +82,8 @@ def get_initiation_set_values(option, has_key):
 
 def get_values(solver, init_values=False):
 	values = []
-	for x in np.arange(0., 11., 1.):
-		for y in np.arange(0., 11., 1.):
+	for x in np.arange(0., 11., 0.5):
+		for y in np.arange(0., 11., 0.5):
 			v = []
 			for vx in [-0.01, -0.1, 0., 0.01, 0.1]:
 				for vy in [-0.01, -0.1, 0., 0.01, 0.1]:
