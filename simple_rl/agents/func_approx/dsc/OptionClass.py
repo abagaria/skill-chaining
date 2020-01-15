@@ -19,7 +19,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2,
+				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=5,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -225,10 +225,10 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		# if len(self.negative_examples) >= 10:
-		kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
-		# else:
-		# 	kwargs = {"kernel": "linear", "gamma": "scale"}
+		if len(self.negative_examples) >= 10:
+			kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
+		else:
+			kwargs = {"kernel": "linear", "gamma": "scale"}
 
 		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
 		initiation_classifier = svm.SVC(**kwargs)
