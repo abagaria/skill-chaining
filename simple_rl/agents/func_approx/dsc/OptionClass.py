@@ -82,7 +82,7 @@ class Option(object):
 
 		self.chain_id = chain_id
 		self.intersecting_options = intersecting_options
-		exploration = "counts" if name == "exploration_option" or chain_id == 3 else ""
+		exploration = "shaping" if self.name == "global_option" else ""
 
 		print("Creating {} in chain {} with enable_timeout={}".format(name, chain_id, enable_timeout))
 

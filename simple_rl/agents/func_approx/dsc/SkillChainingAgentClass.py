@@ -334,6 +334,19 @@ class SkillChaining(object):
 
 		self.agent_over_options = new_global_agent
 
+	def initialize_policy_over_options(self):
+		""" Can be called after call to _augment_(). Useful if we want to reset the policy over options. """
+		num_actions = len(self.trained_options)
+		new_global_agent = DQNAgent(self.agent_over_options.state_size, num_actions, self.trained_options,
+									seed=self.seed, name=self.agent_over_options.name,
+									eps_start=self.agent_over_options.epsilon,
+									tensor_log=self.agent_over_options.tensor_log,
+									use_double_dqn=self.agent_over_options.use_ddqn,
+									lr=self.agent_over_options.learning_rate,
+									writer=self.writer, device=self.device,
+									exploration_strategy="counts", use_position_only_for_exploration=True)
+		self.agent_over_options = new_global_agent
+
 	def act(self, state):
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
@@ -461,6 +474,7 @@ class SkillChaining(object):
 
 		# Also reset the exploration module to encourage adding skills to the new chain
 		# self.agent_over_options.density_model.reset()
+		self.initialize_policy_over_options()
 
 		return new_option
 

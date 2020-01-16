@@ -24,7 +24,7 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="",
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="shaping",
                  trained_options=[]):
         self.state_size = state_size
         self.action_size = action_size
@@ -74,6 +74,8 @@ class DDPGAgent(Agent):
 
         self.n_learning_iterations = 0
         self.n_acting_iterations = 0
+
+        print("Creating {} with exploration strategy of {}".format(self.name, self.exploration_method))
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
