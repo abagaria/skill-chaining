@@ -11,7 +11,7 @@ from simple_rl.tasks.point_env.PointEnvStateClass import PointEnvState
 
 class PointEnvMDP(MDP):
     def __init__(self, init_mean=(-0.2, -0.2), control_cost=False, dense_reward=False, render=False):
-        if "darwin" in sys.platform: xml = "/Users/akhil/git-repos/dm_control/dm_control/suite/point_mass.xml"
+        if "darwin" in sys.platform: xml = "/Users/akhil/git-repos/dm_control/dm_control/suite/point_mass.xml"    #TODO: need to fix hardcoded path
         else: xml = "/home/abagaria/git-repos/dm_control/dm_control/suite/point_mass.xml"
         model = load_model_from_path(xml)
         self.sim = MjSim(model)

@@ -5,10 +5,21 @@ import numpy as np
 import pdb
 from copy import deepcopy
 import torch
+
 from sklearn import svm
 from sklearn.covariance import EllipticEnvelope
 import itertools
 from scipy.spatial import distance
+
+# TODO: additional imports 
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.linear_model import LogisticRegressionCV as LRCV
+from sklearn.model_selection import train_test_split
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+sns.set(color_codes=True)
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -85,6 +96,13 @@ class Option(object):
 		self.negative_examples = []
 		self.experience_buffer = []
 		self.initiation_classifier = None
+
+		# TODO: test
+		self.X = None		
+		self.y = None		
+		self.tcsvm = None
+		self.ocsvm = None
+
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
 
@@ -202,8 +220,10 @@ class Option(object):
 		return weights
 
 	def train_one_class_svm(self):
+		# print("-> (Option::train_one_class_svm): call")		# TODO: remove
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		# print("|-> Feature matrix ([X,y]): \n", positive_feature_matrix)		# TODO: remove
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
@@ -243,6 +263,7 @@ class Option(object):
 		self.classifier_type = "tcsvm"
 
 	def train_initiation_classifier(self):
+		print("-> (Option::train_initiation_classifier): call")  # TODO: remove
 		if self.classifier_type == "ocsvm":
 			self.train_one_class_svm()
 		elif self.classifier_type == "elliptic":
@@ -271,6 +292,8 @@ class Option(object):
 		Returns:
 			trained (bool): whether or not we actually trained this option
 		"""
+		print("-> (Option::train): call (train untrained option)")  # TODO: remove
+		print("|-> num_goal_hits: {}, self.num_subgoal_hits_required: {} ".format(self.num_goal_hits, self.num_subgoal_hits_required))	# TODO: remove
 		self.add_initiation_experience(state_buffer)
 		self.add_experience_buffer(experience_buffer)
 		self.num_goal_hits += 1
@@ -341,7 +364,7 @@ class Option(object):
 			subgoal_reward = self.get_subgoal_reward(s_prime)
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
-	def execute_option_in_mdp(self, mdp, step_number):
+	def execute_option_in_mdp(self, mdp, step_number, episode=None):
 		"""
 		Option main control loop.
 
@@ -353,6 +376,9 @@ class Option(object):
 			option_transitions (list): list of (s, a, r, s') tuples
 			discounted_reward (float): cumulative discounted reward obtained by executing the option
 		"""
+		
+		# if step_number % 100 == 0:
+		# 	print("|-> (OptionClass::execute_option_in_mdp): call")		# TODO: remove
 		start_state = deepcopy(mdp.cur_state)
 		state = mdp.cur_state
 
@@ -406,7 +432,9 @@ class Option(object):
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
 
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
-										 outer_step_number):
+                                      outer_step_number, episode=None):
+		# if num_steps % 100 == 0:
+			# print("|-> (OptionClass::refine_initiation_set_classifier): call")	# TODO: remove
 		if self.is_term_true(final_state):  # success
 			positive_states = [start_state] + visited_states[-self.buffer_length:]
 			positive_examples = [state.position for state in positive_states]
@@ -421,7 +449,204 @@ class Option(object):
 
 		# Refine the initiation set classifier
 		if len(self.negative_examples) > 0:
-			self.train_two_class_classifier()
+			# self.train_two_class_classifier()
+			self.train_initiation_set_classifier()		# TODO: test
+
+
+	# TODO: utilities
+	def make_meshgrid(self, x, y, h=.02):
+		"""Create a mesh of points to plot in
+
+		Parameters
+		----------
+		x: data to base x-axis meshgrid on
+		y: data to base y-axis meshgrid on
+		h: stepsize for meshgrid, optional
+
+		Returns
+		-------
+		xx, yy : ndarray
+		"""
+		x_min, x_max = x.min() - 1, x.max() + 1
+		y_min, y_max = y.min() - 1, y.max() + 1
+		xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                       np.arange(y_min, y_max, h))
+		return xx, yy
+
+	# TODO: utilities
+	def plot_contours(self, ax, clf, xx, yy, **params):
+		"""Plot the decision boundaries for a classifier.
+
+		Parameters
+		----------
+		ax: matplotlib axes object
+		clf: a classifier
+		xx: meshgrid ndarray
+		yy: meshgrid ndarray
+		params: dictionary of params to pass to contourf, optional
+		"""
+		Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
+		Z = Z.reshape(xx.shape)
+		out = ax.contourf(xx, yy, Z, **params)
+		return out
+
+	# TODO: utilities
+	def create_plots(self, models, titles, X, y, grid, episode=None):
+		"""Creates plots of models.
+		
+			Parameters
+			----------
+			models : tuple of models
+			titles : tuple of title names
+			X : input
+			grid : tuple of grid size 
+		"""
+
+		# Set-up grids for plotting.
+		fig, sub = plt.subplots(grid)
+		plt.subplots_adjust(wspace=0.4, hspace=0.4)
+
+		X0, X1 = X[:, 0], X[:, 1]
+		xx, yy = self.make_meshgrid(X0, X1)
+
+		for clf, title, ax in zip(models, titles, sub.flatten()):
+			self.plot_contours(ax, clf, xx, yy,
+                            cmap=plt.cm.coolwarm, alpha=0.8)
+			ax.scatter(X0, X1, c=y, cmap=plt.cm.coolwarm, s=20, edgecolors='k')
+			ax.set_xlim(xx.min(), xx.max())
+			ax.set_ylim(yy.min(), yy.max())
+			ax.set_xlabel('x-coord')
+			ax.set_ylabel('y-coord')
+			ax.set_xticks(())
+			ax.set_yticks(())
+			ax.set_title(title)
+
+		# plt.show()
+		plt.savefig("notes/classifier_plots/ep-{}-classifier.png".format(episode))
+		plt.close()
+		print("|-> notes/classifier_plots/ep-{}-classifier.png saved!".format(episode))
+
+	# TODO: utilities
+	def plot_kde(self, X, episode):
+		df = pd.DataFrame(X, columns=["x-coord", "y-coord"])
+		g = sns.jointplot(x="x-coord", y="y-coord", data=df, kind="kde", color="m")
+		g.plot_joint(plt.scatter, c="w", s=30, linewidth=1.5, marker="+")
+		g.ax_joint.collections[0].set_alpha(0)
+		g.set_axis_labels("$x$-coord", "$y$-coord")
+		# plt.show()
+		plt.savefig("notes/KDE_plots/ep-{}-kde.png".format(episode))
+		plt.close()
+		print("|-> notes/KDE_plots/ep-{}-kde.png saved!".format(episode))
+
+	# TODO: Optimistic classifier
+	def opt_clf(self, X_, y_):
+		"""
+		Optimistic classifier that is two-class SVM 
+		
+		Args:
+			X_: Input data
+			y_: Input labels
+		
+		Returns:
+			Fitted two-class linear SVM
+		"""
+		tcsvm = svm.LinearSVC(max_iter=1000)
+		
+		return tcsvm.fit(X_,y_)
+	
+	# TODO: Pessimistic classifier
+	def pes_clf(self, tcsvm_, X_, y_):
+		"""
+		Pessimistic classifier that is a one-class SVM
+		
+		Args:
+			tcsmv_: fitted two-class SVM
+			X_: Input data
+			y_: Input labels
+
+		Returns:
+			Fitted one-class SVM on positive classification of two-class SVM
+		"""
+		# Get subset of inputs that are on the (+) side of the optimistic classifier
+		y_pred = tcsvm_.predict(X_)
+		X_pos, y_pos, X_neg, y_neg = [], [], [], []
+		for i, label in enumerate(y_pred):
+			if label == 1:
+				X_pos.append(X_[i])
+				y_pos.append(y_[i])
+			else:
+				X_neg.append(X_[i])
+				y_neg.append(y_[i])
+		X_pos, y_pos, X_neg, y_neg = np.array(X_pos), np.array(y_pos), np.array(X_neg), np.array(y_neg)
+
+		# Fit one-class SVM (non-linear) from (+) subset of inputs from two-class SVM
+		ocsvm = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		
+		return ocsvm.fit(X_pos, y_pos)
+
+	# TODO: Platt Scalling module
+	def platt_scale(self, ocsvm_, X_, train_size, cv_size, outlier=False):
+		"""
+		Uses Platt Scalling to get probability values from one-class SVM
+		
+		Args:
+			ocsvm_: One-class SVM on positive classification of two-class SVM
+			X_: Input data
+			train_size: Proportion of data that is included in train split
+			cv_size: Number of folds used in cross-validation generator
+			outlier: Toggle to set predictions using outlier data
+		
+		Returns:
+			Prediction probabilities on test data
+		"""
+		
+		# Get SVM predictions
+		y_SVM_pred = ocsvm_.predict(X_)
+		if outlier:
+			y_SVM_pred = y_SVM_pred * -1
+		
+		# Split the data and SVM labels
+		X_train, X_test, y_train, y_test = train_test_split(X_, y_SVM_pred, train_size=train_size)
+
+		# Train using logistic regression layer with cross validation 
+		lr = LRCV(cv=cv_size)
+		lr.fit(X_train, y_train)
+
+		return lr.predict_proba(X_test)
+
+	# TODO: test
+	def train_initiation_set_classifier(self):
+		"""Initiation Set Classifier"""
+		print("-> (OptionClass::train_probabilistic_classifier): call")
+		
+		# Create input and labels
+		positive_feature_matrix = self.construct_feature_matrix(
+			self.positive_examples)
+		negative_feature_matrix = self.construct_feature_matrix(
+			self.negative_examples)
+		positive_labels = [1] * positive_feature_matrix.shape[0]
+		negative_labels = [0] * negative_feature_matrix.shape[0]
+
+		self.X = np.concatenate((positive_feature_matrix[:,:2], negative_feature_matrix[:,:2]))
+		self.y = np.concatenate((positive_labels, negative_labels))
+
+		# Call classifiers
+		self.tcsvm = self.opt_clf(self.X, self.y)
+		self.ocsvm = self.pes_clf(tcsvm, self.X, self.y)
+
+		# Estimations for pessimistic classifier
+		prob_inlier = self.platt_scale(ocsvm, self.X, 0.90, 5)
+		# prob_outlier = platt_scale(one_clf, X, 0.90, 5, outlier=True)
+
+		# Print probability estimations
+		print("|-> Info")
+		print("|-> ====")
+		print("|-> [OPT] Pr(pos sample | pos side of TCSVM) = {}".format(tcsvm.score(self.X, self.y)))
+		print("|-> [PES] Pr(pos sample | inside OCSVM) = {}".format(np.average(prob_inlier[:,1])))
+		print("|-> Diff: {}".format(abs(tcsvm.score(self.X, self.y) - np.average(prob_inlier[:,1]))))
+
+		# Set initiation set classifier
+		self.initiation_classifier = ocsvm
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state

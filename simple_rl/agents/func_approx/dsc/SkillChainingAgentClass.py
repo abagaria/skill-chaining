@@ -160,14 +160,14 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing the option
 			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
 		"""
-		assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
+		# assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
 
 		def get_reward(transitions):
 			gamma = self.global_option.solver.gamma
 			raw_rewards = [tt[2] for tt in transitions]
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
-		# TODO: Should we do intra-option learning only when the option was successful in reaching its subgoal?
+		# NOTE: Should we do intra-option learning only when the option was successful in reaching its subgoal?
 		selected_option = self.trained_options[action]  # type: Option
 		for i, transition in enumerate(option_transitions):
 			start_state = transition[0]
@@ -240,7 +240,7 @@ class SkillChaining(object):
 
 		return selected_option
 
-	def take_action(self, state, step_number, episode_option_executions):
+	def take_action(self, state, step_number, episode_option_executions, episode=None):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
 		Args:
@@ -254,8 +254,18 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		selected_option = self.act(state)
+		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(
+			self.mdp, step_number, episode)
 
-		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number)
+		# TODO: generate plots
+		tcsvm, ocsvm = selected_option.tcsvm, selected_option.ocsvm
+		X, y = selected_option.X, selected_option.y
+		if X is not None:
+			# Plot two classifiers
+			models = (tcsvm, ocsvm)
+			titles = ('(Episode: {}) Optimistic (TCSVM)'.format(episode), 'Pessimistic (OCSVM)')
+			selected_option.create_plots(
+				models=models, titles=titles, X=X, y=y, grid=(2), episode=episode)
 
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
@@ -312,6 +322,8 @@ class SkillChaining(object):
 
 	def skill_chaining(self, num_episodes, num_steps):
 
+		print("-> (SkillChaining::skill_chaining): call")		# TODO: remove
+
 		# For logging purposes
 		per_episode_scores = []
 		per_episode_durations = []
@@ -320,6 +332,7 @@ class SkillChaining(object):
 
 		for episode in range(num_episodes):
 
+			print("-> (SkillChaining::skill_chaining): episode = %i" % episode)		#TODO: remove
 			self.mdp.reset()
 			score = 0.
 			step_number = 0
@@ -331,7 +344,10 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				experiences, reward, state, steps = self.take_action(state, step_number, episode_option_executions)
+				if step_number % 100 == 0:
+					print("|-> (SkillChaining::skill_chaining): step_number = %i" % step_number)  # TODO: remove
+				experiences, reward, state, steps = self.take_action(
+					state, step_number, episode_option_executions, episode)
 				score += reward
 				step_number += steps
 				for experience in experiences:
