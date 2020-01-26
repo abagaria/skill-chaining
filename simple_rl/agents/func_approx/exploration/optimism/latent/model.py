@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class DensePhiNetwork(nn.Module):
-    def __init__(self, feature_size, h1=24, h2=12, latent_size=2, device=torch.device("cuda")):
+    def __init__(self, feature_size, h1=32, h2=16, latent_size=2, device=torch.device("cuda")):
         super(DensePhiNetwork, self).__init__()
         self.feature_size = feature_size
         self.latent_size = latent_size
