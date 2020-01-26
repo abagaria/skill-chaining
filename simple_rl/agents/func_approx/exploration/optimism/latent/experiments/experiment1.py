@@ -8,7 +8,7 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpac
 
 class Experiment1:
     def __init__(self, epsilon, phi_type):
-        self.counting_space = CountingLatentSpace(epsilon, phi_type)
+        self.counting_space = CountingLatentSpace(2, epsilon, phi_type, experiment_name="exp1")
 
     @staticmethod
     def generate_data():
@@ -23,7 +23,7 @@ class Experiment1:
         y = np.arange(0., 3., 0.1)
         xx, yy = np.meshgrid(x, y)
         states = np.c_[xx.ravel(), yy.ravel()]
-        counts = self.counting_space.get_counts(states)
+        counts = self.counting_space.get_counts(states, 0)
         assert counts.shape == (900,)
 
         plt.contour(xx, yy, counts.reshape(xx.shape))
@@ -38,8 +38,10 @@ class Experiment1:
 
     def run_experiment(self):
         data = self.generate_data()
-        self.counting_space.train(data)
-        counts = self.counting_space.get_counts(data)
+        # self.counting_space.train(data)
+        self.counting_space.train([data])
+        # counts = self.counting_space.get_counts(data)
+        counts = self.counting_space.get_counts(data, 0)
         print("Training counts: ", counts)
         self.generate_counts_plot()
 

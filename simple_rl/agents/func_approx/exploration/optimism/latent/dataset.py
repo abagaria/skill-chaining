@@ -34,14 +34,15 @@ class CountingDataset(Dataset):
                torch.from_numpy(action_state_vector).float()
 
 
-# class MultiActionCountingDataset(ConcatDataset):
-#     def __init__(self, *, action_buffers):
-#         """ See https://pytorch.org/docs/stable/_modules/torch/utils/data/dataset.html#ConcatDataset"""
-#         all_data = np.concatenate(action_buffers)
-#         datasets = [CountingDataset(all_data, ab) for ab in action_buffers]
-#         super(MultiActionCountingDataset, self).__init__(datasets)
-#
-# if __name__ == "__main__":
-#     f = np.zeros((10, 2))
-#     a = np.ones((20, 2))
-#     dset = CountingDataset(full_buffer=f, action_buffer=a)
+class MultiActionCountingDataset(ConcatDataset):
+    def __init__(self, *, action_buffers):
+        """ See https://pytorch.org/docs/stable/_modules/torch/utils/data/dataset.html#ConcatDataset"""
+        all_data = np.concatenate(action_buffers)
+        datasets = [CountingDataset(full_buffer=all_data, action_buffer=ab) for ab in action_buffers]
+        super(MultiActionCountingDataset, self).__init__(datasets)
+
+
+if __name__ == "__main__":
+    f = np.zeros((10, 2))
+    a = np.ones((20, 2))
+    dset = CountingDataset(full_buffer=f, action_buffer=a)

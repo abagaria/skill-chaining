@@ -24,8 +24,8 @@ class Experiment2:
         if method == "random":
             return np.random.uniform(0, 1, 2000).reshape(-1, 2)
 
-        xx, yy = np.meshgrid(np.arange(0., 1., 0.05),
-                             np.arange(0., 1., 0.05))
+        xx, yy = np.meshgrid(np.arange(0., 1., 0.1),
+                             np.arange(0., 1., 0.1))
 
         return np.c_[xx.ravel(), yy.ravel()]
 
@@ -34,7 +34,7 @@ class Experiment2:
         y = np.arange(0., 1., 0.05)
         xx, yy = np.meshgrid(x, y)
         states = np.c_[xx.ravel(), yy.ravel()]
-        counts = self.counting_space.get_counts(states)
+        counts = self.counting_space.get_counts(states, 0)
 
         plt.contour(xx, yy, counts.reshape(xx.shape))
         plt.colorbar()
@@ -50,8 +50,8 @@ class Experiment2:
         action_data = self.generate_action_data()
         support_data = self.generate_support_data()
 
-        self.counting_space.train(action_buffer=action_data, full_buffer=support_data, epochs=100)
-        counts = self.counting_space.get_counts(support_data)
+        self.counting_space.train(action_buffers=[action_data, support_data], epochs=100)
+        counts = self.counting_space.get_counts(support_data, 0)
 
         self.generate_counts_plot()
 

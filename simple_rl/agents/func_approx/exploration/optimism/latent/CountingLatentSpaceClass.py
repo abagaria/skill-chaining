@@ -9,7 +9,7 @@ from tensorboardX import SummaryWriter
 # Other imports.
 from . import naive_spread_counter
 from .model import DensePhiNetwork, ConvPhiNetwork
-from .dataset import CountingDataset
+from .dataset import MultiActionCountingDataset
 
 
 class CountingLatentSpace(object):
@@ -19,7 +19,7 @@ class CountingLatentSpace(object):
         """
         Latent space useful for generating pseudo-counts for states.
         Args:
-            state_dim (int): feature size
+            state_dim (int or tuple): feature size
             epsilon (float): The "standard deviation" of our bell curved counting function
             phi_type (str): Use feature extractor or not
             device (str): torch.device("cpu") OR torch.device("cuda:i")
@@ -31,44 +31,48 @@ class CountingLatentSpace(object):
         self.experiment_name = experiment_name
         self.writer = SummaryWriter() if experiment_name is "" else SummaryWriter("runs/{}".format(experiment_name))
 
-        self.buffer = np.asarray([])
+        self.buffers = []
 
         assert phi_type in ("raw", "function"), phi_type
 
         if phi_type == "function":
-            self.model = DensePhiNetwork(state_dim)
+            if pixel_observations:
+                self.model = ConvPhiNetwork(state_dim)
+            else:
+                self.model = DensePhiNetwork(state_dim)
 
-        # if phi_type == "function":
-        #     if pixel_observations:
-        #         self.model = ConvPhiNetwork(state_dim)
-        #     else:
-        #         self.model = DensePhiNetwork(state_dim)
+    def train(self, action_buffers, epochs=100):
+        """
 
-
-    def train(self, action_buffer, full_buffer=None, epochs=100):
+        Args:
+            action_buffers (list):
+                Each element is a numpy array containing all examples of a specific action.
+                That way, we can get counts against each of a variety of actions.
+            epochs (int):
+                Number of epochs to train against. This is only used in the "phi" version of things.
+        """
         if self.phi_type == "raw":
-            return self._train_raw_counts(action_buffer)
+            return self._train_raw_counts(action_buffers)
 
-        return self._train_function_counts(full_buffer=full_buffer, action_buffer=action_buffer, epochs=epochs)
+        return self._train_function_counts(buffers=action_buffers, epochs=epochs)
 
-    def _train_raw_counts(self, buffer):
-        assert isinstance(buffer, np.ndarray)
-        self.buffer = buffer
+    def _train_raw_counts(self, buffers):
+        assert isinstance(buffers, list)
+        for i, b in enumerate(buffers):
+            assert isinstance(b, np.ndarray)
+        self.buffers = buffers
 
-    def _train_function_counts(self, *, full_buffer, action_buffer, epochs):
+    def _train_function_counts(self, *, buffers, epochs):
         """
         Args:
-            full_buffer (np.ndarray): The "support" of this function. Represents the states we may query about
-                in the future. Corresponds to all the states seen so far
-            action_buffer (np.ndarray): States from which we have taken the current action. If you overlap
-                with these, then you get a plus 1
-
+            buffers (list): A list of buffers for each action. The combination of them is the full support space.
+            epochs (int): Number of training epochs
         """
         self.model.train()
         n_iterations = 0
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
-        data_set = CountingDataset(full_buffer=full_buffer, action_buffer=action_buffer)
+        data_set = MultiActionCountingDataset(action_buffers=buffers)
         loader = DataLoader(data_set, batch_size=32, shuffle=True)
 
         for epoch in tqdm(range(epochs)):
@@ -89,7 +93,7 @@ class CountingLatentSpace(object):
                 self.writer.add_scalar("Loss", batch_loss.item(), n_iterations)
                 n_iterations = n_iterations + 1
 
-        self.buffer = action_buffer
+        self.buffers = buffers
 
     def _counting_loss(self, phi_s, phi_s_prime):
         # distance = F.mse(phi_s, phi_s_prime)
@@ -99,10 +103,21 @@ class CountingLatentSpace(object):
 
         return all_loss.sum()
 
-    def get_counts(self, X):
+    def get_counts(self, X, buffer_idx):
+        """
+
+        Args:
+            X (np.ndarray): The data points we're going to be asking about
+            buffer_idx (int): Which "action" we're counting against.
+
+        Returns:
+            Counts for all elements in X, when compared against all elements in the specified buffer
+
+        """
+
         if self.phi_type == "raw":
-            return self._get_raw_counts(X)
-        return self._get_function_counts(X)
+            return self._get_raw_counts(X, buffer_idx)
+        return self._get_function_counts(X, buffer_idx)
 
     def _get_raw_count_from_distances(self, distances):
         std_devs = distances / self.epsilon
@@ -113,16 +128,18 @@ class CountingLatentSpace(object):
     def _get_function_count_from_distances(self, distances):
         pass
 
-    def _get_raw_counts(self, X):
-        distances = naive_spread_counter.get_all_distances_to_buffer(X, self.buffer)
+    def _get_raw_counts(self, X, buffer_idx):
+        buffer = self.buffers[buffer_idx]
+        distances = naive_spread_counter.get_all_distances_to_buffer(X, buffer)
         counts = self._get_raw_count_from_distances(distances)
         return counts
 
-    def _get_function_counts(self, X):
+    def _get_function_counts(self, X, buffer_idx):
+        buffer = self.buffers[buffer_idx]
         self.model.eval()
         with torch.no_grad():
             X = torch.from_numpy(X).float().to(self.device)
-            buffer = torch.from_numpy(self.buffer).float().to(self.device)
+            buffer = torch.from_numpy(buffer).float().to(self.device)
             X_transformed = self.model(X)
             Y_transformed = self.model(buffer)
 
