@@ -6,7 +6,7 @@ import pdb
 
 
 class CountingDataset(Dataset):
-    """ PyTorch data set wrapper around 2 state buffers. """
+    """ PyTorch data set wrapper around state buffers. """
 
     def __init__(self, *, full_buffer, action_buffer):
         super(CountingDataset, self).__init__()
@@ -40,6 +40,22 @@ class MultiActionCountingDataset(ConcatDataset):
         all_data = np.concatenate(action_buffers)
         datasets = [CountingDataset(full_buffer=all_data, action_buffer=ab) for ab in action_buffers]
         super(MultiActionCountingDataset, self).__init__(datasets)
+
+
+class StateNextStateDataset(Dataset):
+    """A dataset that takes in parallel arrays of states and next-states, and returns them in pairs."""
+
+    def __init__(self, state_next_state_buffer):
+        super(StateNextStateDataset, self).__init__()
+        self.state_next_state_buffer = state_next_state_buffer
+
+    def __len__(self):
+        return len(self.state_next_state_buffer)
+
+    def __getitem__(self, i):
+        return torch.from_numpy(self.state_next_state_buffer[i][0]).float(),\
+               torch.from_numpy(self.state_next_state_buffer[i][1]).float()
+
 
 
 if __name__ == "__main__":

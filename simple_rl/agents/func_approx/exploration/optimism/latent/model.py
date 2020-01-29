@@ -23,38 +23,34 @@ class DensePhiNetwork(nn.Module):
 
         return x
 
-class ConvPhiNetwork(nn.Module):
-    def __init__(self, feature_size, h1=6, h2=3, latent_size=2, device=torch.device("cuda")):
-        """
+class MNISTConvPhiNetwork(nn.Module):
+    """ Taken from https://github.com/pytorch/examples/blob/master/mnist """
 
-        Args:
-            feature_size (tuple): The size of the image? Assumes only 1 input channel
-            h1 (int): num channels after first conv network
-            h2 (int): num channels after second conv network
-            latent_size (int): Size of output dimension
-            device (str): Something like gpu or cpu
-        """
-        super(ConvPhiNetwork, self).__init__()
-        assert isinstance(feature_size, tuple), feature_size
-        assert len(feature_size) == 2, feature_size
+    def __init__(self, feature_size=32, latent_size=4, device=torch.device("cuda")):
+        super(MNISTConvPhiNetwork, self).__init__()
         self.feature_size = feature_size
         self.latent_size = latent_size
         self.device = device
 
-        self.conv1 = nn.Conv2d(1, h1, kernel_size=4, stride=2)
-        self.bn1 = nn.BatchNorm2d(h1)
-        self.conv2 = nn.Conv2d(h1, h2, kernel_size=4, stride=2)
-        self.bn2 = nn.BatchNorm2d(h2)
-        self.fc3 = nn.Linear(h2 * int(feature_size[0] / 4) * int(feature_size[1] / 4), 32)
-        self.head = nn.Linear(32, latent_size)
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout2d(0.25)
+        self.dropout2 = nn.Dropout2d(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, latent_size)
+
+        self.to(device)
 
     def forward(self, x):
-        assert x.shape[1:] == (*self.feature_size, 1)
-        x = x.float() / 255
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.fc3(x.view(x.size(0), -1)))
-        return self.head(x)
-
-
-
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        output = torch.tanh(x)
+        return output
