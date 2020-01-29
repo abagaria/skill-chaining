@@ -97,11 +97,14 @@ class Option(object):
 		self.experience_buffer = []
 		self.initiation_classifier = None
 
-		# TODO: test
+		# TODO: initiation set classifier variables
 		self.X = None		
 		self.y = None		
 		self.tcsvm = None
 		self.ocsvm = None
+		self.tcsvm_prob = []
+		self.ocsvm_prob = []
+		self.diff_prob = []
 
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -220,10 +223,8 @@ class Option(object):
 		return weights
 
 	def train_one_class_svm(self):
-		# print("-> (Option::train_one_class_svm): call")		# TODO: remove
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-		# print("|-> Feature matrix ([X,y]): \n", positive_feature_matrix)		# TODO: remove
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
@@ -263,7 +264,6 @@ class Option(object):
 		self.classifier_type = "tcsvm"
 
 	def train_initiation_classifier(self):
-		print("-> (Option::train_initiation_classifier): call")  # TODO: remove
 		if self.classifier_type == "ocsvm":
 			self.train_one_class_svm()
 		elif self.classifier_type == "elliptic":
@@ -292,17 +292,20 @@ class Option(object):
 		Returns:
 			trained (bool): whether or not we actually trained this option
 		"""
-		print("-> (Option::train): call (train untrained option)")  # TODO: remove
-		print("|-> num_goal_hits: {}, self.num_subgoal_hits_required: {} ".format(self.num_goal_hits, self.num_subgoal_hits_required))	# TODO: remove
+		# TODO: remove
+		print("|-> (Option::train): call (train untrained option)")
+		print("  |-> num_goal_hits: {}, num_subgoal_hits_required: {} ".format(self.num_goal_hits, self.num_subgoal_hits_required))
+		
 		self.add_initiation_experience(state_buffer)
 		self.add_experience_buffer(experience_buffer)
 		self.num_goal_hits += 1
 
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
-			self.train_initiation_classifier()
+			# self.train_initiation_classifier()
+			# TODO: call new initiation set classifier
+			self.train_initiation_set_classifier()
 			self.initialize_option_policy()
 			return True
-		return False
 
 	def get_subgoal_reward(self, state):
 
@@ -376,9 +379,6 @@ class Option(object):
 			option_transitions (list): list of (s, a, r, s') tuples
 			discounted_reward (float): cumulative discounted reward obtained by executing the option
 		"""
-		
-		# if step_number % 100 == 0:
-		# 	print("|-> (OptionClass::execute_option_in_mdp): call")		# TODO: remove
 		start_state = deepcopy(mdp.cur_state)
 		state = mdp.cur_state
 
@@ -433,8 +433,6 @@ class Option(object):
 
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
                                       outer_step_number, episode=None):
-		# if num_steps % 100 == 0:
-			# print("|-> (OptionClass::refine_initiation_set_classifier): call")	# TODO: remove
 		if self.is_term_true(final_state):  # success
 			positive_states = [start_state] + visited_states[-self.buffer_length:]
 			positive_examples = [state.position for state in positive_states]
@@ -450,22 +448,21 @@ class Option(object):
 		# Refine the initiation set classifier
 		if len(self.negative_examples) > 0:
 			# self.train_two_class_classifier()
-			self.train_initiation_set_classifier()		# TODO: test
+			# TODO: call new initiation set classifier
+			self.train_initiation_set_classifier()
 
 
 	# TODO: utilities
 	def make_meshgrid(self, x, y, h=.02):
 		"""Create a mesh of points to plot in
 
-		Parameters
-		----------
-		x: data to base x-axis meshgrid on
-		y: data to base y-axis meshgrid on
-		h: stepsize for meshgrid, optional
+		Args:
+			x: data to base x-axis meshgrid on
+			y: data to base y-axis meshgrid on
+			h: stepsize for meshgrid, optional
 
-		Returns
-		-------
-		xx, yy : ndarray
+		Returns:
+			X and y mesh grid
 		"""
 		x_min, x_max = x.min() - 1, x.max() + 1
 		y_min, y_max = y.min() - 1, y.max() + 1
@@ -477,13 +474,15 @@ class Option(object):
 	def plot_contours(self, ax, clf, xx, yy, **params):
 		"""Plot the decision boundaries for a classifier.
 
-		Parameters
-		----------
-		ax: matplotlib axes object
-		clf: a classifier
-		xx: meshgrid ndarray
-		yy: meshgrid ndarray
-		params: dictionary of params to pass to contourf, optional
+		Args:
+			ax: matplotlib axes object
+			clf: a classifier
+			xx: meshgrid ndarray
+			yy: meshgrid ndarray
+			params: dictionary of params to pass to contourf, optional
+		
+		Returns:
+			Contour of decision boundary
 		"""
 		Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
 		Z = Z.reshape(xx.shape)
@@ -494,12 +493,11 @@ class Option(object):
 	def create_plots(self, models, titles, X, y, grid, episode=None):
 		"""Creates plots of models.
 		
-			Parameters
-			----------
-			models : tuple of models
-			titles : tuple of title names
-			X : input
-			grid : tuple of grid size 
+			Args:
+				models: tuple of models
+				titles: tuple of title names
+				X: input
+				grid: tuple of grid size 
 		"""
 
 		# Set-up grids for plotting.
@@ -524,19 +522,9 @@ class Option(object):
 		# plt.show()
 		plt.savefig("notes/classifier_plots/ep-{}-classifier.png".format(episode))
 		plt.close()
-		print("|-> notes/classifier_plots/ep-{}-classifier.png saved!".format(episode))
 
-	# TODO: utilities
-	def plot_kde(self, X, episode):
-		df = pd.DataFrame(X, columns=["x-coord", "y-coord"])
-		g = sns.jointplot(x="x-coord", y="y-coord", data=df, kind="kde", color="m")
-		g.plot_joint(plt.scatter, c="w", s=30, linewidth=1.5, marker="+")
-		g.ax_joint.collections[0].set_alpha(0)
-		g.set_axis_labels("$x$-coord", "$y$-coord")
-		# plt.show()
-		plt.savefig("notes/KDE_plots/ep-{}-kde.png".format(episode))
-		plt.close()
-		print("|-> notes/KDE_plots/ep-{}-kde.png saved!".format(episode))
+		# TODO: remove
+		print("|-> notes/classifier_plots/ep-{}-classifier.png saved!".format(episode))
 
 	# TODO: Optimistic classifier
 	def opt_clf(self, X_, y_):
@@ -552,7 +540,7 @@ class Option(object):
 		"""
 		tcsvm = svm.LinearSVC(max_iter=1000)
 		
-		return tcsvm.fit(X_,y_)
+		return tcsvm.fit(X_, y_)
 	
 	# TODO: Pessimistic classifier
 	def pes_clf(self, tcsvm_, X_, y_):
@@ -614,11 +602,28 @@ class Option(object):
 
 		return lr.predict_proba(X_test)
 
-	# TODO: test
+	# TODO: utilities
+	def get_examples(self, k):
+		"""Gets first k (x,y) states from the global replay buffer"""
+		
+		# Replay buffer entry: (state, action, reward, next_state, terminal)
+		exp_states = [row[0] for row in list(self.global_solver.replay_buffer.memory)][:k]
+		
+		# Return only (x,y) coordinates
+		return [row[:2] for row in exp_states]
+
+
+	# TODO: main initiation set classifier call
 	def train_initiation_set_classifier(self):
 		"""Initiation Set Classifier"""
-		print("-> (OptionClass::train_probabilistic_classifier): call")
 		
+		# TODO: remove
+		print("|-> (OptionClass::train_initiation_set_classifier): call")
+
+		# If no negative examples, pick first 20 states to be negative
+		if not self.negative_examples:
+			self.negative_examples.append(self.get_examples(20))
+
 		# Create input and labels
 		positive_feature_matrix = self.construct_feature_matrix(
 			self.positive_examples)
@@ -627,26 +632,28 @@ class Option(object):
 		positive_labels = [1] * positive_feature_matrix.shape[0]
 		negative_labels = [0] * negative_feature_matrix.shape[0]
 
+		# Save input and labels
 		self.X = np.concatenate((positive_feature_matrix[:,:2], negative_feature_matrix[:,:2]))
 		self.y = np.concatenate((positive_labels, negative_labels))
 
-		# Call classifiers
+		# Fit classifiers
 		self.tcsvm = self.opt_clf(self.X, self.y)
-		self.ocsvm = self.pes_clf(tcsvm, self.X, self.y)
+		self.ocsvm = self.pes_clf(self.tcsvm, self.X, self.y)
 
 		# Estimations for pessimistic classifier
-		prob_inlier = self.platt_scale(ocsvm, self.X, 0.90, 5)
+		prob_inlier = self.platt_scale(self.ocsvm, self.X, 0.90, 5)
 		# prob_outlier = platt_scale(one_clf, X, 0.90, 5, outlier=True)
 
-		# Print probability estimations
-		print("|-> Info")
-		print("|-> ====")
-		print("|-> [OPT] Pr(pos sample | pos side of TCSVM) = {}".format(tcsvm.score(self.X, self.y)))
-		print("|-> [PES] Pr(pos sample | inside OCSVM) = {}".format(np.average(prob_inlier[:,1])))
-		print("|-> Diff: {}".format(abs(tcsvm.score(self.X, self.y) - np.average(prob_inlier[:,1]))))
+		# TODO: remove
+		print("  |-> option: {}".format(self.name))
+
+		# Save probabilities
+		self.tcsvm_prob.append(self.tcsvm.score(self.X, self.y))
+		self.ocsvm_prob.append(np.average(prob_inlier[:, 1]))
+		self.diff_prob.append(abs(self.tcsvm_prob[-1] - self.ocsvm_prob[-1]))
 
 		# Set initiation set classifier
-		self.initiation_classifier = ocsvm
+		self.initiation_classifier = self.ocsvm
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state

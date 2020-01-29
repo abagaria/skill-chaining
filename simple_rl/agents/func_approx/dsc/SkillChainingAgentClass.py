@@ -121,6 +121,11 @@ class SkillChaining(object):
 		self.option_qvalues = defaultdict(lambda : [])
 		self.num_options_history = []
 
+		# TODO: initiation classifier variables
+		self.all_tcsvm_prob = {}
+		self.all_ocsvm_prob = {}
+		self.all_diff_prob = {}
+
 	def create_child_option(self, parent_option):
 		# Create new option whose termination is the initiation of the option we just trained
 		name = "option_{}".format(str(len(self.trained_options) - 1))
@@ -240,6 +245,28 @@ class SkillChaining(object):
 
 		return selected_option
 
+	# TODO: utilities
+	def plot_prob(self, title, episode):
+		
+		# Color map
+		cmap = plt.get_cmap('jet_r')
+		N = len(self.all_tcsvm_prob)
+
+		for idx, tcsvm_prob in self.all_tcsvm_prob.items():
+			color = cmap(float(idx)/N)
+			plt.plot(tcsvm_prob, c=color, label="{} - tcsvm".format(idx))
+			plt.plot(self.all_ocsvm_prob[idx], c=color, label="{} - ocsvm".format(idx), linestyle='--')  
+
+		plt.title("(Episode {}) {}".format(episode, title))
+		plt.ylabel("Probabilities")
+		plt.legend(title="Options", bbox_to_anchor=(
+			1.05, 1), loc='upper left', borderaxespad=0.)
+
+		plt.savefig("notes/prob_plots/ep-{}.png".format(episode),
+		            bbox_inches='tight')
+		plt.close()
+		print("  |-> notes/prob_plots/ep-{}.png saved!".format(episode))	# TODO: remove
+
 	def take_action(self, state, step_number, episode_option_executions, episode=None):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
@@ -256,16 +283,24 @@ class SkillChaining(object):
 		selected_option = self.act(state)
 		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(
 			self.mdp, step_number, episode)
+		
+		# TODO: generate classifier plots
+		# tcsvm, ocsvm = selected_option.tcsvm, selected_option.ocsvm
+		# X, y = selected_option.X, selected_option.y
+		# if X is not None:
+		# 	# Plot two classifiers
+		# 	models = (tcsvm, ocsvm)
+		# 	titles = ('(Episode: {}) Optimistic (TCSVM)'.format(episode), 'Pessimistic (OCSVM)')
+		# 	selected_option.create_plots(
+		# 		models=models, titles=titles, X=X, y=y, grid=(2), episode=episode)
 
-		# TODO: generate plots
-		tcsvm, ocsvm = selected_option.tcsvm, selected_option.ocsvm
-		X, y = selected_option.X, selected_option.y
-		if X is not None:
-			# Plot two classifiers
-			models = (tcsvm, ocsvm)
-			titles = ('(Episode: {}) Optimistic (TCSVM)'.format(episode), 'Pessimistic (OCSVM)')
-			selected_option.create_plots(
-				models=models, titles=titles, X=X, y=y, grid=(2), episode=episode)
+		# TODO: save probability values
+		tcsvm_prob, ocsvm_prob, diff_prob = selected_option.tcsvm_prob, selected_option.ocsvm_prob, selected_option.diff_prob
+		if tcsvm_prob:
+			idx = selected_option.option_idx - 1  # off by 1
+			self.all_tcsvm_prob[idx] = tcsvm_prob
+			self.all_ocsvm_prob[idx] = ocsvm_prob
+			self.all_diff_prob[idx] = diff_prob
 
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
@@ -322,7 +357,7 @@ class SkillChaining(object):
 
 	def skill_chaining(self, num_episodes, num_steps):
 
-		print("-> (SkillChaining::skill_chaining): call")		# TODO: remove
+		print("|-> (SkillChaining::skill_chaining): call")		# TODO: remove
 
 		# For logging purposes
 		per_episode_scores = []
@@ -332,7 +367,7 @@ class SkillChaining(object):
 
 		for episode in range(num_episodes):
 
-			print("-> (SkillChaining::skill_chaining): episode = %i" % episode)		#TODO: remove
+			print("  |-> episode: {}".format(episode))		# TODO: remove
 			self.mdp.reset()
 			score = 0.
 			step_number = 0
@@ -345,7 +380,7 @@ class SkillChaining(object):
 
 			while step_number < num_steps:
 				if step_number % 100 == 0:
-					print("|-> (SkillChaining::skill_chaining): step_number = %i" % step_number)  # TODO: remove
+					print("    |-> step_number: {}".format(step_number))  # TODO: remove
 				experiences, reward, state, steps = self.take_action(
 					state, step_number, episode_option_executions, episode)
 				score += reward
@@ -378,12 +413,16 @@ class SkillChaining(object):
 
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
 
+			# TODO: plot probabilities
+			if self.all_tcsvm_prob:
+				self.plot_prob("Probabilities of Classifiers", episode)
+
 		return per_episode_scores, per_episode_durations
 
 	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
 
 		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
-			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon), end="")
+			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		self.num_options_history.append(len(self.trained_options))
 
