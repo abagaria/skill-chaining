@@ -22,7 +22,8 @@ class Experiment4:
     @staticmethod
     def _get_action_buffers(state_action_dict):
         action_buffers = []
-        for action in state_action_dict:
+        sorted_keys = sorted(state_action_dict.keys())
+        for action in sorted_keys:
             states = state_action_dict[action]
             states_array = np.array(states)
             action_buffers.append(states_array)
@@ -84,13 +85,12 @@ class Experiment4:
             plt.scatter(states[:, 0], states[:, 1], c=counts)
             plt.colorbar()
             plt.subplot(2, 3, buffer_idx + 4)
-            # plt.scatter(states_repr[:, 0], states_repr[:, 1], c=counts)
             plt.scatter(states_repr[:, 0], states_repr[:, 1], c=range(len(states)), alpha=0.3)
 
             plt.colorbar()
         plt.show()
 
-        self.counting_space.train(action_buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=50)
+        self.counting_space.train(action_buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=10)
 
         states = np.array([ss[0] for ss in state_next_state_buffer])
 
@@ -109,5 +109,5 @@ class Experiment4:
 
 
 if __name__  == '__main__':
-    exp = Experiment4(0.3, 200, lam=1.)
+    exp = Experiment4(0.3, 1000, lam=1.)
     exp.run_experiment()

@@ -41,7 +41,7 @@ class CountingLatentSpace(object):
 
         if phi_type == "function":
             if pixel_observations:
-                self.model = MNISTConvPhiNetwork(state_dim)
+                self.model = MNISTConvPhiNetwork(state_dim, latent_size=2)
             else:
                 self.model = DensePhiNetwork(state_dim)
 
@@ -110,8 +110,8 @@ class CountingLatentSpace(object):
             sns_loader = DataLoader(sns_data_set, batch_size=64, shuffle=True)
             sns_iter = iter(sns_loader)
 
-        for epoch in tqdm(range(epochs)):
-            for batch_idx, (support_batch, action_batch) in enumerate(loader):
+        for epoch in range(epochs):
+            for batch_idx, (support_batch, action_batch) in tqdm(enumerate(loader)):
 
                 if state_next_state_buffer is not None:
                     (state_batch, next_state_batch), sns_iter = self._get_state_next_state_batch(sns_loader, sns_iter)
