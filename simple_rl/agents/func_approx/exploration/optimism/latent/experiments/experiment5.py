@@ -111,7 +111,7 @@ class Experiment5:
     @staticmethod
     def _get_state_colormap(state_buffer):
         unique_states = set(state_buffer)
-        s_to_n = {state: i for i, state in enumerate(unique_states)}
+        s_to_n = {state: i for i, state in enumerate(sorted(unique_states))}
 
         color_map = [s_to_n[s] for s in state_buffer]
         return color_map
