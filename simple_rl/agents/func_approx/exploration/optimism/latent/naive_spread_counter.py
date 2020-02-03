@@ -24,6 +24,34 @@ import numpy as np
 #     buffer_distance = (buffer_distance ** 2).sum(axis=1)
 #     return buffer_distance[0]
 
+def torch_get_square_distances_to_buffer(states, buffer):
+    """
+
+    Args:
+        states (torch.tensor): the phi-ed states
+        buffer (torch.tensor): a phi-ed action buffer
+
+    Returns:
+        a tensor of size (num_states x num_buffer) that represents pairwise distances.
+
+    """
+    num_states = states.shape[0]
+    num_buffers = buffer.shape[0]
+
+    new_states = states.view(num_states, 1, -1)
+    new_buffers = buffer.view(1 ,num_buffers, -1)
+
+    new_states = new_states.expand(-1, num_buffers, -1)
+    new_buffers = new_buffers.expand(num_states, -1, -1)
+
+    difference = new_buffers - new_states
+    distances = (difference ** 2).sum(dim=-1)
+
+    assert distances.shape == (num_states, num_buffers), distances.shape
+
+    return distances
+
+
 def get_all_distances_to_buffer(states, buffer):
     """
     In some sense, this should make a a x b x n array,

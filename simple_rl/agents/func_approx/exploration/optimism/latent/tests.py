@@ -1,16 +1,12 @@
 from . import naive_spread_counter as nsc
 from .CountingLatentSpaceClass import CountingLatentSpace
 import numpy as np
-
+import torch
 
 class TestCounter:
     def setup_method(self, method):
         """ Pytest: setup object of class we want to test. """
         self.class_counter = CountingLatentSpace(0.1, "raw")
-
-    def test_get_count_from_distances(self):
-        distances = np.arange(0., 1., 0.1).reshape(2, 5)
-        assert True
 
     def test_get_count_from_zero_distances(self):
         distances = np.zeros((2, 5))
@@ -45,8 +41,8 @@ class TestCounter:
 
         buffer = np.arange(0., 1., 0.1).reshape((2, 5))
         states = np.copy(buffer)
-        self.class_counter.train(buffer)
-        counts = self.class_counter.get_counts(states)
+        self.class_counter.train([buffer])
+        counts = self.class_counter.get_counts(states, 0)
 
         ans1 = np.exp(-(5 * (0.5**2)) / (self.class_counter.epsilon ** 2))
         ans2 = np.ones((2,)) + ans1
@@ -92,3 +88,43 @@ def test_differences_on_two_elements_with_different_sizes_works():
     s1 = np.asarray([[1,2,3,4,5], [2,3,4,5,6], [3,4,5,6,7]])
     difference = nsc.get_all_distances_to_buffer(s_base, s1)
     assert np.all(difference == np.sqrt(np.asarray([[0,5,20],[5,0, 5]])))
+
+
+class TestTorchDifference:
+
+    def test_differences_on_one_element_works(self):
+        s_base = torch.FloatTensor([[1, 2, 3, 4, 5]])
+        s1 = torch.FloatTensor([[1, 2, 3, 4, 5]])
+
+        difference = nsc.torch_get_square_distances_to_buffer(s_base, s1)
+        assert difference.shape == (1, 1)
+        assert difference == 0., difference
+
+        s2 = torch.FloatTensor([[1, 2, 3, 4, 6]])
+        difference = nsc.torch_get_square_distances_to_buffer(s_base, s2)
+        assert difference.shape == (1, 1)
+        assert difference == 1., difference
+
+        s3 = torch.FloatTensor([[1, 2, 3, 3, 6]])
+        difference = nsc.torch_get_square_distances_to_buffer(s_base, s3)
+        assert difference.shape == (1, 1)
+        assert difference == 2., difference
+
+        s4 = torch.FloatTensor([[1, 2, 3, 4, 7]])
+        difference = nsc.torch_get_square_distances_to_buffer(s_base, s4)
+        assert difference.shape == (1, 1)
+        assert difference == 4., difference
+
+    def test_differences_on_two_elements_works(self):
+        s_base = torch.FloatTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6]])
+
+        s1 = torch.FloatTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6]])
+        difference = nsc.torch_get_square_distances_to_buffer(s_base, s1)
+        assert np.all(difference.data.numpy() == np.asarray([[0, 5], [5, 0]]))
+
+    def test_differences_on_two_elements_with_different_sizes_works(self):
+        s_base = torch.FloatTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6]])
+
+        s1 = torch.FloatTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]])
+        difference = nsc.torch_get_square_distances_to_buffer(s_base, s1)
+        assert np.all(difference.data.numpy() == np.asarray([[0, 5, 20], [5, 0, 5]]))

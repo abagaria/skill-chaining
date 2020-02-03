@@ -37,7 +37,8 @@ class Experiment5:
 
         self.sensor = SensorChain(sensors)
         self.counting_space = CountingLatentSpace(2, epsilon, phi_type="function",
-                                                  experiment_name="exp5", pixel_observations=True, lam=lam)
+                                                  experiment_name="exp5", pixel_observations=True, lam=lam,
+                                                  optimization_quantity="bonus")
 
     @staticmethod
     def _get_action_buffers(state_action_dict):

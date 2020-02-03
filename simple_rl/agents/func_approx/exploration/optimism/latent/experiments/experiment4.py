@@ -11,13 +11,16 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpac
 
 
 class Experiment4:
-    def __init__(self, epsilon, num_steps=200, seed=0, lam=0.1):
+    def __init__(self, epsilon, num_steps=200, seed=0, lam=0.1, use_bonus=False):
         self.num_steps = num_steps
         self.env = gym.make("MountainCar-v0")
         self.env.seed(seed)
 
+        loss_type = "counts" if not use_bonus else "bonus"
+
         self.counting_space = CountingLatentSpace(2, epsilon, phi_type="function",
-                                                  experiment_name="exp4", pixel_observations=False, lam=lam)
+                                                  experiment_name="exp4", pixel_observations=False, lam=lam,
+                                                  optimization_quantity=loss_type)
 
     @staticmethod
     def _get_action_buffers(state_action_dict):
@@ -109,5 +112,5 @@ class Experiment4:
 
 
 if __name__  == '__main__':
-    exp = Experiment4(0.3, 1000, lam=1.)
+    exp = Experiment4(0.3, 10000, lam=10., use_bonus=True)
     exp.run_experiment()
