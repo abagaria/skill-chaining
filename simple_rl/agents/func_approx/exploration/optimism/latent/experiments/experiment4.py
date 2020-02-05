@@ -112,5 +112,5 @@ class Experiment4:
 
 
 if __name__  == '__main__':
-    exp = Experiment4(0.3, 10000, lam=10., use_bonus=True)
+    exp = Experiment4(0.3, 3000, lam=10., use_bonus=True)
     exp.run_experiment()

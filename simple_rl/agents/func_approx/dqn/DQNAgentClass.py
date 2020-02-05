@@ -11,6 +11,7 @@ import os
 import time
 import argparse
 import pickle
+from collections import defaultdict
 
 import torch.optim as optim
 
@@ -25,8 +26,7 @@ from simple_rl.agents.func_approx.dqn.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
 from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
-from simple_rl.tasks.lunar_lander.LunarLanderMDPClass import LunarLanderMDP
-from simple_rl.agents.func_approx.dqn.RandomNetworkDistillationClass import RNDModel, RunningMeanStd
+from simple_rl.agents.func_approx.exploration.optimism.discrete.DiscreteCountBasedExplorationClass import DiscreteCountBasedExploration
 
 
 ## Hyperparameters
@@ -44,7 +44,7 @@ class DQNAgent(Agent):
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
-                 gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-greedy",
+                 gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None):
         self.state_size = state_size
         self.action_size = action_size
@@ -55,6 +55,7 @@ class DQNAgent(Agent):
         self.loss_function = loss_function
         self.gradient_clip = gradient_clip
         self.evaluation_epsilon = evaluation_epsilon
+        assert exploration_method in ("eps-decay", "eps-const", "count-phi", "count-gt")
         self.exploration_method = exploration_method
         self.pixel_observation = pixel_observation
         self.seed = random.seed(seed)
@@ -78,13 +79,16 @@ class DQNAgent(Agent):
         self.t_step = 0
 
         # Epsilon strategy
-        if exploration_method == "eps-greedy":
+        if exploration_method == "eps-decay":
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
             self.epsilon = eps_start
-        elif exploration_method == "rnd":
-            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon)  # ConstantEpsilonSchedule(evaluation_epsilon)
-            self.epsilon = eps_start
-            self.rnd = RNDModel(device=device)
+        elif exploration_method == "eps-const":
+            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
+            self.epsilon = evaluation_epsilon
+        elif exploration_method == "count-gt":
+            self.epsilon_schedule = ConstantEpsilonSchedule(0)
+            self.epsilon = 0
+            self.novelty_tracker = DiscreteCountBasedExploration(action_size)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -102,36 +106,14 @@ class DQNAgent(Agent):
 
         Agent.__init__(self, name, range(action_size), GAMMA)
 
-    def get_impossible_option_idx(self, state, position):
-
-        # Arg-max only over actions that can be executed from the current state
-        # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
-        # -- However, in the case of the goal option we just need to ensure that we are in its initiation set since
-        # -- its termination set is terminal anyway and we are thus not in the risk of executing og from its
-        # -- termination set.
-
-        impossible_option_idx = []
-        for idx, option in enumerate(self.trained_options):
-            np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
-
-            if option.parent is None:
-                assert option.name == "overall_goal_policy" or option.name == "global_option" or option.name == "goal_option_2"
-                impossible = not option.is_init_true(np_state, position)
-            else:
-                impossible = (not option.is_init_true(np_state, position)) or option.is_term_true(np_state, position)
-
-            if impossible:
-                impossible_option_idx.append(idx)
-
-        return impossible_option_idx
-
-    def act(self, state, position, train_mode=True):
+    def act(self, state, position, train_mode=True, use_novelty=False):
         """
         Interface to the DQN agent: state can be output of env.step() and returned action can be input into next step().
         Args:
             state (np.array): numpy array state from Gym env
             position (np.array)
             train_mode (bool): if training, use the internal epsilon. If evaluating, set epsilon to min epsilon
+            use_novelty (bool): Whether to use exploration bonuses during action-selection
 
         Returns:
             action (int): integer representing the action to take in the Gym env
@@ -146,21 +128,15 @@ class DQNAgent(Agent):
             action_values = self.policy_network(state)
         self.policy_network.train()
 
-        impossible_option_idx = self.get_impossible_option_idx(state, position)
-
-        for impossible_idx in impossible_option_idx:
-            action_values[0][impossible_idx] = torch.min(action_values, dim=1)[0] - 1.
-
         action_values = action_values.cpu().data.numpy()
         # Epsilon-greedy action selection
         if random.random() > epsilon:
+            if use_novelty and self.exploration_method == "count-gt":
+                bonus = self.novelty_tracker.get_exploration_bonus(state.cpu().numpy().squeeze(0))
+                return np.argmax(action_values + bonus)
             return np.argmax(action_values)
 
-        all_option_idx = list(range(len(self.trained_options))) if len(self.trained_options) > 0 else self.actions
-        possible_option_idx = list(set(all_option_idx).difference(impossible_option_idx))
-        randomly_chosen_option = random.choice(possible_option_idx)
-
-        return randomly_chosen_option
+        return random.randint(0, self.action_size - 1)
 
     def get_best_actions_batched(self, states, next_positions):
         q_values = self.get_batched_qvalues(states, next_positions)
@@ -227,6 +203,45 @@ class DQNAgent(Agent):
 
         return action_values
 
+    def _add_transition(self, state, position, action, reward, next_state, next_position, done, num_steps=1):
+        """
+        Does the adding to both the replay buffer and the count buffer.
+
+        Args:
+            state (np.array): state of the underlying gym env
+            position (np.array)
+            action (int)
+            reward (float)
+            next_state (np.array)
+            next_position (np.array)
+            done (bool): is_terminal
+            num_steps (int): number of steps taken by the option to terminate
+
+        """
+        self.replay_buffer.add(state, position, action, reward, next_state, next_position, done, num_steps)
+        if self.exploration_method == "count-gt":
+            assert state.shape == (2,)
+            assert isinstance(state, np.ndarray), state
+            self.novelty_tracker.add_transition(tuple(state), action)
+
+    def _get_q_targets(self, next_states, next_positions):
+        """
+        Only ever used in _learn, in order to get targets that may or may not have an exploration bonus.
+        Args:
+            next_states (torch.Tensor): next states.
+            next_positions (torch.Tensor): x, y positions corresponding to `next_states`
+
+        """
+        Q_targets_next = self.target_network(next_states).detach()
+        if self.exploration_method == "count-gt":
+            next_positions_array = next_positions.cpu().numpy()
+            bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_positions_array)
+            bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
+            return Q_targets_next + bonus_tensor
+        if self.exploration_method == "count-phi":
+            raise NotImplementedError(self.exploration_method)
+        return Q_targets_next
+
     def step(self, state, position, action, reward, next_state, next_position, done, num_steps=1):
         """
         Interface method to perform 1 step of learning/optimization during training.
@@ -241,7 +256,7 @@ class DQNAgent(Agent):
             num_steps (int): number of steps taken by the option to terminate
         """
         # Save experience in replay memory
-        self.replay_buffer.add(state, position, action, reward, next_state, next_position, done, num_steps)
+        self._add_transition(state, position, action, reward, next_state, next_position, done, num_steps)
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -263,26 +278,19 @@ class DQNAgent(Agent):
         """
         states, positions, actions, rewards, next_states, next_positions, dones, steps = experiences
 
-        if self.exploration_method == "rnd":
-            observations = states[:, -1, :, :].unsqueeze(1)
-            intrinsic_rewards = self.rnd(observations)
-            self.rnd.update(intrinsic_rewards)
-
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
-
-            if len(self.trained_options) == 0:
-                self.policy_network.eval()
-                with torch.no_grad():
-                    selected_actions = self.policy_network(next_states).argmax(dim=1).unsqueeze(1)
-                self.policy_network.train()
-            else:
-                selected_actions = self.get_best_actions_batched(next_states, next_positions).unsqueeze(1)
+            raise NotImplementedError("Not implemented _get_q_targets for DDQN yet.")
+            self.policy_network.eval()
+            with torch.no_grad():
+                selected_actions = self.policy_network(next_states).argmax(dim=1).unsqueeze(1)
+            self.policy_network.train()
 
             Q_targets_next = self.target_network(next_states).detach().gather(1, selected_actions)
         else:
-            Q_targets_next = self.target_network(next_states).detach().max(1)[0].unsqueeze(1)
-            raise NotImplementedError("I have not fixed the Q(s',a') problem for vanilla DQN yet")
+            # pdb.set_trace()
+            Q_targets_next = self._get_q_targets(next_states, next_positions).max(1)[0].unsqueeze(1)
+
 
         # Options in SMDPs can take multiple steps to terminate, the Q-value needs to be discounted appropriately
         discount_factors = gamma ** steps
@@ -340,69 +348,26 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
-def train(agent, mdp, episodes, steps, init_episodes=10):
+def train(agent, mdp, episodes, steps):
     per_episode_scores = []
-    last_10_scores = deque(maxlen=100)
+    last_10_scores = deque(maxlen=10)
     iteration_counter = 0
-    state_ri_buffer = []
-
-    # Observation and reward normalization
-    reward_rms = RunningMeanStd()
-    obs_rms = RunningMeanStd(shape=(1, 84, 84))
-
-    # Initialize the RMS normalizers
-    if agent.exploration_method == "rnd":
-        for episode in range(init_episodes):
-            observation_buffer = []
-            mdp.reset()
-            init_observation = np.array(mdp.init_state.features())[-1, :, :]
-            assert init_observation.shape == (84, 84), init_observation.shape
-            observation_buffer.append(init_observation)
-            while True:
-                action = np.random.randint(0, overall_mdp.env.action_space.n)
-                r, state = mdp.execute_agent_action(action)
-                observation = np.array(state.features())[-1, :, :]
-                observation_buffer.append(observation)
-                if state.is_terminal():
-                    break
-            observation_batch = np.stack(observation_buffer)
-            obs_rms.update(observation_batch)
 
     for episode in range(episodes):
         mdp.reset()
         state = deepcopy(mdp.init_state)
 
-        observation_buffer = []
-        intrinsic_reward_buffer = []
-
-        init_observation = np.array(mdp.init_state.features())[-1, :, :]
-        assert init_observation.shape == (84, 84), init_observation.shape
-        observation_buffer.append(init_observation)
-
         score = 0.
-        while True:
+        for _ in range(steps):
             iteration_counter += 1
-            action = agent.act(state.features(), train_mode=True)
+
+            position = mdp.get_position()
+            action = agent.act(state.features(), train_mode=True,
+                               position=position, use_novelty=args.use_bonus_during_action_selection)
             reward, next_state = mdp.execute_agent_action(action)
+            next_position = mdp.get_position()
 
-            if agent.exploration_method == "rnd":
-                observation = np.array(state.features())[-1, :, :]
-                normalized_observation = ((observation - obs_rms.mean) / np.sqrt(obs_rms.var)).clip(-5, 5)
-                intrinsic_reward = agent.rnd.get_single_reward(normalized_observation)
-
-                observation_buffer.append(observation)
-                intrinsic_reward_buffer.append(intrinsic_reward)
-                normalized_intrinsic_reward = (intrinsic_reward - reward_rms.mean) / np.sqrt(reward_rms.var)
-
-                # Logging
-                player_position = mdp.get_player_position()
-                state_ri_buffer.append((player_position, normalized_intrinsic_reward))
-                reward += normalized_intrinsic_reward
-
-                if agent.tensor_log:
-                    agent.writer.add_scalar("Normalized Ri", normalized_intrinsic_reward, iteration_counter)
-
-            agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), num_steps=1)
+            agent.step(state.features(), position, action, reward, next_state.features(), next_position, next_state.is_terminal(), num_steps=1)
             agent.update_epsilon()
             state = next_state
             score += reward
@@ -413,17 +378,13 @@ def train(agent, mdp, episodes, steps, init_episodes=10):
             if state.is_terminal() or game_over:
                 break
 
-        if agent.exploration_method == "rnd":
-            reward_rms.update(np.stack(intrinsic_reward_buffer))
-            obs_rms.update(np.stack(observation_buffer))
-
         last_10_scores.append(score)
         per_episode_scores.append(score)
 
         print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
-        if episode % 100 == 0:
+        if episode % 10 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
-    return per_episode_scores, state_ri_buffer
+    return per_episode_scores
 
 def test_forward_pass(dqn_agent, mdp):
     # load the weights from file
@@ -442,7 +403,7 @@ def test_forward_pass(dqn_agent, mdp):
     return overall_reward
 
 def save_all_scores(experiment_name, log_dir, seed, scores):
-    print("\rSaving training and validation scores..")
+    print("\r\nSaving training and validation scores..")
     training_scores_file_name = "{}_{}_training_scores.pkl".format(experiment_name, seed)
 
     if log_dir:
@@ -469,7 +430,8 @@ if __name__ == '__main__':
     parser.add_argument("--steps", type=int, help="# steps", default=NUM_STEPS)
     parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
     parser.add_argument("--pixel_observation", type=bool, help="Images / Dense input", default=False)
-    parser.add_argument("--exploration_method", type=str, default="eps-greedy")
+    parser.add_argument("--exploration_method", type=str, default="eps-decay")
+    parser.add_argument("--use_bonus_during_action_selection", type=bool, default=False)
     parser.add_argument("--eval_eps", type=float, default=0.05)
     parser.add_argument("--tensor_log", type=bool, default=False)
     args = parser.parse_args()
@@ -477,17 +439,20 @@ if __name__ == '__main__':
     logdir = create_log_dir(args.experiment_name)
     learning_rate = 1e-3 # 0.00025 for pong
 
-    overall_mdp = GymMDP(env_name="MontezumaRevengeNoFrameskip-v4", pixel_observation=args.pixel_observation, render=args.render,
-                         clip_rewards=False, term_func=None, seed=args.seed)
+    from simple_rl.tasks.gridworld.VisualGridWorldMDPClass import VisualGridWorldMDP
+    # overall_mdp = GymMDP(env_name="MontezumaRevengeNoFrameskip-v4", pixel_observation=args.pixel_observation, render=args.render,
+    #                      clip_rewards=False, term_func=None, seed=args.seed)
     # overall_mdp = LunarLanderMDP(render=args.render, seed=args.seed)
+    overall_mdp = VisualGridWorldMDP(args.pixel_observation, False, 0.1, args.seed)
 
-    state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
+    # state_dim = overall_mdp.env.observation_space.shape if args.pixel_observation else overall_mdp.env.observation_space.shape[0]
+    state_dim = overall_mdp.state_dim
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ddqn_agent = DQNAgent(state_size=state_dim, action_size=len(overall_mdp.actions),
                           trained_options=[], seed=args.seed, device=device,
-                          name="GlobalDDQN", lr=learning_rate, tensor_log=args.tensor_log, use_double_dqn=True,
+                          name="GlobalDDQN", lr=learning_rate, tensor_log=args.tensor_log, use_double_dqn=False,
                           exploration_method=args.exploration_method, pixel_observation=args.pixel_observation,
                           evaluation_epsilon=args.eval_eps)
-    ddqn_episode_scores, s_ri_buffer = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
+    ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
     save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)

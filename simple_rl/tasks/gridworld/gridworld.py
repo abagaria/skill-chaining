@@ -19,16 +19,22 @@ class GridWorld(grid.BaseGrid):
         self.agent.position = np.asarray((0,0), dtype=int)
         self.goal = None
 
-    def reset_agent(self):
-        self.agent.position = self.get_random_position()
-        at = lambda x, y: np.all(x.position == y.position)
-        while (self.goal is not None) and at(self.agent, self.goal):
+    def reset_agent(self, init_loc=None):
+        if init_loc is None:
             self.agent.position = self.get_random_position()
+            at = lambda x, y: np.all(x.position == y.position)
+            while (self.goal is not None) and at(self.agent, self.goal):
+                self.agent.position = self.get_random_position()
+        else:
+            self.agent.position = np.array(init_loc)
 
-    def reset_goal(self):
+    def reset_goal(self, goal_loc=None):
         if self.goal is None:
             self.goal = Depot()
-        self.goal.position = self.get_random_position()
+        if goal_loc is None:
+            self.goal.position = self.get_random_position()
+        else:
+            self.goal.position = np.array(goal_loc)
         self.reset_agent()
 
     def step(self, action):
