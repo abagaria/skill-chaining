@@ -16,7 +16,8 @@ class BonusDataset(Dataset):
         """
         super(BonusDataset, self).__init__()
 
-        self.full_buffer = np.vstack(buffers)
+        filtered_buffers = [buffer for buffer in buffers if buffer is not None]
+        self.full_buffer = np.vstack(filtered_buffers)
         self.state_next_state_buffer = state_next_state_buffer
 
     def __len__(self):

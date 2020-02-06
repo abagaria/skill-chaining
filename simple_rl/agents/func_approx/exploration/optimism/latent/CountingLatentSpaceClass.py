@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
 import pdb
-import shutil
+import shutil, os
 
 # Other imports.
 from . import naive_spread_counter
@@ -15,7 +15,7 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.generated
 
 
 class CountingLatentSpace(object):
-    def __init__(self, state_dim, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
+    def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
                  pixel_observations=False, lam=0.1, attractive_loss_type="quadratic", repulsive_loss_type="exponential",
                  optimization_quantity="count"):
         """
@@ -34,6 +34,10 @@ class CountingLatentSpace(object):
                                        for any two states
             optimization_quantity (str): What we're trying to optimize. We either minimize "count" or maximize exploration "bonus"
         """
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.latent_dim = latent_dim
+
         self.epsilon = epsilon
         self.phi_type = phi_type
         self.device = device
@@ -41,11 +45,14 @@ class CountingLatentSpace(object):
         self.lam = lam
         self.attractive_loss_type = attractive_loss_type
         self.repulsive_loss_type = repulsive_loss_type
+        self.pixel_observations = pixel_observations
 
-        shutil.rmtree("runs/{}".format(experiment_name))
+        log_dir = "runs/{}".format(experiment_name)
+        if os.path.exists(log_dir):
+            shutil.rmtree(log_dir)
         self.writer = SummaryWriter() if experiment_name is "" else SummaryWriter("runs/{}".format(experiment_name))
 
-        self.buffers = []
+        self.buffers = [None for _ in range(self.action_dim)]
 
         assert phi_type in ("raw", "function"), phi_type
         assert optimization_quantity in ("count", "bonus"), optimization_quantity
@@ -53,12 +60,27 @@ class CountingLatentSpace(object):
         self.optimization_quantity = optimization_quantity
 
         if phi_type == "function":
-            if pixel_observations:
-                self.model = MNISTConvPhiNetwork(state_dim, latent_size=2)
-            else:
-                self.model = DensePhiNetwork(state_dim)
+            self.reset_model()
 
-    def train(self, action_buffers, state_next_state_buffer=None, epochs=100):
+    def reset_model(self):
+        if self.pixel_observations:
+            self.model = MNISTConvPhiNetwork(self.state_dim, latent_size=self.latent_dim)
+        else:
+            self.model = DensePhiNetwork(self.state_dim, latent_size=self.latent_dim)
+
+    def add_transition(self, state, action):
+        """"""
+        assert isinstance(state, np.ndarray), type(state)
+        assert state.shape in (self.state_dim, (self.state_dim, )), f"Mismatching dims: {(state.shape, self.state_dim)}"
+
+        expanded_state = np.expand_dims(state, 0)
+        if self.buffers[action] is None:
+            self.buffers[action] = expanded_state
+        else:
+            self.buffers[action] = np.concatenate((self.buffers[action], expanded_state), axis=0)
+
+
+    def train(self, action_buffers=None, state_next_state_buffer=None, epochs=100):
         """
 `
         Args:
@@ -69,6 +91,10 @@ class CountingLatentSpace(object):
             epochs (int):
                 Number of epochs to train against. This is only used in the "phi" version of things.
         """
+        if action_buffers is None:
+            assert len(self.buffers) != 0, self.buffers
+            action_buffers = self.buffers
+
         if self.phi_type == "raw":
             return self._train_raw_counts(action_buffers)
 
@@ -271,22 +297,23 @@ class CountingLatentSpace(object):
         for buffer_idx in range(len(buffers)):
             action_buffer = buffers[buffer_idx]  # type: np.ndarray # of shape (N, latent_size)
 
-            action_buffer = torch.from_numpy(action_buffer).float().to(self.device)
-            phi_s_prime = self.model(action_buffer)
+            if action_buffer is not None:
+                action_buffer = torch.from_numpy(action_buffer).float().to(self.device)
+                phi_s_prime = self.model(action_buffer)
 
-            # (M, N) matrix of pairwise distances between phi(s) and phi(s')
-            squared_distance = naive_spread_counter.torch_get_square_distances_to_buffer(phi_s, phi_s_prime)
+                # (M, N) matrix of pairwise distances between phi(s) and phi(s')
+                squared_distance = naive_spread_counter.torch_get_square_distances_to_buffer(phi_s, phi_s_prime)
 
-            # Apply exponential filter around the pairwise distances to zero out the effect of far-away states
-            distance = (squared_distance + 1e-6).sqrt()
-            for_exp = -distance / self.epsilon
-            filtered_pairwise_distances = torch.exp(for_exp)
+                # Apply exponential filter around the pairwise distances to zero out the effect of far-away states
+                distance = (squared_distance + 1e-6).sqrt()
+                for_exp = -distance / self.epsilon
+                filtered_pairwise_distances = torch.exp(for_exp)
 
-            # Compute the counts and then the exploration bonuses for all the M states
-            state_counts = filtered_pairwise_distances.sum(dim=1)
-            state_bonuses = 1. / torch.sqrt(state_counts + 1e-2)
+                # Compute the counts and then the exploration bonuses for all the M states
+                state_counts = filtered_pairwise_distances.sum(dim=1)
+                state_bonuses = 1. / torch.sqrt(state_counts + 1e-2)
 
-            bonuses += state_bonuses
+                bonuses += state_bonuses
 
         # Sum the bonus for each state to represent the bonus of the current mini-batch
         batch_bonus = bonuses.sum()
@@ -306,7 +333,7 @@ class CountingLatentSpace(object):
 
         Returns:
             Counts for all elements in X, when compared against all elements in the specified buffer
-
+        TODO: This should return shape (batch_size, 1). Right now it returns (batch_size,)
         """
 
         if self.phi_type == "raw":
@@ -330,6 +357,12 @@ class CountingLatentSpace(object):
 
     def _get_function_counts(self, X, buffer_idx):
         buffer = self.buffers[buffer_idx]
+
+        # If we have never taken this action before, return max counts
+        if buffer is None:
+            max_counts = (1./ np.sqrt(1e-2)) * np.ones((X.shape[0],))
+            return max_counts
+
         self.model.eval()
         with torch.no_grad():
             X = torch.from_numpy(X).float().to(self.device)

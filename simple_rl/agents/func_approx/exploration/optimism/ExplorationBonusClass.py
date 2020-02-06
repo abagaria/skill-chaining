@@ -2,7 +2,10 @@ class ExplorationBonus:
     def __init__(self):
         super(ExplorationBonus, self).__init__()
 
-    def add_transition(self, state, action):
+    def train(self):
+        pass
+
+    def add_transition(self, state, action, next_state=None):
         pass
 
     def get_exploration_bonus(self, state, action=None):

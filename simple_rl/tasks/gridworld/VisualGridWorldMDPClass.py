@@ -1,5 +1,6 @@
 # Python imports.
 import numpy as np
+from copy import deepcopy
 
 # Other imports.
 from simple_rl.tasks.gridworld.gridworld import GridWorld
@@ -9,25 +10,32 @@ from simple_rl.tasks.gridworld.VisualGridWorldStateClass import VisualGridWorldS
 
 
 class VisualGridWorldMDP(MDP):
-    def __init__(self, pixel_observation, use_small_grid, noise_level, seed):
+    def __init__(self, pixel_observation, grid_size, noise_level, seed):
         self.pixel_observation = pixel_observation
-        self.use_small_grid = use_small_grid
+        self.grid_size = grid_size
         self.noise_level = noise_level
         self.seed = seed
         self.render = False
 
         np.random.seed(seed)
 
-        if use_small_grid:
+        assert grid_size in ("small", "medium", "large")
+
+        if grid_size == "small":
             grid_size = 2
             self.env = GridWorld(grid_size, grid_size)
             scale = 14
             self.goal_loc = (1, 1)
-        else:
+        elif grid_size == "medium":
             grid_size = 4
             self.env = GridWorld(grid_size, grid_size)
             scale = 7
             self.goal_loc = (3, 3)
+        else:
+            grid_size = 14
+            self.env = GridWorld(grid_size, grid_size)
+            scale = 2
+            self.goal_loc = (13, 13)
 
         if pixel_observation:
             sensors = [
@@ -69,4 +77,4 @@ class VisualGridWorldMDP(MDP):
         return "visual-grid-world-mdp"
 
     def get_position(self):
-        return self.env.agent.position
+        return deepcopy(self.env.agent.position)

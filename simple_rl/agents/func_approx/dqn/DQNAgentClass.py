@@ -27,6 +27,7 @@ from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
 from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.agents.func_approx.exploration.optimism.discrete.DiscreteCountBasedExplorationClass import DiscreteCountBasedExploration
+from simple_rl.agents.func_approx.exploration.optimism.latent.LatentCountExplorationBonus import LatentCountExplorationBonus
 
 
 ## Hyperparameters
@@ -45,7 +46,7 @@ class DQNAgent(Agent):
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
-                 pixel_observation=False, writer=None):
+                 pixel_observation=False, writer=None, experiment_name=""):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -65,8 +66,8 @@ class DQNAgent(Agent):
 
         # Q-Network
         if pixel_observation:
-            self.policy_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
-            self.target_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
+            self.policy_network = ConvQNetwork(in_channels=1, n_actions=action_size).to(self.device)
+            self.target_network = ConvQNetwork(in_channels=1, n_actions=action_size).to(self.device)
         else:
             self.policy_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
             self.target_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
@@ -89,6 +90,13 @@ class DQNAgent(Agent):
             self.epsilon_schedule = ConstantEpsilonSchedule(0)
             self.epsilon = 0
             self.novelty_tracker = DiscreteCountBasedExploration(action_size)
+        elif exploration_method == "count-phi":
+            self.epsilon_schedule = ConstantEpsilonSchedule(0)
+            self.epsilon = 0.
+            self.novelty_tracker = LatentCountExplorationBonus(state_dim=state_size,
+                                                               action_dim=action_size,
+                                                               experiment_name=experiment_name,
+                                                               pixel_observation=self.pixel_observation)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -125,14 +133,22 @@ class DQNAgent(Agent):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
-            action_values = self.policy_network(state)
+            if self.pixel_observation:
+                action_values = self.policy_network(state.unsqueeze(0))
+            else:
+                action_values = self.policy_network(state)
         self.policy_network.train()
 
         action_values = action_values.cpu().data.numpy()
         # Epsilon-greedy action selection
         if random.random() > epsilon:
-            if use_novelty and self.exploration_method == "count-gt":
+            if use_novelty and self.exploration_method == "count-phi":
                 bonus = self.novelty_tracker.get_exploration_bonus(state.cpu().numpy().squeeze(0))
+                assert bonus.shape == action_values.shape
+                return np.argmax(action_values + bonus)
+            elif use_novelty and self.exploration_method == "count-gt":
+                bonus = self.novelty_tracker.get_exploration_bonus(position)
+                assert bonus.shape == action_values.shape
                 return np.argmax(action_values + bonus)
             return np.argmax(action_values)
 
@@ -144,11 +160,6 @@ class DQNAgent(Agent):
 
     def get_value(self, state):
         action_values = self.get_qvalues(state)
-
-        # Argmax only over actions that can be implemented from the current state
-        impossible_option_idx = self.get_impossible_option_idx(state)
-        for impossible_idx in impossible_option_idx:
-            action_values[0][impossible_idx] = torch.min(action_values).item() - 1.
 
         return np.max(action_values.cpu().data.numpy())
 
@@ -220,9 +231,13 @@ class DQNAgent(Agent):
         """
         self.replay_buffer.add(state, position, action, reward, next_state, next_position, done, num_steps)
         if self.exploration_method == "count-gt":
+            assert position.shape == (2,)
+            assert isinstance(position, np.ndarray), position
+            self.novelty_tracker.add_transition(tuple(position), action)
+        if self.exploration_method == "count-phi":
             assert state.shape == (2,)
             assert isinstance(state, np.ndarray), state
-            self.novelty_tracker.add_transition(tuple(state), action)
+            self.novelty_tracker.add_transition(state, action, next_state)
 
     def _get_q_targets(self, next_states, next_positions):
         """
@@ -237,9 +252,14 @@ class DQNAgent(Agent):
             next_positions_array = next_positions.cpu().numpy()
             bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_positions_array)
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
+            assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
         if self.exploration_method == "count-phi":
-            raise NotImplementedError(self.exploration_method)
+            next_positions_array = next_positions.cpu().numpy()
+            bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_positions_array)
+            bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
+            assert Q_targets_next.shape == bonus_tensor.shape
+            return Q_targets_next + bonus_tensor
         return Q_targets_next
 
     def step(self, state, position, action, reward, next_state, next_position, done, num_steps=1):
@@ -278,6 +298,10 @@ class DQNAgent(Agent):
         """
         states, positions, actions, rewards, next_states, next_positions, dones, steps = experiences
 
+        if self.pixel_observation:
+            states = states.unsqueeze(1)
+            next_states = next_states.unsqueeze(1)
+
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
             raise NotImplementedError("Not implemented _get_q_targets for DDQN yet.")
@@ -288,7 +312,6 @@ class DQNAgent(Agent):
 
             Q_targets_next = self.target_network(next_states).detach().gather(1, selected_actions)
         else:
-            # pdb.set_trace()
             Q_targets_next = self._get_q_targets(next_states, next_positions).max(1)[0].unsqueeze(1)
 
 
@@ -348,6 +371,9 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
+    def train_novelty_detector(self):
+        self.novelty_tracker.train()
+
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
     last_10_scores = deque(maxlen=10)
@@ -378,12 +404,12 @@ def train(agent, mdp, episodes, steps):
             if state.is_terminal() or game_over:
                 break
 
+        agent.train_novelty_detector()
+
         last_10_scores.append(score)
         per_episode_scores.append(score)
 
-        print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon), end="")
-        if episode % 10 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
+        print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores), agent.epsilon))
     return per_episode_scores
 
 def test_forward_pass(dqn_agent, mdp):

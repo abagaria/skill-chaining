@@ -15,10 +15,10 @@ class DiscreteCountBasedExploration(ExplorationBonus):
         self.action_state_counts = defaultdict(lambda : defaultdict(float))
         super(DiscreteCountBasedExploration, self).__init__()
 
-    def add_transition(self, state, action):
-        assert isinstance(state, np.ndarray), type(state)
+    def add_transition(self, state, action, next_state=None):
+        assert isinstance(state, tuple), type(state)
 
-        self.action_state_counts[action][tuple(state)] += 1
+        self.action_state_counts[action][state] += 1
 
     def get_exploration_bonus(self, state, action=None):
         assert state.shape == (2,)
