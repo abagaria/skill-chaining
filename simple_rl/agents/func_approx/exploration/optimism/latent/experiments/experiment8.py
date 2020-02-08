@@ -29,9 +29,10 @@ class Experiment8:
         state_dim = self.mdp.state_dim
         self.agent = DQNAgent(state_size=state_dim, action_size=len(self.mdp.actions),
                           trained_options=[], seed=seed, device=device,
-                          name="GlobalDDQN", lr=1e-3, use_double_dqn=False,
+                          name="GlobalDDQN", lr=1e-4, use_double_dqn=False,
                           exploration_method=exploration_method, pixel_observation=pixel_observation,
                           evaluation_epsilon=eval_eps)
+        self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
         self.seed = seed
@@ -45,13 +46,33 @@ class Experiment8:
         states = [list(self.gt_state_action_counts[a].keys()) for a in self.mdp.actions]
         return itertools.chain.from_iterable(states)
 
+    def get_combined_state_obs(self):
+        state_observation_map = defaultdict(list)
+        for action in self.gt_state_observation_map:
+            for state in self.gt_state_observation_map[action]:
+                state_observation_map[state] += self.gt_state_observation_map[action][state]
+
+        return state_observation_map
+
+    @staticmethod
+    def _get_state_colormap(state_buffer):
+        unique_states = set(state_buffer)
+        s_to_n = {state: i for i, state in enumerate(sorted(unique_states))}
+
+        color_map = [s_to_n[s] for s in state_buffer]
+        return color_map
+
+
     def make_value_function_plot(self, episode):
-        state_space = self.extract_states()
         state_value_pairs = []
 
-        for state in state_space:
-            state = np.array(state)
-            value = self.agent.get_value(state)
+        combined_state_obs = self.get_combined_state_obs()
+
+        for state in combined_state_obs:
+            all_observations = np.array(combined_state_obs[state])
+            # all_observations = np.expand_dims(all_observations, axis=1) # SLOPPY
+            # ipdb.set_trace()
+            value = self.agent.get_batched_values(all_observations).mean()
             state_value_pairs.append((state, value))
 
         x = [sb[0][0] for sb in state_value_pairs]
@@ -71,12 +92,13 @@ class Experiment8:
     def make_bonus_plot(self, episode):
         # state_space = [np.array([x, y]) for x in range(4) for y in range(4)]
         state_bonus_pairs = []
-        state_space = self.extract_states()
 
-        for state in state_space:
-            state = np.array(state)
-            bonuses = self.agent.novelty_tracker.get_exploration_bonus(state)
-            bonus = bonuses.max()
+        combined_state_obs = self.get_combined_state_obs()
+        for state in combined_state_obs:
+            all_observations = np.array(combined_state_obs[state])
+
+            # Average exploration bonuses over all actions and the batch dimension
+            bonus = self.agent.novelty_tracker.get_batched_exploration_bonus(all_observations).mean()
             state_bonus_pairs.append((state, bonus))
 
         x = [sb[0][0] for sb in state_bonus_pairs]
@@ -89,7 +111,7 @@ class Experiment8:
         plt.colorbar()
         plt.xlim((-1, 4))
         plt.ylim((-1, 4))
-        plt.title("Exploration Bonuses after Episode {}".format(episode))
+        plt.title("Average Exploration Bonuses after Episode {}".format(episode))
         plt.savefig(f"{self.experiment_name}/bonus_plots/bonuses_{episode}_seed_{self.seed}.png")
         plt.close()
 
@@ -118,6 +140,41 @@ class Experiment8:
         plt.ylabel("Estimated counts")
         plt.suptitle("How well counts match with true counts")
         plt.savefig(f"{self.experiment_name}/count_plots/true_vs_estimated_counts_episode_{episode}_seed_{self.seed}.png")
+        plt.close()
+
+    def make_latent_plot(self, episode):
+        # state_latent_pairs = []
+        latent_states = []
+
+        combined_state_obs = self.get_combined_state_obs()
+        states = list(sorted(combined_state_obs.keys()))
+
+        for_cmap = []
+        for state in states:
+            all_observations = np.array(combined_state_obs[state])
+
+            # Average exploration bonuses over all actions and the batch dimension
+            states_repr = self.agent.novelty_tracker.counting_space.extract_features(all_observations)
+            # ipdb.set_trace()
+
+            latent_states += states_repr.tolist()
+            for _ in range(len(all_observations)):
+                for_cmap.append(state)
+
+        color_map = self._get_state_colormap(for_cmap)
+
+
+        latent_states = np.asarray(latent_states)
+
+        plt.scatter(latent_states[:, 0], latent_states[:, 1], c=color_map, alpha=0.3)
+
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.colorbar()
+        plt.xlim((-1.2, 1.2))
+        plt.ylim((-1.2, 1.2))
+        plt.title("Latent Space after Episode {}".format(episode))
+        plt.savefig(f"{self.experiment_name}/latent_plots/latents_{episode}_seed_{self.seed}.png")
         plt.close()
 
     def _update_count(self, *, obs, position, action):
@@ -165,21 +222,28 @@ class Experiment8:
                 agent.train_novelty_detector()
 
             if args.make_plots:
-                self.make_count_plot(episode)
+                if self.exploration_method == "count-phi":
+                    self.make_count_plot(episode)
+                    self.make_latent_plot(episode)
                 self.make_bonus_plot(episode)
                 self.make_value_function_plot(episode)
 
             last_10_scores.append(score)
             per_episode_scores.append(score)
 
-            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}'.format(episode, np.mean(last_10_scores),
-                                                                                agent.epsilon))
+            sns_size = len(agent.novelty_tracker.sns_buffer)
+            lam = agent.novelty_tracker.counting_space.lam
+            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam {}'.format(episode,
+                                                                                             np.mean(last_10_scores),
+                                                                                             agent.epsilon, sns_size, lam))
         return per_episode_scores
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--experiment_name", type=str, help="Experiment Name", required=True)
+    parser.add_argument("--run_title", type=str, required=True) # This is the subdir that we'll be saving in.
+
     parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
     parser.add_argument("--episodes", type=int, help="# episodes", default=100)
     parser.add_argument("--steps", type=int, help="# steps", default=25)
@@ -188,21 +252,27 @@ if __name__ == "__main__":
     parser.add_argument("--exploration_method", type=str, default="eps-decay")
     parser.add_argument("--use_bonus_during_action_selection", type=bool, default=False)
     parser.add_argument("--eval_eps", type=float, default=0.05)
-    parser.add_argument("--make_plots", type=bool, default=False)
+    parser.add_argument("--make_plots", action="store_true", default=False)
     parser.add_argument("--grid_size", choices=("small", "medium", "large"), default="medium")
+    parser.add_argument("--noise_level", type=float, default=0.)
+
     args = parser.parse_args()
 
+    full_experiment_name = f"{args.experiment_name}/{args.run_title}"
+
     create_log_dir(args.experiment_name)
-    create_log_dir(f"{args.experiment_name}/count_plots")
-    create_log_dir(f"{args.experiment_name}/bonus_plots")
-    create_log_dir(f"{args.experiment_name}/vf_plots")
+    create_log_dir(full_experiment_name)
+    create_log_dir(f"{full_experiment_name}/count_plots")
+    create_log_dir(f"{full_experiment_name}/bonus_plots")
+    create_log_dir(f"{full_experiment_name}/latent_plots")
+    create_log_dir(f"{full_experiment_name}/vf_plots")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    exp = Experiment8(args.seed, pixel_observation=args.pixel_observation, grid_size=args.grid_size, noise_level=0.1,
+    exp = Experiment8(args.seed, pixel_observation=args.pixel_observation, grid_size=args.grid_size, noise_level=args.noise_level,
                       eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes,
-                      num_steps=args.steps, device=device, experiment_name=args.experiment_name)
+                      num_steps=args.steps, device=device, experiment_name=full_experiment_name)
 
     episodic_scores = exp.run_experiment()
 
-    save_scores(episodic_scores, args.experiment_name, args.seed)
+    save_scores(episodic_scores, args.experiment_name, args.seed, run_title=args.run_title)

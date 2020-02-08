@@ -124,7 +124,7 @@ class UnsqueezeSensor:
     def __init__(self, dim=-1):
         self.dim = dim
     def observe(self, s):
-        return s.unsqueeze(dim=self.dim)
+        return np.expand_dims(s, axis=self.dim)
 
 class SensorChain:
     def __init__(self, sensors):

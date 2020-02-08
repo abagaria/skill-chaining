@@ -133,10 +133,7 @@ class DQNAgent(Agent):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
-            if self.pixel_observation:
-                action_values = self.policy_network(state.unsqueeze(0))
-            else:
-                action_values = self.policy_network(state)
+            action_values = self.policy_network(state)
         self.policy_network.train()
 
         action_values = action_values.cpu().data.numpy()
@@ -160,8 +157,23 @@ class DQNAgent(Agent):
 
     def get_value(self, state):
         action_values = self.get_qvalues(state)
-
         return np.max(action_values.cpu().data.numpy())
+
+    def get_batched_values(self, states):
+
+        states = torch.from_numpy(states).float().to(self.device)
+
+        self.policy_network.eval()
+        with torch.no_grad():
+            action_values = self.policy_network(states)
+        self.policy_network.train()
+
+        action_values = action_values.cpu().numpy()
+        values = np.max(action_values, axis=1)
+
+        assert values.shape == (states.shape[0],), values.shape
+
+        return values
 
     def get_qvalue(self, state, action_idx):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
@@ -195,23 +207,6 @@ class DQNAgent(Agent):
             action_values = self.policy_network(states)
         self.policy_network.train()
 
-        if len(self.trained_options) > 0:
-            # Move the states and action values to the cpu to allow numpy computations
-            states = states.cpu().data.numpy()
-            positions = positions.cpu().data.numpy()
-            action_values = action_values.cpu().data.numpy()
-
-            for idx, option in enumerate(self.trained_options): # type: Option
-                try:
-                    inits = option.batched_is_init_true(states, positions)
-                    terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states, positions)
-                    action_values[(inits.squeeze() != 1) | (terms.squeeze() == 1), idx] = np.min(action_values) - 1.
-                except:
-                    pdb.set_trace()
-
-            # Move the q-values back the GPU
-            action_values = torch.from_numpy(action_values).float().to(self.device)
-
         return action_values
 
     def _add_transition(self, state, position, action, reward, next_state, next_position, done, num_steps=1):
@@ -235,7 +230,7 @@ class DQNAgent(Agent):
             assert isinstance(position, np.ndarray), position
             self.novelty_tracker.add_transition(tuple(position), action)
         if self.exploration_method == "count-phi":
-            assert state.shape == (2,)
+            assert state.shape in ((2,), (1, 28, 28))
             assert isinstance(state, np.ndarray), state
             self.novelty_tracker.add_transition(state, action, next_state)
 
@@ -255,8 +250,8 @@ class DQNAgent(Agent):
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
         if self.exploration_method == "count-phi":
-            next_positions_array = next_positions.cpu().numpy()
-            bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_positions_array)
+            next_states_array = next_states.cpu().numpy()
+            bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_states_array)
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
@@ -297,10 +292,6 @@ class DQNAgent(Agent):
             gamma (float): discount factor
         """
         states, positions, actions, rewards, next_states, next_positions, dones, steps = experiences
-
-        if self.pixel_observation:
-            states = states.unsqueeze(1)
-            next_states = next_states.unsqueeze(1)
 
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:

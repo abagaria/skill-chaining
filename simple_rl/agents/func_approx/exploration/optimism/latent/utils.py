@@ -29,7 +29,10 @@ def moving_average(a, n=25):
     return ret[n - 1:] / n
 
 
-def save_scores(scores, experiment_name, seed):
-    filename = f"{experiment_name}/{experiment_name}_seed_{seed}_scores.pkl"
+def save_scores(scores, experiment_name, seed, run_title=None):
+    if run_title:
+        filename = f"{experiment_name}/{run_title}/seed_{seed}_scores.pkl"
+    else:
+        filename = f"{experiment_name}/{experiment_name}_seed_{seed}_scores.pkl"
     with open(filename, "wb+") as f:
         pickle.dump(scores, f)

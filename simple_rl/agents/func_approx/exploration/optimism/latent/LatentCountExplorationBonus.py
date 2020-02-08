@@ -6,7 +6,7 @@ import pdb
 
 
 class LatentCountExplorationBonus(ExplorationBonus):
-    def __init__(self, state_dim, action_dim, latent_dim=2, lam=10., epsilon=0.1, *, experiment_name, pixel_observation):
+    def __init__(self, state_dim, action_dim, latent_dim=2, lam=1., epsilon=0.1, *, experiment_name, pixel_observation):
         super(LatentCountExplorationBonus, self).__init__()
 
         self.counting_space = CountingLatentSpace(state_dim=state_dim, action_dim=action_dim,
@@ -58,7 +58,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
                           Shape (1,) for the former and (num_actions,) for the latter.
 
         """
-        assert state.shape == (self.counting_space.state_dim,), state.shape
+        state_dim = self.counting_space.state_dim
+        assert state.shape in ((state_dim,), state_dim), (state_dim, state.shape)
         assert isinstance(state, np.ndarray)
 
         if action is not None:

@@ -14,9 +14,8 @@ from simple_rl.tasks.gridworld.sensors import SensorChain, ResampleSensor, Image
 from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpaceClass import CountingLatentSpace
 
 
-class Experiment5:
-    def __init__(self, epsilon, num_steps=200, seed=0, lam=0.1, use_noise=False, use_small_grid=False, num_epochs=1):
-        self.num_steps = num_steps
+class Experiment9:
+    def __init__(self, epsilon, seed=0, lam=0.1, use_noise=False, use_small_grid=False, num_epochs=1):
         np.random.seed(seed)
         self.num_epochs = num_epochs
 
@@ -41,7 +40,7 @@ class Experiment5:
 
         state_dim = (scale * grid_size, scale * grid_size)
 
-        self.counting_space = CountingLatentSpace(state_dim=state_dim, action_dim=4, latent_dim=2, epsilon=epsilon, phi_type="function",
+        self.counting_space = CountingLatentSpace(state_dim=state_dim, action_dim=4, latent_dim=4, epsilon=epsilon, phi_type="function",
                                                   experiment_name="exp5", pixel_observations=True, lam=lam,
                                                   optimization_quantity="bonus")
 
@@ -55,7 +54,7 @@ class Experiment5:
             action_buffers.append(states_array)
         return action_buffers
 
-    def generate_data(self):
+    def generate_data(self, num_steps):
         def unsqueeze(s):
             return s[None, ...]
 
@@ -69,7 +68,7 @@ class Experiment5:
         gt_state_action_counts = defaultdict(lambda : defaultdict(int))
         gt_state_observation_map = defaultdict(lambda : defaultdict(list))
 
-        for _ in tqdm(range(self.num_steps)):
+        for _ in tqdm(range(num_steps)):
             action = random.choice(self.env.actions)
             next_state, _, done = self.env.step(action)
 
@@ -121,75 +120,70 @@ class Experiment5:
         color_map = [s_to_n[s] for s in state_buffer]
         return color_map
 
-    def run_experiment(self):
-        obs_next_obs_buffer, action_buffers, gt_state_action_counts, gt_state_observation_map, state_buffer = self.generate_data()
+    def get_combined_state_obs(self, gt_state_action_counts, gt_state_observation_map):
+        state_observation_map = defaultdict(list)
+        for action in gt_state_observation_map:
+            for state in gt_state_observation_map[action]:
+                state_observation_map[state] += gt_state_observation_map[action][state]
 
-        observations = np.array([ss[0] for ss in obs_next_obs_buffer])
-        # gt_states = self.get_ground_truth_states(gt_state_observation_map)
+        return state_observation_map
 
+    def _get_counting_error(self, gt_state_action_counts, gt_state_observation_map, action):
+        errors = []
+        for state in gt_state_observation_map[action]:
+            true_count = gt_state_action_counts[action][state]
+            obs_arr = np.array(gt_state_observation_map[action][state])
+            est_counts = self.counting_space.get_counts(obs_arr, action)
+            average_count = est_counts.mean()
+
+            errors.append((true_count - average_count) / true_count) # relative error
+
+        return errors
+
+    def _get_mean_counting_error(self, gt_state_action_counts, gt_state_observation_map):
+        counting_errors = [self._get_counting_error(gt_state_action_counts, gt_state_observation_map, a) for a in self.env.actions]
+        flattened = [elem for ce in counting_errors for elem in ce]
+        mean_counting_error = np.array(flattened).mean()
+        return mean_counting_error
+
+    def _get_loss_ratio(self, obs_next_obs_buffer, action_buffers):
+        # PREPARE THE DATA!
+        all_obs = np.array([ono[0] for ono in obs_next_obs_buffer])
+
+
+
+
+        # attractive_loss = self._counting_loss(state_batch_transformed, next_state_batch_transformed,
+        #                                       loss_type=self.attractive_loss_type)
+        # bonus_loss = self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
+
+
+
+        pass
+
+
+    def _single_run(self, num_steps):
+        obs_next_obs_buffer, action_buffers, gt_state_action_counts, gt_state_observation_map, state_buffer = self.generate_data(num_steps)
         self.counting_space.train(action_buffers=action_buffers, state_next_state_buffer=obs_next_obs_buffer, epochs=self.num_epochs)
 
-        observation_representations = self.counting_space.extract_features(observations)
+        mean_counting_error = self._get_mean_counting_error(gt_state_action_counts, gt_state_observation_map)
 
-        color_map = self._get_state_colormap(state_buffer)
 
-        for buffer_idx in range(len(action_buffers)):
+        return mean_counting_error
 
-            # for the current action, create a list of (count, [o1, ..., oN]) tuples
-            true_vs_est_counts = []
-            for sa in gt_state_action_counts[buffer_idx]:
-                true_count = gt_state_action_counts[buffer_idx][sa]
-                obs_list = gt_state_observation_map[buffer_idx][sa]
-                obs_np = np.array(obs_list)
-                estimated_counts = self.counting_space.get_counts(obs_np, buffer_idx)
-                for ec in estimated_counts:
-                    true_vs_est_counts.append((true_count, ec))
+    def run_experiment(self):
+        num_steps_list = list(range(100, 2600, 100))
+        counting_errors = []
+        for num_steps in num_steps_list:
+            mean_counting_error = self._single_run(num_steps)
+            counting_errors.append(mean_counting_error)
 
-            true_counts, est_counts = list(zip(*true_vs_est_counts))
-
-            plt.subplot(1, len(action_buffers), buffer_idx + 1)
-            plt.plot(np.arange(0, max(true_counts) + 2), np.arange(0, max(true_counts) + 2), "--")
-            plt.scatter(true_counts, est_counts, alpha=0.3)
-            plt.xlabel("True counts")
-
-        plt.ylabel("Estimated counts")
-        plt.suptitle("How well counts match with true counts")
+        plt.plot(num_steps_list, counting_errors)
+        plt.plot(num_steps_list, counting_errors, "kx")
+        plt.title(f"Counting Errors as a function of num samples, with lam={self.counting_space.lam}")
         plt.show()
 
-        for buffer_idx in range(len(action_buffers)):
-            plt.subplot(1, len(action_buffers), buffer_idx + 1)
-            plt.scatter(observation_representations[:, 0], observation_representations[:, 1], c=color_map, alpha=0.3)
-            plt.colorbar()
-        plt.suptitle("Learned latent representations in visual grid-world")
-        plt.show()
-
-        most_similar_idx = self.get_most_similar_state_idx(observation_representations)
-        most_dissimilar_idx = self.get_most_dissimilar_state_idx(observation_representations)
-
-        most_similar_image = observations[most_similar_idx]
-        most_dissimilar_image = observations[most_dissimilar_idx]
-
-        plt.subplot(1, 3, 1)
-        plt.imshow(observations[0].squeeze(0))
-        plt.title("Query image")
-        plt.xticks([])
-        plt.yticks([])
-
-        plt.subplot(1, 3, 2)
-        plt.imshow(most_similar_image.squeeze(0))
-        plt.title("Most similar image")
-        plt.xticks([])
-        plt.yticks([])
-
-        plt.subplot(1, 3, 3)
-        plt.imshow(most_dissimilar_image.squeeze(0))
-        plt.title("Most dissimilar image")
-        plt.xticks([])
-        plt.yticks([])
-
-        plt.show()
-
-        return gt_state_action_counts
+        # return gt_state_action_counts
 
 if __name__ == '__main__':
     import argparse
@@ -199,10 +193,9 @@ if __name__ == '__main__':
     parser.add_argument("--epsilon", type=float, help="Epsilon", default=0.1)
     parser.add_argument("--use_noise", action="store_true", default=False)
     parser.add_argument("--small_grid", action="store_true", default=False)
-    parser.add_argument("--num_steps", type=int, default=200)
-    parser.add_argument("--num_epochs", type=int, default=1)
+    parser.add_argument("--num_epochs", type=int, default=100)
 
     args = parser.parse_args()
-    exp = Experiment5(args.epsilon, seed=0, lam=args.lam, use_noise=args.use_noise, use_small_grid=args.small_grid,
-                      num_steps=args.num_steps, num_epochs=args.num_epochs)
-    gt_sa_counts = exp.run_experiment()
+    exp = Experiment9(args.epsilon, seed=0, lam=args.lam, use_noise=args.use_noise, use_small_grid=args.small_grid,
+                      num_epochs=args.num_epochs)
+    exp.run_experiment()

@@ -5,7 +5,7 @@ from copy import deepcopy
 # Other imports.
 from simple_rl.tasks.gridworld.gridworld import GridWorld
 from simple_rl.mdp import MDP
-from simple_rl.tasks.gridworld.sensors import SensorChain, ResampleSensor, ImageSensor, NoisySensor, NullSensor
+from simple_rl.tasks.gridworld.sensors import SensorChain, ResampleSensor, ImageSensor, NoisySensor, NullSensor, UnsqueezeSensor
 from simple_rl.tasks.gridworld.VisualGridWorldStateClass import VisualGridWorldState
 
 
@@ -41,10 +41,11 @@ class VisualGridWorldMDP(MDP):
             sensors = [
                 ImageSensor(range=((0, self.env._rows), (0, self.env._cols)), pixel_density=1),
                 ResampleSensor(scale=scale),
+                UnsqueezeSensor(dim=0)
             ]
             if noise_level > 0:
                 sensors.append(NoisySensor(sigma=0.1))
-            self.state_dim = (scale * grid_size, scale * grid_size)
+            self.state_dim = (1, scale * grid_size, scale * grid_size)
         else:
             sensors = [NullSensor()]
             self.state_dim = 2
@@ -65,7 +66,7 @@ class VisualGridWorldMDP(MDP):
 
         self.next_state = VisualGridWorldState(next_obs, is_terminal=done)
 
-        return reward
+        return reward + 1
 
     def _transition_func(self, state, action):
         return self.next_state

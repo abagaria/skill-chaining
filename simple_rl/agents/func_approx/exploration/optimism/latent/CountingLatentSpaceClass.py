@@ -360,7 +360,7 @@ class CountingLatentSpace(object):
 
         # If we have never taken this action before, return max counts
         if buffer is None:
-            max_counts = (1./ np.sqrt(1e-2)) * np.ones((X.shape[0],))
+            max_counts = np.zeros((X.shape[0],))
             return max_counts
 
         self.model.eval()
