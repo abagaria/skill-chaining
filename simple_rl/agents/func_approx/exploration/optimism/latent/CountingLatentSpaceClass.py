@@ -12,7 +12,9 @@ from . import naive_spread_counter
 from .model import DensePhiNetwork, MNISTConvPhiNetwork
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.generated_dataset import MultiActionCountingDataset, StateNextStateDataset
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.generated_bonus_dataset import BonusDataset
+from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.transition_consistency_dataset import TransitionConsistencyDataset, collate_fn
 
+# TODO: Refactor dataset filenames so they are UpperCamelCase
 
 class CountingLatentSpace(object):
     def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
@@ -55,7 +57,7 @@ class CountingLatentSpace(object):
         self.buffers = [None for _ in range(self.action_dim)]
 
         assert phi_type in ("raw", "function"), phi_type
-        assert optimization_quantity in ("count", "bonus"), optimization_quantity
+        assert optimization_quantity in ("count", "bonus", "count-tc"), optimization_quantity
 
         self.optimization_quantity = optimization_quantity
 
@@ -80,7 +82,7 @@ class CountingLatentSpace(object):
             self.buffers[action] = np.concatenate((self.buffers[action], expanded_state), axis=0)
 
 
-    def train(self, action_buffers=None, state_next_state_buffer=None, epochs=100):
+    def train(self, action_buffers=None, state_next_state_buffer=None, tc_action_buffers=None, epochs=100):
         """
 `
         Args:
@@ -88,6 +90,7 @@ class CountingLatentSpace(object):
                 Each element is a numpy array containing all examples of a specific action.
                 That way, we can get counts against each of a variety of actions.
             state_next_state_buffer (list)
+            tc_action_buffers (list): The type of action_buffers that the transition-consistency loss expects.
             epochs (int):
                 Number of epochs to train against. This is only used in the "phi" version of things.
         """
@@ -102,6 +105,9 @@ class CountingLatentSpace(object):
             return self._train_function_bonuses(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
         elif self.optimization_quantity == "count":
             return self._train_function_counts(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
+        elif self.optimization_quantity == "count-tc":
+            assert tc_action_buffers is not None
+            return self._train_counts_with_transition_consistency(buffers=tc_action_buffers, epochs=epochs)
         raise NotImplementedError(f"Optimization quantity {self.optimization_quantity} not implemented yet.")
 
     def extract_features(self, states):
@@ -256,6 +262,120 @@ class CountingLatentSpace(object):
                 n_iterations += 1
 
         self.buffers = buffers
+
+    def _typecheck_transition_consistency_buffers(self, buffers):
+        """
+        This function checks the buffers to make sure a bunch of things are true about their shapes and sizes.
+        Args:
+            buffers: We hope it is a list of lists of tuples of numpy arrays, but that's a lot to assume.
+
+        Returns:
+
+        """
+        assert len(buffers) == self.action_dim, len(buffers) # Debatable
+
+        for b in buffers:
+            for ssp in b:
+                assert isinstance(ssp, tuple), type(ssp)
+                assert len(ssp) == 2, len(ssp)
+                assert ssp[0].shape in (self.state_dim, (self.state_dim, )), f"Bad! {ssp[0].shape}, {self.state_dim}"
+                assert ssp[1].shape in (self.state_dim, (self.state_dim,)), f"Bad! {ssp[0].shape}, {self.state_dim}"
+
+    def _get_normal_buffers_from_tc_buffers(self, tc_buffers):
+        """
+
+        Args:
+            tc_buffers (list): This is a list of lists of tuples of numpy arrays, which we want to just be a list of numpy arrays...
+
+        Returns:
+            buffers (list): Just the parent states from this list (we don't care where they ended up...)
+
+        """
+        tc_buffers = [np.array(b) for b in tc_buffers]
+        buffers = [b[:,0,...] for b in tc_buffers]
+        return buffers
+
+    def _get_total_counts_from_square_distance_matrix(self, squared_distance_matrix, count_type="exponential"):
+        """
+
+        Args:
+            squared_distance_matrix (torch.Tensor): (M, N) tensor that represents the squared distances from one set of vectors to another.
+
+        Returns:
+            count_matrix (torch.Tensor): (M, N) tensor that represents the count-overlap betwen one set of vectors and another.
+        """
+        if count_type == "normal":
+            for_exp = -squared_distance_matrix / (self.epsilon ** 2)
+            all_counts = torch.exp(for_exp)
+        if count_type == "exponential":
+            # BUG ALERT: sqrt at zero gives a reasonable value, but a NAN gradient... makes sense.
+            distance_matrix = (squared_distance_matrix + 1e-6).sqrt()
+            for_exp = -distance_matrix / self.epsilon
+            all_counts = torch.exp(for_exp)
+        return all_counts
+
+    def _train_counts_with_transition_consistency(self, count_type="exponential", scaling=1., *, buffers, epochs):
+        self._typecheck_transition_consistency_buffers(buffers)
+        self.model.train()
+        n_iterations = 0
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
+        # optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
+
+        data_set = TransitionConsistencyDataset(buffers, device=self.device)
+        loader = DataLoader(data_set, batch_size=64, shuffle=True, collate_fn=collate_fn)
+
+        for epoch in tqdm(range(epochs)):
+            for batch_idx, action_to_sns_dict in enumerate(loader):
+                repulsive_losses = 0
+                attractive_losses = 0
+
+                for action in action_to_sns_dict:
+                    action_batch = action_to_sns_dict[action].to(self.device)
+                    full_action_buffer = data_set.get_action_buffer_tensor(action).to(self.device)
+                    action_batch_parent = action_batch[:, 0, ...]
+                    action_batch_child = action_batch[:, 1, ...]
+                    full_action_buffer_parent = full_action_buffer[:, 0, ...]
+                    full_action_buffer_child = full_action_buffer[:, 1, ...]
+
+                    action_batch_parent_transformed = self.model(action_batch_parent)
+                    action_batch_child_transformed = self.model(action_batch_child)
+                    full_action_buffer_parent_transformed = self.model(full_action_buffer_parent)
+                    full_action_buffer_child_transformed = self.model(full_action_buffer_child)
+
+                    squared_distance_from_parent = naive_spread_counter.torch_get_square_distances_to_buffer(action_batch_parent_transformed, full_action_buffer_parent_transformed)
+                    squared_distance_from_child = naive_spread_counter.torch_get_square_distances_to_buffer(action_batch_child_transformed, full_action_buffer_child_transformed)
+                    assert squared_distance_from_parent.shape == squared_distance_from_child.shape == torch.Size((len(action_batch), len(full_action_buffer)))
+                    counts_for_child = self._get_total_counts_from_square_distance_matrix(squared_distance_from_child, count_type=count_type)
+
+                    with torch.no_grad():
+                        counts_for_parent = self._get_total_counts_from_square_distance_matrix(
+                            squared_distance_from_parent, count_type=count_type).detach()
+
+                    # import ipdb; ipdb.set_trace()
+                    repulsion_amount = (1 - scaling*counts_for_parent) * counts_for_child
+                    repulsion_loss = repulsion_amount  #-1. / (repulsion_amount.sum(dim=1) + 1e-2).sqrt()
+                    repulsive_losses += repulsion_loss.sum()
+
+                    attraction_loss = self._counting_loss(action_batch_parent_transformed, action_batch_child_transformed, self.attractive_loss_type)
+
+                    attractive_losses += (self.lam * attraction_loss)
+
+
+                loss = repulsive_losses + attractive_losses
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                self.writer.add_scalar("TotalLoss", loss.item(), n_iterations)
+                self.writer.add_scalar("TC-Loss", repulsive_losses.item(), n_iterations)
+                self.writer.add_scalar("AttractiveLoss", attractive_losses.item(), n_iterations)
+
+                n_iterations += 1
+
+        # Unfortunately, we need the old definition of buffers to make the other functions (like get_counts) to work
+        normal_buffers = self._get_normal_buffers_from_tc_buffers(buffers)
+        self.buffers = normal_buffers
 
     def _counting_loss(self, phi_s, phi_s_prime, loss_type="normal"):
         assert loss_type in ("normal", "quadratic", "exponential"), loss_type
