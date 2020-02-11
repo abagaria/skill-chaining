@@ -13,6 +13,7 @@ import random
 import numpy as np
 from tensorboardX import SummaryWriter
 import torch
+import pandas as pd
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -124,7 +125,6 @@ class SkillChaining(object):
 		# TODO: initiation classifier variables
 		self.all_tcsvm_prob = {}
 		self.all_ocsvm_prob = {}
-		self.all_diff_prob = {}
 
 	def create_child_option(self, parent_option):
 		# Create new option whose termination is the initiation of the option we just trained
@@ -245,28 +245,6 @@ class SkillChaining(object):
 
 		return selected_option
 
-	# TODO: utilities
-	def plot_prob(self, title, episode):
-		
-		# Color map
-		cmap = plt.get_cmap('jet_r')
-		N = len(self.all_tcsvm_prob)
-
-		for idx, tcsvm_prob in self.all_tcsvm_prob.items():
-			color = cmap(float(idx)/N)
-			plt.plot(tcsvm_prob, c=color, label="{} - tcsvm".format(idx))
-			plt.plot(self.all_ocsvm_prob[idx], c=color, label="{} - ocsvm".format(idx), linestyle='--')  
-
-		plt.title("(Episode {}) {}".format(episode, title))
-		plt.ylabel("Probabilities")
-		plt.legend(title="Options", bbox_to_anchor=(
-			1.05, 1), loc='upper left', borderaxespad=0.)
-
-		plt.savefig("notes/prob_plots/ep-{}.png".format(episode),
-		            bbox_inches='tight')
-		plt.close()
-		print("  |-> notes/prob_plots/ep-{}.png saved!".format(episode))	# TODO: remove
-
 	def take_action(self, state, step_number, episode_option_executions, episode=None):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
@@ -284,24 +262,6 @@ class SkillChaining(object):
 		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(
 			self.mdp, step_number, episode)
 		
-		# TODO: generate classifier plots
-		# tcsvm, ocsvm = selected_option.tcsvm, selected_option.ocsvm
-		# X, y = selected_option.X, selected_option.y
-		# if X is not None:
-		# 	# Plot two classifiers
-		# 	models = (tcsvm, ocsvm)
-		# 	titles = ('(Episode: {}) Optimistic (TCSVM)'.format(episode), 'Pessimistic (OCSVM)')
-		# 	selected_option.create_plots(
-		# 		models=models, titles=titles, X=X, y=y, grid=(2), episode=episode)
-
-		# TODO: save probability values
-		tcsvm_prob, ocsvm_prob, diff_prob = selected_option.tcsvm_prob, selected_option.ocsvm_prob, selected_option.diff_prob
-		if tcsvm_prob:
-			idx = selected_option.option_idx - 1  # off by 1
-			self.all_tcsvm_prob[idx] = tcsvm_prob
-			self.all_ocsvm_prob[idx] = ocsvm_prob
-			self.all_diff_prob[idx] = diff_prob
-
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
 
@@ -354,6 +314,87 @@ class SkillChaining(object):
 					return False
 		return True
 		# return len(self.trained_options) < self.max_num_options
+
+	# TODO: utilities
+	def plot_prob(self, episode, test_name):
+		N = len(self.all_tcsvm_prob)
+
+		for i, probs in self.all_tcsvm_prob.items():
+			color = sns.hls_palette(N)[i]
+			plt.plot(probs, c=color, label="{} - tcsvm".format(i))
+			plt.plot(self.all_ocsvm_probs[i], c=color, label="{} - ocsvm".format(i), linestyle='--')
+
+		plt.title("(Episode {}) Average estimate probabilities of positive examples".format(episode))
+		plt.ylabel("Probabilities")
+		plt.xlabel("Occurances")
+		plt.legend(title="Options", bbox_to_anchor=(
+			1.05, 1), loc='upper left', borderaxespad=0.)
+
+		plt.savefig("notes/prob_plots/{}-ep-{}.png".format(test_name, episode),
+		            bbox_inches='tight')
+		plt.close()
+		print("  |-> notes/prob_plots/{}-ep-{}.png saved!".format(test_name, episode))	# TODO: remove
+
+	# TODO: utilities
+	def process_probs(self, option):
+		'''Routine to process the average of an
+		   option's classifier estimate probability of positive examples
+		
+		Returns:
+
+		'''
+		print("SkillChainingAgentClass::process_probs_data: call")
+
+		# Positive examples from option's buffer
+		pos_examples = option.positive_examples
+		X_pos = option.construct_feature_matrix(pos_examples)
+		y_pos = [1] * X_pos.shape[0]
+
+		# Trained classifiers
+		tcsvm, psmod = option.tcsvm, option.psmod
+
+		# Average probabilities of positive examples in buffer
+		tcsvm_prob = np.average(tcsvm.predict_proba(X_pos)[:,1])
+		ocsvm_prob, _ = psmod.predict_proba(X_pos)[:,1]
+		ocsvm_prob = np.average(ocsvm_prob)
+
+		# Update option's probability value
+		i = option.option_idx - 1 # off by 1
+		if i not in self.all_tcsvm_prob:
+			self.all_tcsvm_prob[i] = [tcsvm_prob]
+			self.all_ocsvm_prob[i] = [ocsvm_prob]
+		else:
+			self.all_tcsvm_prob[i].append(tcsvm_prob)
+			self.all_ocsvm_prob[i].append(ocsvm_prob)
+
+	# TODO: utilities
+	def plot_state_probs(self, clf, nbins, xlim, ylim, option_id, clf_name, color, test_name):
+		# Create mesh
+		xmin, xmax = xlim
+		ymin, ymax = ylim
+		xi, yi = np.mgrid[xmin:xmax:nbins*1j, ymin:ymax:nbins*1j]
+
+		# Compute probability estimates from classifier
+		probs = clf.predict_proba(np.vstack([xi.flatten(), yi.flatten()]).T)[:,1]
+
+		# Generate figure
+		fig, ax = plt.subplots()
+		ax.set_title('(Option {}) Probability of states ({})'.format(option_id, name))
+
+		# Coloring
+		cmap = sns.light_palette(color, n_colors=nbins, as_cmap=True)
+
+		# Plot mesh
+		states = ax.pcolormesh(xi, yi, probs.reshape(xi.shape), shading='gouraud', cmap=cmap)
+		cbar = fig.colorbar(states)
+
+		# Save plots
+		plt.savefig("notes/state_prob_plots/{}-option_{}_ep-{}-{}.png".format(test_name, option_id, episode, name),
+				bbox_inches='tight')
+		plt.close()
+		
+		# TODO: remove
+		print("  |-> notes/state_prob_plots/{}-option_{}_ep-{}-{}.png saved!".format(test_name, option_id, episode, name))
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -413,9 +454,27 @@ class SkillChaining(object):
 
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
 
-			# TODO: plot probabilities
-			if self.all_tcsvm_prob:
-				self.plot_prob("Probabilities of Classifiers", episode)
+			# TODO: misc variables
+			option_id = self.untrained_option.option_idx - 1  # off by 1
+			xlim = ylim = [-2,11]
+			nbins = 20
+			tcsvm, psmod = self.untrained_option.tcsvm, self.untrained_option.psmod
+			test_name = 't1'
+
+			# TODO: if trained
+			if tcsvm:
+				# TODO: process probability data
+				self.process_probs(self.untrained_option)
+
+				# TODO: plot average probabilities
+				self.plot_prob(episode, test_name)
+
+				# TODO: plot probabilities of classifiers per option
+				i = list(self.all_tcsvm_prob).index(option_id)
+				color = sns.hls_palette(len(self.all_tcsvm_prob))[i]
+
+				self.plot_state_probs(tcsvm, nbins, xlim, ylim, option_id, 'tcsvm', color, test_name)
+				self.plot_state_probs(psmod, nbins, xlim, ylim, option_id, 'ocsvm', color, test_name)
 
 		return per_episode_scores, per_episode_durations
 
@@ -436,7 +495,7 @@ class SkillChaining(object):
 		if episode > 0 and episode % 100 == 0:
 			eval_score = self.trained_forward_pass(render=False)
 			self.validation_scores.append(eval_score)
-			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+			# print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
 		if self.generate_plots and episode % 10 == 0:
 			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)

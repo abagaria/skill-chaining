@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 sns.set(color_codes=True)
+sns.set_style("white")
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -102,9 +103,9 @@ class Option(object):
 		self.y = None		
 		self.tcsvm = None
 		self.ocsvm = None
+		self.psmod = None
 		self.tcsvm_prob = []
 		self.ocsvm_prob = []
-		self.diff_prob = []
 
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -538,7 +539,7 @@ class Option(object):
 		Returns:
 			Fitted two-class linear SVM
 		"""
-		tcsvm = svm.LinearSVC(max_iter=1000)
+		tcsvm = svm.SVC(probability=True)
 		
 		return tcsvm.fit(X_, y_)
 	
@@ -585,7 +586,8 @@ class Option(object):
 			outlier: Toggle to set predictions using outlier data
 		
 		Returns:
-			Prediction probabilities on test data
+			platt scalling classifier
+			prediction probabilities on test data
 		"""
 		
 		# Get SVM predictions
@@ -600,7 +602,7 @@ class Option(object):
 		lr = LRCV(cv=cv_size)
 		lr.fit(X_train, y_train)
 
-		return lr.predict_proba(X_test)
+		return lr, lr.predict_proba(X_test)
 
 	# TODO: utilities
 	def get_examples(self, k):
@@ -626,7 +628,7 @@ class Option(object):
 
 		# Create input and labels
 		positive_feature_matrix = self.construct_feature_matrix(
-			self.positive_examples)
+			self.positive_examples)		
 		negative_feature_matrix = self.construct_feature_matrix(
 			self.negative_examples)
 		positive_labels = [1] * positive_feature_matrix.shape[0]
@@ -640,17 +642,12 @@ class Option(object):
 		self.tcsvm = self.opt_clf(self.X, self.y)
 		self.ocsvm = self.pes_clf(self.tcsvm, self.X, self.y)
 
-		# Estimations for pessimistic classifier
-		prob_inlier = self.platt_scale(self.ocsvm, self.X, 0.90, 5)
-		# prob_outlier = platt_scale(one_clf, X, 0.90, 5, outlier=True)
-
-		# TODO: remove
-		print("  |-> option: {}".format(self.name))
+		# Platt scalling module
+		self.psmod, prob_inlier = self.platt_scale(self.ocsvm, self.X, 0.90, 5)
 
 		# Save probabilities
-		self.tcsvm_prob.append(self.tcsvm.score(self.X, self.y))
-		self.ocsvm_prob.append(np.average(prob_inlier[:, 1]))
-		self.diff_prob.append(abs(self.tcsvm_prob[-1] - self.ocsvm_prob[-1]))
+		# self.tcsvm_prob.append(self.tcsvm.score(self.X, self.y))
+		# self.ocsvm_prob.append(np.average(prob_inlier[:, 1]))
 
 		# Set initiation set classifier
 		self.initiation_classifier = self.ocsvm

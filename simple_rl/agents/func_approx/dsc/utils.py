@@ -65,8 +65,7 @@ def get_grid_states():
 	ss = []
 	for x in np.arange(0., 11., 1.):
 		for y in np.arange(0., 11., 1.):
-			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-							   theta=0., theta_dot=0., done=False)
+			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]), theta=0., theta_dot=0., done=False)
 			ss.append(s)
 	return ss
 
@@ -265,3 +264,11 @@ def replay_trajectory(trajectory, dir_name):
 		img_array = mdp.env.render(mode="rgb_array")
 		img = Image.fromarray(img_array)
 		img.save("{}/frame{}.png".format(dir_name, i))
+
+def main():
+	# Tests
+	get_grid_states()
+
+if __name__ == "__main__":
+	main()
+	
