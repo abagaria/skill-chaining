@@ -24,7 +24,7 @@ from simple_rl.tasks.gym.wrappers import LazyFrames
 
 class Option(object):
 
-	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
+	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocbcn",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2, pixel_observations=True,
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
@@ -58,6 +58,7 @@ class Option(object):
 		self.initiation_period = initiation_period
 		self.enable_timeout = enable_timeout
 		self.classifier_type = classifier_type
+		print(self.classifier_type)
 		self.generate_plots = generate_plots
 		self.writer = writer
 		self.device = device
@@ -99,9 +100,9 @@ class Option(object):
 		else:
 			solver_name = "{}_ddpg_agent".format(self.name)
 			self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-										   name=solver_name) if name == "global_option" else global_solver
+										   name=solver_name, pixel_observation=pixel_observations) if name == "global_option" else global_solver
 			self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-									tensor_log=(writer is not None), writer=writer, name=solver_name)
+									tensor_log=(writer is not None), writer=writer, name=solver_name, pixel_observation=pixel_observations)
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -176,8 +177,8 @@ class Option(object):
 
 		# Not using off_policy_update() because we have numpy arrays not state objects here
 		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
-			if self.is_init_true(state):
-				if self.is_term_true(next_state):
+			if self.name == "global_option":
+				if reward:
 					self.solver.step(state, action, self.subgoal_reward, next_state, True)
 				else:
 					subgoal_reward = self.get_subgoal_reward(next_state)
@@ -234,7 +235,7 @@ class Option(object):
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
 		if self.pixel_observations:
-			examples = [np.array(segmented_state.features())[-1, :, :] for segmented_state in segmented_states]
+			examples = [(np.array(segmented_state.features())[-1, :, :]) for segmented_state in segmented_states]
 		else:
 			examples = [segmented_state.position for segmented_state in segmented_states]
 		self.positive_examples.append(examples)
@@ -244,6 +245,7 @@ class Option(object):
 		segmented_experiences = deepcopy(experience_queue)
 		if len(segmented_experiences) >= self.buffer_length:
 			segmented_experiences = segmented_experiences[-self.buffer_length:]
+		print(segmented_experiences[0])
 		experiences = [Experience(*exp) for exp in segmented_experiences]
 		self.experience_buffer.append(experiences)
 
@@ -260,7 +262,7 @@ class Option(object):
 
 	def construct_negative_data_for_one_class_classifier(self):
 		""" Randomly sample states from the global solver's replay buffer and assume they are negative examples. """
-		states = [np.array(experience.state)[-1, :, :] for experience in self.global_solver.replay_buffer.memory]
+		states = [np.array(experience[0])[-1, :, :] for experience in self.global_solver.replay_buffer.memory]
 		num_positive_examples = len(list(itertools.chain.from_iterable(self.positive_examples)))
 		sampled_states = random.sample(states, k=num_positive_examples)
 		return np.array(sampled_states)

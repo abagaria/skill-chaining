@@ -203,6 +203,7 @@ class FrameStack(ObservationWrapper):
         self.lz4_compress = lz4_compress
 
         self.frames = deque(maxlen=num_stack)
+        #self.realframes = deque(maxlen=num_stack)
 
         low = np.repeat(self.observation_space.low[np.newaxis, ...], num_stack, axis=0)
         high = np.repeat(self.observation_space.high[np.newaxis, ...], num_stack, axis=0)
@@ -210,14 +211,17 @@ class FrameStack(ObservationWrapper):
 
     def _get_observation(self):
         assert len(self.frames) == self.num_stack, (len(self.frames), self.num_stack)
-        return LazyFrames(list(self.frames), self.lz4_compress)
+        return (LazyFrames(list(self.frames), self.lz4_compress))
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
+        observation = np.divide(observation[0] + observation[1] + observation[2], 3.0)
         self.frames.append(observation)
+        #self.realframes.append(info)
         return self._get_observation(), reward, done, info
 
     def reset(self, **kwargs):
         observation = self.env.reset(**kwargs)
+        observation = np.divide(observation[0] + observation[1] + observation[2], 3.0)
         [self.frames.append(observation) for _ in range(self.num_stack)]
         return self._get_observation()

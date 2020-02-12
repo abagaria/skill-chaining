@@ -14,7 +14,7 @@ from tensorboardX import SummaryWriter
 
 # Other imports.
 from simple_rl.agents.AgentClass import Agent
-from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlenbeckActionNoise
+from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, ConvActor, ConvCritic, OrnsteinUhlenbeckActionNoise
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
@@ -23,7 +23,7 @@ from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent"):
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", pixel_observation=True):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
@@ -39,11 +39,20 @@ class DDPGAgent(Agent):
         self.name = name
 
         self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
-        self.actor = Actor(state_size, action_size, device=device)
-        self.critic = Critic(state_size, action_size, device=device)
 
-        self.target_actor = Actor(state_size, action_size, device=device)
-        self.target_critic = Critic(state_size, action_size, device=device)
+
+        if pixel_observation:
+            self.actor = ConvActor(4, state_size, action_size, device=device)
+            self.critic = ConvCritic(4, state_size, action_size, device=device)
+
+            self.target_actor = ConvActor(4, state_size, action_size, device=device)
+            self.target_critic = ConvCritic(4, state_size, action_size, device=device)
+        else:
+            self.actor = Actor(state_size, action_size, device=device)
+            self.critic = Critic(state_size, action_size, device=device)
+
+            self.target_actor = Actor(state_size, action_size, device=device)
+            self.target_critic = Critic(state_size, action_size, device=device)
 
         # Initialize actor target network
         for target_param, param in zip(self.target_actor.parameters(), self.actor.parameters()):
@@ -57,7 +66,7 @@ class DDPGAgent(Agent):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr_actor)
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
-        self.epsilon = 1.0
+        self.epsilon = 0.3
 
         # Tensorboard logging
         self.writer = None
@@ -147,10 +156,11 @@ class DDPGAgent(Agent):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
     def update_epsilon(self):
-        if "global" in self.name.lower():
-            self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
-        else:
-            self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
+        self.epsilon = self.epsilon
+        # if "global" in self.name.lower():
+        #     self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
+        # else:
+        #     self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
 
     def get_value(self, state):
         action = self.actor.get_action(state)
