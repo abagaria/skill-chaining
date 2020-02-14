@@ -4,7 +4,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
-import pdb
+import ipdb
 import shutil, os
 
 # Other imports.
@@ -356,12 +356,30 @@ class CountingLatentSpace(object):
                     repulsion_loss = repulsion_amount  #-1. / (repulsion_amount.sum(dim=1) + 1e-2).sqrt()
                     repulsive_losses += repulsion_loss.sum()
 
+
+
+                    other_repulsive_losses = 0
+                    for other_action in action_to_sns_dict:
+                        if other_action == action:
+                            continue
+                        full_other_action_buffer = data_set.get_action_buffer_tensor(other_action).to(self.device)
+                        full_other_action_buffer_child = full_other_action_buffer[:, 1, ...]
+                        full_other_action_buffer_child_transformed = self.model(full_other_action_buffer_child)
+
+                        other_squared_distance_from_child = naive_spread_counter.torch_get_square_distances_to_buffer(action_batch_child_transformed, full_other_action_buffer_child_transformed)
+                        other_action_counts = self._get_total_counts_from_square_distance_matrix(other_squared_distance_from_child, count_type="normal")
+                        other_action_loss = other_action_counts.sum()
+                        other_repulsive_losses += other_action_loss
+
+
+
+
                     attraction_loss = self._counting_loss(action_batch_parent_transformed, action_batch_child_transformed, self.attractive_loss_type)
 
                     attractive_losses += (self.lam * attraction_loss)
 
 
-                loss = repulsive_losses + attractive_losses
+                loss = repulsive_losses + attractive_losses + other_repulsive_losses
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -369,6 +387,7 @@ class CountingLatentSpace(object):
 
                 self.writer.add_scalar("TotalLoss", loss.item(), n_iterations)
                 self.writer.add_scalar("TC-Loss", repulsive_losses.item(), n_iterations)
+                self.writer.add_scalar("TC-Other-Loss", other_repulsive_losses.item(), n_iterations)
                 self.writer.add_scalar("AttractiveLoss", attractive_losses.item(), n_iterations)
 
                 n_iterations += 1
