@@ -23,6 +23,9 @@ class DenseQNetwork(nn.Module):
         self.fc2 = nn.Linear(fc1_units, fc2_units)
         self.fc3 = nn.Linear(fc2_units, action_size)
 
+        self.bn1 = nn.BatchNorm1d(fc1_units)
+        self.bn2 = nn.BatchNorm1d(fc2_units)
+
     def forward(self, state):
         """
         DQN forward pass
@@ -33,7 +36,9 @@ class DenseQNetwork(nn.Module):
             logits (torch.tensor): score for each possible action (1, num_actions)
         """
         x = F.relu(self.fc1(state))
+        x = self.bn1(x)
         x = F.relu(self.fc2(x))
+        x = self.bn2(x)
         return self.fc3(x)
 
 

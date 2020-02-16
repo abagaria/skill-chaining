@@ -19,7 +19,7 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.transitio
 class CountingLatentSpace(object):
     def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
                  pixel_observations=False, lam=0.1, attractive_loss_type="quadratic", repulsive_loss_type="exponential",
-                 optimization_quantity="count"):
+                 optimization_quantity="count", writer=None):
         """
         Latent space useful for generating pseudo-counts for states.
         Args:
@@ -49,11 +49,6 @@ class CountingLatentSpace(object):
         self.repulsive_loss_type = repulsive_loss_type
         self.pixel_observations = pixel_observations
 
-        log_dir = "runs/{}".format(experiment_name)
-        if os.path.exists(log_dir):
-            shutil.rmtree(log_dir)
-        self.writer = SummaryWriter() if experiment_name is "" else SummaryWriter("runs/{}".format(experiment_name))
-
         self.buffers = [None for _ in range(self.action_dim)]
 
         assert phi_type in ("raw", "function"), phi_type
@@ -63,6 +58,8 @@ class CountingLatentSpace(object):
 
         if phi_type == "function":
             self.reset_model()
+
+        self._create_tensor_board_logger(writer)
 
     def reset_model(self):
         if self.pixel_observations:
@@ -81,6 +78,17 @@ class CountingLatentSpace(object):
         else:
             self.buffers[action] = np.concatenate((self.buffers[action], expanded_state), axis=0)
 
+    def _create_tensor_board_logger(self, writer):
+        log_dir = "runs/{}".format(self.experiment_name)
+
+        if writer:
+            self.writer = writer
+        else:
+            if os.path.exists(log_dir):
+                shutil.rmtree(log_dir)
+            self.writer = SummaryWriter("{}".format(log_dir))
+
+        self._n_iterations = 0
 
     def train(self, action_buffers=None, state_next_state_buffer=None, tc_action_buffers=None, epochs=100):
         """
@@ -148,7 +156,7 @@ class CountingLatentSpace(object):
             epochs (int): Number of training epochs
         """
         self.model.train()
-        n_iterations = 0
+        
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
 
         data_set = MultiActionCountingDataset(action_buffers=buffers)
@@ -188,12 +196,12 @@ class CountingLatentSpace(object):
                 total_loss.backward()
                 optimizer.step()
 
-                self.writer.add_scalar("TotalLoss", total_loss.item(), n_iterations)
-                self.writer.add_scalar("RepulsiveLoss", repulsive_loss, n_iterations)
+                self.writer.add_scalar("TotalLoss", total_loss.item(), self._n_iterations)
+                self.writer.add_scalar("RepulsiveLoss", repulsive_loss, self._n_iterations)
                 if state_next_state_buffer is not None:
-                    self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), n_iterations)
+                    self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), self._n_iterations)
 
-                n_iterations = n_iterations + 1
+                self._n_iterations = self._n_iterations + 1
 
         self.buffers = buffers
 
@@ -207,7 +215,6 @@ class CountingLatentSpace(object):
 
     def _train_repulsive_function_bonuses(self, *, buffers, epochs):
         self.model.train()
-        n_iterations = 0
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
 
         data_set = BonusDataset(buffers)
@@ -224,14 +231,14 @@ class CountingLatentSpace(object):
                 bonus_loss.backward()
                 optimizer.step()
 
-                self.writer.add_scalar("BonusLoss", bonus_loss.item(), n_iterations)
-                n_iterations += 1
+                self.writer.add_scalar("BonusLoss", bonus_loss.item(), self._n_iterations)
+                self._n_iterations += 1
 
         self.buffers = buffers
 
     def _train_attractive_and_repulsive_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
         self.model.train()
-        n_iterations = 0
+        
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
 
         data_set = BonusDataset(buffers, state_next_state_buffer)
@@ -246,20 +253,26 @@ class CountingLatentSpace(object):
                 support_batch_transformed = self.model(support_batch)  # phi(s)
                 state_batch_transformed = self.model(state_batch)
                 next_state_batch_transformed = self.model(next_state_batch)
-                attractive_loss = self._counting_loss(state_batch_transformed, next_state_batch_transformed,
+
+                attractive_loss = self.lam * self._counting_loss(state_batch_transformed, next_state_batch_transformed,
                                                       loss_type=self.attractive_loss_type)
-                bonus_loss = self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
-                loss = bonus_loss - (self.lam * attractive_loss)
+
+                # Scale the bonus loss to account for the length of the buffer: roughly speaking, the impact of the counting loss scales
+                # quadratically with the size of the buffer, however that of the attractive term grows linearly. Instead of increasing
+                # lam over time, we scale the bonus loss.
+                bonus_loss = (1. / np.sqrt(len(state_next_state_buffer))) * self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
+
+                loss = bonus_loss - attractive_loss
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-                self.writer.add_scalar("TotalLoss", loss.item(), n_iterations)
-                self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), n_iterations)
-                self.writer.add_scalar("BonusLoss", bonus_loss.item(), n_iterations)
+                self.writer.add_scalar("TotalLoss", loss.item(), self._n_iterations)
+                self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), self._n_iterations)
+                self.writer.add_scalar("BonusLoss", bonus_loss.item(), self._n_iterations)
 
-                n_iterations += 1
+                self._n_iterations += 1
 
         self.buffers = buffers
 
@@ -317,7 +330,7 @@ class CountingLatentSpace(object):
     def _train_counts_with_transition_consistency(self, count_type="exponential", scaling=1., *, buffers, epochs):
         self._typecheck_transition_consistency_buffers(buffers)
         self.model.train()
-        n_iterations = 0
+        
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
         # optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
@@ -385,12 +398,12 @@ class CountingLatentSpace(object):
                 loss.backward()
                 optimizer.step()
 
-                self.writer.add_scalar("TotalLoss", loss.item(), n_iterations)
-                self.writer.add_scalar("TC-Loss", repulsive_losses.item(), n_iterations)
-                self.writer.add_scalar("TC-Other-Loss", other_repulsive_losses.item(), n_iterations)
-                self.writer.add_scalar("AttractiveLoss", attractive_losses.item(), n_iterations)
+                self.writer.add_scalar("TotalLoss", loss.item(), self._n_iterations)
+                self.writer.add_scalar("TC-Loss", repulsive_losses.item(), self._n_iterations)
+                self.writer.add_scalar("TC-Other-Loss", other_repulsive_losses.item(), self._n_iterations)
+                self.writer.add_scalar("AttractiveLoss", attractive_losses.item(), self._n_iterations)
 
-                n_iterations += 1
+                self._n_iterations += 1
 
         # Unfortunately, we need the old definition of buffers to make the other functions (like get_counts) to work
         normal_buffers = self._get_normal_buffers_from_tc_buffers(buffers)

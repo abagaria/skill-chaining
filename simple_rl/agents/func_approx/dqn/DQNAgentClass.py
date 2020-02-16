@@ -79,6 +79,15 @@ class DQNAgent(Agent):
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
+        self.writer = None
+
+        if self.tensor_log:
+            if writer:
+                self.writer = writer
+            else:
+                self.writer = SummaryWriter("runs/{}".format(experiment_name))
+
+
         # Epsilon strategy
         if exploration_method == "eps-decay":
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start, evaluation_epsilon) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
@@ -96,7 +105,8 @@ class DQNAgent(Agent):
             self.novelty_tracker = LatentCountExplorationBonus(state_dim=state_size,
                                                                action_dim=action_size,
                                                                experiment_name=experiment_name,
-                                                               pixel_observation=self.pixel_observation)
+                                                               pixel_observation=self.pixel_observation,
+                                                               normalize_states=True, writer=self.writer)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -106,8 +116,6 @@ class DQNAgent(Agent):
         self.num_updates = 0
         self.num_epsilon_updates = 0
 
-        if self.tensor_log:
-            self.writer = SummaryWriter() if writer is None else writer
 
         print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
                                                                                self.use_ddqn, BUFFER_SIZE))
@@ -340,6 +348,10 @@ class DQNAgent(Agent):
             self.writer.add_scalar("DQN-AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
             self.writer.add_scalar("DQN-AverageQValue", Q_expected.mean().item(), self.num_updates)
             self.writer.add_scalar("DQN-GradientNorm", compute_gradient_norm(self.policy_network), self.num_updates)
+            self.writer.add_scalar(
+                "DQN-AverageBonus",
+                self.novelty_tracker.get_batched_exploration_bonus(states.cpu().numpy()).mean().item(),
+                self.num_updates)
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)

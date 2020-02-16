@@ -12,7 +12,7 @@ class GymState(State):
     ''' Gym State class '''
 
     def __init__(self, data=[], is_terminal=False):
-        self.data = self.grayscale(data)
+        self.data = data  # TODO: Handle grayscale automatically
         State.__init__(self, data=self.data, is_terminal=is_terminal)
 
     def features(self):

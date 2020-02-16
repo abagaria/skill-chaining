@@ -3,6 +3,16 @@ import pickle
 import numpy as np
 
 
+def get_mean_std(s):
+    mean = np.mean(s, axis=0)
+    std = np.std(s, axis=0)
+    return mean, std
+
+
+def normalize(s, mean, std):
+    return (s - mean) / (std + 1e-6)
+
+
 def compute_gradient_norm(model):
     total_norm = 0.
     for p in model.parameters():

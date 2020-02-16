@@ -20,7 +20,7 @@ class DensePhiNetwork(nn.Module):
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = torch.tanh(self.fc3(x))
+        x = self.fc3(x)
 
         return x
 
@@ -53,5 +53,5 @@ class MNISTConvPhiNetwork(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        output = torch.tanh(x)
-        return output
+        # output = torch.tanh(x)  # TODO: Test this change
+        return x

@@ -4,9 +4,6 @@ GymMDPClass.py: Contains implementation for MDPs of the Gym Environments.
 
 # Python imports.
 import random
-import sys
-import os
-import random
 
 # Other imports.
 import gym
@@ -43,6 +40,7 @@ class GymMDP(MDP):
         self.step_reward = step_reward
         self.render = render
         self.pixel_observation = pixel_observation
+        self.state_dim = self.env.observation_space.shape if pixel_observation else self.env.observation_space.shape[0]
 
         init_obs = self.env.reset()
         action_dim = range(self.env.action_space.n) if hasattr(self.env.action_space, "n") else self.env.action_space.shape[0]
@@ -61,10 +59,15 @@ class GymMDP(MDP):
         '''
         obs, reward, done, info = self.env.step(action)
 
+        # We want the is_terminal flag to be set when the goal state has been satisfied
+        # and not when Gym raises the flag due to limited episodic budgets
+        time_limit_truncated = info.get('TimeLimit.truncated', False)
+        is_terminal = done and not time_limit_truncated
+
         if self.render:
             self.env.render()
 
-        self.next_state = GymState(obs, is_terminal=done)
+        self.next_state = GymState(obs, is_terminal=is_terminal)
 
         if self.clip_rewards:
             if reward < 0:
@@ -96,3 +99,6 @@ class GymMDP(MDP):
     def __str__(self):
         return "gym-" + str(self.env_name)
 
+    def get_position(self):
+        assert self.env_name == "MountainCar-v0"
+        return np.copy((self.cur_state.features()))
