@@ -46,7 +46,8 @@ class DQNAgent(Agent):
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
-                 pixel_observation=False, writer=None, experiment_name=""):
+                 pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
+                 novelty_during_regression=True):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -63,6 +64,8 @@ class DQNAgent(Agent):
         np.random.seed(seed)
         self.tensor_log = tensor_log
         self.device = device
+        self.bonus_scaling_term = bonus_scaling_term
+        self.novelty_during_regression = novelty_during_regression
 
         # Q-Network
         if pixel_observation:
@@ -106,7 +109,8 @@ class DQNAgent(Agent):
                                                                action_dim=action_size,
                                                                experiment_name=experiment_name,
                                                                pixel_observation=self.pixel_observation,
-                                                               normalize_states=True, writer=self.writer)
+                                                               normalize_states=True, writer=self.writer,
+                                                               bonus_scaling_term=bonus_scaling_term)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -251,13 +255,13 @@ class DQNAgent(Agent):
 
         """
         Q_targets_next = self.target_network(next_states).detach()
-        if self.exploration_method == "count-gt":
+        if self.exploration_method == "count-gt" and self.novelty_during_regression:
             next_positions_array = next_positions.cpu().numpy()
             bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_positions_array)
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
-        if self.exploration_method == "count-phi":
+        if self.exploration_method == "count-phi" and self.novelty_during_regression:
             next_states_array = next_states.cpu().numpy()
             bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_states_array)
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)

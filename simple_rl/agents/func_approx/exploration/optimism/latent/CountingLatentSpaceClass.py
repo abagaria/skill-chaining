@@ -19,7 +19,7 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.transitio
 class CountingLatentSpace(object):
     def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
                  pixel_observations=False, lam=0.1, attractive_loss_type="quadratic", repulsive_loss_type="exponential",
-                 optimization_quantity="count", writer=None):
+                 optimization_quantity="count", bonus_scaling_term="sqrt", writer=None):
         """
         Latent space useful for generating pseudo-counts for states.
         Args:
@@ -35,6 +35,8 @@ class CountingLatentSpace(object):
             repulsive_loss_type (str): form of the loss term that pushes apart representations
                                        for any two states
             optimization_quantity (str): What we're trying to optimize. We either minimize "count" or maximize exploration "bonus"
+            bonus_scaling_term (str): Form of the term used to scale the bonus loss term when combined with MDP distance term
+            writer (SummaryWriter): tensorboard logging
         """
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -55,6 +57,9 @@ class CountingLatentSpace(object):
         assert optimization_quantity in ("count", "bonus", "count-tc"), optimization_quantity
 
         self.optimization_quantity = optimization_quantity
+        self.bonus_scaling_term = bonus_scaling_term
+
+        assert bonus_scaling_term in ("none", "sqrt", "linear"), bonus_scaling_term
 
         if phi_type == "function":
             self.reset_model()
@@ -237,6 +242,14 @@ class CountingLatentSpace(object):
         self.buffers = buffers
 
     def _train_attractive_and_repulsive_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
+
+        def _get_bonus_scaling_term():
+            if self.bonus_scaling_term == "none":
+                return 1.
+            if self.bonus_scaling_term == "sqrt":
+                return 1. / np.sqrt(len(state_next_state_buffer))
+            return 1. / (len(state_next_state_buffer))
+
         self.model.train()
         
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
@@ -260,7 +273,8 @@ class CountingLatentSpace(object):
                 # Scale the bonus loss to account for the length of the buffer: roughly speaking, the impact of the counting loss scales
                 # quadratically with the size of the buffer, however that of the attractive term grows linearly. Instead of increasing
                 # lam over time, we scale the bonus loss.
-                bonus_loss = (1. / np.sqrt(len(state_next_state_buffer))) * self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
+                print(f"Bonus scaling type is {self.bonus_scaling_term}, term is {_get_bonus_scaling_term()}")
+                bonus_loss = _get_bonus_scaling_term() * self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
 
                 loss = bonus_loss - attractive_loss
 

@@ -41,7 +41,7 @@ def moving_average(a, n=25):
 
 def save_scores(scores, experiment_name, seed, run_title=None):
     if run_title:
-        filename = f"{experiment_name}/{run_title}/seed_{seed}_scores.pkl"
+        filename = f"{experiment_name}/{run_title}/scores/seed_{seed}_scores.pkl"
     else:
         filename = f"{experiment_name}/{experiment_name}_seed_{seed}_scores.pkl"
     with open(filename, "wb+") as f:

@@ -24,14 +24,17 @@ class Experiment12:
     """ RL on mountain car using the learned exploration bonus. """
 
     def __init__(self, seed, *, pixel_observation,
-                 eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name):
+                 eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
+                 bonus_scaling_term, no_novelty_during_regression):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation, seed=seed)
         state_dim = self.mdp.state_dim
+        self.novelty_during_regression = not no_novelty_during_regression
         self.agent = DQNAgent(state_size=state_dim, action_size=len(self.mdp.actions),
                           trained_options=[], seed=seed, device=device,
                           name="GlobalDDQN", lr=1e-3, use_double_dqn=False, # TODO: Changed learning rate
                           exploration_method=exploration_method, pixel_observation=pixel_observation,
-                          evaluation_epsilon=eval_eps, tensor_log=True, experiment_name=experiment_name)
+                          evaluation_epsilon=eval_eps, tensor_log=True, experiment_name=experiment_name,
+                          bonus_scaling_term=bonus_scaling_term, novelty_during_regression=self.novelty_during_regression)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -39,8 +42,8 @@ class Experiment12:
         self.experiment_name = experiment_name
 
     def run_experiment(self):
-        training_scores = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
-        return training_scores
+        training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
+        return training_scores, training_durations
 
     def make_latent_plot(self, agent, episode):
 
@@ -97,7 +100,10 @@ class Experiment12:
 
     def train_dqn_agent(self, agent, mdp, episodes, steps):
         per_episode_scores = []
+        per_episode_durations = []
+
         last_10_scores = deque(maxlen=10)
+        last_10_durations = deque(maxlen=10)
         iteration_counter = 0
 
         for episode in range(episodes):
@@ -105,7 +111,8 @@ class Experiment12:
             state = deepcopy(mdp.cur_state)
 
             score = 0.
-            for _ in range(steps):
+
+            for step in range(steps):
                 agent.writer.add_scalar("TestingItOut", iteration_counter, iteration_counter)
                 iteration_counter += 1
 
@@ -139,14 +146,17 @@ class Experiment12:
                     self.make_value_plot(agent, episode)
 
             last_10_scores.append(score)
+            last_10_durations.append(step + 1)
             per_episode_scores.append(score)
+            per_episode_durations.append(step + 1)
 
             sns_size = len(agent.novelty_tracker.un_normalized_sns_buffer)
             lam = agent.novelty_tracker.counting_space.lam
-            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam {}'.format(episode,
-                                                                                             np.mean(last_10_scores),
-                                                                                             agent.epsilon, sns_size, lam))
-        return per_episode_scores
+            print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam {}'.format(episode,
+                                                                                                                             np.mean(last_10_scores),
+                                                                                                                             np.mean(last_10_durations),
+                                                                                                                             agent.epsilon, sns_size, lam))
+        return per_episode_scores, per_episode_durations
 
 
 if __name__ == "__main__":
@@ -163,6 +173,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_bonus_during_action_selection", type=bool, default=False)
     parser.add_argument("--eval_eps", type=float, default=0.05)
     parser.add_argument("--make_plots", action="store_true", default=False)
+    parser.add_argument("--bonus_scaling_term", type=str, default="sqrt")
+    parser.add_argument("--no_novelty_during_regression", action="store_true", default=False)
 
     args = parser.parse_args()
 
@@ -173,13 +185,15 @@ if __name__ == "__main__":
     create_log_dir(f"{full_experiment_name}/bonus_plots")
     create_log_dir(f"{full_experiment_name}/latent_plots")
     create_log_dir(f"{full_experiment_name}/qf_plots")
+    create_log_dir(f"{full_experiment_name}/scores")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     exp = Experiment12(args.seed, pixel_observation=args.pixel_observation,
                       eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes,
-                      num_steps=args.steps, device=device, experiment_name=full_experiment_name)
+                      num_steps=args.steps, device=device, experiment_name=full_experiment_name, bonus_scaling_term=args.bonus_scaling_term,
+                       no_novelty_during_regression=args.no_novelty_during_regression)
 
-    episodic_scores = exp.run_experiment()
+    episodic_scores, episodic_durations = exp.run_experiment()
 
-    save_scores(episodic_scores, args.experiment_name, args.seed, run_title=args.run_title)
+    save_scores(episodic_durations, args.experiment_name, args.seed, run_title=args.run_title)

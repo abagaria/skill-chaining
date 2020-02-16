@@ -7,7 +7,8 @@ import ipdb
 
 
 class LatentCountExplorationBonus(ExplorationBonus):
-    def __init__(self, state_dim, action_dim, latent_dim=2, lam=.1, epsilon=0.1, writer=None, *, experiment_name, pixel_observation, normalize_states):
+    def __init__(self, state_dim, action_dim, latent_dim=2, lam=0.1, epsilon=0.1,
+                 writer=None, *, experiment_name, pixel_observation, normalize_states, bonus_scaling_term):
         """
 
         Args:
@@ -19,6 +20,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
             experiment_name:
             pixel_observation:
             normalize_states (bool): Whether to take care of normalization here or not
+            bonus_scaling_term (str)
         """
         super(LatentCountExplorationBonus, self).__init__()
 
@@ -26,7 +28,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
                                                   latent_dim=latent_dim, epsilon=epsilon,
                                                   phi_type="function", experiment_name=experiment_name,
                                                   pixel_observations=pixel_observation, lam=lam,
-                                                  optimization_quantity="bonus", writer=writer)
+                                                  optimization_quantity="bonus", writer=writer,
+                                                  bonus_scaling_term=bonus_scaling_term)
 
         self.un_normalized_sns_buffer = []
         self.actions = list(range(0, action_dim))
@@ -35,6 +38,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
         self.action_dim = action_dim
         self.latent_dim = latent_dim
         self.normalize_states = normalize_states
+        self.bonus_scaling_term = bonus_scaling_term
 
         # Normalization constants
         self.mean_state = np.array([0.])
