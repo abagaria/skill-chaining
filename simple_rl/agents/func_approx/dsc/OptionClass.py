@@ -17,10 +17,11 @@ from sklearn.linear_model import LogisticRegressionCV as LRCV
 from sklearn.model_selection import train_test_split
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 import seaborn as sns
 import pandas as pd
-sns.set(color_codes=True)
-sns.set_style("white")
+# sns.set(color_codes=True)
+# sns.set_style("white")
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -65,7 +66,6 @@ class Option(object):
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
 		self.writer = writer
-
 		self.timeout = np.inf
 
 		# Global option operates on a time-scale of 1 while child (learned) options are temporally extended
@@ -101,11 +101,12 @@ class Option(object):
 		# TODO: initiation set classifier variables
 		self.X = None		
 		self.y = None		
-		self.tcsvm = None
-		self.ocsvm = None
+		self.tc_svm = None
+		self.oc_svm = None
 		self.psmod = None
-		self.tcsvm_prob = []
-		self.ocsvm_prob = []
+		self.tc_svm_prob = []
+		self.oc_svm_prob = []
+		self.train_counter = 0
 
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -294,12 +295,15 @@ class Option(object):
 			trained (bool): whether or not we actually trained this option
 		"""
 		# TODO: remove
-		print("|-> (Option::train): call (train untrained option)")
-		print("  |-> num_goal_hits: {}, num_subgoal_hits_required: {} ".format(self.num_goal_hits, self.num_subgoal_hits_required))
+		print("|-> (Option::train): call (train option {})".format(self.option_idx))
 		
 		self.add_initiation_experience(state_buffer)
 		self.add_experience_buffer(experience_buffer)
 		self.num_goal_hits += 1
+
+		# TODO: remove
+		print("  |-> num_goal_hits: {}, num_subgoal_hits_required: {} ".format(
+			self.num_goal_hits, self.num_subgoal_hits_required))
 
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
 			# self.train_initiation_classifier()
@@ -422,8 +426,13 @@ class Option(object):
 			if self.is_term_true(state):
 				self.num_goal_hits += 1
 
-			if self.get_training_phase() == "initiation" and self.name != "global_option":
-				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
+			# if self.get_training_phase() == "initiation" and self.name != "global_option":
+			# 	self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
+
+			# TODO: refine after execution (no longer initiation period)
+			if self.name != "global_option" and self.get_training_phase() != "gestation":
+				self.refine_initiation_set_classifier(
+					visited_states, start_state, state, num_steps, step_number)
 
 			if self.writer is not None:
 				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
@@ -527,54 +536,76 @@ class Option(object):
 		# TODO: remove
 		print("|-> notes/classifier_plots/ep-{}-classifier.png saved!".format(episode))
 
+	# TODO: utilities
+	def plot_boundary(self, X, clf, color, option_id, option_name, clf_name, cnt):
+		x, y = X[:,0], X[:,1]
+		x_mesh, y_mesh = self.make_meshgrid(x, y)
+
+		z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
+		z = z.reshape(x_mesh.shape)
+
+		# Color mapping of white and option color
+		colors = [(1, 1, 1), color]
+		cmap = ListedColormap(colors)
+
+		plt.contourf(x_mesh, y_mesh, z, cmap=cmap, alpha=0.8)
+		plt.xticks(())
+		plt.yticks(())
+		plt.title("{} - {} (t = {})".format(option_name, clf_name, cnt))
+		
+		# Save plots
+		plt.savefig("notes/clf_plots/option_{}-{}-{}.png".format(option_id, clf_name, cnt),
+                    bbox_inches='tight', edgecolor='black')
+		plt.close()
+
+		# TODO: remove
+		print("  |-> notes/clf_plots/option_{}-{}-{}.png saved!".format(option_id, clf_name, cnt))
+
 	# TODO: Optimistic classifier
-	def opt_clf(self, X_, y_):
+	def tc_svm_clf(self, X, y):
 		"""
 		Optimistic classifier that is two-class SVM 
 		
 		Args:
-			X_: Input data
-			y_: Input labels
+			X: Input data
+			y: Input labels
 		
 		Returns:
 			Fitted two-class linear SVM
 		"""
-		tcsvm = svm.SVC(probability=True)
+		tc_svm = svm.SVC(gamma='scale', probability=True, class_weight='balanced')
 		
-		return tcsvm.fit(X_, y_)
+		return tc_svm.fit(X, y)
 	
 	# TODO: Pessimistic classifier
-	def pes_clf(self, tcsvm_, X_, y_):
+	def oc_svm_clf(self, tc_svm, X, y):
 		"""
 		Pessimistic classifier that is a one-class SVM
 		
 		Args:
-			tcsmv_: fitted two-class SVM
-			X_: Input data
-			y_: Input labels
+			tc_smv: fitted two-class SVM
+			X: Input data
+			y: Input labels
 
 		Returns:
 			Fitted one-class SVM on positive classification of two-class SVM
 		"""
 		# Get subset of inputs that are on the (+) side of the optimistic classifier
-		y_pred = tcsvm_.predict(X_)
-		X_pos, y_pos, X_neg, y_neg = [], [], [], []
-		for i, label in enumerate(y_pred):
-			if label == 1:
-				X_pos.append(X_[i])
-				y_pos.append(y_[i])
-			else:
-				X_neg.append(X_[i])
-				y_neg.append(y_[i])
-		X_pos, y_pos, X_neg, y_neg = np.array(X_pos), np.array(y_pos), np.array(X_neg), np.array(y_neg)
+		y_pred = tc_svm.predict(X)
+		X_pos = X[y_pred == 1]
+		y_pos = [1] * X_pos.shape[0]
 
 		# Fit one-class SVM (non-linear) from (+) subset of inputs from two-class SVM
-		ocsvm = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		oc_svm = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
 		
-		return ocsvm.fit(X_pos, y_pos)
+		if len(X_pos) != 0:
+			return oc_svm.fit(X_pos, y_pos)
+		else:
+			# No samples
+			return False  
 
 	# TODO: Platt Scalling module
-	def platt_scale(self, ocsvm_, X_, train_size, cv_size, outlier=False):
+	def platt_scale(self, oc_svm, X, train_size, cv_size):
 		"""
 		Uses Platt Scalling to get probability values from one-class SVM
 		
@@ -591,12 +622,10 @@ class Option(object):
 		"""
 		
 		# Get SVM predictions
-		y_SVM_pred = ocsvm_.predict(X_)
-		if outlier:
-			y_SVM_pred = y_SVM_pred * -1
+		y_SVM_pred = oc_svm.predict(X)
 		
 		# Split the data and SVM labels
-		X_train, X_test, y_train, y_test = train_test_split(X_, y_SVM_pred, train_size=train_size)
+		X_train, X_test, y_train, y_test = train_test_split(X, y_SVM_pred, train_size=train_size)
 
 		# Train using logistic regression layer with cross validation 
 		lr = LRCV(cv=cv_size)
@@ -606,14 +635,14 @@ class Option(object):
 
 	# TODO: utilities
 	def get_examples(self, k):
-		"""Gets first k (x,y) states from the global replay buffer"""
+		"""Gets random k (x,y) states from the global replay buffer"""
 		
 		# Replay buffer entry: (state, action, reward, next_state, terminal)
-		exp_states = [row[0] for row in list(self.global_solver.replay_buffer.memory)][:k]
+		exp_states = random.sample(list(self.global_solver.replay_buffer.memory), k)
+		exp_states = [row[0] for row in exp_states]
 		
 		# Return only (x,y) coordinates
 		return [row[:2] for row in exp_states]
-
 
 	# TODO: main initiation set classifier call
 	def train_initiation_set_classifier(self):
@@ -622,9 +651,14 @@ class Option(object):
 		# TODO: remove
 		print("|-> (OptionClass::train_initiation_set_classifier): call")
 
-		# If no negative examples, pick first 20 states to be negative
+		# If no negative examples, pick first k states to be negative
 		if not self.negative_examples:
-			self.negative_examples.append(self.get_examples(20))
+			k=10
+			print("  |-> No negative examples!...Adding {} now".format(k))
+			self.negative_examples.append(self.get_examples(k))
+
+		if not self.positive_examples:
+			print("  |-> No positive examples!")
 
 		# Create input and labels
 		positive_feature_matrix = self.construct_feature_matrix(
@@ -639,18 +673,32 @@ class Option(object):
 		self.y = np.concatenate((positive_labels, negative_labels))
 
 		# Fit classifiers
-		self.tcsvm = self.opt_clf(self.X, self.y)
-		self.ocsvm = self.pes_clf(self.tcsvm, self.X, self.y)
+		self.tc_svm = self.tc_svm_clf(self.X, self.y)
+		oc_svm = self.oc_svm_clf(self.tc_svm, self.X, self.y)
+		if oc_svm != False:
+			self.oc_svm = oc_svm
+		
+		self.train_counter += 1
 
 		# Platt scalling module
-		self.psmod, prob_inlier = self.platt_scale(self.ocsvm, self.X, 0.90, 5)
+		# self.psmod, _ = self.platt_scale(self.oc_svm, self.X, 0.90, 5)
 
 		# Save probabilities
-		# self.tcsvm_prob.append(self.tcsvm.score(self.X, self.y))
-		# self.ocsvm_prob.append(np.average(prob_inlier[:, 1]))
+		# self.tc_svm_prob.append(np.average(self.tc_svm.predict_proba(X)))
+		# self.oc_svm_prob.append(np.average(self.psmod.predict_proba(X)))
+
+		# Plotting
+		option_id = self.option_idx - 1 # off by 1
+		option_name = self.name
+		colors = sns.color_palette()
+		exp_states = [row[0] for row in list(self.global_solver.replay_buffer.memory)]
+		X_global = np.array([np.array(row[:2]) for row in exp_states])
+
+		self.plot_boundary(X_global, self.tc_svm, colors[0], option_id, option_name, 'tc_svm', self.train_counter)
+		self.plot_boundary(X_global, self.oc_svm, colors[1], option_id, option_name, 'oc_svm', self.train_counter)
 
 		# Set initiation set classifier
-		self.initiation_classifier = self.ocsvm
+		self.initiation_classifier = self.tc_svm
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state
