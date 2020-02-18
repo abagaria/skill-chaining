@@ -352,10 +352,12 @@ class DQNAgent(Agent):
             self.writer.add_scalar("DQN-AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
             self.writer.add_scalar("DQN-AverageQValue", Q_expected.mean().item(), self.num_updates)
             self.writer.add_scalar("DQN-GradientNorm", compute_gradient_norm(self.policy_network), self.num_updates)
-            self.writer.add_scalar(
-                "DQN-AverageBonus",
-                self.novelty_tracker.get_batched_exploration_bonus(states.cpu().numpy()).mean().item(),
-                self.num_updates)
+
+            if self.exploration_method == "count-phi":
+                self.writer.add_scalar(
+                    "DQN-AverageBonus",
+                    self.novelty_tracker.get_batched_exploration_bonus(states.cpu().numpy()).mean().item(),
+                    self.num_updates)
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)

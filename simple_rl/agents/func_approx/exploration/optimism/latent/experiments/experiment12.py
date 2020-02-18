@@ -150,8 +150,8 @@ class Experiment12:
             per_episode_scores.append(score)
             per_episode_durations.append(step + 1)
 
-            sns_size = len(agent.novelty_tracker.un_normalized_sns_buffer)
-            lam = agent.novelty_tracker.counting_space.lam
+            sns_size = len(agent.novelty_tracker.un_normalized_sns_buffer) if self.exploration_method == "count-phi" else 0
+            lam = agent.novelty_tracker.counting_space.lam if self.exploration_method == "count-phi" else 0
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam {}'.format(episode,
                                                                                                                              np.mean(last_10_scores),
                                                                                                                              np.mean(last_10_durations),
