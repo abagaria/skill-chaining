@@ -1,3 +1,5 @@
+*.png
+*.gif
 *.pyc
 results/
 build/
