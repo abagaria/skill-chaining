@@ -21,10 +21,12 @@ class Experiment10:
     Results:
         It makes really good clusters. But sometimes they live on top of each other.
     """
-    def __init__(self, epsilon, num_steps=200, seed=0, lam=0.1, use_noise=False, use_small_grid=False, num_epochs=1):
+    def __init__(self, epsilon, num_steps=200, seed=0, lam=0.1,
+                 use_noise=False, use_small_grid=False, num_epochs=1, weighted_actions=False):
         self.num_steps = num_steps
         np.random.seed(seed)
         self.num_epochs = num_epochs
+        self.weighted_actions = weighted_actions
 
         if use_small_grid:
             self.env = GridWorld(2, 2)
@@ -64,6 +66,13 @@ class Experiment10:
             action_buffers.append(states_array)
         return action_buffers
 
+    def _get_weighted_random_action(self):
+        if not self.weighted_actions:
+            return random.choice(self.env.actions)
+
+        probabilities = [0.3, 0.2, 0.3, 0.2]
+        return np.random.choice(self.env.actions, p=probabilities)
+
     def generate_data(self):
         # Init state
         state = self.env.agent.position
@@ -77,8 +86,12 @@ class Experiment10:
 
         obs_next_obs_dict = {action: [] for action in self.env.actions}
 
+        action_dict = defaultdict(int)
+
         for _ in tqdm(range(self.num_steps)):
-            action = random.choice(self.env.actions)
+            # action = random.choice(self.env.actions)
+            action = self._get_weighted_random_action()
+            action_dict[action] += 1
             next_state, _, done = self.env.step(action)
 
             obs = self.sensor.observe(state)
@@ -97,6 +110,7 @@ class Experiment10:
                 state = self.env.reset_agent()
 
         # action_buffers = self._get_action_buffers(state_action_dict)
+        print(action_dict)
         return obs_next_obs_dict, gt_state_action_counts, gt_state_observation_map, state_buffer, obs_buffer
 
     @staticmethod
@@ -250,10 +264,11 @@ if __name__ == '__main__':
     parser.add_argument("--small_grid", action="store_true", default=False)
     parser.add_argument("--num_steps", type=int, default=200)
     parser.add_argument("--num_epochs", type=int, default=1)
+    parser.add_argument("--weighted_actions", action="store_true", default=False)
 
     args = parser.parse_args()
     exp = Experiment10(args.epsilon, seed=0, lam=args.lam, use_noise=args.use_noise, use_small_grid=args.small_grid,
-                      num_steps=args.num_steps, num_epochs=args.num_epochs)
+                      num_steps=args.num_steps, num_epochs=args.num_epochs, weighted_actions=args.weighted_actions)
     gt_sa_counts = exp.run_experiment()
 
     """

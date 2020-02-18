@@ -53,5 +53,6 @@ class MNISTConvPhiNetwork(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        # output = torch.tanh(x)  # TODO: Test this change
         return x
+        # output = torch.tanh(x)  # TODO: Test this change
+        # return output

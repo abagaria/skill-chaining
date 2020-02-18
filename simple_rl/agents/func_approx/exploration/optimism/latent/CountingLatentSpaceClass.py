@@ -210,6 +210,13 @@ class CountingLatentSpace(object):
 
         self.buffers = buffers
 
+    def _get_bonus_scaling_term(self, state_next_state_buffer):
+        if self.bonus_scaling_term == "none":
+            return 1.
+        if self.bonus_scaling_term == "sqrt":
+            return 1. / np.sqrt(len(state_next_state_buffer))
+        return 1. / (len(state_next_state_buffer))
+
     def _train_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
         if state_next_state_buffer is None:
             self._train_repulsive_function_bonuses(buffers=buffers, epochs=epochs)
@@ -243,13 +250,6 @@ class CountingLatentSpace(object):
 
     def _train_attractive_and_repulsive_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
 
-        def _get_bonus_scaling_term():
-            if self.bonus_scaling_term == "none":
-                return 1.
-            if self.bonus_scaling_term == "sqrt":
-                return 1. / np.sqrt(len(state_next_state_buffer))
-            return 1. / (len(state_next_state_buffer))
-
         self.model.train()
         
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
@@ -273,8 +273,7 @@ class CountingLatentSpace(object):
                 # Scale the bonus loss to account for the length of the buffer: roughly speaking, the impact of the counting loss scales
                 # quadratically with the size of the buffer, however that of the attractive term grows linearly. Instead of increasing
                 # lam over time, we scale the bonus loss.
-                print(f"Bonus scaling type is {self.bonus_scaling_term}, term is {_get_bonus_scaling_term()}")
-                bonus_loss = _get_bonus_scaling_term() * self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
+                bonus_loss = self._get_bonus_scaling_term(state_next_state_buffer) * self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
 
                 loss = bonus_loss - attractive_loss
 
@@ -355,6 +354,7 @@ class CountingLatentSpace(object):
             for batch_idx, action_to_sns_dict in enumerate(loader):
                 repulsive_losses = 0
                 attractive_losses = 0
+                mean_counts_for_parent = 0.
 
                 for action in action_to_sns_dict:
                     action_batch = action_to_sns_dict[action].to(self.device)
@@ -377,13 +377,11 @@ class CountingLatentSpace(object):
                     with torch.no_grad():
                         counts_for_parent = self._get_total_counts_from_square_distance_matrix(
                             squared_distance_from_parent, count_type=count_type).detach()
+                        mean_counts_for_parent += counts_for_parent.sum()
 
-                    # import ipdb; ipdb.set_trace()
                     repulsion_amount = (1 - scaling*counts_for_parent) * counts_for_child
                     repulsion_loss = repulsion_amount  #-1. / (repulsion_amount.sum(dim=1) + 1e-2).sqrt()
                     repulsive_losses += repulsion_loss.sum()
-
-
 
                     other_repulsive_losses = 0
                     for other_action in action_to_sns_dict:
@@ -398,15 +396,17 @@ class CountingLatentSpace(object):
                         other_action_loss = other_action_counts.sum()
                         other_repulsive_losses += other_action_loss
 
-
-
-
                     attraction_loss = self._counting_loss(action_batch_parent_transformed, action_batch_child_transformed, self.attractive_loss_type)
 
                     attractive_losses += (self.lam * attraction_loss)
 
+                # We scale the repulsive losses by N because we are using the counting losses for now
+                # If we were to use bonus based repulsive forces, we would scale by sqrt(N)
+                # as in the function _train_attractive_and_repulsive_function_bonuses(...)
+                repulsive_losses = repulsive_losses / len(data_set)
+                other_repulsive_losses = other_repulsive_losses / len(data_set)
 
-                loss = repulsive_losses + attractive_losses + other_repulsive_losses
+                loss = repulsive_losses + other_repulsive_losses - attractive_losses
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -416,6 +416,7 @@ class CountingLatentSpace(object):
                 self.writer.add_scalar("TC-Loss", repulsive_losses.item(), self._n_iterations)
                 self.writer.add_scalar("TC-Other-Loss", other_repulsive_losses.item(), self._n_iterations)
                 self.writer.add_scalar("AttractiveLoss", attractive_losses.item(), self._n_iterations)
+                self.writer.add_scalar("MeanCountsForParents", mean_counts_for_parent / (len(data_set) ** 2), self._n_iterations)
 
                 self._n_iterations += 1
 
