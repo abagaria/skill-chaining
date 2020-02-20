@@ -264,11 +264,4 @@ def replay_trajectory(trajectory, dir_name):
 		img_array = mdp.env.render(mode="rgb_array")
 		img = Image.fromarray(img_array)
 		img.save("{}/frame{}.png".format(dir_name, i))
-
-def main():
-	# Tests
-	get_grid_states()
-
-if __name__ == "__main__":
-	main()
 	

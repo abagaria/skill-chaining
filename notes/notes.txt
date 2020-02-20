@@ -8,7 +8,7 @@ Experience Format (s, a, r, s'):
 
 
 # test
-python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="sc_opt_pes_test" --episodes=100 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cpu" --num_subgoal_hits=1
+python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="sc_opt_pes_test1" --episodes=100 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cpu" --num_subgoal_hits=1
 
 # baseline
 python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="sc_opt_pes_test" --episodes=2000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cpu" --num_subgoal_hits=3

@@ -1,10 +1,23 @@
 import imageio
 import os
 import sys
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--opt_ids',
+    nargs='*',
+    type=int
+)
+parser.add_argument(
+    '--num_frames',
+    nargs='*',
+    type=int
+)
 
 # Image info
-opt_ids = [0, 1, 2, 3]
-num_frames = [3, 26, 3, 4]
+args = parser.parse_args()
+opt_ids, num_frames = args.opt_ids, args.num_frames
 clfs = ['tc_svm', 'oc_svm']
 dir_path = 'clf_plots/'
 gif_dir_path = 'clf_gifs/'

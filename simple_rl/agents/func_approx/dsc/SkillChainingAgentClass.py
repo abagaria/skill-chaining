@@ -439,13 +439,13 @@ class SkillChaining(object):
 						
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 						
-						# if self.should_create_more_options():
-						# 	new_option = self.create_child_option(self.untrained_option)
-						# 	self.untrained_option = new_option
+						if self.should_create_more_options():
+							new_option = self.create_child_option(self.untrained_option)
+							self.untrained_option = new_option
 
 						# TODO: create child option
-						new_option = self.create_child_option(self.untrained_option)
-						self.untrained_option = new_option
+						# new_option = self.create_child_option(self.untrained_option)
+						# self.untrained_option = new_option
 
 				if state.is_terminal():
 					break
@@ -639,6 +639,9 @@ if __name__ == '__main__':
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+
+	# TODO: remove
+	print("Scores: {}".format(episodic_scores))
 
 	# Log performance metrics
 	chainer.save_all_models()
