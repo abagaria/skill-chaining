@@ -1,8 +1,43 @@
 import numpy as np
 
 import gym
-from gym.spaces import Box
+from gym import spaces
 import pdb
+import cv2
+
+
+class VisualControlWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super(VisualControlWrapper, self).__init__(env)
+
+    def step(self, action):
+        features, reward, done, info =  super(VisualControlWrapper, self).step(action)
+        obs = self.render(mode="rgb_array")
+        info["features"] = features
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        self.env.reset(**kwargs)
+        obs = self.render(mode="rgb_array")
+        return obs
+
+
+class WarpFrame2(gym.ObservationWrapper):
+    def __init__(self, env, res=84):
+        """ Warp frames to 84x84 as done in the Nature paper and later work. """
+        gym.ObservationWrapper.__init__(self, env)
+        self.width = res
+        self.height = res
+        self.observation_space = spaces.Box(low=0, high=255,
+            shape=(self.height, self.width), dtype=np.uint8)
+
+    def observation(self, frame):
+        # pdb.set_trace()
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
+        # import ipdb; ipdb.set_trace()
+        return frame
+        # return frame[:, :, None]
 
 
 class AtariPreprocessing(gym.Wrapper):

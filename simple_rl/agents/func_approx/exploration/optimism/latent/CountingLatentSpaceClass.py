@@ -12,6 +12,7 @@ from . import naive_spread_counter
 from .model import DensePhiNetwork, MNISTConvPhiNetwork
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.generated_dataset import MultiActionCountingDataset, StateNextStateDataset
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.generated_bonus_dataset import BonusDataset
+from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.chunked_state_dataset import ChunkedStateDataset
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.transition_consistency_dataset import TransitionConsistencyDataset, collate_fn
 
 # TODO: Refactor dataset filenames so they are UpperCamelCase
@@ -19,7 +20,7 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.transitio
 class CountingLatentSpace(object):
     def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
                  pixel_observations=False, lam=0.1, attractive_loss_type="quadratic", repulsive_loss_type="exponential",
-                 optimization_quantity="count", bonus_scaling_term="sqrt", writer=None):
+                 optimization_quantity="count", bonus_scaling_term="sqrt", writer=None, approx_chunk_size=1000):
         """
         Latent space useful for generating pseudo-counts for states.
         Args:
@@ -50,11 +51,12 @@ class CountingLatentSpace(object):
         self.attractive_loss_type = attractive_loss_type
         self.repulsive_loss_type = repulsive_loss_type
         self.pixel_observations = pixel_observations
+        self.approx_chunk_size = approx_chunk_size
 
         self.buffers = [None for _ in range(self.action_dim)]
 
         assert phi_type in ("raw", "function"), phi_type
-        assert optimization_quantity in ("count", "bonus", "count-tc"), optimization_quantity
+        assert optimization_quantity in ("count", "bonus", "count-tc", "approx-count"), optimization_quantity
 
         self.optimization_quantity = optimization_quantity
         self.bonus_scaling_term = bonus_scaling_term
@@ -121,6 +123,8 @@ class CountingLatentSpace(object):
         elif self.optimization_quantity == "count-tc":
             assert tc_action_buffers is not None
             return self._train_counts_with_transition_consistency(buffers=tc_action_buffers, epochs=epochs)
+        elif self.optimization_quantity == "approx-count":
+            return self._train_chunked_attractive_and_repulsive_function_counts(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
         raise NotImplementedError(f"Optimization quantity {self.optimization_quantity} not implemented yet.")
 
     def extract_features(self, states):
@@ -289,6 +293,50 @@ class CountingLatentSpace(object):
 
         self.buffers = buffers
 
+    def _train_chunked_attractive_and_repulsive_function_counts(self, *, buffers, state_next_state_buffer, epochs):
+
+        self.model.train()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
+        data_set = ChunkedStateDataset(buffers, state_next_state_buffer, chunk_size=self.approx_chunk_size)
+
+        for epoch in tqdm(range(epochs)):
+            data_set.set_indices()
+            for batch_id, (fc_state_tensor, fc_action_tensor, sc_state_tensor, sc_action_tensor,
+                           sns_state_tensor, sns_next_state_tensor) in enumerate(data_set):
+
+                fc_state_tensor = fc_state_tensor.to(self.device)
+                # fc_action_tensor = fc_action_tensor.to(self.device)
+                sc_state_tensor = sc_state_tensor.to(self.device)
+                # sc_action_tensor = sc_action_tensor.to(self.device)
+                sns_state_tensor = sns_state_tensor.to(self.device)
+                sns_next_state_tensor = sns_next_state_tensor.to(self.device)
+
+                fc_state_transformed = self.model(fc_state_tensor)
+                sc_state_transformed = self.model(sc_state_tensor)
+                sns_state_transformed = self.model(sns_state_tensor)
+                sns_next_state_transformed = self.model(sns_next_state_tensor)
+
+                attractive_loss = self.lam * self._counting_loss(sns_state_transformed, sns_next_state_transformed,
+                                                                 loss_type=self.attractive_loss_type)
+
+                outer_product_counts = self._get_all_counts_for_outer_product(fc_state_transformed, sc_state_transformed, count_type="exponential")
+                repulsive_loss = outer_product_counts.sum()
+
+                loss = repulsive_loss - attractive_loss
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+
+                self.writer.add_scalar("TotalLoss", loss.item(), self._n_iterations)
+                self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), self._n_iterations)
+                self.writer.add_scalar("RepulsiveLoss", repulsive_loss.item(), self._n_iterations)
+
+                self._n_iterations += 1
+
+        self.buffers = buffers
+
     def _typecheck_transition_consistency_buffers(self, buffers):
         """
         This function checks the buffers to make sure a bunch of things are true about their shapes and sizes.
@@ -321,7 +369,12 @@ class CountingLatentSpace(object):
         buffers = [b[:,0,...] for b in tc_buffers]
         return buffers
 
-    def _get_total_counts_from_square_distance_matrix(self, squared_distance_matrix, count_type="exponential"):
+    def _get_all_counts_for_outer_product(self, state_vector_1, state_vector_2, count_type="exponential"):
+        squared_distance_matrix = naive_spread_counter.torch_get_square_distances_to_buffer(state_vector_1, state_vector_2)
+        all_counts = self._get_all_counts_from_squared_distance_matrix(squared_distance_matrix, count_type=count_type)
+        return all_counts
+
+    def _get_all_counts_from_squared_distance_matrix(self, squared_distance_matrix, count_type="exponential"):
         """
 
         Args:
@@ -372,10 +425,10 @@ class CountingLatentSpace(object):
                     squared_distance_from_parent = naive_spread_counter.torch_get_square_distances_to_buffer(action_batch_parent_transformed, full_action_buffer_parent_transformed)
                     squared_distance_from_child = naive_spread_counter.torch_get_square_distances_to_buffer(action_batch_child_transformed, full_action_buffer_child_transformed)
                     assert squared_distance_from_parent.shape == squared_distance_from_child.shape == torch.Size((len(action_batch), len(full_action_buffer)))
-                    counts_for_child = self._get_total_counts_from_square_distance_matrix(squared_distance_from_child, count_type=count_type)
+                    counts_for_child = self._get_all_counts_from_squared_distance_matrix(squared_distance_from_child, count_type=count_type)
 
                     with torch.no_grad():
-                        counts_for_parent = self._get_total_counts_from_square_distance_matrix(
+                        counts_for_parent = self._get_all_counts_from_squared_distance_matrix(
                             squared_distance_from_parent, count_type=count_type).detach()
                         mean_counts_for_parent += counts_for_parent.sum()
 
@@ -392,7 +445,7 @@ class CountingLatentSpace(object):
                         full_other_action_buffer_child_transformed = self.model(full_other_action_buffer_child)
 
                         other_squared_distance_from_child = naive_spread_counter.torch_get_square_distances_to_buffer(action_batch_child_transformed, full_other_action_buffer_child_transformed)
-                        other_action_counts = self._get_total_counts_from_square_distance_matrix(other_squared_distance_from_child, count_type="normal")
+                        other_action_counts = self._get_all_counts_from_squared_distance_matrix(other_squared_distance_from_child, count_type="normal")
                         other_action_loss = other_action_counts.sum()
                         other_repulsive_losses += other_action_loss
 
@@ -490,6 +543,16 @@ class CountingLatentSpace(object):
 
         return loss
 
+    def _approx_bonus_loss(self, phi_s, phi_s_prime, buffers, scaling_term=None, loss_type="exponential"):
+        f = self._compute_approx_bonus_scaling_term(phi_s, buffers) if scaling_term is None else scaling_term
+        counting_loss = self._counting_loss(phi_s, phi_s_prime, loss_type=loss_type)
+        bonus_loss = -1. / counting_loss.sqrt()
+        return f * bonus_loss
+
+    def _compute_approx_bonus_scaling_term(self, phi_s, buffers):
+        with torch.no_grad():
+            self.model.eval()
+        pass
 
     def get_counts(self, X, buffer_idx):
         """

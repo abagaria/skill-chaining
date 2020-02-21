@@ -41,7 +41,8 @@ class VisualGridWorldMDP(MDP):
             sensors = [
                 ImageSensor(range=((0, self.env._rows), (0, self.env._cols)), pixel_density=1),
                 ResampleSensor(scale=scale),
-                UnsqueezeSensor(dim=0)
+                UnsqueezeSensor(dim=0),  # Frame dimension
+                UnsqueezeSensor(dim=0)   # Batch dimension
             ]
             if noise_level > 0:
                 sensors.append(NoisySensor(sigma=0.1))

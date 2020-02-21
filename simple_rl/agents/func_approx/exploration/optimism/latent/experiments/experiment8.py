@@ -231,11 +231,10 @@ class Experiment8:
             last_10_scores.append(score)
             per_episode_scores.append(score)
 
-            sns_size = len(agent.novelty_tracker.sns_buffer)
             lam = agent.novelty_tracker.counting_space.lam
-            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam {}'.format(episode,
-                                                                                             np.mean(last_10_scores),
-                                                                                             agent.epsilon, sns_size, lam))
+            print('\rEpisode {}\tAverage Score: {:.2f}\tEpsilon: {:.2f}\tLam {}'.format(episode,
+                                                                                         np.mean(last_10_scores),
+                                                                                         agent.epsilon, lam))
         return per_episode_scores
 
 

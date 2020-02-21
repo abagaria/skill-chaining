@@ -18,7 +18,7 @@ class GymMDP(MDP):
     ''' Class for Gym MDPs '''
 
     def __init__(self, env_name='CartPole-v0', pixel_observation=False,
-                 clip_rewards=False, step_reward=False, render=False, seed=0):
+                 clip_rewards=False, step_reward=False, render=False, seed=0, control_problem=False):
         '''
         Args:
             env_name (str)
@@ -29,8 +29,12 @@ class GymMDP(MDP):
             assert pixel_observation, "set pixel_observation to true"
             self.env = FrameStack(ImgObsWrapper(RGBImgObsWrapper(gym.make(env_name))), num_stack=1)
         elif pixel_observation:
-            # self.env = FrameStack(AtariPreprocessing(gym.make(env_name)), num_stack=4)
-            self.env = FrameStack(gym.make(env_name), num_stack=4)
+            self.env = gym.make(env_name)
+            if control_problem:
+                self.env = WarpFrame2(VisualControlWrapper(self.env), res=28)
+            else:  # Atari
+                self.env = AtariPreprocessing(self.env)
+            self.env = FrameStack(self.env, num_stack=4)
         else:
             self.env = gym.make(env_name)
 
@@ -40,13 +44,14 @@ class GymMDP(MDP):
         self.step_reward = step_reward
         self.render = render
         self.pixel_observation = pixel_observation
+        self.control_problem = control_problem
         self.state_dim = self.env.observation_space.shape if pixel_observation else self.env.observation_space.shape[0]
 
         init_obs = self.env.reset()
         action_dim = range(self.env.action_space.n) if hasattr(self.env.action_space, "n") else self.env.action_space.shape[0]
 
         MDP.__init__(self, action_dim, self._transition_func, self._reward_func,
-                     init_state=GymState(init_obs))
+                     init_state=GymState(init_obs, np.zeros((2,)))) # TODO
 
     def _reward_func(self, state, action):
         '''
@@ -64,10 +69,17 @@ class GymMDP(MDP):
         time_limit_truncated = info.get('TimeLimit.truncated', False)
         is_terminal = done and not time_limit_truncated
 
+        # if self.pixel_observation and self.control_problem:
+        #     obs = self.env.render(mode="rgb_array")
+        # elif self.render:
+        #     self.env.render()
         if self.render:
             self.env.render()
 
-        self.next_state = GymState(obs, is_terminal=is_terminal)
+
+        position = info.get("features", obs)
+
+        self.next_state = GymState(obs, is_terminal=is_terminal, position=position)
 
         if self.clip_rewards:
             if reward < 0:
@@ -101,4 +113,4 @@ class GymMDP(MDP):
 
     def get_position(self):
         assert self.env_name == "MountainCar-v0"
-        return np.copy((self.cur_state.features()))
+        return np.copy((self.cur_state.get_position()))

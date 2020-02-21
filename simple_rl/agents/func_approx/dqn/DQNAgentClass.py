@@ -26,6 +26,7 @@ from simple_rl.agents.func_approx.dqn.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.dqn.model import ConvQNetwork, DenseQNetwork
 from simple_rl.agents.func_approx.dqn.epsilon_schedule import *
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
+from simple_rl.tasks.gym.wrappers import LazyFrames
 from simple_rl.agents.func_approx.exploration.optimism.discrete.DiscreteCountBasedExplorationClass import DiscreteCountBasedExploration
 from simple_rl.agents.func_approx.exploration.optimism.latent.LatentCountExplorationBonus import LatentCountExplorationBonus
 
@@ -69,8 +70,8 @@ class DQNAgent(Agent):
 
         # Q-Network
         if pixel_observation:
-            self.policy_network = ConvQNetwork(in_channels=1, n_actions=action_size).to(self.device)
-            self.target_network = ConvQNetwork(in_channels=1, n_actions=action_size).to(self.device)
+            self.policy_network = ConvQNetwork(in_channels=state_size[0], n_actions=action_size).to(self.device)
+            self.target_network = ConvQNetwork(in_channels=state_size[0], n_actions=action_size).to(self.device)
         else:
             self.policy_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
             self.target_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
@@ -242,8 +243,9 @@ class DQNAgent(Agent):
             assert isinstance(position, np.ndarray), position
             self.novelty_tracker.add_transition(tuple(position), action)
         if self.exploration_method == "count-phi":
-            assert state.shape in ((2,), (1, 28, 28))
-            assert isinstance(state, np.ndarray), state
+            state = np.array(state)
+            next_state = np.array(next_state)
+            assert state.shape in ((2,), self.state_size)
             self.novelty_tracker.add_transition(state, action, next_state)
 
     def _get_q_targets(self, next_states, next_positions):

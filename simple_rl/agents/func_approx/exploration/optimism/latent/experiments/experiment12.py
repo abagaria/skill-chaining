@@ -26,7 +26,7 @@ class Experiment12:
     def __init__(self, seed, *, pixel_observation,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, no_novelty_during_regression):
-        self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation, seed=seed)
+        self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation, seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
         self.novelty_during_regression = not no_novelty_during_regression
         self.agent = DQNAgent(state_size=state_dim, action_size=len(self.mdp.actions),
@@ -56,8 +56,6 @@ class Experiment12:
 
         # Plotting
         plt.scatter(states_repr[:, 0], states_repr[:, 1], alpha=0.3)
-        plt.xlabel("x")
-        plt.ylabel("y")
 
         plt.title("Latent Space after Episode {}".format(episode))
         plt.savefig(f"{self.experiment_name}/latent_plots/latents_{episode}_seed_{self.seed}.png")
@@ -65,16 +63,15 @@ class Experiment12:
 
     def make_bonus_plot(self, agent, episode):
 
-        # Normalize the data before asking for its embeddings
-        un_normalized_sns_buffer = agent.novelty_tracker.get_sns_buffer()
+        states = np.array([transition.state for transition in agent.replay_buffer])
+        positions = np.array([transition.position for transition in agent.replay_buffer])
 
-        states = np.array([sns[0] for sns in un_normalized_sns_buffer])
         bonuses = agent.novelty_tracker.get_batched_exploration_bonus(states)
 
         plt.figure(figsize=(14, 10))
         for i, action in enumerate(self.mdp.actions):
             plt.subplot(1, len(self.mdp.actions), i + 1)
-            plt.scatter(states[:, 0], states[:, 1], c=bonuses[:, action])
+            plt.scatter(positions[:, 0], positions[:, 1], c=bonuses[:, action])
             plt.colorbar()
 
         plt.suptitle("Exploration Bonuses after Episode {}".format(episode))
@@ -83,6 +80,7 @@ class Experiment12:
 
     def make_value_plot(self, agent, episode):
         states = np.array([transition.state for transition in agent.replay_buffer])
+        positions = np.array([transition.position for transition in agent.replay_buffer])
 
         states_tensor = torch.from_numpy(states).float().to(agent.device)
 
@@ -91,7 +89,7 @@ class Experiment12:
         plt.figure(figsize=(14, 10))
         for action in self.agent.actions:
             plt.subplot(1, len(self.agent.actions), action + 1)
-            plt.scatter(states[:, 0], states[:, 1], c=qvalues[:, action])
+            plt.scatter(positions[:, 0], positions[:, 1], c=qvalues[:, action])
             plt.colorbar()
 
         plt.suptitle("Q-functions after episode {}".format(episode))

@@ -11,12 +11,16 @@ from simple_rl.mdp.StateClass import State
 class GymState(State):
     ''' Gym State class '''
 
-    def __init__(self, data=[], is_terminal=False):
+    def __init__(self, data=(), position=(), is_terminal=False):
         self.data = data  # TODO: Handle grayscale automatically
+        self.position = position
         State.__init__(self, data=self.data, is_terminal=is_terminal)
 
     def features(self):
         return self.data
+
+    def get_position(self):
+        return self.position
 
     @staticmethod
     def grayscale(image):

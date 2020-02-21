@@ -39,7 +39,7 @@ class Experiment5:
 
         self.sensor = SensorChain(sensors)
 
-        state_dim = (scale * grid_size, scale * grid_size)
+        state_dim = (1, scale * grid_size, scale * grid_size)
 
         self.counting_space = CountingLatentSpace(state_dim=state_dim, action_dim=4, latent_dim=2, epsilon=epsilon, phi_type="function",
                                                   experiment_name="exp5", pixel_observations=True, lam=lam,

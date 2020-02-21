@@ -54,7 +54,7 @@ class ConvQNetwork(nn.Module):
         super(ConvQNetwork, self).__init__()
         torch.manual_seed(seed)
 
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv1 = nn.Conv2d(in_channels, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
         self.dropout1 = nn.Dropout2d(0.25)
         self.dropout2 = nn.Dropout2d(0.5)
