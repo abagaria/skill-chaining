@@ -3,9 +3,12 @@ import pickle
 import numpy as np
 
 
-def get_mean_std(s):
+def get_mean_std(s, flat_std=False):
     mean = np.mean(s, axis=0)
-    std = np.std(s, axis=0)
+    if flat_std:
+        std = np.std(s)
+    else:
+        std = np.std(s, axis=0)
     return mean, std
 
 

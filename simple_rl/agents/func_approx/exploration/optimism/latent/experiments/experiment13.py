@@ -14,25 +14,57 @@ import pickle
 # Other imports.
 from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpaceClass import CountingLatentSpace
 from simple_rl.tasks.gridworld.VisualGridWorldMDPClass import VisualGridWorldMDP
-from simple_rl.agents.func_approx.exploration.optimism.latent.utils import create_log_dir
+from simple_rl.tasks.gym.GymMDPClass import GymMDP
+from simple_rl.agents.func_approx.exploration.optimism.latent.utils import create_log_dir, normalize, get_mean_std
 
 
 class Experiment13:
-    """ Visual Grid-World Learning with Approx Dataset, only counting class """
+    """
+    Testing out non-RL with chunked dataset. On visual/not GridWorld/MountainCar.
+    Also analyze the impact of num_steps, lambda and repulsive loss scaling on the chunked bonus loss function.
+    """
 
-    def __init__(self, seed, *, grid_size, noise_level, num_steps, device, experiment_name):
-        self.mdp = VisualGridWorldMDP(True, grid_size, noise_level, seed)
+    def __init__(self, seed, *, grid_size, noise_level, num_steps, device, lam,
+                 experiment_name, optimization_quantity, env_name, pixel_observation, scale_images, bonus_scaling_term):
+
+        assert optimization_quantity in ("chunked-count", "chunked-bonus"), optimization_quantity
+
+        if "grid" in env_name:
+            self.mdp = VisualGridWorldMDP(True, grid_size, noise_level, seed)
+        elif "mountain" in env_name.lower():
+            self.mdp = GymMDP(env_name="MountainCar-v0", pixel_observation=pixel_observation,
+                              seed=seed, control_problem=True, num_stack=4)
+        else:
+            raise IOError(f"{env_name}")
+
         state_dim = self.mdp.state_dim
+        action_dim = len(self.mdp.actions)
 
         self.counting_space = CountingLatentSpace(
-            state_dim=state_dim, action_dim=4, latent_dim=2, epsilon=0.1, phi_type="function",
-            experiment_name="exp13", pixel_observations=True, lam=1,
-            optimization_quantity="approx-count", device=device
+            state_dim=state_dim, action_dim=action_dim, latent_dim=2, epsilon=0.1, phi_type="function",
+            experiment_name=experiment_name, pixel_observations=pixel_observation, lam=lam,
+            optimization_quantity=optimization_quantity, device=device, approx_chunk_size=1000,
         )
 
         self.num_steps = num_steps
         self.seed = seed
         self.experiment_name = experiment_name
+        self.scale_images = scale_images
+
+    def _pre_process_data(self, obs_next_obs_buffer, action_buffers):
+
+        states = np.array([ss[0] for ss in obs_next_obs_buffer])
+        next_states = np.array([ss[1] for ss in obs_next_obs_buffer])
+
+        mean, std = get_mean_std(states, flat_std=self.mdp.pixel_observation)
+
+        normalized_states = normalize(states, mean, std)
+        normalized_next_states = normalize(next_states, mean, std)
+        normalized_action_buffers = [normalize(action_buffer, mean, std) for action_buffer in action_buffers]
+        normalized_state_next_state_buffer = list(zip(normalized_states, normalized_next_states))
+
+        return normalized_state_next_state_buffer, normalized_action_buffers
+
 
     def generate_data(self, num_steps=None):
         if num_steps is None:
@@ -50,9 +82,11 @@ class Experiment13:
             action = random.choice(self.mdp.actions)
             reward, next_obs = self.mdp.execute_agent_action(action)
 
-            obs_next_obs_buffer.append((obs.features(), next_obs.features()))
+            # obs_next_obs_buffer.append((obs.features(), next_obs.features()))
+            obs_next_obs_buffer.append((np.array(obs.features()), np.array(next_obs.features())))
             state_buffer.append(tuple(state))
-            state_action_dict[action].append(obs.features())
+            state_action_dict[action].append(np.array(obs.features()))
+            # state_action_dict[action].append(obs.features())
 
             self._update_count(obs=obs, position=state, action=action)
 
@@ -63,15 +97,22 @@ class Experiment13:
 
         action_buffers = self._get_action_buffers(state_action_dict)
         print("Collected {} state-next_state pairs".format(len(obs_next_obs_buffer)))
-        return obs_next_obs_buffer, action_buffers
 
-    @staticmethod
-    def _get_action_buffers(state_action_dict):
+        # if self.mdp.env_name == "MountainCar-v0" and not self.mdp.pixel_observation:
+        if self.mdp.env_name == "MountainCar-v0":
+            if self.scale_images or not self.mdp.pixel_observation:
+                obs_next_obs_buffer, action_buffers = self._pre_process_data(obs_next_obs_buffer, action_buffers)
+        # if self.mdp.env_name == "MountainCar-v0" and not self.mdp.pixel_observation:
+        #     obs_next_obs_buffer, action_buffers = self._pre_process_data(obs_next_obs_buffer, action_buffers)
+
+        return obs_next_obs_buffer, action_buffers, state_buffer
+
+    def _get_action_buffers(self, state_action_dict):
         action_buffers = []
         sorted_keys = sorted(state_action_dict.keys())
         for action in sorted_keys:
             states = state_action_dict[action]
-            states_array = np.vstack(states)
+            states_array = np.array(states) if self.mdp.pixel_observation else np.vstack(states)
             action_buffers.append(states_array)
         return action_buffers
 
@@ -80,7 +121,7 @@ class Experiment13:
         steps_range = [5000]
 
         for steps in steps_range:
-            obs_next_obs_buffer, action_buffers = self.generate_data(num_steps=steps)
+            obs_next_obs_buffer, action_buffers, _ = self.generate_data(num_steps=steps)
 
             chunk_sizes = [500, 1000, 2000, 4000]
             time_to_train = []
@@ -109,15 +150,26 @@ class Experiment13:
         if timing_experiment:
             self.make_time_training_plots()
         else:
-            obs_next_obs_buffer, action_buffers = self.generate_data()
+            obs_next_obs_buffer, action_buffers, state_buffer = self.generate_data()
 
             for epoch in range(epochs):
-                self.make_count_plot(epoch)
-                self.make_latent_plot(epoch)
+                if "grid" in self.mdp.env_name:
+                    self.make_count_plot(epoch)
+
+                # self.make_latent_plot(epoch)
+
+                if self.mdp.env_name == "MountainCar-v0":
+                    phi_s = self.mcar_latent_and_counts_plot(state_buffer, obs_next_obs_buffer, epoch)
+
                 self.counting_space.train(action_buffers=action_buffers, state_next_state_buffer=obs_next_obs_buffer, epochs=1)
 
             self.make_count_plot(epoch + 1)
             self.make_latent_plot(epoch + 1)
+
+            # Measure and log the spread of the latent space
+            spread = self.compute_latent_spread(phi_s)
+            self.log_latent_spread(*spread)
+            print(spread)
 
     def extract_states(self):
         states = [list(self.gt_state_action_counts[a].keys()) for a in self.mdp.actions]
@@ -139,6 +191,29 @@ class Experiment13:
         color_map = [s_to_n[s] for s in state_buffer]
         return color_map
 
+    def mcar_latent_and_counts_plot(self, state_buffer, obs_next_obs_buffer, epoch):
+        observations = np.array([ono[0] for ono in obs_next_obs_buffer])
+        states = np.array(state_buffer)
+        obs_repr = self.counting_space.extract_features(observations)
+
+        plt.figure(figsize=(14, 10))
+        for buffer_idx in self.mdp.actions:
+            counts = self.counting_space.get_counts(observations, buffer_idx)
+            plt.subplot(2, 3, buffer_idx + 1)
+            if self.mdp.pixel_observation:
+                plt.scatter(states[:, 0], states[:, 1], c=counts, alpha=0.3)
+            else:
+                plt.scatter(observations[:, 0], observations[:, 1], c=counts, alpha=0.3)
+            plt.colorbar()
+            plt.subplot(2, 3, buffer_idx + 4)
+            plt.scatter(obs_repr[:, 0], obs_repr[:, 1], c=range(len(observations)), alpha=0.3)
+
+            plt.colorbar()
+        plt.savefig(f"{self.experiment_name}/count_scatter_plots/latents_seed_{self.seed}_epoch_{epoch}.png")
+        plt.close()
+
+        return obs_repr
+
     def make_count_plot(self, epoch):
 
         for buffer_idx in self.mdp.actions:
@@ -148,7 +223,9 @@ class Experiment13:
             for sa in self.gt_state_action_counts[buffer_idx]:
                 true_count = self.gt_state_action_counts[buffer_idx][sa]
                 obs_list = self.gt_state_observation_map[buffer_idx][sa]
-                obs_np = np.vstack(obs_list)
+
+                # We need to add a dimension, with vstack it was just putting it in the channels dim
+                obs_np = np.stack(obs_list)
 
                 estimated_counts = self.counting_space.get_counts(obs_np, buffer_idx)
                 for ec in estimated_counts:
@@ -176,7 +253,8 @@ class Experiment13:
 
         for_cmap = []
         for state in states:
-            all_observations = np.vstack(combined_state_obs[state])
+            # Again with the vstack, we really want stack.
+            all_observations = np.stack(combined_state_obs[state])
 
             # Average exploration bonuses over all actions and the batch dimension
             states_repr = self.counting_space.extract_features(all_observations)
@@ -204,7 +282,44 @@ class Experiment13:
             self.gt_state_observation_map = defaultdict(lambda : defaultdict(list))
 
         self.gt_state_action_counts[action][tuple(position)] += 1
-        self.gt_state_observation_map[action][tuple(position)].append(obs)
+        self.gt_state_observation_map[action][tuple(position)].append(np.array(obs.features()))
+
+    def compute_latent_spread(self, phi_s):
+        """
+        Compute different metrics that heuristically measure the spread of the latent space.
+        Args:
+            phi_s (np.ndarray): observations projected into latent space
+
+        Returns:
+            x_range (float)
+            y_range (float)
+            x_std (float)
+            y_std (float)
+            volume (float)
+            volume_per_point (float)
+        """
+        x_spread = phi_s[:, 0].max() - phi_s[:, 0].min()
+        y_spread = phi_s[:, 1].max() - phi_s[:, 1].min()
+        x_std = phi_s[:, 0].std()
+        y_std = phi_s[:, 1].std()
+        determinant = np.linalg.det(np.cov(phi_s.T))
+        volume = np.sqrt(determinant)
+        volume_per_point = volume / phi_s.shape[0]
+        return x_spread, y_spread, x_std, y_std, volume, volume_per_point
+
+    def log_latent_spread(self, x_range, y_range, x_std, y_std, vol, vol_per_point):
+        with open(f"{self.experiment_name}/latent_range_logs/x_range_seed_{self.seed}.pkl", "wb+") as f:
+            pickle.dump(x_range, f)
+        with open(f"{self.experiment_name}/latent_range_logs/y_range_seed_{self.seed}.pkl", "wb+") as f:
+            pickle.dump(y_range, f)
+        with open(f"{self.experiment_name}/latent_range_logs/x_std_seed_{self.seed}.pkl", "wb+") as f:
+            pickle.dump(x_std, f)
+        with open(f"{self.experiment_name}/latent_range_logs/y_std_seed_{self.seed}.pkl", "wb+") as f:
+            pickle.dump(y_std, f)
+        with open(f"{self.experiment_name}/latent_range_logs/vol_seed_{self.seed}.pkl", "wb+") as f:
+            pickle.dump(vol, f)
+        with open(f"{self.experiment_name}/latent_range_logs/vol_pp_seed_{self.seed}.pkl", "wb+") as f:
+            pickle.dump(vol_per_point, f)
 
 
 if __name__ == "__main__":
@@ -219,6 +334,12 @@ if __name__ == "__main__":
     parser.add_argument("--noise_level", type=float, default=0.)
     parser.add_argument("--timing_plots", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--optimization_quantity", type=str, default="chunked-count")
+    parser.add_argument("--env_name", type=str)
+    parser.add_argument("--pixel_observation", action="store_true", default=False)
+    parser.add_argument("--lam", type=float, default=0.1)
+    parser.add_argument("--bonus_scaling_term", type=str, default="sqrt")
+
 
     args = parser.parse_args()
 
@@ -227,15 +348,19 @@ if __name__ == "__main__":
     create_log_dir(args.experiment_name)
     create_log_dir(full_experiment_name)
     create_log_dir(f"{full_experiment_name}/count_plots")
+    create_log_dir(f"{full_experiment_name}/count_scatter_plots")
     create_log_dir(f"{full_experiment_name}/bonus_plots")
     create_log_dir(f"{full_experiment_name}/latent_plots")
     create_log_dir(f"{full_experiment_name}/vf_plots")
     create_log_dir(f"{full_experiment_name}/time_plots")
-
+    create_log_dir(f"{full_experiment_name}/latent_range_logs")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     exp = Experiment13(args.seed, grid_size=args.grid_size, noise_level=args.noise_level,
-                       num_steps=args.steps, device=device, experiment_name=full_experiment_name)
+                       num_steps=args.steps, device=device, experiment_name=full_experiment_name,
+                       optimization_quantity=args.optimization_quantity, env_name=args.env_name,
+                       pixel_observation=args.pixel_observation, scale_images=True, lam=args.lam,
+                       bonus_scaling_term=args.bonus_scaling_term)
 
     exp.run_experiment(timing_experiment=args.timing_plots, epochs=args.epochs)

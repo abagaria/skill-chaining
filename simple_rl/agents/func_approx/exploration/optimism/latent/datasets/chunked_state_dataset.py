@@ -101,8 +101,9 @@ class ChunkedStateDataset(Dataset):
         second_chunk_states = np.array([sa[0] for sa in second_chunk])
         second_chunk_actions = np.array([sa[1] for sa in second_chunk])
 
-        sns_state_chunk = np.vstack([sns[0] for sns in sns_chunk])
-        sns_next_state_chunk = np.vstack([sns[1] for sns in sns_chunk])
+        # We need to make a new axis here. Before, we were combining on an existing axis.
+        sns_state_chunk = np.stack([sns[0] for sns in sns_chunk])
+        sns_next_state_chunk = np.stack([sns[1] for sns in sns_chunk])
 
         fc_state_tensor = torch.from_numpy(first_chunk_states).float()
         fc_action_tensor = torch.from_numpy(first_chunk_actions).float()
@@ -111,6 +112,8 @@ class ChunkedStateDataset(Dataset):
 
         sns_state_tensor = torch.from_numpy(sns_state_chunk).float()
         sns_next_state_tensor = torch.from_numpy(sns_next_state_chunk).float()
+
+        assert sns_state_tensor.shape[1:] == fc_state_tensor.shape[1:], (sns_state_tensor.shape, fc_state_tensor.shape)
 
         return (fc_state_tensor, fc_action_tensor, sc_state_tensor,
                 sc_action_tensor, sns_state_tensor, sns_next_state_tensor)

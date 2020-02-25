@@ -17,7 +17,7 @@ from gym_minigrid.wrappers import *
 class GymMDP(MDP):
     ''' Class for Gym MDPs '''
 
-    def __init__(self, env_name='CartPole-v0', pixel_observation=False,
+    def __init__(self, env_name='CartPole-v0', pixel_observation=False, num_stack=4,
                  clip_rewards=False, step_reward=False, render=False, seed=0, control_problem=False):
         '''
         Args:
@@ -31,10 +31,10 @@ class GymMDP(MDP):
         elif pixel_observation:
             self.env = gym.make(env_name)
             if control_problem:
-                self.env = WarpFrame2(VisualControlWrapper(self.env), res=28)
+                self.env = WarpFrame2(VisualControlWrapper(self.env), res=28, normalize=True)
             else:  # Atari
                 self.env = AtariPreprocessing(self.env)
-            self.env = FrameStack(self.env, num_stack=4)
+            self.env = FrameStack(self.env, num_stack=num_stack)
         else:
             self.env = gym.make(env_name)
 

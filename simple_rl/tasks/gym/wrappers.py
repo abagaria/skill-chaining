@@ -23,21 +23,21 @@ class VisualControlWrapper(gym.Wrapper):
 
 
 class WarpFrame2(gym.ObservationWrapper):
-    def __init__(self, env, res=84):
+    def __init__(self, env, res=84, normalize=False):
         """ Warp frames to 84x84 as done in the Nature paper and later work. """
         gym.ObservationWrapper.__init__(self, env)
         self.width = res
         self.height = res
+        self.normalize = normalize
         self.observation_space = spaces.Box(low=0, high=255,
             shape=(self.height, self.width), dtype=np.uint8)
 
     def observation(self, frame):
-        # pdb.set_trace()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
         frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
-        # import ipdb; ipdb.set_trace()
+        if self.normalize:
+            frame = 1. - (frame * 1. / 255.)
         return frame
-        # return frame[:, :, None]
 
 
 class AtariPreprocessing(gym.Wrapper):

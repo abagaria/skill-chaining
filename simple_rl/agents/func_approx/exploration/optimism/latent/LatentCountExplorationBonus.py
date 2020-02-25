@@ -7,7 +7,7 @@ import ipdb
 
 
 class LatentCountExplorationBonus(ExplorationBonus):
-    def __init__(self, state_dim, action_dim, latent_dim=2, lam=0.1, epsilon=0.1,
+    def __init__(self, state_dim, action_dim, latent_dim=2, lam=.1, epsilon=0.1,
                  writer=None, *, experiment_name, pixel_observation, normalize_states, bonus_scaling_term):
         """
 
@@ -28,7 +28,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
                                                   latent_dim=latent_dim, epsilon=epsilon,
                                                   phi_type="function", experiment_name=experiment_name,
                                                   pixel_observations=pixel_observation, lam=lam,
-                                                  optimization_quantity="bonus", writer=writer,
+                                                  optimization_quantity="chunked-bonus", writer=writer,
                                                   bonus_scaling_term=bonus_scaling_term)
 
         self.un_normalized_sns_buffer = []
@@ -82,7 +82,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
     def _normalize_action_buffers(self, action_buffers):
         return [normalize(b, self.mean_state, self.std_state) for b in action_buffers]
 
-    def train(self, mode="entire", epochs=10):
+    def train(self, mode="entire", epochs=50):
         assert mode in ("entire", "partial")
         if mode == "entire":
             self._train_entire(epochs)

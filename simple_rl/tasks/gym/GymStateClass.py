@@ -1,7 +1,7 @@
 # Python imports
 import numpy as np
 from PIL import Image
-import pdb
+import ipdb
 
 # Local imports
 from simple_rl.mdp.StateClass import State

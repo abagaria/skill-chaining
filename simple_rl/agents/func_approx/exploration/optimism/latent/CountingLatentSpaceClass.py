@@ -56,12 +56,12 @@ class CountingLatentSpace(object):
         self.buffers = [None for _ in range(self.action_dim)]
 
         assert phi_type in ("raw", "function"), phi_type
-        assert optimization_quantity in ("count", "bonus", "count-tc", "approx-count"), optimization_quantity
+        assert optimization_quantity in ("count", "bonus", "count-tc", "chunked-count", "chunked-bonus"), optimization_quantity
 
         self.optimization_quantity = optimization_quantity
         self.bonus_scaling_term = bonus_scaling_term
 
-        assert bonus_scaling_term in ("none", "sqrt", "linear"), bonus_scaling_term
+        assert bonus_scaling_term in ("none", "sqrt", "linear", "chunked-sqrt"), bonus_scaling_term
 
         if phi_type == "function":
             self.reset_model()
@@ -123,8 +123,10 @@ class CountingLatentSpace(object):
         elif self.optimization_quantity == "count-tc":
             assert tc_action_buffers is not None
             return self._train_counts_with_transition_consistency(buffers=tc_action_buffers, epochs=epochs)
-        elif self.optimization_quantity == "approx-count":
+        elif self.optimization_quantity == "chunked-count":
             return self._train_chunked_attractive_and_repulsive_function_counts(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
+        elif self.optimization_quantity == "chunked-bonus":
+            return self._train_chunked_attractive_and_repulsive_function_bonuses(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
         raise NotImplementedError(f"Optimization quantity {self.optimization_quantity} not implemented yet.")
 
     def extract_features(self, states):
@@ -214,12 +216,16 @@ class CountingLatentSpace(object):
 
         self.buffers = buffers
 
-    def _get_bonus_scaling_term(self, state_next_state_buffer):
+    def _get_bonus_scaling_term(self, N):
         if self.bonus_scaling_term == "none":
             return 1.
         if self.bonus_scaling_term == "sqrt":
-            return 1. / np.sqrt(len(state_next_state_buffer))
-        return 1. / (len(state_next_state_buffer))
+            return 1. / np.sqrt(N)
+        if self.bonus_scaling_term == "linear"
+            return 1. / N
+        if self.bonus_scaling_term == "chunked-sqrt":
+            return np.sqrt(N) / self.approx_chunk_size
+        raise ValueError(f"Bad value for bonus_scaling_term: {self.bonus_scaling_term}")
 
     def _train_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
         if state_next_state_buffer is None:
@@ -277,7 +283,7 @@ class CountingLatentSpace(object):
                 # Scale the bonus loss to account for the length of the buffer: roughly speaking, the impact of the counting loss scales
                 # quadratically with the size of the buffer, however that of the attractive term grows linearly. Instead of increasing
                 # lam over time, we scale the bonus loss.
-                bonus_loss = self._get_bonus_scaling_term(state_next_state_buffer) * self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
+                bonus_loss = self._get_bonus_scaling_term(len(state_next_state_buffer)) * self._bonus_loss(phi_s=support_batch_transformed, buffers=buffers)
 
                 loss = bonus_loss - attractive_loss
 
@@ -328,6 +334,50 @@ class CountingLatentSpace(object):
                 loss.backward()
                 optimizer.step()
 
+
+                self.writer.add_scalar("TotalLoss", loss.item(), self._n_iterations)
+                self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), self._n_iterations)
+                self.writer.add_scalar("RepulsiveLoss", repulsive_loss.item(), self._n_iterations)
+
+                self._n_iterations += 1
+
+        self.buffers = buffers
+
+    def _train_chunked_attractive_and_repulsive_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
+        self.model.train()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
+        data_set = ChunkedStateDataset(buffers, state_next_state_buffer, chunk_size=self.approx_chunk_size)
+
+        for epoch in tqdm(range(epochs)):
+            data_set.set_indices()
+            for batch_id, (fc_state_tensor, fc_action_tensor, sc_state_tensor, sc_action_tensor,
+                           sns_state_tensor, sns_next_state_tensor) in enumerate(data_set):
+                fc_state_tensor = fc_state_tensor.to(self.device)
+                fc_action_tensor = fc_action_tensor.to(self.device)
+                sc_state_tensor = sc_state_tensor.to(self.device)
+                sc_action_tensor = sc_action_tensor.to(self.device)
+                sns_state_tensor = sns_state_tensor.to(self.device)
+                sns_next_state_tensor = sns_next_state_tensor.to(self.device)
+
+                fc_state_transformed = self.model(fc_state_tensor)
+                sc_state_transformed = self.model(sc_state_tensor)
+                sns_state_transformed = self.model(sns_state_tensor)
+                sns_next_state_transformed = self.model(sns_next_state_tensor)
+
+                attractive_loss = self.lam * self._counting_loss(sns_state_transformed, sns_next_state_transformed,
+                                                                 loss_type=self.attractive_loss_type)
+
+                repulsive_loss = self._chunked_bonus_loss(phi_s=fc_state_transformed, phi_s_prime=sc_state_transformed,
+                                                          phi_s_prime_actions=sc_action_tensor, buffers=buffers,
+                                                          count_type=self.repulsive_loss_type)
+
+                repulsive_loss = self._get_bonus_scaling_term(len(sns_state_tensor)) * repulsive_loss
+
+                loss = repulsive_loss - attractive_loss
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
                 self.writer.add_scalar("TotalLoss", loss.item(), self._n_iterations)
                 self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), self._n_iterations)
@@ -543,16 +593,82 @@ class CountingLatentSpace(object):
 
         return loss
 
-    def _approx_bonus_loss(self, phi_s, phi_s_prime, buffers, scaling_term=None, loss_type="exponential"):
-        f = self._compute_approx_bonus_scaling_term(phi_s, buffers) if scaling_term is None else scaling_term
-        counting_loss = self._counting_loss(phi_s, phi_s_prime, loss_type=loss_type)
-        bonus_loss = -1. / counting_loss.sqrt()
-        return f * bonus_loss
+    def _actions_to_one_hot(self, action_tensor):
+        assert len(action_tensor.shape) == 1, action_tensor.shape
+        one_hot = torch.zeros(len(action_tensor), self.action_dim).float().to(self.device)
+        one_hot[torch.arange(len(action_tensor)), action_tensor.long()] = 1
 
-    def _compute_approx_bonus_scaling_term(self, phi_s, buffers):
-        with torch.no_grad():
-            self.model.eval()
-        pass
+        return one_hot
+
+    def _chunked_bonus_loss(self, scaling_term=None, count_type="exponential", *, phi_s, phi_s_prime, phi_s_prime_actions, buffers):
+        """
+        It's gather time!
+        Args:
+            scaling_term:
+            count_type:
+            phi_s:
+            phi_s_prime:
+            phi_s_prime_actions:
+            buffers:
+
+        Returns:
+
+        """
+        # f has shape (num_phi_s, num_actions)
+        f = self._compute_chunked_bonus_scaling_term(phi_s, buffers, chunk_size=self.approx_chunk_size,
+                                                     count_type=count_type) if scaling_term is None else scaling_term
+
+        # all_counts has shape (num_phi_s, num_phi_s_prime)
+        all_counts = self._get_all_counts_for_outer_product(phi_s, phi_s_prime, count_type=count_type)
+        one_hot_actions = self._actions_to_one_hot(phi_s_prime_actions)
+
+        counts_per_action_per_phi_s = all_counts @ one_hot_actions
+        assert f.shape == counts_per_action_per_phi_s.shape
+
+        # ipdb.set_trace()
+
+        chunked_bonus_loss = (f * counts_per_action_per_phi_s).sum()
+        return chunked_bonus_loss
+
+    def _compute_chunked_bonus_scaling_term(self, phi_s, buffers, chunk_size, count_type="exponential"):
+        """
+
+        Args:
+            phi_s (torch.tensor)
+            buffers (list): list of np.ndarray action buffers
+            chunk_size (int)
+
+        Returns:
+            bonus_scale (torch.tensor): f(s)^(3/2) of size (mini_batch_size x num_actions)
+        """
+        assert len(phi_s.shape) == 2, phi_s.shape
+        assert len(buffers) == self.action_dim, len(buffers)
+        assert type(chunk_size) == int, chunk_size
+
+        self.model.eval()
+
+        bonus_scale = torch.zeros(phi_s.shape[0], len(buffers), requires_grad=False).to(self.device)
+
+        for action_idx, action_buffer in enumerate(buffers):  # type: int, np.ndarray
+            num_chunks = int(np.ceil(action_buffer.shape[0] / chunk_size))
+            action_buffer_chunks = np.array_split(action_buffer, num_chunks, axis=0)
+            total_action_count = 0.
+
+            for buffer_chunk in action_buffer_chunks:  # type: np.ndarray
+                with torch.no_grad():
+                    buffer_chunk = torch.from_numpy(buffer_chunk).float().to(self.device)
+                    phi_s_prime = self.model(buffer_chunk)
+                    counts = self._get_all_counts_for_outer_product(phi_s, phi_s_prime, count_type=count_type)
+                    total_action_count += counts.sum(dim=1)
+
+            bonus_scale[:, action_idx] = (total_action_count + 1e-1) ** (-3. / 2.)
+
+        assert bonus_scale.shape[0] == phi_s.shape[0], bonus_scale.shape[0]
+        assert bonus_scale.shape[1] == len(buffers), bonus_scale.shape[1]
+
+        self.model.train()
+
+        return bonus_scale
 
     def get_counts(self, X, buffer_idx):
         """

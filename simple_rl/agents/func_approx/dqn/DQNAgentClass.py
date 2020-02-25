@@ -48,7 +48,7 @@ class DQNAgent(Agent):
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
-                 novelty_during_regression=True):
+                 novelty_during_regression=True, normalize_states=False):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -106,11 +106,12 @@ class DQNAgent(Agent):
         elif exploration_method == "count-phi":
             self.epsilon_schedule = ConstantEpsilonSchedule(0)
             self.epsilon = 0.
+
             self.novelty_tracker = LatentCountExplorationBonus(state_dim=state_size,
                                                                action_dim=action_size,
                                                                experiment_name=experiment_name,
                                                                pixel_observation=self.pixel_observation,
-                                                               normalize_states=True, writer=self.writer,
+                                                               normalize_states=normalize_states, writer=self.writer,
                                                                bonus_scaling_term=bonus_scaling_term)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
