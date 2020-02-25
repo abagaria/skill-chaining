@@ -18,10 +18,11 @@ from sklearn.model_selection import train_test_split
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+import matplotlib.patches as mpatches
 import seaborn as sns
 import pandas as pd
 # sns.set(color_codes=True)
-# sns.set_style("white")
+sns.set_style("white")
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -98,15 +99,14 @@ class Option(object):
 		self.experience_buffer = []
 		self.initiation_classifier = None
 
-		# TODO: initiation set classifier variables
+		# TODO: option classifier variables
 		self.X = None		
 		self.y = None		
-		self.tc_svm = None
-		self.oc_svm = None
-		self.psmod = None
-		self.tc_svm_prob = []
-		self.oc_svm_prob = []
+		self.termination_classifier = None
+		# self.psmod = None
 		self.train_counter = 0
+		self.initiation_classifier_probs = []
+		self.termination_classifier_probs = []
 
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -141,9 +141,10 @@ class Option(object):
 			return "gestation"
 		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
 			return "initiation"
-		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
-			return "initiation_done"
-		return "trained"
+		# TODO: always learning
+		# if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
+		# 	return "initiation_done"
+		# return "trained"
 
 	def initialize_with_global_ddpg(self):
 		for my_param, global_param in zip(self.solver.actor.parameters(), self.global_solver.actor.parameters()):
@@ -170,15 +171,32 @@ class Option(object):
 		position_matrix = state_matrix[:, :2]
 		return self.initiation_classifier.predict(position_matrix) == 1
 
+	# TODO: utilities
+	def get_average_predict_proba(self, clf, X):
+		y_pred = (clf.predict(X) > 0).astype(int)
+		
+		# Only care about positive examples
+		probs = np.multiply(clf.predict_proba(X)[:,1], y_pred)
+		return np.average(probs[probs > 0])
+
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
+
+		# TODO: parameterize
+		eps_I_o = 0.5
+		# return eps_I_o < self.initiation_classifier_prob[-1]
+			
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
+
+		# TODO: parameterize
+		eps_B_o = 0.5
+		# return eps_B_o < self.termination_classifier_prob[-1]
 
 		# If option does not have a parent, it must be the goal option or the global option
 		assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
@@ -224,54 +242,58 @@ class Option(object):
 				weights[row] = 1.
 		return weights
 
-	def train_one_class_svm(self):
-		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+	# TODO: old
+	# def train_one_class_svm(self):
+	# 	assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
+	# 	positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
-		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
-		self.initiation_classifier.fit(positive_feature_matrix)
+	# 	# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
+	# 	self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+	# 	self.initiation_classifier.fit(positive_feature_matrix)
 
-	def train_elliptic_envelope_classifier(self):
-		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+	# TODO: old
+	# def train_elliptic_envelope_classifier(self):
+	# 	assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
+	# 	positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
-		self.initiation_classifier = EllipticEnvelope(contamination=0.2)
-		self.initiation_classifier.fit(positive_feature_matrix)
+	# 	self.initiation_classifier = EllipticEnvelope(contamination=0.2)
+	# 	self.initiation_classifier.fit(positive_feature_matrix)
 
-	def train_two_class_classifier(self):
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-		negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
-		positive_labels = [1] * positive_feature_matrix.shape[0]
-		negative_labels = [0] * negative_feature_matrix.shape[0]
+	# TODO: old
+	# def train_two_class_classifier(self):
+	# 	positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+	# 	negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
+	# 	positive_labels = [1] * positive_feature_matrix.shape[0]
+	# 	negative_labels = [0] * negative_feature_matrix.shape[0]
 
-		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
-		Y = np.concatenate((positive_labels, negative_labels))
+	# 	X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+	# 	Y = np.concatenate((positive_labels, negative_labels))
 
-		# if len(self.negative_examples) >= 10:
-		kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
-		# else:
-		# 	kwargs = {"kernel": "linear", "gamma": "scale"}
+	# 	# if len(self.negative_examples) >= 10:
+	# 	kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
+	# 	# else:
+	# 	# 	kwargs = {"kernel": "linear", "gamma": "scale"}
 
-		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-		initiation_classifier = svm.SVC(**kwargs)
-		initiation_classifier.fit(X, Y)
+	# 	# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
+	# 	initiation_classifier = svm.SVC(**kwargs)
+	# 	initiation_classifier.fit(X, Y)
 
-		training_predictions = initiation_classifier.predict(X)
-		positive_training_examples = X[training_predictions == 1]
+	# 	training_predictions = initiation_classifier.predict(X)
+	# 	positive_training_examples = X[training_predictions == 1]
 
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
-		self.initiation_classifier.fit(positive_training_examples)
+	# 	self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+	# 	self.initiation_classifier.fit(positive_training_examples)
 
-		self.classifier_type = "tcsvm"
+	# 	self.classifier_type = "tcsvm"
 
-	def train_initiation_classifier(self):
-		if self.classifier_type == "ocsvm":
-			self.train_one_class_svm()
-		elif self.classifier_type == "elliptic":
-			self.train_elliptic_envelope_classifier()
-		else:
-			raise NotImplementedError("{} not supported".format(self.classifier_type))
+	# TODO: old
+	# def train_initiation_classifier(self):
+	# 	if self.classifier_type == "ocsvm":
+	# 		self.train_one_class_svm()
+	# 	elif self.classifier_type == "elliptic":
+	# 		self.train_elliptic_envelope_classifier()
+	# 	else:
+	# 		raise NotImplementedError("{} not supported".format(self.classifier_type))
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
@@ -295,20 +317,20 @@ class Option(object):
 			trained (bool): whether or not we actually trained this option
 		"""
 		# TODO: remove
-		print("|-> (Option::train): call (train option {})".format(self.option_idx))
+		print("      |-> (Option::train): call (train option {})".format(self.option_idx))
 		
 		self.add_initiation_experience(state_buffer)
 		self.add_experience_buffer(experience_buffer)
 		self.num_goal_hits += 1
 
 		# TODO: remove
-		print("  |-> num_goal_hits: {}, num_subgoal_hits_required: {} ".format(
+		print("        |-> num_goal_hits: {}, num_subgoal_hits_required: {} ".format(
 			self.num_goal_hits, self.num_subgoal_hits_required))
 
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
 			# self.train_initiation_classifier()
 			# TODO: call new initiation set classifier
-			self.train_initiation_set_classifier()
+			self.train_option_classifiers()
 			self.initialize_option_policy()
 			return True
 
@@ -427,11 +449,11 @@ class Option(object):
 				self.num_goal_hits += 1
 
 			# if self.get_training_phase() == "initiation" and self.name != "global_option":
-			# 	self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
+			# 	self.refine_option_classifiers(visited_states, start_state, state, num_steps, step_number)
 
 			# TODO: refine after execution (no longer initiation period)
-			if self.name != "global_option" and self.get_training_phase() != "gestation":
-				self.refine_initiation_set_classifier(
+			if self.name != "global_option" and self.get_training_phase() == "initiation":
+				self.refine_option_classifiers(
 					visited_states, start_state, state, num_steps, step_number)
 
 			if self.writer is not None:
@@ -441,7 +463,7 @@ class Option(object):
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
 
-	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
+	def refine_option_classifiers(self, visited_states, start_state, final_state, num_steps,
                                       outer_step_number, episode=None):
 		if self.is_term_true(final_state):  # success
 			positive_states = [start_state] + visited_states[-self.buffer_length:]
@@ -455,15 +477,15 @@ class Option(object):
 			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
 				"Hit else case, but {} was not terminal".format(final_state)
 
-		# Refine the initiation set classifier
+		# Refine option classifiers
 		if len(self.negative_examples) > 0:
 			# self.train_two_class_classifier()
 			# TODO: call new initiation set classifier
-			self.train_initiation_set_classifier()
+			self.train_option_classifiers()
 
 
 	# TODO: utilities
-	def make_meshgrid(self, x, y, h=.02):
+	def make_meshgrid(self, x, y, h=.01):
 		"""Create a mesh of points to plot in
 
 		Args:
@@ -500,71 +522,87 @@ class Option(object):
 		return out
 
 	# TODO: utilities
-	def create_plots(self, models, titles, X, y, grid, episode=None):
-		"""Creates plots of models.
-		
-			Args:
-				models: tuple of models
-				titles: tuple of title names
-				X: input
-				grid: tuple of grid size 
-		"""
+	def plot_boundary(self, X_global, X_buff, y_labels, clfs, cmaps, option_id, cnt):
+		x_coord, y_coord = X_global[:,0], X_global[:,1]
+		x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
 
-		# Set-up grids for plotting.
-		fig, sub = plt.subplots(grid)
-		plt.subplots_adjust(wspace=0.4, hspace=0.4)
+		alpha, patches = 0.5, []
 
-		X0, X1 = X[:, 0], X[:, 1]
-		xx, yy = self.make_meshgrid(X0, X1)
+		# Plot classifier boundaries
+		for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
+			z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
+			z = z.reshape(x_mesh.shape)
 
-		for clf, title, ax in zip(models, titles, sub.flatten()):
-			self.plot_contours(ax, clf, xx, yy,
-                            cmap=plt.cm.coolwarm, alpha=0.8)
-			ax.scatter(X0, X1, c=y, cmap=plt.cm.coolwarm, s=20, edgecolors='k')
-			ax.set_xlim(xx.min(), xx.max())
-			ax.set_ylim(yy.min(), yy.max())
-			ax.set_xlabel('x-coord')
-			ax.set_ylabel('y-coord')
-			ax.set_xticks(())
-			ax.set_yticks(())
-			ax.set_title(title)
+			# Color mapping of white and option color
+			color = cmap(0.99)
+			colors = [(1, 1, 1), color]
+			cmap = ListedColormap(colors)
 
-		# plt.show()
-		plt.savefig("notes/classifier_plots/ep-{}-classifier.png".format(episode))
-		plt.close()
+			cf = plt.contourf(x_mesh, y_mesh, z, cmap=cmap, alpha=alpha)
+			patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
 
-		# TODO: remove
-		print("|-> notes/classifier_plots/ep-{}-classifier.png saved!".format(episode))
+		cb = plt.colorbar()
+		cb.remove()
 
-	# TODO: utilities
-	def plot_boundary(self, X, clf, color, option_id, option_name, clf_name, cnt):
-		x, y = X[:,0], X[:,1]
-		x_mesh, y_mesh = self.make_meshgrid(x, y)
+		# Plot positive examples
+		X_pos = X_buff[y_labels == 1]
+		x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
+		pos_color = '#34495e'
+		p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='positive samples')
+		patches.append(p)
 
-		z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
-		z = z.reshape(x_mesh.shape)
-
-		# Color mapping of white and option color
-		colors = [(1, 1, 1), color]
-		cmap = ListedColormap(colors)
-
-		plt.contourf(x_mesh, y_mesh, z, cmap=cmap, alpha=0.8)
 		plt.xticks(())
 		plt.yticks(())
-		plt.title("{} - {} (t = {})".format(option_name, clf_name, cnt))
+		plt.title("Option {} - Classifier boundaries (t = {})".format(option_id, cnt))
+		plt.legend(handles=patches, 
+				   bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 		
 		# Save plots
-		plt.savefig("notes/clf_plots/option_{}-{}-{}.png".format(option_id, clf_name, cnt),
+		plt.savefig("notes/clf_plots/option_{}-{}.png".format(option_id, cnt),
                     bbox_inches='tight', edgecolor='black')
 		plt.close()
 
 		# TODO: remove
-		print("  |-> notes/clf_plots/option_{}-{}-{}.png saved!".format(option_id, clf_name, cnt))
+		print("        |-> notes/clf_plots/option_{}-{}.png saved!".format(option_id, cnt))
+
+	# TODO: utilities
+	def plot_state_probs(self, X, clfs, option_id, cmaps, cnt):
+		# Generate mesh grid
+		x_coord, y_coord = X[:, 0], X[:, 1]
+		x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
+
+		# Plot state probability estimates
+		for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
+
+			fig, ax = plt.subplots()
+			
+			# Only plot positive predictions
+			X_mesh = np.vstack([x_mesh.flatten(), y_mesh.flatten()]).T
+			probs = clf.predict_proba(X_mesh)[:, 1]
+			preds = (clf.predict(X_mesh) > 0).astype(int)
+			probs = np.multiply(probs, preds)
+
+			ax.set_title(
+				'Option {} - Probability estimates of {} (t = {})'.format(option_id, clf_name, cnt))
+			
+			states = ax.pcolormesh(x_mesh, y_mesh, probs.reshape(x_mesh.shape), shading='gouraud', cmap=cmap, vmin=0.0, vmax=1.0)
+			cbar = fig.colorbar(states)
+
+			ax.set_xticks(())
+			ax.set_yticks(())
+			
+			# Save plots
+			plt.savefig("notes/state_prob_plots/option_{}_{}_{}.png".format(option_id,
+						clf_name, cnt), bbox_inches='tight', edgecolor='black')
+			plt.close()
+
+			# TODO: remove
+			print("        |-> notes/state_prob_plots/option_{}_{}_{}.png saved!".format(option_id, clf_name, cnt))
 
 	# TODO: Optimistic classifier
-	def tc_svm_clf(self, X, y):
+	def train_two_class_classifier(self, X, y):
 		"""
-		Optimistic classifier that is two-class SVM 
+		Optimistic classifier that is a two-class SVM 
 		
 		Args:
 			X: Input data
@@ -573,12 +611,10 @@ class Option(object):
 		Returns:
 			Fitted two-class linear SVM
 		"""
-		tc_svm = svm.SVC(gamma='scale', probability=True, class_weight='balanced')
-		
-		return tc_svm.fit(X, y)
+		return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y)
 	
 	# TODO: Pessimistic classifier
-	def oc_svm_clf(self, tc_svm, X, y):
+	def train_one_class_classifier(self, tc_svm, X, y, nu):
 		"""
 		Pessimistic classifier that is a one-class SVM
 		
@@ -596,7 +632,7 @@ class Option(object):
 		y_pos = [1] * X_pos.shape[0]
 
 		# Fit one-class SVM (non-linear) from (+) subset of inputs from two-class SVM
-		oc_svm = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		oc_svm = svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
 		
 		if len(X_pos) != 0:
 			return oc_svm.fit(X_pos, y_pos)
@@ -604,37 +640,42 @@ class Option(object):
 			# No samples
 			return False  
 
-	# TODO: Platt Scalling module
-	def platt_scale(self, oc_svm, X, train_size, cv_size):
-		"""
-		Uses Platt Scalling to get probability values from one-class SVM
+	# TODO: classifier convertion 
+	def one_class_to_two_class_classifier(self, oc_svm, X):
+		y_pred = (oc_svm.predict(X) > 0).astype(int)
+		return self.train_two_class_classifier(X, y_pred)
+	
+	# TODO: Platt Scalling module (not accurate)
+	# def platt_scale(self, oc_svm, X, train_size, cv_size):
+	# 	"""
+	# 	Uses Platt Scalling to get probability values from a one-class SVM
 		
-		Args:
-			ocsvm_: One-class SVM on positive classification of two-class SVM
-			X_: Input data
-			train_size: Proportion of data that is included in train split
-			cv_size: Number of folds used in cross-validation generator
-			outlier: Toggle to set predictions using outlier data
+	# 	Args:
+	# 		ocsvm_: One-class SVM on positive classification of two-class SVM
+	# 		X_: Input data
+	# 		train_size: Proportion of data that is included in train split
+	# 		cv_size: Number of folds used in cross-validation generator
+	# 		outlier: Toggle to set predictions using outlier data
 		
-		Returns:
-			platt scalling classifier
-			prediction probabilities on test data
-		"""
+	# 	Returns:
+	# 		platt scalling classifier
+	# 		prediction probabilities on test data
+	# 	"""
 		
-		# Get SVM predictions
-		y_SVM_pred = oc_svm.predict(X)
+	# 	# Get SVM predictions
+	# 	y_SVM_pred = oc_svm.predict(X)
 		
-		# Split the data and SVM labels
-		X_train, X_test, y_train, y_test = train_test_split(X, y_SVM_pred, train_size=train_size)
+	# 	# Split the data and SVM labels
+	# 	X_train, X_test, y_train, y_test = train_test_split(X, y_SVM_pred, train_size=train_size)
 
-		# Train using logistic regression layer with cross validation 
-		lr = LRCV(cv=cv_size)
-		lr.fit(X_train, y_train)
+	# 	# Train using logistic regression layer with cross validation 
+	# 	lr = LRCV(cv=cv_size)
+	# 	lr.fit(X_train, y_train)
 
-		return lr, lr.predict_proba(X_test)
+	# 	return lr, lr.predict_proba(X_test)
 
 	# TODO: utilities
-	def get_examples(self, k):
+	def get_rand_global_samples(self, k):
 		"""Gets random k (x,y) states from the global replay buffer"""
 		
 		# Replay buffer entry: (state, action, reward, next_state, terminal)
@@ -644,21 +685,26 @@ class Option(object):
 		# Return only (x,y) coordinates
 		return [row[:2] for row in exp_states]
 
-	# TODO: main initiation set classifier call
-	def train_initiation_set_classifier(self):
-		"""Initiation Set Classifier"""
-		
+	# TODO: utilities
+	def get_all_global_samples(self):
+		exp_states = [row[0]
+                    for row in list(self.global_solver.replay_buffer.memory)]
+		return np.array([np.array(row[:2]) for row in exp_states])
+
+
+	# TODO: main initiation and termination classifier call
+	def train_option_classifiers(self):		
 		# TODO: remove
-		print("|-> (OptionClass::train_initiation_set_classifier): call")
+		print("      |-> (OptionClass::train_option_classifiers): call")
 
 		# If no negative examples, pick first k states to be negative
 		if not self.negative_examples:
-			k=10
-			print("  |-> No negative examples!...Adding {} now".format(k))
-			self.negative_examples.append(self.get_examples(k))
-
+			k=5
+			print("        |-> No negative examples!...Adding {} now".format(k))
+			self.negative_examples.append(self.get_rand_global_samples(k))
+		
 		if not self.positive_examples:
-			print("  |-> No positive examples!")
+			print("        |-> No positive examples!") 
 
 		# Create input and labels
 		positive_feature_matrix = self.construct_feature_matrix(
@@ -668,37 +714,42 @@ class Option(object):
 		positive_labels = [1] * positive_feature_matrix.shape[0]
 		negative_labels = [0] * negative_feature_matrix.shape[0]
 
+		# print("        |-> num pos: {}, num neg: {}".format(len(positive_labels), len(negative_labels)))
+		
 		# Save input and labels
 		self.X = np.concatenate((positive_feature_matrix[:,:2], negative_feature_matrix[:,:2]))
 		self.y = np.concatenate((positive_labels, negative_labels))
 
 		# Fit classifiers
-		self.tc_svm = self.tc_svm_clf(self.X, self.y)
-		oc_svm = self.oc_svm_clf(self.tc_svm, self.X, self.y)
-		if oc_svm != False:
-			self.oc_svm = oc_svm
+		self.initiation_classifier = self.train_two_class_classifier(self.X, self.y)
 		
+		oc_svm = self.train_one_class_classifier(self.initiation_classifier, self.X, self.y, nu=0.5)
+		if oc_svm != False:
+			self.termination_classifier = self.one_class_to_two_class_classifier(oc_svm, self.X)
+
+		# Update variables		
 		self.train_counter += 1
+		X_global = self.get_all_global_samples()
+		self.initiation_classifier_probs.append(self.get_average_predict_proba(
+			self.initiation_classifier, X_global))
+		self.termination_classifier_probs.append(self.get_average_predict_proba(self.termination_classifier, X_global))
 
 		# Platt scalling module
-		# self.psmod, _ = self.platt_scale(self.oc_svm, self.X, 0.90, 5)
+		# self.psmod, _ = self.platt_scale(self.termination_classifier, self.X, 0.90, 5)
 
-		# Save probabilities
-		# self.tc_svm_prob.append(np.average(self.tc_svm.predict_proba(X)))
-		# self.oc_svm_prob.append(np.average(self.psmod.predict_proba(X)))
-
-		# Plotting
+		# Plotting variables
 		option_id = self.option_idx - 1 # off by 1
-		option_name = self.name
-		colors = sns.color_palette()
-		exp_states = [row[0] for row in list(self.global_solver.replay_buffer.memory)]
-		X_global = np.array([np.array(row[:2]) for row in exp_states])
+		num_colors = 100
+		cmaps = [sns.cubehelix_palette(n_colors=num_colors, start=2.8, rot=0.1, light=1, dark=0.3, as_cmap=True),
+                    sns.cubehelix_palette(n_colors=num_colors, start=2, rot=0.1, light=1, dark=0.3, as_cmap=True)]
+		clfs = {'initiation_classifier':self.initiation_classifier,
+				'termination_classifier':self.termination_classifier}
 
-		self.plot_boundary(X_global, self.tc_svm, colors[0], option_id, option_name, 'tc_svm', self.train_counter)
-		self.plot_boundary(X_global, self.oc_svm, colors[1], option_id, option_name, 'oc_svm', self.train_counter)
+		# Plot boundaries of classifiers
+		self.plot_boundary(X_global, self.X, self.y, clfs, cmaps, option_id, self.train_counter)
 
-		# Set initiation set classifier
-		self.initiation_classifier = self.tc_svm
+		# Plot state probability estimates
+		self.plot_state_probs(X_global, clfs, option_id, cmaps, self.train_counter)
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state

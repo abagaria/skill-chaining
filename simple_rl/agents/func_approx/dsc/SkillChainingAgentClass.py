@@ -122,9 +122,9 @@ class SkillChaining(object):
 		self.option_qvalues = defaultdict(lambda : [])
 		self.num_options_history = []
 
-		# TODO: initiation classifier variables
-		self.all_tcsvm_probs = {}
-		self.all_ocsvm_probs = {}
+		# TODO: classifier variables
+		self.all_init_clf_probs = {}
+		self.all_term_clf_probs = {}
 
 	def create_child_option(self, parent_option):
 		# Create new option whose termination is the initiation of the option we just trained
@@ -316,79 +316,55 @@ class SkillChaining(object):
 		# return len(self.trained_options) < self.max_num_options
 
 	# TODO: utilities
-	def plot_prob(self, episode, test_name, colors):
-		for opt_id, probs in self.all_tc_svm_probs.items():
-			color_idx = list(self.all_tc_svm_probs).index(opt_id)
-			color = colors[color_idx]
-			plt.plot(probs, c=color, label="{} - tc_svm".format(opt_id))
-			plt.plot(self.all_oc_svm_probs[opt_id], c=color,
-			         label="{} - oc_svm".format(opt_id), linestyle='--')
+	def plot_prob(self, all_clf_probs):
 
-		plt.title("(Episode {}) Average estimate probabilities of examples".format(episode))
+		# print("\nall_clf_probs: {}\n".format(all_clf_probs))
+
+		for clf_name, clf_probs in all_clf_probs.items():
+			colors = sns.hls_palette(len(clf_probs), l=0.5)
+			for i, (opt_id, opt_probs) in enumerate(clf_probs.items()):
+				probs, episodes = opt_probs
+				if 'initiation' in clf_name:
+					plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(opt_id, clf_name))
+				else:
+					plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(opt_id, clf_name), linestyle='--')
+
+		plt.title("Average Probability Estimates")
 		plt.ylabel("Probabilities")
-		plt.xlabel("Occurances")
-		plt.legend(title="Options", bbox_to_anchor=(
-			1.05, 1), loc='upper left', borderaxespad=0.)
-
-		plt.savefig("notes/prob_plots/{}-ep-{}.png".format(test_name, episode),
-		            bbox_inches='tight')
-		plt.close()
-		print("  |-> notes/prob_plots/{}-ep-{}.png saved!".format(test_name, episode))	# TODO: remove		
-
-	# TODO: utilities
-	def plot_state_probs(self, clf, clf_probs, nbins, xlim, ylim, option_id, clf_name, color, test_name, episode):
-		# Create mesh
-		xmin, xmax = xlim
-		ymin, ymax = ylim
-		xi, yi = np.mgrid[xmin:xmax:nbins*1j, ymin:ymax:nbins*1j]
-
-		# Compute probability estimates from classifier
-		probs = clf.predict_proba(np.vstack([xi.flatten(), yi.flatten()]).T)[:,1]
-		
-		# Generate figure
-		fig, ax = plt.subplots()
-		ax.set_title('(Option {}) Probability of states ({})'.format(option_id, clf_name))
-
-		# Coloring
-		color_idx = list(clf_probs).index(option_id)
-		cmap = sns.light_palette(color[color_idx], n_colors=nbins, as_cmap=True)
-
-		# Plot mesh
-		states = ax.pcolormesh(xi, yi, probs.reshape(xi.shape), shading='gouraud', cmap=cmap)
-		cbar = fig.colorbar(states)
+		plt.xlabel("Episodes")
+		plt.legend(title="Options", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 
 		# Save plots
-		plt.savefig("notes/state_prob_plots/{}-option_{}_ep-{}-{}.png".format(test_name, option_id, episode, clf_name),
-				bbox_inches='tight')
+		plt.savefig("notes/prob_plots/option_prob_estmates.png", bbox_inches='tight')
 		plt.close()
 		
 		# TODO: remove
-		print("  |-> notes/state_prob_plots/{}-option_{}_ep-{}-{}.png saved!".format(test_name, option_id, episode, clf_name))
+		print("      |-> notes/prob_plots/option_prob_estmates.png saved!")
 
-	def prob_processing(self, option, episode, test_name):
-		# TODO: misc variables
-		option_id = option.option_idx
-		xlim = ylim = [-2, 11]
-		nbins = 20
-		tc_svm, psmod = option.tc_svm, option.psmod
+	def plot_processing(self, episode):
+		sns.set_style("white")
 
-		# TODO: if trained
-		if option.tc_svm_prob:
-			# update option's probability values
-			self.all_tc_svm_probs[option_id] = option.tc_svm_prob
-			self.all_oc_svm_probs[option_id] = option.oc_svm_prob
-			
-			n_colors = len(self.all_tc_svm_probs)
-			colors = sns.hls_palette(n_colors)
+		for option in self.trained_options:
+			if option.initiation_classifier:
+				option_id = option.option_idx
 
-			# plot average probabilities
-			self.plot_prob(episode, test_name, colors)
-
-			# plot probabilities of classifiers per option
-			self.plot_state_probs(tc_svm, self.all_tc_svm_probs, nbins, xlim, ylim,
-									option_id, 'tc_svm', colors, test_name, episode)
-			self.plot_state_probs(psmod, self.all_oc_svm_probs, nbins, xlim, ylim,
-									option_id, 'oc_svm', colors, test_name, episode)
+				# update option's probability values
+				if option_id not in self.all_init_clf_probs:
+					self.all_init_clf_probs[option_id] = ([option.initiation_classifier_probs[-1]], [episode])
+					self.all_term_clf_probs[option_id] = ([option.termination_classifier_probs[-1]], [episode])
+				else:
+					self.all_init_clf_probs[option_id][0].append(
+						option.initiation_classifier_probs[-1])
+					self.all_init_clf_probs[option_id][1].append(episode)
+					
+					self.all_term_clf_probs[option_id][0].append(
+						option.termination_classifier_probs[-1])
+					self.all_term_clf_probs[option_id][1].append(episode)
+		
+		# plot average probabilities
+		if option.initiation_classifier:
+			all_clf_probs = {'initiation classifier':self.all_init_clf_probs, 'termination classifier':self.all_term_clf_probs}
+			self.plot_prob(all_clf_probs)
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -424,7 +400,7 @@ class SkillChaining(object):
 					experience_buffer.append(experience)
 					state_buffer.append(experience[0])
 
-				# Don't forget to add the last s' to the buffer
+				# Don't forget to add the last s' to the buffer_length
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
 
@@ -433,19 +409,12 @@ class SkillChaining(object):
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
-						
-						# TODO: probability processing
-						# self.prob_processing(self.untrained_option, episode, 't1')
-						
+								
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 						
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option
-
-						# TODO: create child option
-						# new_option = self.create_child_option(self.untrained_option)
-						# self.untrained_option = new_option
 
 				if state.is_terminal():
 					break
@@ -456,6 +425,9 @@ class SkillChaining(object):
 			per_episode_durations.append(step_number)
 
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
+
+			# TODO: plot processing
+			self.plot_processing(episode)
 
 		return per_episode_scores, per_episode_durations
 
