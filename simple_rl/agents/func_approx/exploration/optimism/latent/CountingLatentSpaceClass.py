@@ -221,7 +221,7 @@ class CountingLatentSpace(object):
             return 1.
         if self.bonus_scaling_term == "sqrt":
             return 1. / np.sqrt(N)
-        if self.bonus_scaling_term == "linear"
+        if self.bonus_scaling_term == "linear":
             return 1. / N
         if self.bonus_scaling_term == "chunked-sqrt":
             return np.sqrt(N) / self.approx_chunk_size
