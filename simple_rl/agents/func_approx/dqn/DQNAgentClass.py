@@ -43,9 +43,9 @@ class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
-                 eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
+                 eps_start=0.25, tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-greedy",
-                 pixel_observation=False, writer=None):
+                 pixel_observation=True, writer=None):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -328,8 +328,9 @@ class DQNAgent(Agent):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
     def update_epsilon(self):
-        self.num_epsilon_updates += 1
-        self.epsilon = self.epsilon_schedule.update_epsilon(self.epsilon, self.num_epsilon_updates)
+        # self.num_epsilon_updates += 1
+        # self.epsilon = self.epsilon_schedule.update_epsilon(self.epsilon, self.num_epsilon_updates)
+        self.epsilon = self.epsilon
 
         # Log epsilon decay
         if self.tensor_log:
