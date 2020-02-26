@@ -68,7 +68,7 @@ dependencies:
   - mkl_fft=1.0.15
   - mkl_random=1.1.0
   - mock=4.0.1
-  - ncurses=6.1
+  - ncurses=6.2
   - ninja=1.9.0
   - numpy=1.18.1
   - numpy-base=1.18.1
