@@ -99,7 +99,7 @@ class ConvCritic(nn.Module):
         self.conv3 = nn.Conv2d(32, 32, kernel_size=4, stride=1)
         self.bn3 = nn.BatchNorm2d(32)
 
-        self.linear1 = nn.Linear(98*64+action_dim, 200)
+        self.linear1 = nn.Linear(14*14*32+action_dim, 200)
         self.linear2 = nn.Linear(200, 200)
         self.head = nn.Linear(200, 1)
 
@@ -156,7 +156,7 @@ class ConvActor(nn.Module):
         self.conv3 = nn.Conv2d(32, 32, kernel_size=4, stride=1)
         self.bn3 = nn.BatchNorm2d(32)
 
-        self.linear1 = nn.Linear(98*64, 200)
+        self.linear1 = nn.Linear(14*14*32, 200)
         self.linear2 = nn.Linear(200, 200)
         self.head = nn.Linear(200, action_dim)
 

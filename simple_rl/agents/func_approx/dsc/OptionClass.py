@@ -27,7 +27,7 @@ class Option(object):
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocbcn",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2, pixel_observations=True,
-				 generate_plots=False, device=torch.device("cpu"), writer=None):
+				 generate_plots=False, device=torch.device("cpu"), writer=None, num_stacks=4):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -63,6 +63,7 @@ class Option(object):
 		self.writer = writer
 		self.device = device
 		self.pixel_observations = pixel_observations
+		self.num_stacks = num_stacks
 
 		# TODO: Get rid of this so that it can apply to both DQN and DDPG
 		self.lr_actor = lr_actor
@@ -100,9 +101,9 @@ class Option(object):
 		else:
 			solver_name = "{}_ddpg_agent".format(self.name)
 			self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-										   name=solver_name, pixel_observation=pixel_observations) if name == "global_option" else global_solver
+										   name=solver_name, pixel_observation=pixel_observations, num_stacks=4) if name == "global_option" else global_solver
 			self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-									tensor_log=(writer is not None), writer=writer, name=solver_name, pixel_observation=pixel_observations)
+									tensor_log=(writer is not None), writer=writer, name=solver_name, pixel_observation=pixel_observations, num_stacks=4)
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -176,13 +177,17 @@ class Option(object):
 			my_param.data.copy_(global_param.data)
 
 		# Not using off_policy_update() because we have numpy arrays not state objects here
-		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
-			if self.name == "global_option":
-				if reward:
-					self.solver.step(state, action, self.subgoal_reward, next_state, True)
-				else:
-					subgoal_reward = self.get_subgoal_reward(next_state)
-					self.solver.step(state, action, subgoal_reward, next_state, done)
+		# for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
+		# 	print("initialize with global ddpg")
+		# 	print(next_state)
+		# 	print(type(next_state))
+		# 	if self.is_init_true(state):
+		# 		if self.is_term_true():
+		# 			self.solver.step(state, action, self.subgoal_reward, next_state, True)
+		# 		else:
+		#
+		# 			subgoal_reward = self.get_subgoal_reward(next_state)
+		# 			self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
 
@@ -235,16 +240,22 @@ class Option(object):
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
 		if self.pixel_observations:
-			examples = [(np.array(segmented_state.features())[-1, :, :]) for segmented_state in segmented_states]
+			print('check good')
+			examples = [self.get_features(segmented_state, 1) for segmented_state in segmented_states]
 		else:
 			examples = [segmented_state.position for segmented_state in segmented_states]
 		self.positive_examples.append(examples)
+
+	def get_features(self, state, n):
+		assert n <= self.num_stacks, "Number of states desired exceed number of states in stacks"
+		return np.array(state.features())[-n, :, :]
 
 	def add_experience_buffer(self, experience_queue):
 		assert type(experience_queue) == list, "Expected initiation experience sample to be a list"
 		segmented_experiences = deepcopy(experience_queue)
 		if len(segmented_experiences) >= self.buffer_length:
 			segmented_experiences = segmented_experiences[-self.buffer_length:]
+		print("in experience buffer")
 		print(segmented_experiences[0])
 		experiences = [Experience(*exp) for exp in segmented_experiences]
 		self.experience_buffer.append(experiences)
@@ -441,6 +452,8 @@ class Option(object):
 		return False
 
 	def get_subgoal_reward(self, state):
+		if self.name in ("overall_goal_policy", "global_option"):
+			return -1.
 
 		if self.is_term_true(state):
 			print("~~~~~ Warning: subgoal query at goal ~~~~~")

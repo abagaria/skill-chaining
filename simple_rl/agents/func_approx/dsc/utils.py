@@ -135,6 +135,8 @@ def plot_one_class_initiation_images(option, episode=None, experiment_name=""):
 	images = []
 	for experience in option.experience_buffer:
 		for exp in experience:
+			print(type(exp))
+			print(exp)
 			X.append(exp.state.info()[0])
 			Y.append(exp.state.info()[1])
 			images.append(exp.state.features()[3])

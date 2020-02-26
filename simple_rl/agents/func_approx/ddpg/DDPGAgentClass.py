@@ -23,7 +23,7 @@ from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", pixel_observation=True):
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", pixel_observation=True, num_stacks=4):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
@@ -42,11 +42,11 @@ class DDPGAgent(Agent):
 
 
         if pixel_observation:
-            self.actor = ConvActor(4, state_size, action_size, device=device)
-            self.critic = ConvCritic(4, state_size, action_size, device=device)
+            self.actor = ConvActor(num_stacks, state_size, action_size, device=device)
+            self.critic = ConvCritic(num_stacks, state_size, action_size, device=device)
 
-            self.target_actor = ConvActor(4, state_size, action_size, device=device)
-            self.target_critic = ConvCritic(4, state_size, action_size, device=device)
+            self.target_actor = ConvActor(num_stacks, state_size, action_size, device=device)
+            self.target_critic = ConvCritic(num_stacks, state_size, action_size, device=device)
         else:
             self.actor = Actor(state_size, action_size, device=device)
             self.critic = Critic(state_size, action_size, device=device)
@@ -206,6 +206,7 @@ def train(agent, mdp, episodes, steps):
         for step in range(steps):
             action = agent.act(state.features())
             reward, next_state = mdp.execute_agent_action(action)
+            print("this is reward" + str(reward))
             agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
             agent.update_epsilon()
             state = next_state

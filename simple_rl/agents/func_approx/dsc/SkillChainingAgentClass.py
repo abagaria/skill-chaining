@@ -20,13 +20,14 @@ from OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
+from simple_rl.tasks.gym.wrappers import LazyFrames
 
 
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocbcn", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False):
+				 log_dir="", seed=0, tensor_log=False, num_stacks=4, pixel_observation=True):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -49,6 +50,7 @@ class SkillChaining(object):
 		"""
 		self.mdp = mdp
 		#self.original_actions = deepcopy(mdp.env.action_space)
+		self.num_stacks = num_stacks
 		self.original_actions = deepcopy(mdp.actions)
 		self.max_steps = max_steps
 		self.subgoal_reward = subgoal_reward
@@ -64,6 +66,7 @@ class SkillChaining(object):
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
 		self.dense_reward = False
+		self.pixel_observation = pixel_observation
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -97,7 +100,7 @@ class SkillChaining(object):
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							 dense_reward=self.dense_reward)
+							 dense_reward=self.dense_reward, num_stacks = self.num_stacks)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -106,7 +109,7 @@ class SkillChaining(object):
 		print("this is state space size" + str(self.mdp.state_space_size()))
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
-										   use_double_dqn=True, writer=self.writer, device=self.device)
+										   use_double_dqn=True, writer=self.writer, device=self.device, pixel_observation=pixel_observation)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -189,7 +192,8 @@ class SkillChaining(object):
 		state_option_pairs = newly_trained_option.final_transitions
 		q_values = []
 		for state, option_idx in state_option_pairs:
-			q_value = global_solver.get_qvalue(state.features(), option_idx)
+			assert isinstance(state.features(), LazyFrames), "state"
+			q_value = global_solver.get_qvalue(np.array(state.features()), option_idx)
 			q_values.append(q_value)
 		return np.max(q_values)
 
@@ -213,7 +217,7 @@ class SkillChaining(object):
 									tensor_log=self.agent_over_options.tensor_log,
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
-									writer=self.writer, device=self.device)
+									writer=self.writer, device=self.device, pixel_observation=self.pixel_observation)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
@@ -497,11 +501,13 @@ if __name__ == '__main__':
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+	parser.add_argument("--num_stacks", type=int, help="num stacks in LazyFrame", default=4)
+	parser.add_argument("--pixel_obs", type=bool, help="num stacks in LazyFrame", default=True)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
 		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty="hard", render=args.render)
+		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
 		state_dim = overall_mdp.init_state.features().shape[0]
 		action_dim = overall_mdp.env.action_spec().minimum.shape[0]
 	elif "maze" in args.env.lower():
@@ -516,14 +522,14 @@ if __name__ == '__main__':
 		action_dim = 2
 	elif "dmcontrol" in args.env.lower():
 		from simple_rl.tasks.dmcontrol_reacher.DMControlReacherMDPClass import DMControlReacherMDP
-		overall_mdp = DMControlReacherMDP(seed=args.seed, render=args.render)
+		overall_mdp = DMControlReacherMDP(seed=args.seed, pixel_observation=args.pixel_obs, render=args.render, num_stacks=args.num_stacks)
 		state_dim = 6
 		action_dim = 2
 	else:
 		from simple_rl.tasks.gym.GymMDPClass import GymMDP
-		overall_mdp = GymMDP(args.env, render=args.render)
-		state_dim = overall_mdp.env.observation_space.shape[0]
-		action_dim = overall_mdp.env.action_space.shape[0]
+		overall_mdp = GymMDP(args.env, render=args.render, pixel_observation=True)
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
 		overall_mdp.env.seed(args.seed)
 
 	# Create folders for saving various things
@@ -543,7 +549,7 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
+							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device, pixel_observation=args.pixel_obs)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics

@@ -211,17 +211,20 @@ class FrameStack(ObservationWrapper):
 
     def _get_observation(self):
         assert len(self.frames) == self.num_stack, (len(self.frames), self.num_stack)
-        return (LazyFrames(list(self.frames), self.lz4_compress))
+        return LazyFrames(list(self.frames), self.lz4_compress)
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
-        observation = np.divide(observation[0] + observation[1] + observation[2], 3.0)
+        observation = self.grayscale(observation)
         self.frames.append(observation)
         #self.realframes.append(info)
         return self._get_observation(), reward, done, info
 
     def reset(self, **kwargs):
         observation = self.env.reset(**kwargs)
-        observation = np.divide(observation[0] + observation[1] + observation[2], 3.0)
+        observation = self.grayscale(observation)
         [self.frames.append(observation) for _ in range(self.num_stack)]
         return self._get_observation()
+
+    def grayscale(self, observation):
+        return np.mean(observation, axis=0)
