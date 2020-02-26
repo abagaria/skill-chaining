@@ -2,6 +2,7 @@
 from collections import deque
 import random
 import numpy as np
+from simple_rl.tasks.gym.wrappers import LazyFrames
 
 # Other imports.
 from simple_rl.agents.func_approx.ddpg.hyperparameters import BUFFER_SIZE, BATCH_SIZE
@@ -18,8 +19,12 @@ class ReplayBuffer(object):
         np.random.seed(seed)
 
     def add(self, state, action, reward, next_state, terminal):
-        assert isinstance(state, np.ndarray) and isinstance(action, np.ndarray) and \
-               isinstance(reward, (int, float)) and isinstance(next_state, np.ndarray)
+        assert isinstance(state, (np.ndarray, LazyFrames)), "state"
+        assert isinstance(action, np.ndarray), "action"
+
+        assert isinstance(reward, (int, float)), "reward"
+        assert isinstance(next_state, (np.ndarray, LazyFrames)), "next_state"
+
         experience = state, action, reward, next_state, terminal
         self.memory.append(experience)
         self.num_exp += 1

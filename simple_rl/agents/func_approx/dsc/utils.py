@@ -128,6 +128,29 @@ def make_meshgrid(x, y, h=.02):
 	xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
 						 np.arange(y_min, y_max, h))
 	return xx, yy
+def plot_one_class_initiation_images(option, episode=None, experiment_name=""):
+	plt.figure(figsize=(8.0,5.0))
+	X = []
+	Y = []
+	images = []
+	for experience in option.experience_buffer:
+		for exp in experience:
+			X.append(exp.state.info()[0])
+			Y.append(exp.state.info()[1])
+			images.append(exp.state.features()[3])
+	images = torch.FloatTensor(images)
+	clf = option.initiation_classifier.predict(images)
+	clf = clf.detach().numpy()
+	X = np.asarray(X)
+	Y = np.asarray(Y)
+	clf = clf.flatten()
+	plt.scatter(x=X, y=Y, c=clf)
+	plt.colorbar()
+	plt.xlim(-8, 8)
+	plt.ylim(-3, 3)
+	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+	plt.savefig("initiation_set_plots/{}/{}_{}_cnn_classifier.png".format(experiment_name, name, option.seed))
+	plt.close()
 
 def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
 	plt.figure(figsize=(8.0, 5.0))

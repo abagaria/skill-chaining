@@ -203,6 +203,7 @@ class FrameStack(ObservationWrapper):
         self.lz4_compress = lz4_compress
 
         self.frames = deque(maxlen=num_stack)
+        #self.realframes = deque(maxlen=num_stack)
 
         low = np.repeat(self.observation_space.low[np.newaxis, ...], num_stack, axis=0)
         high = np.repeat(self.observation_space.high[np.newaxis, ...], num_stack, axis=0)
@@ -214,10 +215,16 @@ class FrameStack(ObservationWrapper):
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
+        observation = self.grayscale(observation)
         self.frames.append(observation)
+        #self.realframes.append(info)
         return self._get_observation(), reward, done, info
 
     def reset(self, **kwargs):
         observation = self.env.reset(**kwargs)
+        observation = self.grayscale(observation)
         [self.frames.append(observation) for _ in range(self.num_stack)]
         return self._get_observation()
+
+    def grayscale(self, observation):
+        return np.mean(observation, axis=0)

@@ -16,17 +16,18 @@ import torch
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
-from simple_rl.agents.func_approx.dsc.OptionClass import Option
+from OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
+from simple_rl.tasks.gym.wrappers import LazyFrames
 
 
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
-				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False):
+				 classifier_type="ocbcn", init_q=None, generate_plots=False, use_full_smdp_update=False,
+				 log_dir="", seed=0, tensor_log=False, num_stacks=4, pixel_observation=True):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -48,6 +49,8 @@ class SkillChaining(object):
 			tensor_log (bool): Tensorboard logging enable
 		"""
 		self.mdp = mdp
+		#self.original_actions = deepcopy(mdp.env.action_space)
+		self.num_stacks = num_stacks
 		self.original_actions = deepcopy(mdp.actions)
 		self.max_steps = max_steps
 		self.subgoal_reward = subgoal_reward
@@ -62,7 +65,8 @@ class SkillChaining(object):
 		self.device = torch.device(device)
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
-		self.dense_reward = mdp.dense_reward
+		self.dense_reward = False
+		self.pixel_observation = pixel_observation
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -96,16 +100,16 @@ class SkillChaining(object):
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							 dense_reward=self.dense_reward)
+							 dense_reward=self.dense_reward, num_stacks = self.num_stacks)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
 		# We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
 		# options, this agent will predict Q-values for them as well
+		print("this is state space size" + str(self.mdp.state_space_size()))
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
-										   use_double_dqn=True, writer=self.writer, device=self.device,
-										   pixel_observation=True)
+										   use_double_dqn=True, writer=self.writer, device=self.device, pixel_observation=pixel_observation)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -129,9 +133,9 @@ class SkillChaining(object):
 
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
-									  lr_actor=parent_option.lr_actor,
-									  lr_critic=parent_option.lr_critic,
-									  ddpg_batch_size=parent_option.batch_size,
+									  lr_actor=parent_option.solver.actor_learning_rate,
+									  lr_critic=parent_option.solver.critic_learning_rate,
+									  ddpg_batch_size=parent_option.solver.batch_size,
 									  subgoal_reward=self.subgoal_reward,
 									  buffer_length=self.buffer_length,
 									  classifier_type=self.classifier_type,
@@ -188,6 +192,7 @@ class SkillChaining(object):
 		state_option_pairs = newly_trained_option.final_transitions
 		q_values = []
 		for state, option_idx in state_option_pairs:
+			assert isinstance(state.features(), LazyFrames), "state"
 			q_value = global_solver.get_qvalue(np.array(state.features()), option_idx)
 			q_values.append(q_value)
 		return np.max(q_values)
@@ -212,13 +217,13 @@ class SkillChaining(object):
 									tensor_log=self.agent_over_options.tensor_log,
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
-									writer=self.writer, device=self.device, pixel_observation=True)
+									writer=self.writer, device=self.device, pixel_observation=self.pixel_observation)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
 		print("Initializing new option node with q value {}".format(init_q))
-		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network)
-		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network)
+		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q)
+		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q)
 
 		self.agent_over_options = new_global_agent
 
@@ -257,7 +262,6 @@ class SkillChaining(object):
 		selected_option = self.act(state)
 
 		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, step_number)
-
 		option_reward = self.get_reward_from_experiences(option_transitions)
 		next_state = self.get_next_state_from_experiences(option_transitions)
 
@@ -272,7 +276,7 @@ class SkillChaining(object):
 		episode_option_executions[selected_option.name] += 1
 		self.option_rewards[selected_option.name].append(discounted_reward)
 
-		sampled_q_value = 0  # self.sample_qvalue(selected_option)
+		sampled_q_value = self.sample_qvalue(selected_option)
 		self.option_qvalues[selected_option.name].append(sampled_q_value)
 		if self.writer is not None:
 			self.writer.add_scalar("{}_q_value".format(selected_option.name),
@@ -291,10 +295,7 @@ class SkillChaining(object):
 
 	@staticmethod
 	def get_next_state_from_experiences(experiences):
-		try:
-			return experiences[-1][-1]
-		except:
-			pdb.set_trace()
+		return experiences[-1][-1]
 
 	@staticmethod
 	def get_reward_from_experiences(experiences):
@@ -341,7 +342,6 @@ class SkillChaining(object):
 				for experience in experiences:
 					experience_buffer.append(experience)
 					state_buffer.append(experience[0])
-
 				# Don't forget to add the last s' to the buffer
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
@@ -350,16 +350,13 @@ class SkillChaining(object):
 						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
-
-						# TODO: Write visualization function for image based initiation classifier
-						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+						plot_one_class_initiation_images(self.untrained_option, episode, args.experiment_name)
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 						if self.should_create_more_options():
 							new_option = self.create_child_option(self.untrained_option)
 							self.untrained_option = new_option
 
-				game_over = self.mdp.game_over if hasattr(self.mdp, "game_over") else False
-				if state.is_terminal() or game_over:
+				if state.is_terminal():
 					break
 
 			last_10_scores.append(score)
@@ -386,7 +383,7 @@ class SkillChaining(object):
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		if episode > 0 and episode % 100 == 0:
-			eval_score, _ = self.trained_forward_pass(render=False)
+			eval_score = self.trained_forward_pass(render=False)
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
@@ -457,23 +454,16 @@ class SkillChaining(object):
 		overall_reward = 0.
 		self.mdp.render = render
 		num_steps = 0
-		option_trajectories = []
-		game_over = False
 
-		while not state.is_terminal() and num_steps < self.max_steps and game_over == False:
+		while not state.is_terminal() and num_steps < self.max_steps:
 			selected_option = self.act(state)
 
-			option_reward, next_state, num_steps, option_state_trajectory = selected_option.trained_option_execution(self.mdp, num_steps)
+			option_reward, next_state, num_steps = selected_option.trained_option_execution(self.mdp, num_steps)
 			overall_reward += option_reward
-
-			# option_state_trajectory is a list of (o, s) tuples
-			option_trajectories.append(option_state_trajectory)
 
 			state = next_state
 
-			game_over = self.mdp.game_over if hasattr(self.mdp, "game_over") else False
-
-		return overall_reward, option_trajectories
+		return overall_reward
 
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
@@ -511,6 +501,8 @@ if __name__ == '__main__':
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+	parser.add_argument("--num_stacks", type=int, help="num stacks in LazyFrame", default=4)
+	parser.add_argument("--pixel_obs", type=bool, help="num stacks in LazyFrame", default=True)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -528,6 +520,11 @@ if __name__ == '__main__':
 		overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
 		state_dim = 4
 		action_dim = 2
+	elif "dmcontrol" in args.env.lower():
+		from simple_rl.tasks.dmcontrol_reacher.DMControlReacherMDPClass import DMControlReacherMDP
+		overall_mdp = DMControlReacherMDP(seed=args.seed, pixel_observation=args.pixel_obs, render=args.render, num_stacks=args.num_stacks)
+		state_dim = 6
+		action_dim = 2
 	else:
 		from simple_rl.tasks.gym.GymMDPClass import GymMDP
 		overall_mdp = GymMDP(args.env, render=args.render, pixel_observation=True)
@@ -542,25 +539,20 @@ if __name__ == '__main__':
 	create_log_dir("initiation_set_plots")
 	create_log_dir("value_function_plots/{}".format(args.experiment_name))
 	create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
-	create_log_dir("initiation_set_plots/{}/{}".format(args.experiment_name, args.seed))
-	create_log_dir("initiation_set_plots/{}/{}/positive_examples".format(args.experiment_name, args.seed))
-	create_log_dir("initiation_set_plots/{}/{}/negative_examples".format(args.experiment_name, args.seed))
-	create_log_dir("initiation_set_plots/{}/{}/term_states".format(args.experiment_name, args.seed))
 
 	print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
-	print("MDP InitState = ", overall_mdp.init_state)
+	#print("MDP InitState = ", overall_mdp.init_state)
 
 	q0 = 0. if args.init_q == "zero" else None
 
 	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
-							classifier_type=args.classifier_type,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
+							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device, pixel_observation=args.pixel_obs)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
-	# chainer.save_all_models()
-	# chainer.perform_experiments()
+	chainer.save_all_models()
+	chainer.perform_experiments()
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
