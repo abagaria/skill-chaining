@@ -14,7 +14,7 @@ from torch import optim
 from tqdm import tqdm
 
 # Other imports.
-from simple_rl.mdp.StateClass import State
+#from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
 from simple_rl.agents.func_approx.dqn.model import ConvInitiationClassifier
@@ -58,7 +58,6 @@ class Option(object):
 		self.initiation_period = initiation_period
 		self.enable_timeout = enable_timeout
 		self.classifier_type = classifier_type
-		print(self.classifier_type)
 		self.generate_plots = generate_plots
 		self.writer = writer
 		self.device = device
@@ -255,8 +254,6 @@ class Option(object):
 		segmented_experiences = deepcopy(experience_queue)
 		if len(segmented_experiences) >= self.buffer_length:
 			segmented_experiences = segmented_experiences[-self.buffer_length:]
-		print("in experience buffer")
-		print(segmented_experiences[0])
 		experiences = [Experience(*exp) for exp in segmented_experiences]
 		self.experience_buffer.append(experiences)
 

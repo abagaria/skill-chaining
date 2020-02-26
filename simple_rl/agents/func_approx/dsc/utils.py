@@ -135,8 +135,6 @@ def plot_one_class_initiation_images(option, episode=None, experiment_name=""):
 	images = []
 	for experience in option.experience_buffer:
 		for exp in experience:
-			print(type(exp))
-			print(exp)
 			X.append(exp.state.info()[0])
 			Y.append(exp.state.info()[1])
 			images.append(exp.state.features()[3])
@@ -148,6 +146,8 @@ def plot_one_class_initiation_images(option, episode=None, experiment_name=""):
 	clf = clf.flatten()
 	plt.scatter(x=X, y=Y, c=clf)
 	plt.colorbar()
+	plt.xlim(-8, 8)
+	plt.ylim(-3, 3)
 	name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
 	plt.savefig("initiation_set_plots/{}/{}_{}_cnn_classifier.png".format(experiment_name, name, option.seed))
 	plt.close()
