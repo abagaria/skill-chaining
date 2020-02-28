@@ -14,13 +14,14 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.generated
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.generated_bonus_dataset import BonusDataset
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.chunked_state_dataset import ChunkedStateDataset
 from simple_rl.agents.func_approx.exploration.optimism.latent.datasets.transition_consistency_dataset import TransitionConsistencyDataset, collate_fn
+from simple_rl.agents.func_approx.exploration.optimism.latent.utils import get_lam_for_buffer_size
 
 # TODO: Refactor dataset filenames so they are UpperCamelCase
 
 class CountingLatentSpace(object):
     def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
                  pixel_observations=False, lam=0.1, attractive_loss_type="quadratic", repulsive_loss_type="exponential",
-                 optimization_quantity="count", bonus_scaling_term="sqrt", writer=None, approx_chunk_size=1000):
+                 optimization_quantity="count", bonus_scaling_term="sqrt", lam_scaling_term="none", writer=None, approx_chunk_size=1000):
         """
         Latent space useful for generating pseudo-counts for states.
         Args:
@@ -37,6 +38,7 @@ class CountingLatentSpace(object):
                                        for any two states
             optimization_quantity (str): What we're trying to optimize. We either minimize "count" or maximize exploration "bonus"
             bonus_scaling_term (str): Form of the term used to scale the bonus loss term when combined with MDP distance term
+            lam_scaling_term (str):  Form of the term used to scale the MDP distance term
             writer (SummaryWriter): tensorboard logging
         """
         self.state_dim = state_dim
@@ -60,8 +62,10 @@ class CountingLatentSpace(object):
 
         self.optimization_quantity = optimization_quantity
         self.bonus_scaling_term = bonus_scaling_term
+        self.lam_scaling_term = lam_scaling_term
 
         assert bonus_scaling_term in ("none", "sqrt", "linear", "chunked-sqrt"), bonus_scaling_term
+        assert lam_scaling_term in ("none", "fit")
 
         if phi_type == "function":
             self.reset_model()
@@ -227,6 +231,13 @@ class CountingLatentSpace(object):
             return np.sqrt(N) / self.approx_chunk_size
         raise ValueError(f"Bad value for bonus_scaling_term: {self.bonus_scaling_term}")
 
+    def _get_scaled_lam(self, N):
+        if self.lam_scaling_term == "none":
+            return self.lam
+        if self.lam_scaling_term == "fit":
+            return get_lam_for_buffer_size(N)
+        raise ValueError(f"Bad value for lam_scaling_term: {self.lam_scaling_term}")
+
     def _train_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
         if state_next_state_buffer is None:
             self._train_repulsive_function_bonuses(buffers=buffers, epochs=epochs)
@@ -364,14 +375,16 @@ class CountingLatentSpace(object):
                 sns_state_transformed = self.model(sns_state_tensor)
                 sns_next_state_transformed = self.model(sns_next_state_tensor)
 
-                attractive_loss = self.lam * self._counting_loss(sns_state_transformed, sns_next_state_transformed,
-                                                                 loss_type=self.attractive_loss_type)
+                attractive_loss = self._counting_loss(sns_state_transformed, sns_next_state_transformed,
+                                                      loss_type=self.attractive_loss_type)
+
+                attractive_loss = self._get_scaled_lam(len(state_next_state_buffer)) * attractive_loss
 
                 repulsive_loss = self._chunked_bonus_loss(phi_s=fc_state_transformed, phi_s_prime=sc_state_transformed,
                                                           phi_s_prime_actions=sc_action_tensor, buffers=buffers,
                                                           count_type=self.repulsive_loss_type)
 
-                repulsive_loss = self._get_bonus_scaling_term(len(sns_state_tensor)) * repulsive_loss
+                repulsive_loss = self._get_bonus_scaling_term(len(state_next_state_buffer)) * repulsive_loss
 
                 loss = repulsive_loss - attractive_loss
 

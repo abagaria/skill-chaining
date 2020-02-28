@@ -25,7 +25,8 @@ class Experiment13:
     """
 
     def __init__(self, seed, *, grid_size, noise_level, num_steps, device, lam,
-                 experiment_name, optimization_quantity, env_name, pixel_observation, scale_images, bonus_scaling_term):
+                 experiment_name, optimization_quantity, env_name, pixel_observation, scale_images,
+                 bonus_scaling_term, lam_scaling_term):
 
         assert optimization_quantity in ("chunked-count", "chunked-bonus"), optimization_quantity
 
@@ -44,6 +45,7 @@ class Experiment13:
             state_dim=state_dim, action_dim=action_dim, latent_dim=2, epsilon=0.1, phi_type="function",
             experiment_name=experiment_name, pixel_observations=pixel_observation, lam=lam,
             optimization_quantity=optimization_quantity, device=device, approx_chunk_size=1000,
+            bonus_scaling_term=bonus_scaling_term, lam_scaling_term=lam_scaling_term
         )
 
         self.num_steps = num_steps
@@ -338,8 +340,8 @@ if __name__ == "__main__":
     parser.add_argument("--env_name", type=str)
     parser.add_argument("--pixel_observation", action="store_true", default=False)
     parser.add_argument("--lam", type=float, default=0.1)
-    parser.add_argument("--bonus_scaling_term", type=str, default="sqrt")
-
+    parser.add_argument("--bonus_scaling_term", type=str, default="none")
+    parser.add_argument("--lam_scaling_term", type=str, default="fit")
 
     args = parser.parse_args()
 
@@ -361,6 +363,6 @@ if __name__ == "__main__":
                        num_steps=args.steps, device=device, experiment_name=full_experiment_name,
                        optimization_quantity=args.optimization_quantity, env_name=args.env_name,
                        pixel_observation=args.pixel_observation, scale_images=True, lam=args.lam,
-                       bonus_scaling_term=args.bonus_scaling_term)
+                       bonus_scaling_term=args.bonus_scaling_term, lam_scaling_term=args.lam_scaling_term)
 
     exp.run_experiment(timing_experiment=args.timing_plots, epochs=args.epochs)
