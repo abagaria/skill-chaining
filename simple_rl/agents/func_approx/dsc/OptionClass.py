@@ -5,6 +5,7 @@ import numpy as np
 import pdb
 from copy import deepcopy
 import torch
+from pathlib import Path
 
 from sklearn import svm
 from sklearn.covariance import EllipticEnvelope
@@ -19,6 +20,7 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.patches as mpatches
+import matplotlib.cm as cm
 import seaborn as sns
 import pandas as pd
 # sns.set(color_codes=True)
@@ -34,7 +36,7 @@ class Option(object):
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2,
-				 generate_plots=False, device=torch.device("cpu"), writer=None):
+              generate_plots=False, device=torch.device("cpu"), writer=None, nu=0.5, experiment_name=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -55,6 +57,7 @@ class Option(object):
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
+			nu (float)
 		'''
 		self.name = name
 		self.subgoal_reward = subgoal_reward
@@ -68,6 +71,8 @@ class Option(object):
 		self.generate_plots = generate_plots
 		self.writer = writer
 		self.timeout = np.inf
+		self.nu = nu
+		self.experiment_name = experiment_name
 
 		# Global option operates on a time-scale of 1 while child (learned) options are temporally extended
 		if enable_timeout:
@@ -317,14 +322,14 @@ class Option(object):
 			trained (bool): whether or not we actually trained this option
 		"""
 		# TODO: remove
-		print("      |-> (Option::train): call (train option {})".format(self.option_idx))
+		print("    |-> (Option::train): call (train option {})".format(self.option_idx))
 		
 		self.add_initiation_experience(state_buffer)
 		self.add_experience_buffer(experience_buffer)
 		self.num_goal_hits += 1
 
 		# TODO: remove
-		print("        |-> num_goal_hits: {}, num_subgoal_hits_required: {} ".format(
+		print("      |-> num_goal_hits: {}, num_subgoal_hits_required: {} ".format(
 			self.num_goal_hits, self.num_subgoal_hits_required))
 
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
@@ -452,7 +457,7 @@ class Option(object):
 			# 	self.refine_option_classifiers(visited_states, start_state, state, num_steps, step_number)
 
 			# TODO: refine after execution (no longer initiation period)
-			if self.name != "global_option" and self.get_training_phase() == "initiation":
+			if self.name != "global_option" and self.get_training_phase() != "gestation":
 				self.refine_option_classifiers(
 					visited_states, start_state, state, num_steps, step_number)
 
@@ -522,23 +527,23 @@ class Option(object):
 		return out
 
 	# TODO: utilities
-	def plot_boundary(self, X_global, X_buff, y_labels, clfs, cmaps, option_id, cnt):
+	def plot_boundary(self, X_global, X_buff, y_labels, clfs, colors, option_id, cnt, experiment_name, alpha):
+		# Create plotting dir (if not created)
+		path = 'plots/{}/clf_plots'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
+		
 		x_coord, y_coord = X_global[:,0], X_global[:,1]
-		x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
+		x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
 
-		alpha, patches = 0.5, []
+		patches = []
 
 		# Plot classifier boundaries
-		for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
+		for (clf_name, clf), color in zip(clfs.items(), colors):
 			z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
-			z = z.reshape(x_mesh.shape)
+			z = (z.reshape(x_mesh.shape) > 0).astype(int)
+			z = np.ma.masked_where(z == 0, z)
 
-			# Color mapping of white and option color
-			color = cmap(0.99)
-			colors = [(1, 1, 1), color]
-			cmap = ListedColormap(colors)
-
-			cf = plt.contourf(x_mesh, y_mesh, z, cmap=cmap, alpha=alpha)
+			cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
 			patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
 
 		cb = plt.colorbar()
@@ -547,7 +552,7 @@ class Option(object):
 		# Plot positive examples
 		X_pos = X_buff[y_labels == 1]
 		x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
-		pos_color = '#34495e'
+		pos_color = 'black'
 		p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='positive samples')
 		patches.append(p)
 
@@ -558,15 +563,19 @@ class Option(object):
 				   bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 		
 		# Save plots
-		plt.savefig("notes/clf_plots/option_{}-{}.png".format(option_id, cnt),
+		plt.savefig("{}/option_{}_{}.png".format(path, option_id, cnt),
                     bbox_inches='tight', edgecolor='black')
 		plt.close()
 
 		# TODO: remove
-		print("        |-> notes/clf_plots/option_{}-{}.png saved!".format(option_id, cnt))
+		print("      |-> {}/option_{}_{}.png saved!".format(path, option_id, cnt))
 
 	# TODO: utilities
-	def plot_state_probs(self, X, clfs, option_id, cmaps, cnt):
+	def plot_state_probs(self, X, clfs, option_id, cmaps, cnt, experiment_name):
+		# Create plotting dir (if not created)
+		path = 'plots/{}/state_prob_plots'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
+		
 		# Generate mesh grid
 		x_coord, y_coord = X[:, 0], X[:, 1]
 		x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
@@ -592,12 +601,12 @@ class Option(object):
 			ax.set_yticks(())
 			
 			# Save plots
-			plt.savefig("notes/state_prob_plots/option_{}_{}_{}.png".format(option_id,
+			plt.savefig("{}/option_{}_{}_{}.png".format(path, option_id,
 						clf_name, cnt), bbox_inches='tight', edgecolor='black')
 			plt.close()
 
 			# TODO: remove
-			print("        |-> notes/state_prob_plots/option_{}_{}_{}.png saved!".format(option_id, clf_name, cnt))
+			print("      |-> {}/option_{}_{}_{}.png saved!".format(path, option_id, clf_name, cnt))
 
 	# TODO: Optimistic classifier
 	def train_two_class_classifier(self, X, y):
@@ -695,16 +704,16 @@ class Option(object):
 	# TODO: main initiation and termination classifier call
 	def train_option_classifiers(self):		
 		# TODO: remove
-		print("      |-> (OptionClass::train_option_classifiers): call")
+		print("    |-> (OptionClass::train_option_classifiers): call")
 
 		# If no negative examples, pick first k states to be negative
 		if not self.negative_examples:
 			k=5
-			print("        |-> No negative examples!...Adding {} now".format(k))
+			print("      |-> No negative examples!...Adding {} now".format(k))
 			self.negative_examples.append(self.get_rand_global_samples(k))
 		
 		if not self.positive_examples:
-			print("        |-> No positive examples!") 
+			print("      |-> No positive examples!") 
 
 		# Create input and labels
 		positive_feature_matrix = self.construct_feature_matrix(
@@ -714,7 +723,7 @@ class Option(object):
 		positive_labels = [1] * positive_feature_matrix.shape[0]
 		negative_labels = [0] * negative_feature_matrix.shape[0]
 
-		# print("        |-> num pos: {}, num neg: {}".format(len(positive_labels), len(negative_labels)))
+		# print("      |-> num pos: {}, num neg: {}".format(len(positive_labels), len(negative_labels)))
 		
 		# Save input and labels
 		self.X = np.concatenate((positive_feature_matrix[:,:2], negative_feature_matrix[:,:2]))
@@ -723,7 +732,7 @@ class Option(object):
 		# Fit classifiers
 		self.initiation_classifier = self.train_two_class_classifier(self.X, self.y)
 		
-		oc_svm = self.train_one_class_classifier(self.initiation_classifier, self.X, self.y, nu=0.5)
+		oc_svm = self.train_one_class_classifier(self.initiation_classifier, self.X, self.y, nu=self.nu)
 		if oc_svm != False:
 			self.termination_classifier = self.one_class_to_two_class_classifier(oc_svm, self.X)
 
@@ -738,18 +747,20 @@ class Option(object):
 		# self.psmod, _ = self.platt_scale(self.termination_classifier, self.X, 0.90, 5)
 
 		# Plotting variables
-		option_id = self.option_idx - 1 # off by 1
+		option_id = self.option_idx
 		num_colors = 100
-		cmaps = [sns.cubehelix_palette(n_colors=num_colors, start=2.8, rot=0.1, light=1, dark=0.3, as_cmap=True),
-                    sns.cubehelix_palette(n_colors=num_colors, start=2, rot=0.1, light=1, dark=0.3, as_cmap=True)]
+		# cmaps = [sns.cubehelix_palette(n_colors=num_colors, start=2.8, rot=0.1, light=1, dark=0.3, as_cmap=True),
+        #             sns.cubehelix_palette(n_colors=num_colors, start=2, rot=0.1, light=1, dark=0.3, as_cmap=True)]
+		cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
+		colors = ['blue', 'green']
 		clfs = {'initiation_classifier':self.initiation_classifier,
 				'termination_classifier':self.termination_classifier}
 
 		# Plot boundaries of classifiers
-		self.plot_boundary(X_global, self.X, self.y, clfs, cmaps, option_id, self.train_counter)
+		self.plot_boundary(X_global, self.X, self.y, clfs, colors, option_id, self.train_counter, self.experiment_name, alpha=0.5)
 
 		# Plot state probability estimates
-		self.plot_state_probs(X_global, clfs, option_id, cmaps, self.train_counter)
+		self.plot_state_probs(X_global, clfs, option_id, cmaps, self.train_counter, self.experiment_name)
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state

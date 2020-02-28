@@ -14,6 +14,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 import torch
 import pandas as pd
+from pathlib import Path
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -27,7 +28,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False):
+				 log_dir="", seed=0, tensor_log=False, nu=0.5, experiment_name=None):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -64,6 +65,8 @@ class SkillChaining(object):
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
 		self.dense_reward = mdp.dense_reward
+		self.nu = nu
+		self.experiment_name = experiment_name
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -82,7 +85,7 @@ class SkillChaining(object):
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-									dense_reward=self.dense_reward)
+									dense_reward=self.dense_reward, nu=self.nu, experiment_name=self.experiment_name)
 
 		self.trained_options = [self.global_option]
 
@@ -97,7 +100,7 @@ class SkillChaining(object):
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							 dense_reward=self.dense_reward)
+                       dense_reward=self.dense_reward, nu=self.nu, experiment_name=self.experiment_name)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -142,7 +145,7 @@ class SkillChaining(object):
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
 									  seed=self.seed, parent=parent_option,  max_steps=self.max_steps,
 									  enable_timeout=self.enable_option_timeout,
-									  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
+                                writer=self.writer, device=self.device, dense_reward=self.dense_reward, nu=self.nu, experiment_name=self.experiment_name)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -316,9 +319,10 @@ class SkillChaining(object):
 		# return len(self.trained_options) < self.max_num_options
 
 	# TODO: utilities
-	def plot_prob(self, all_clf_probs):
-
-		# print("\nall_clf_probs: {}\n".format(all_clf_probs))
+	def plot_prob(self, all_clf_probs, experiment_name):
+		# Create plotting dir (if not created)
+		path = 'plots/{}/prob_plots'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
 
 		for clf_name, clf_probs in all_clf_probs.items():
 			colors = sns.hls_palette(len(clf_probs), l=0.5)
@@ -335,11 +339,11 @@ class SkillChaining(object):
 		plt.legend(title="Options", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 
 		# Save plots
-		plt.savefig("notes/prob_plots/option_prob_estmates.png", bbox_inches='tight')
+		plt.savefig("{}/option_prob_estimates.png".format(path), bbox_inches='tight')
 		plt.close()
 		
 		# TODO: remove
-		print("      |-> notes/prob_plots/option_prob_estmates.png saved!")
+		print("      |-> {}/option_prob_estmates.png saved!".format(path))
 
 	def plot_processing(self, episode):
 		sns.set_style("white")
@@ -364,7 +368,7 @@ class SkillChaining(object):
 		# plot average probabilities
 		if option.initiation_classifier:
 			all_clf_probs = {'initiation classifier':self.all_init_clf_probs, 'termination classifier':self.all_term_clf_probs}
-			self.plot_prob(all_clf_probs)
+			self.plot_prob(all_clf_probs, self.experiment_name)
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -376,9 +380,12 @@ class SkillChaining(object):
 		last_10_scores = deque(maxlen=10)
 		last_10_durations = deque(maxlen=10)
 
+		# TODO: create plotting directory
+		Path('plots/{}'.format(self.experiment_name)).mkdir(exist_ok=True)
+
 		for episode in range(num_episodes):
 
-			print("  |-> episode: {}".format(episode))		# TODO: remove
+			print("|-> episode: {}".format(episode))		# TODO: remove
 			self.mdp.reset()
 			score = 0.
 			step_number = 0
@@ -391,7 +398,7 @@ class SkillChaining(object):
 
 			while step_number < num_steps:
 				if step_number % 100 == 0:
-					print("    |-> step_number: {}".format(step_number))  # TODO: remove
+					print("  |-> step_number: {}".format(step_number))  # TODO: remove
 				experiences, reward, state, steps = self.take_action(
 					state, step_number, episode_option_executions, episode)
 				score += reward
@@ -568,6 +575,8 @@ if __name__ == '__main__':
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+	parser.add_argument(
+		"--nu", type=float, help="For OneClassSVM, an upper bound on the fraction of training errors and a lower bound of the fraction of support vectors. Should be in the interval (0, 1].", default=0.5)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -609,7 +618,7 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
+							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device, nu=args.nu, experiment_name=args.experiment_name)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# TODO: remove
