@@ -7,6 +7,9 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpac
 
 
 class Experiment6:
+    """
+    Early experiment, getting plots on synthetic data.
+    """
     def __init__(self, epsilon, epochs):
         self.counting_space = CountingLatentSpace(2, epsilon, phi_type="function", optimization_quantity="bonus", experiment_name="exp6")
         self.epochs = epochs

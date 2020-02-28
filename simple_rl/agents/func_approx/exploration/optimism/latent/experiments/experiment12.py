@@ -26,15 +26,18 @@ class Experiment12:
     def __init__(self, seed, *, pixel_observation,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, no_novelty_during_regression):
-        self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation, seed=seed, control_problem=True)
+        self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
+                          seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
         self.novelty_during_regression = not no_novelty_during_regression
         self.agent = DQNAgent(state_size=state_dim, action_size=len(self.mdp.actions),
-                          trained_options=[], seed=seed, device=device,
-                          name="GlobalDDQN", lr=1e-3, use_double_dqn=False, # TODO: Changed learning rate
-                          exploration_method=exploration_method, pixel_observation=pixel_observation,
-                          evaluation_epsilon=eval_eps, tensor_log=True, experiment_name=experiment_name,
-                          bonus_scaling_term=bonus_scaling_term, novelty_during_regression=self.novelty_during_regression)
+                              trained_options=[], seed=seed, device=device,
+                              name="GlobalDDQN", lr=1e-3, use_double_dqn=False,
+                              exploration_method=exploration_method, pixel_observation=pixel_observation,
+                              evaluation_epsilon=eval_eps, tensor_log=True, experiment_name=experiment_name,
+                              bonus_scaling_term=bonus_scaling_term,
+                              novelty_during_regression=self.novelty_during_regression,
+                              normalize_states=(not pixel_observation))
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -48,7 +51,7 @@ class Experiment12:
     def make_latent_plot(self, agent, episode):
 
         # Normalize the data before asking for its embeddings
-        normalized_sns_buffer = agent.novelty_tracker.get_sns_buffer(normalized=True)
+        normalized_sns_buffer = agent.novelty_tracker.get_sns_buffer(normalized=(not self.mdp.pixel_observation))
 
         # phi(s)
         states = np.array([sns[0] for sns in normalized_sns_buffer])
@@ -111,7 +114,6 @@ class Experiment12:
             score = 0.
 
             for step in range(steps):
-                agent.writer.add_scalar("TestingItOut", iteration_counter, iteration_counter)
                 iteration_counter += 1
 
                 position = mdp.get_position()

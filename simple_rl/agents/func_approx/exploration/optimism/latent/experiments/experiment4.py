@@ -11,6 +11,10 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpac
 
 
 class Experiment4:
+    """
+    MountainCar, static dataset, non-visual. Made cool plots, one that showed counts on top of real states, one that showed
+    how the latent space looked.
+    """
     def __init__(self, epsilon, num_steps=200, seed=0, lam=0.1, use_bonus=False):
         self.num_steps = num_steps
         self.env = gym.make("MountainCar-v0")

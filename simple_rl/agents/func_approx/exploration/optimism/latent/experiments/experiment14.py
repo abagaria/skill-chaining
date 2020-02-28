@@ -27,7 +27,7 @@ class Experiment14:
         self.counting_space = CountingLatentSpace(
             state_dim=state_dim, action_dim=3, latent_dim=2, epsilon=0.1, phi_type="function",
             experiment_name="exp14", pixel_observations=pixel_observation, lam=1.,
-            optimization_quantity="approx-count", device=device, approx_chunk_size=chunk_size,
+            optimization_quantity="chunked-count", device=device, approx_chunk_size=chunk_size,
         )
 
         self.num_steps = num_steps

@@ -128,3 +128,20 @@ class TestTorchDifference:
         s1 = torch.FloatTensor([[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [3, 4, 5, 6, 7]])
         difference = nsc.torch_get_square_distances_to_buffer(s_base, s1)
         assert np.all(difference.data.numpy() == np.asarray([[0, 5, 20], [5, 0, 5]]))
+
+
+def test_chunked_counts():
+    import numpy as np
+    from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpaceClass import CountingLatentSpace
+    counting_space = CountingLatentSpace(2, 3, epsilon=0.1, phi_type="function", optimization_quantity="chunked-count",
+                                         bonus_scaling_term="none", approx_chunk_size=10)
+    action_buffers = [np.random.rand(100, 2), np.random.rand(120, 2), np.random.rand(5, 2)]
+    s = np.random.rand(225, 2)
+    sp = np.random.rand(225, 2)
+    ssp = list(zip(s, sp))
+    counting_space.train(action_buffers, ssp, epochs=1)
+    X = np.random.rand(20, 2)
+    c1 = counting_space.get_counts(X, 0)
+    counting_space.optimization_quantity = "count"
+    c2 = counting_space.get_counts(X, 0)
+    np.testing.assert_allclose(c1, c2, rtol=1e-5)

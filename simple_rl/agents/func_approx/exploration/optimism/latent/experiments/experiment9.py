@@ -15,6 +15,10 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpac
 
 
 class Experiment9:
+    """
+    Visual Gridworld, non-RL. We were trying to see if the counting error goes up as a function of num_samples.
+    Made graphs of "num_samples, counting_error"
+    """
     def __init__(self, epsilon, seed=0, lam=0.1, use_noise=False, use_small_grid=False, num_epochs=1):
         np.random.seed(seed)
         self.num_epochs = num_epochs
