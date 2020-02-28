@@ -36,6 +36,6 @@ echo run-title $run_title
 
 path_to_function=simple_rl/agents/func_approx/exploration/optimism/latent/experiments/experiment13.py # for legibility
 
-python -u $path_to_function --experiment_name="exp13-mcar-grid" --run_title $run_title --seed $seed --steps $num_steps --lam $lambda --optimization_quantity chunked-bonus --bonus_scaling_term none --epochs $epochs --env_name "MountainCar-v0" --pixel_observation
+python -u $path_to_function --experiment_name="writes/exp13-mcar-grid" --run_title $run_title --seed $seed --steps $num_steps --lam $lambda --optimization_quantity chunked-bonus --bonus_scaling_term none --epochs $epochs --env_name "MountainCar-v0" --pixel_observation
 
 #python -u simple_rl/agents/func_approx/exploration/optimism/latent/experiments/experiment12.py --experiment_name="exp12" --run_title DQN-Eps0 --seed $seed --episodes=100 --steps=200 --exploration_method="eps-const" --eval_eps=0.
