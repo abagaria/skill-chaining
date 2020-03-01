@@ -48,7 +48,7 @@ class DQNAgent(Agent):
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
-                 novelty_during_regression=True, normalize_states=False):
+                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -112,7 +112,8 @@ class DQNAgent(Agent):
                                                                experiment_name=experiment_name,
                                                                pixel_observation=self.pixel_observation,
                                                                normalize_states=normalize_states, writer=self.writer,
-                                                               bonus_scaling_term=bonus_scaling_term)
+                                                               bonus_scaling_term=bonus_scaling_term,
+                                                               lam_scaling_term=lam_scaling_term)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 

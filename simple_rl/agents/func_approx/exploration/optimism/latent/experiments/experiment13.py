@@ -3,13 +3,14 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from collections import defaultdict, Counter
+from collections import defaultdict
 import itertools
 import ipdb
 import random
 import argparse
 import time
 import pickle
+import matplotlib
 
 # Other imports.
 from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpaceClass import CountingLatentSpace
@@ -208,7 +209,7 @@ class Experiment13:
                 plt.scatter(observations[:, 0], observations[:, 1], c=counts, alpha=0.3)
             plt.colorbar()
             plt.subplot(2, 3, buffer_idx + 4)
-            plt.scatter(obs_repr[:, 0], obs_repr[:, 1], c=range(len(observations)), alpha=0.3)
+            plt.scatter(obs_repr[:, 0], obs_repr[:, 1], c=range(len(observations)), alpha=0.3, norm=matplotlib.colors.LogNorm())
 
             plt.colorbar()
         plt.savefig(f"{self.experiment_name}/count_scatter_plots/latents_seed_{self.seed}_epoch_{epoch}.png")
