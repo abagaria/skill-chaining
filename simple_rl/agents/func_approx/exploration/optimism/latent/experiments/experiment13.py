@@ -29,7 +29,7 @@ class Experiment13:
                  experiment_name, optimization_quantity, env_name, pixel_observation, scale_images,
                  bonus_scaling_term, lam_scaling_term):
 
-        assert optimization_quantity in ("chunked-count", "chunked-bonus"), optimization_quantity
+        assert optimization_quantity in ("chunked-count", "chunked-bonus", "chunked-log"), optimization_quantity
 
         if "grid" in env_name:
             self.mdp = VisualGridWorldMDP(True, grid_size, noise_level, seed)

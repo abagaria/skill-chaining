@@ -691,10 +691,12 @@ class CountingLatentSpace(object):
             # Note: 1/sqrt(x) is a monotonically *decreasing* function, whereas log is a monotonically
             # *increasing* function. As a result, we want to maximize the *negative* of 1 / count when
             # using optimized_quantity of `chuked-log`
+
+            # I think that we'll be safe if we turn down the bumper on chunked-log.
             if self.optimization_quantity == "chunked-bonus":
                 scaling_term[:, action_idx] = (total_action_count + 1e-1) ** (-3. / 2.)
             elif self.optimization_quantity == "chunked-log":
-                scaling_term[:, action_idx] = -1. / (total_action_count + 1e-1)
+                scaling_term[:, action_idx] = 1. / (total_action_count + 1e-6)
             else:
                 raise ValueError(f"{self.optimization_quantity} not supported with chunked loss")
 
