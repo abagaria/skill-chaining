@@ -154,7 +154,8 @@ class Experiment13:
         else:
             obs_next_obs_buffer, action_buffers, state_buffer = self.generate_data()
 
-            for epoch in range(epochs):
+            print("Making plots")
+            for epoch in tqdm(range(epochs)):
                 if "grid" in self.mdp.env_name:
                     self.make_count_plot(epoch)
 
@@ -163,7 +164,7 @@ class Experiment13:
                 if self.mdp.env_name == "MountainCar-v0":
                     phi_s = self.mcar_latent_and_counts_plot(state_buffer, obs_next_obs_buffer, epoch)
 
-                self.counting_space.train(action_buffers=action_buffers, state_next_state_buffer=obs_next_obs_buffer, epochs=1)
+                self.counting_space.train(action_buffers=action_buffers, state_next_state_buffer=obs_next_obs_buffer, epochs=1, verbose=False)
 
             self.make_count_plot(epoch + 1)
             self.make_latent_plot(epoch + 1)

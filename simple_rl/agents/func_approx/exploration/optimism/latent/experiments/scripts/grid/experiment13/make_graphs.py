@@ -8,6 +8,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from sklearn.linear_model import LinearRegression
+import math
 import ipdb
 
 sns.set()
@@ -38,10 +39,8 @@ def get_data_points_for_run(subdir):
         after_slash = filename.split("/")[-1]
         before_underscore = after_slash.split("_")[:-2]
         quantity_name = "_".join(before_underscore)
-        print(quantity_name)
         with open(filename, "rb") as f:
             quantity_value = pickle.load(f)
-        print(quantity_value)
         return quantity_name, quantity_value
 
 
@@ -67,7 +66,6 @@ def get_all_runs_values(exp_dir_name):
         Returns (lambda, num_steps)
         We'll use the power of ReGex
         """
-        print(folder_name)
         m = re.match(r'seed-(?P<seed>.*)-steps-(?P<steps>.*)-lambda-(?P<lambda>.*)-epochs-(?P<epochs>.*)', folder_name)
         return (float(m.group('lambda')), int(m.group('steps')))
 
@@ -199,6 +197,24 @@ def get_n_lambda_volpp_relationship(exp_dir_name, do_filter=False):
 
     return X, y, model.coef_, model.intercept_
 
+def get_optimal_parameters_for_volpp(log_n_coeff, log_lam_coeff, c_coeff, desired_volpp=3e-4):
+    """
+    We're given log(vpp) = log_n_coeff*log(n) + log_lam_coeff*log(lam) + c_coeff
+    so, lam = e^(-log_n_coeff * log(n) / log_lam_coeff) * e^(-c_coeff / log_lam_coeff) * e^(ln(vpp)/log_lam_coeff)
+
+    lam = n^(-log_n_coeff / log_lam_coeff) * e^(-c_coeff / log_lam_coeff) * vpp^(1/log_lam_coeff)
+    """
+
+    exp_1 = -log_n_coeff / log_lam_coeff
+    exp_2 = -c_coeff / log_lam_coeff
+    exp_3 = 1 / log_lam_coeff
+
+    multiplicitive_coeff = (math.e ** (exp_2)) * desired_volpp ** exp_3
+
+    return exp_1, multiplicitive_coeff
+
+
+
 def visualize_fit(X, y, coeffs, intercept):
     log_n = X[:, 0]
     log_lam = X[:, 1]
@@ -262,10 +278,21 @@ def make_dataset(exp_dir_name):
 
 
 def main():
-    experiment_name = "/home/sam/Code/ML/optimism/skill-chaining/writes/exp13-mcar-grid"
+    # experiment_name = "/home/sam/Code/ML/optimism/skill-chaining/writes/exp13-mcar-grid"
+    experiment_name = "/home/sam/Code/ML/optimism/skill-chaining/writes/exp13-mcar-grid-scaling-bugfix"
 
     # plot_all_spreads(experiment_name)
     X, y, coeffs, intercept = get_n_lambda_volpp_relationship(experiment_name, do_filter=True)
+
+    assert len(coeffs) == 2
+
+    optimal_parameters = get_optimal_parameters_for_volpp(coeffs[0], coeffs[1], intercept, desired_volpp=3e-4)
+
+    print(f"Optimal Parameters: {optimal_parameters}")
+
+    result_for_3000 = 3000**optimal_parameters[0] * optimal_parameters[1]
+
+    print(f"Example: lambda for vol_pp 3e-4, n_steps 3000: {result_for_3000}")
 
     visualize_fit(X, y, coeffs, intercept)
 

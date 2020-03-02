@@ -101,7 +101,7 @@ class CountingLatentSpace(object):
 
         self._n_iterations = 0
 
-    def train(self, action_buffers=None, state_next_state_buffer=None, tc_action_buffers=None, epochs=100):
+    def train(self, action_buffers=None, state_next_state_buffer=None, tc_action_buffers=None, epochs=100, verbose=True):
         """
 `
         Args:
@@ -130,7 +130,7 @@ class CountingLatentSpace(object):
         elif self.optimization_quantity == "chunked-count":
             return self._train_chunked_attractive_and_repulsive_function_counts(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
         elif self.optimization_quantity == "chunked-bonus":
-            return self._train_chunked_attractive_and_repulsive_function_bonuses(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
+            return self._train_chunked_attractive_and_repulsive_function_bonuses(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs, verbose=verbose)
         raise NotImplementedError(f"Optimization quantity {self.optimization_quantity} not implemented yet.")
 
     def extract_features(self, states):
@@ -354,10 +354,13 @@ class CountingLatentSpace(object):
 
         self.buffers = buffers
 
-    def _train_chunked_attractive_and_repulsive_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):
+    def _train_chunked_attractive_and_repulsive_function_bonuses(self, *, buffers, state_next_state_buffer, epochs, verbose=True):
         self.model.train()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
         data_set = ChunkedStateDataset(buffers, state_next_state_buffer, chunk_size=self.approx_chunk_size)
+
+        if verbose == False:
+            tqdm = lambda x : x # it's identity within this loop...
 
         for epoch in tqdm(range(epochs)):
             data_set.set_indices()

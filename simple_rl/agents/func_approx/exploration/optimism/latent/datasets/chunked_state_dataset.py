@@ -33,8 +33,6 @@ class ChunkedStateDataset(Dataset):
         """
         super(ChunkedStateDataset, self).__init__()
 
-        print(f"Within approx bonus dataset: chunk size is {chunk_size}")
-
         self.chunk_size = chunk_size
 
         self.action_buffers = buffers
