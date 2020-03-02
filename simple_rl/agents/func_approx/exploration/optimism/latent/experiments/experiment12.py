@@ -10,6 +10,7 @@ import random
 import argparse
 from copy import deepcopy
 from collections import deque
+import matplotlib
 
 # Other imports.
 from simple_rl.tasks.gridworld.gridworld import GridWorld
@@ -25,7 +26,7 @@ class Experiment12:
 
     def __init__(self, seed, *, pixel_observation,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
-                 bonus_scaling_term, no_novelty_during_regression):
+                 bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -34,8 +35,9 @@ class Experiment12:
                               trained_options=[], seed=seed, device=device,
                               name="GlobalDDQN", lr=1e-3, use_double_dqn=False,
                               exploration_method=exploration_method, pixel_observation=pixel_observation,
-                              evaluation_epsilon=eval_eps, tensor_log=True, experiment_name=experiment_name,
+                              evaluation_epsilon=eval_eps, tensor_log=tensor_log, experiment_name=experiment_name,
                               bonus_scaling_term=bonus_scaling_term,
+                              lam_scaling_term=lam_scaling_term,
                               novelty_during_regression=self.novelty_during_regression,
                               normalize_states=(not pixel_observation))
         self.exploration_method = exploration_method
@@ -74,7 +76,7 @@ class Experiment12:
         plt.figure(figsize=(14, 10))
         for i, action in enumerate(self.mdp.actions):
             plt.subplot(1, len(self.mdp.actions), i + 1)
-            plt.scatter(positions[:, 0], positions[:, 1], c=bonuses[:, action])
+            plt.scatter(positions[:, 0], positions[:, 1], c=bonuses[:, action], norm=matplotlib.colors.LogNorm())
             plt.colorbar()
 
         plt.suptitle("Exploration Bonuses after Episode {}".format(episode))
@@ -92,7 +94,7 @@ class Experiment12:
         plt.figure(figsize=(14, 10))
         for action in self.agent.actions:
             plt.subplot(1, len(self.agent.actions), action + 1)
-            plt.scatter(positions[:, 0], positions[:, 1], c=qvalues[:, action])
+            plt.scatter(positions[:, 0], positions[:, 1], c=qvalues[:, action], norm=matplotlib.colors.LogNorm())
             plt.colorbar()
 
         plt.suptitle("Q-functions after episode {}".format(episode))
@@ -173,8 +175,10 @@ if __name__ == "__main__":
     parser.add_argument("--use_bonus_during_action_selection", type=bool, default=False)
     parser.add_argument("--eval_eps", type=float, default=0.05)
     parser.add_argument("--make_plots", action="store_true", default=False)
-    parser.add_argument("--bonus_scaling_term", type=str, default="sqrt")
+    parser.add_argument("--bonus_scaling_term", type=str, default="none")
+    parser.add_argument("--lam_scaling_term", type=str, default="fit")
     parser.add_argument("--no_novelty_during_regression", action="store_true", default=False)
+    parser.add_argument("--tensor_log", action="store_true", default=False)
 
     args = parser.parse_args()
 
@@ -190,9 +194,9 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     exp = Experiment12(args.seed, pixel_observation=args.pixel_observation,
-                      eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes,
+                      eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes, tensor_log=args.tensor_log,
                       num_steps=args.steps, device=device, experiment_name=full_experiment_name, bonus_scaling_term=args.bonus_scaling_term,
-                       no_novelty_during_regression=args.no_novelty_during_regression)
+                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term)
 
     episodic_scores, episodic_durations = exp.run_experiment()
 
