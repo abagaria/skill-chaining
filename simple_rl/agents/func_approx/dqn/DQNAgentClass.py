@@ -48,7 +48,7 @@ class DQNAgent(Agent):
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
-                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False):
+                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity=""):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -113,7 +113,8 @@ class DQNAgent(Agent):
                                                                pixel_observation=self.pixel_observation,
                                                                normalize_states=normalize_states, writer=self.writer,
                                                                bonus_scaling_term=bonus_scaling_term,
-                                                               lam_scaling_term=lam_scaling_term)
+                                                               lam_scaling_term=lam_scaling_term,
+                                                               optimization_quantity=optimization_quantity)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -385,7 +386,8 @@ class DQNAgent(Agent):
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
     def train_novelty_detector(self):
-        self.novelty_tracker.train()
+        epochs = -1 if self.novelty_tracker.counting_space.optimization_quantity in ("chunked-bonus", "chunked-log") else 50
+        self.novelty_tracker.train(epochs=epochs)
 
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []

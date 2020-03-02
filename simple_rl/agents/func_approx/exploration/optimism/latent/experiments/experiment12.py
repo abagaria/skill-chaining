@@ -24,7 +24,7 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.utils import creat
 class Experiment12:
     """ RL on mountain car using the learned exploration bonus. """
 
-    def __init__(self, seed, *, pixel_observation,
+    def __init__(self, seed, *, pixel_observation, optimization_quantity,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
@@ -39,7 +39,8 @@ class Experiment12:
                               bonus_scaling_term=bonus_scaling_term,
                               lam_scaling_term=lam_scaling_term,
                               novelty_during_regression=self.novelty_during_regression,
-                              normalize_states=(not pixel_observation))
+                              normalize_states=(not pixel_observation),
+                              optimization_quantity=optimization_quantity)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -179,6 +180,7 @@ if __name__ == "__main__":
     parser.add_argument("--lam_scaling_term", type=str, default="fit")
     parser.add_argument("--no_novelty_during_regression", action="store_true", default=False)
     parser.add_argument("--tensor_log", action="store_true", default=False)
+    parser.add_argument("--optimization_quantity", type=str)
 
     args = parser.parse_args()
 
@@ -196,7 +198,8 @@ if __name__ == "__main__":
     exp = Experiment12(args.seed, pixel_observation=args.pixel_observation,
                       eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes, tensor_log=args.tensor_log,
                       num_steps=args.steps, device=device, experiment_name=full_experiment_name, bonus_scaling_term=args.bonus_scaling_term,
-                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term)
+                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
+                       optimization_quantity=args.optimization_quantity)
 
     episodic_scores, episodic_durations = exp.run_experiment()
 

@@ -237,7 +237,7 @@ class CountingLatentSpace(object):
         if self.lam_scaling_term == "none":
             return self.lam
         if self.lam_scaling_term == "fit":
-            return get_lam_for_buffer_size(N)
+            return get_lam_for_buffer_size(N, optimization_quantity=self.optimization_quantity)
         raise ValueError(f"Bad value for lam_scaling_term: {self.lam_scaling_term}")
 
     def _get_scaled_num_epochs(self, N, num_grad_steps=600):
@@ -365,13 +365,15 @@ class CountingLatentSpace(object):
         data_set = ChunkedStateDataset(buffers, state_next_state_buffer, chunk_size=self.approx_chunk_size)
 
         if verbose == False:
-            tqdm = lambda x : x # it's identity within this loop...
+            range_wrapper = lambda x : x # it's identity within this loop...
+        else:
+            range_wrapper = tqdm
 
         buffer_size = len(state_next_state_buffer)
         if epochs <= 0:
             epochs = self._get_scaled_num_epochs(buffer_size)
 
-        for epoch in tqdm(range(epochs)):
+        for epoch in range_wrapper(range(epochs)):
             data_set.set_indices()
             for batch_id, (fc_state_tensor, fc_action_tensor, sc_state_tensor, sc_action_tensor,
                            sns_state_tensor, sns_next_state_tensor) in enumerate(data_set):
