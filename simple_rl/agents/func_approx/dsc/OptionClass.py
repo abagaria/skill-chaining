@@ -187,22 +187,19 @@ class Option(object):
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
-
-		# TODO: parameterize
-		eps_I_o = 0.5
-		# return eps_I_o < self.initiation_classifier_prob[-1]
-			
-		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
-		return self.initiation_classifier.predict([features])[0] == 1
+	
+		# TODO: probabilistic initiation with two-class classifier
+		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]				
+		return random.random() < self.initiation_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
-			return self.parent.is_init_true(ground_state)
-
-		# TODO: parameterize
-		eps_B_o = 0.5
-		# return eps_B_o < self.termination_classifier_prob[-1]
-
+			# return self.parent.is_init_true(ground_state)
+			
+			# TODO: termination with one-class classifier
+			state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]				
+			return self.termination_classifier.predict(state.reshape(1,-1))[-1] == 1
+		
 		# If option does not have a parent, it must be the goal option or the global option
 		assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
 		return self.overall_mdp.is_goal_state(ground_state)
