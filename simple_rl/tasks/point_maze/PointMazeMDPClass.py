@@ -32,7 +32,16 @@ class PointMazeMDP(MDP):
         }
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.goal_position = self.env.goal_xy
+        self.key_position = self.env.key_xy
         self.reset()
+
+        # Set the current target events in the MDP
+        self.current_target_events = [self.is_in_goal_position, self.is_in_key_position]
+        self.current_batched_target_events = [self.env.batched_is_in_goal_position, self.env.batched_is_in_key_position]
+
+        # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
+        self.original_target_events = [self.is_in_goal_position, self.is_in_key_position]
+        self.original_batched_target_events = [self.env.batched_is_in_goal_position, self.env.batched_is_in_key_position]
 
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
 
@@ -43,7 +52,7 @@ class PointMazeMDP(MDP):
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
             return -0.1 * self.distance_to_goal(self.next_state.position)
-        return reward
+        return reward + 1.  # TODO: Changing the reward function to return 0 step penalty and 1 reward
 
     def _transition_func(self, state, action):
         return self.next_state
@@ -83,12 +92,41 @@ class PointMazeMDP(MDP):
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 
-    def get_target_events(self):
+    def get_current_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """
-        return [self.is_in_goal_position, self.is_in_key_position]
+        return self.current_target_events
 
-    def get_batched_target_events(self):
-        return [self.env.batched_is_in_goal_position, self.env.batched_is_in_key_position]
+    def get_current_batched_target_events(self):
+        return self.current_batched_target_events
+
+    def get_original_target_events(self):
+        return self.original_target_events
+
+    def get_original_batched_target_events(self):
+        return self.original_batched_target_events
+
+    def satisfy_target_event(self, option):
+        """
+        Once a salient event has both forward and backward options related to it,
+        we no longer need to maintain it as a target_event. This function will find
+        the salient event that corresponds to the input state and will remove that
+        event from the list of target_events.
+
+        :param option: trained option which has potentially satisfied the target event
+
+        """
+
+        if option.chain_id == 3:
+            satisfied_goal_salience = option.is_init_true(self.goal_position)
+            satisfied_key_salience = option.is_init_true(self.key_position)
+
+            if satisfied_goal_salience and (self.is_in_goal_position in self.current_target_events):
+                self.current_target_events.remove(self.is_in_goal_position)
+                self.current_batched_target_events.remove(self.env.batched_is_in_goal_position)
+
+            if satisfied_key_salience and (self.is_in_key_position in self.current_target_events):
+                self.current_target_events.remove(self.is_in_key_position)
+                self.current_batched_target_events.remove(self.env.batched_is_in_key_position)
 
     @staticmethod
     def state_space_size():

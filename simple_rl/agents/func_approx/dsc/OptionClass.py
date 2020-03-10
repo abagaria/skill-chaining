@@ -6,7 +6,7 @@ import pdb
 from copy import deepcopy
 import torch
 from sklearn import svm
-from sklearn.covariance import EllipticEnvelope
+from tqdm import tqdm
 import itertools
 from scipy.spatial import distance
 
@@ -54,7 +54,7 @@ class Option(object):
 		self.parent = parent
 		self.dense_reward = dense_reward
 		self.enable_timeout = enable_timeout
-		self.initiation_period = initiation_period
+		self.initiation_period = 0 if chain_id == 3 else initiation_period
 		self.max_num_children = max_num_children
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
@@ -106,6 +106,7 @@ class Option(object):
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
 		self.last_episode_term_triggered = 0
+		self.nu = 0.01
 
 		self.overall_mdp = overall_mdp
 		self.final_transitions = []
@@ -162,21 +163,21 @@ class Option(object):
 
 		sibling_counts = [_get_sibling_count(sibling, state_buffer) for sibling in siblings]
 
-		sibling_condition = 0 < (max(sibling_counts) / len(state_buffer)) <= 0.1
-
-		# TODO: Hack - preventing chain id 3 from chaining to the start state
-		def _start_hallway_count(states):
-			count = 0
-			for s in states:
-				if s.position[0] < 8:
-					count += 1
-			return count
-
-		if self.chain_id == 3:
-			backward_fraction = _start_hallway_count(state_buffer) / len(state_buffer)
-			backward_condition = 0 < backward_fraction <= 0.1
-			return backward_condition and sibling_condition
-
+		sibling_condition = 0 <= (max(sibling_counts) / len(state_buffer)) <= 0.2
+		#
+		# # # TODO: Hack - preventing chain id 3 from chaining to the start state
+		# # def _start_hallway_count(states):
+		# # 	count = 0
+		# # 	for s in states:
+		# # 		if s.position[0] < 8:
+		# # 			count += 1
+		# # 	return count
+		# #
+		# # if self.chain_id == 3:
+		# # 	backward_fraction = _start_hallway_count(state_buffer) / len(state_buffer)
+		# # 	backward_condition = 0 < backward_fraction <= 0.1
+		# # 	return backward_condition and sibling_condition
+		#
 		return sibling_condition
 
 	def get_training_phase(self):
@@ -190,11 +191,12 @@ class Option(object):
 
 	def initialize_with_global_ddpg(self):
 		# Not using off_policy_update() because we have numpy arrays not state objects here
-		for state, action, reward, next_state, done in self.global_solver.replay_buffer.memory:
-			if self.is_init_true(state):
-				if self.is_term_true(next_state):
-					self.solver.step(state, action, self.subgoal_reward, next_state, True)
-				else:
+		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer.memory, desc=f"Initializing {self.name} policy"):
+			# if self.is_init_true(state):  # TODO: Without this check, we are not aggressively limiting the support of the option policy
+			if self.is_term_true(next_state):
+				self.solver.step(state, action, self.subgoal_reward, next_state, True)
+			else:
+				if np.random.rand() > 0.6:
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
@@ -203,7 +205,19 @@ class Option(object):
 			return self.batched_init_predicate(state_matrix)
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
-		if self.initialize_everywhere and self.initiation_classifier is None:
+		if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
+			if self.chain_id == 3:
+				state_matrix = state_matrix[:, :2]
+				salients = [event(state_matrix) for event in self.overall_mdp.get_current_batched_target_events()]
+
+				if len(salients) == 2:
+					assert len(salients) == 2, f"Code not written for arbitrary number of salient events {len(salients)}"
+					return np.logical_or(*tuple(salients))
+				elif len(salients) == 1:
+					return salients[0]
+				elif len(salients) == 0:
+					return np.zeros((state_matrix.shape[0]))
+
 			return np.ones((state_matrix.shape[0]))
 		position_matrix = state_matrix[:, :2]
 		return self.initiation_classifier.predict(position_matrix) == 1
@@ -219,9 +233,9 @@ class Option(object):
 		if self.name == "global_option" or self.name == "exploration_option":
 			return np.zeros((state_matrix.shape[0]))
 		elif self.name == "goal_option_1":
-			return self.overall_mdp.get_batched_target_events()[0](state_matrix)
+			return self.overall_mdp.get_original_batched_target_events()[0](state_matrix)
 		elif self.name == "goal_option_2":
-			return self.overall_mdp.get_batched_target_events()[1](state_matrix)
+			return self.overall_mdp.get_original_batched_target_events()[1](state_matrix)
 		else:
 			assert len(self.intersecting_options) > 0
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
@@ -234,7 +248,12 @@ class Option(object):
 		if self.name == "global_option":
 			return True
 
-		if self.initialize_everywhere and self.initiation_classifier is None:
+		if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
+			# For options in the backward chain, the default initiation set is the
+			# union of the discovered salient events in the MDP
+			if self.chain_id == 3:
+				salients = [event(ground_state) for event in self.overall_mdp.get_current_target_events()]
+				return any(salients)
 			return True
 
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
@@ -248,13 +267,37 @@ class Option(object):
 		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
 		elif self.name == "goal_option_1":
-			return self.overall_mdp.get_target_events()[0](ground_state)
+			return self.overall_mdp.get_original_target_events()[0](ground_state)
 		elif self.name == "goal_option_2":
-			return self.overall_mdp.get_target_events()[1](ground_state)
+			return self.overall_mdp.get_original_target_events()[1](ground_state)
 		else:
 			assert len(self.intersecting_options) > 0, "{}, {}".format(self, self.intersecting_options)
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
 			return o1.is_init_true(ground_state) and o2.is_init_true(ground_state)
+
+	def should_target_with_bonus(self):
+		"""
+		Used by policy over options and the global DDPG agent to decide if the
+		skill chaining agent should target the initiation set of the current
+		option by means of exploration bonuses.
+		"""
+		if self.name == "global_option":
+			return False
+
+		# During the gestation period, the initiation set of options in the backward chain
+		# are set to be the union of the salient events in the MDP. As a result, we want to
+		# encourage the policy over options to execute skills that trigger those salient
+		# events. From there, we hope to execute the new backward option so that it can
+		# trigger the intersection salient event. However, if the backward option has progressed
+		# to the initiation_done phase, we no longer need to give exploration bonuses to target it
+		if self.chain_id == 3 and self.get_training_phase() != "initiation_done":
+			return True
+
+		# If the current option is not in the backward chain, then we give exploration bonus
+		# only when it is in the initiation phase. When it is in the gestation phase,
+		# it can initiate anywhere (consequence of initialize_everywhere). When it is in
+		# initiation phase, this term will yield exploration bonuses
+		return self.get_training_phase() == "initiation"
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -302,7 +345,7 @@ class Option(object):
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 		return True
@@ -329,7 +372,7 @@ class Option(object):
 		positive_training_examples = X[training_predictions == 1]
 
 		if positive_training_examples.shape[0] > 0:
-			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+			self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
 			self.initiation_classifier.fit(positive_training_examples)
 
 			self.classifier_type = "tcsvm"
@@ -346,7 +389,7 @@ class Option(object):
 			positive_training_examples = X[training_predictions == 1]
 
 			if positive_training_examples.shape[0] > 0:
-				self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
+				self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
 				self.initiation_classifier.fit(positive_training_examples)
 
 				self.classifier_type = "tcsvm"
@@ -364,9 +407,9 @@ class Option(object):
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		self.initialize_with_global_ddpg()
-
-		self.solver.epsilon = self.global_solver.epsilon
+		if self.chain_id < 3:
+			self.initialize_with_global_ddpg()
+			self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
 		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
@@ -515,11 +558,13 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
-			if self.is_term_true(state) and self.last_episode_term_triggered != episode and self.is_valid_init_data(visited_states):
+			# TODO: When initialize_everywhere is true, self.train() needs to be called from the OptionClass and not from SkillChainingClass
+
+			if self.is_term_true(state) and self.last_episode_term_triggered != episode: # and self.is_valid_init_data(visited_states):
 				self.num_goal_hits += 1
 				self.last_episode_term_triggered = episode
 
-			if self.get_training_phase() == "initiation" and self.name != "global_option":
+			if self.name != "global_option" and self.get_training_phase() != "initiation_done":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
 			if self.writer is not None:
@@ -529,24 +574,32 @@ class Option(object):
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
 
-	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
-										 outer_step_number):
+	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps, outer_step_number):
 		if self.is_term_true(final_state):  # success
-			positive_states = [start_state] + visited_states[-self.buffer_length:]
-			if self.is_valid_init_data(positive_states):
-				positive_examples = [state.position for state in positive_states]
-				self.positive_examples.append(positive_examples)
 
-		elif num_steps == self.timeout:
+			# No need to add the start state of option execution to positive examples during
+			# gestation because there are no negative examples yet to balance
+			if self.get_training_phase() == "gestation":
+				positive_states = visited_states[-self.buffer_length:]
+			else:
+				positive_states = [start_state] + visited_states[-self.buffer_length:]
+
+			# if self.is_valid_init_data(positive_states):
+			positive_examples = [state.position for state in positive_states]
+			self.positive_examples.append(positive_examples)
+
+		elif num_steps == self.timeout and self.get_training_phase() == "initiation":
 			negative_examples = [start_state.position]
 			self.negative_examples.append(negative_examples)
-		else:
-			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
-				"Hit else case, but {} was not terminal".format(final_state)
+		# else:
+		# 	assert final_state.is_terminal() or outer_step_number == self.max_steps, \
+		# 		"Hit else case, but {} was not terminal".format(final_state)
 
 		# Refine the initiation set classifier
 		if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
 			self.train_two_class_classifier()
+		elif len(self.positive_examples) > 0:
+			self.train_one_class_svm()
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state

@@ -12,7 +12,7 @@ class SkillChain(object):
         Args:
             start_states (list): List of states at which chaining stops
             mdp_start_states (list): list of MDP start states, if distinct from `start_states`
-            target_predicate (function): f: s -> {0, 1} based on salience
+            target_predicate (function): f: s -> {0, 1} based on salience  # TODO: Also accept an optional start_predicate
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
             intersecting_options (list): List of options whose initiation sets overlap
@@ -62,8 +62,8 @@ class SkillChain(object):
             should_create (bool): return True if there is some start_state that is
                                   not inside any of the options in the current chain
         """
-        # Continue if there is any start state that is not covered
-        start_state_in_chain = any([self._state_in_chain(s) for s in self.start_states])
+        # Continue if not all the start states have been covered by the options in the current chain
+        start_state_in_chain = all([self._state_in_chain(s) for s in self.start_states])
 
         if self.chain_id == 3:
             return not start_state_in_chain
@@ -125,8 +125,8 @@ class SkillChain(object):
                     # If at least one state is inside the initiation classifier of both options,
                     # we have found our salient intersection event. Also verify that we have fit initiation
                     # classifiers for both options - this is needed if option's initialize_everywhere property is true
-                    if intersections.sum() > 0 and my_option.initiation_classifier is not None and \
-                            other_option.initiation_classifier is not None:
+                    if intersections.sum() > 0 and my_option.get_training_phase() == "initiation_done" and \
+                            other_option.get_training_phase() == "initiation_done":
                         return my_option, other_option
 
         return None

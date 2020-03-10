@@ -6,7 +6,7 @@ sys.path = [""] + sys.path
 
 from collections import deque, defaultdict
 from copy import deepcopy
-import pdb
+import ipdb
 import argparse
 import os
 import random
@@ -115,7 +115,7 @@ class SkillChaining(object):
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
 										   use_double_dqn=True, writer=self.writer, device=self.device,
-										   exploration_strategy="counts", use_position_only_for_exploration=True)
+										   exploration_strategy="shaping")
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -126,7 +126,7 @@ class SkillChaining(object):
 		s0 = self.mdp.env._init_positions
 		self.s0 = s0
 		self.chains = [SkillChain(start_states=s0, target_predicate=target, options=[], chain_id=(i+1),
-		 intersecting_options=[], mdp_start_states=s0) for i, target in enumerate(self.mdp.get_target_events())]
+		 intersecting_options=[], mdp_start_states=s0) for i, target in enumerate(self.mdp.get_original_target_events())]
 
 		# List of init states seen while running this algorithm
 		self.init_states = []
@@ -168,29 +168,24 @@ class SkillChaining(object):
 		self.num_options_history = []
 
 	def add_negative_examples(self, new_option):
-		# TODO: Cannot do this in skill graphs because the forward and backward skills have to overlap
+		""" When creating an option in the forward chain, add the positive examples of all the options
+			in the forward chain as negative examples for the current option. Do the same when creating
+			a new_option in the backward chain, i.e, only add positives in the backward chain as
+			negative examples for the new_option.
+		"""
 
-		if not new_option.initialize_everywhere:
-			for option in self.trained_options[1:]:
+		if new_option.chain_id < 3:
+			for option in self.trained_options[1:]:  # type: Option
 				new_option.negative_examples += option.positive_examples
-
 		else:
-
-			# get the pair of intersecting options
-			chain = self.chains[2]
-			intersecting_options = chain.intersecting_options
-
-			# go through all the children of the intersecting options and add their positive examples
-			for option in intersecting_options:
-				for child_option in option.children:
-					if child_option in self.trained_options:
-						new_option.negative_examples += child_option.positive_examples
+			for option in self.trained_options[1:]:  # type: Option
+				if option.chain_id == 3:
+					new_option.negative_examples += option.positive_examples
 
 	def init_state_in_option(self, option):
-		for start_state in self.init_states:
-			if option.is_init_true(start_state):
-				return True
-		return False
+		start_states = self.chains[option.chain_id - 1].start_states
+		starts_chained = [option.is_init_true(state) for state in start_states]
+		return any(starts_chained)
 
 	def state_in_any_option(self, state):
 		for option in self.trained_options[1:]:
@@ -212,7 +207,12 @@ class SkillChaining(object):
 
 		# Don't create a child option if you already include the init state of the MDP
 		# Also enforce the max branching factor of our skill tree
-		if self.init_state_in_option(parent_option) or len(parent_option.children) >= parent_option.max_num_children:
+
+		# Added extra condition for chain_id b/c I got an intersection option which covered the start state,
+		# but still want options to build in the other direction
+		# if (self.init_state_in_option(parent_option) and parent_option.name != "intersection_option") \
+		if self.init_state_in_option(parent_option)	\
+				or len(parent_option.children) >= parent_option.max_num_children:
 			return None
 
 		# Create new option whose termination is the initiation of the option we just trained
@@ -324,7 +324,7 @@ class SkillChaining(object):
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
 									writer=self.writer, device=self.device,
-									exploration_strategy="counts", use_position_only_for_exploration=True)
+									exploration_strategy="shaping")
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
@@ -344,8 +344,15 @@ class SkillChaining(object):
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
 									writer=self.writer, device=self.device,
-									exploration_strategy="counts", use_position_only_for_exploration=True)
+									exploration_strategy="shaping")
 		self.agent_over_options = new_global_agent
+
+	def _get_backward_options_in_gestation(self, state):
+		for option in self.trained_options:
+			if option.chain_id == 3 and option.get_training_phase() == "gestation" and \
+					option.is_init_true(state) and not option.is_term_true(state):
+				return option
+		return None
 
 	def act(self, state):
 		# Query the global Q-function to determine which option to take in the current state
@@ -372,6 +379,11 @@ class SkillChaining(object):
 		"""
 		selected_option = self.act(state)
 
+		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
+		backward_option = self._get_backward_options_in_gestation(state)
+		if backward_option is not None:
+			selected_option = backward_option
+
 		# TODO: Hack - do not take option from a salient event targeting it
 		if selected_option.is_term_true(state):
 			selected_option = self.global_option
@@ -392,6 +404,7 @@ class SkillChaining(object):
 		return option_transitions, option_reward, next_state, len(option_transitions)
 
 	def sample_qvalue(self, option):
+		""" Sample Q-value from the given option's intra-option policy. """
 		if len(option.solver.replay_buffer) > 500:
 			sample_experiences = option.solver.replay_buffer.sample(batch_size=500)
 			sample_states = torch.from_numpy(sample_experiences[0]).float().to(self.device)
@@ -425,17 +438,7 @@ class SkillChaining(object):
 
 	def get_current_salient_events(self):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
-
-		def get_option_terminal_states(root_option):
-			""" Given a root option, get the final (goal) states from successful trajectories. """
-			successful_trajectories = root_option.experience_buffer
-			option_goal_states = [trajectory[-1].next_state for trajectory in successful_trajectories]
-			return option_goal_states
-
-		root_options = [chain.options[0] for chain in self.chains if chain.options[0].parent is None]
-		salient_states = [get_option_terminal_states(option) for option in root_options]
-		salient_states = list(itertools.chain.from_iterable(salient_states))
-		return salient_states
+		return [self.mdp.goal_position, self.mdp.key_position]
 
 	def create_intersection_salient_event(self, option1, option2):
 		"""
@@ -471,6 +474,7 @@ class SkillChaining(object):
 
 		# Allow agent to use this option to encourage chaining to it
 		self._augment_agent_with_new_option(new_option, 0.)
+		new_option.initialize_with_global_ddpg()
 
 		# Also reset the exploration module to encourage adding skills to the new chain
 		# self.agent_over_options.density_model.reset()
@@ -495,7 +499,7 @@ class SkillChaining(object):
 			# TODO: Does this flag's logic need to be changed? YES when there is a list of target events in the MDP
 			uo_episode_terminated = False
 
-			state = deepcopy(self.mdp.init_state)
+			state = deepcopy(self.mdp.cur_state)
 			self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []
@@ -521,13 +525,15 @@ class SkillChaining(object):
 
 					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
 							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
-							untrained_option.is_valid_init_data(state_buffer):
+							untrained_option.is_valid_init_data(state_buffer) and not untrained_option.initialize_everywhere:
 
 						print("\rTriggered termination condition of ", untrained_option)
 						uo_episode_terminated = True
 						if untrained_option.train(experience_buffer, state_buffer, episode):
 
-							# If we are in chain # 3, we have already augmented with the option
+							# If the option can be initiated from anywhere, it has already been added to
+							# the list of actions available to the agent (so that it may be executed before
+							# we train its one-class classifier)
 							if not untrained_option.initialize_everywhere:
 								self._augment_agent_with_new_option(untrained_option, self.init_q)
 
@@ -559,6 +565,14 @@ class SkillChaining(object):
 								# If initialize_everywhere is True, also add to trained_options
 								if new_option.initialize_everywhere:
 									self._augment_agent_with_new_option(new_option, self.init_q)
+									new_option.initialize_with_global_ddpg()
+
+					# If the current option's initiation set covers one of the target salient events
+					# (and the current is in chain_id == 3), then remove that salient event from the
+					# list of target events. This way, we will generate options that start from other
+					# salient events and end up in the intersection salient event
+					if untrained_option.get_training_phase() == "initiation_done":
+						self.mdp.satisfy_target_event(untrained_option)
 
 				# Detect intersection salience to start building skill graph
 				intersecting_options = self.get_intersecting_options()
@@ -591,8 +605,6 @@ class SkillChaining(object):
 		if episode % 10 == 0:
 			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
-			# visualize_bonus_for_actions(self.agent_over_options.density_model, self.trained_options, episode,
-			# 							args.experiment_name, args.seed)
 
 		if episode > 0 and episode % 100 == 0:
 			# eval_score, trajectory = self.trained_forward_pass(render=False)
@@ -601,8 +613,14 @@ class SkillChaining(object):
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-		if self.generate_plots and episode % 10 == 0:
-			render_sampled_value_function(self.global_option.solver, episode, args.experiment_name)
+		if self.generate_plots and episode % 10 == 0 and episode > 0:
+
+			visualize_best_option_to_take(self.agent_over_options, episode, self.seed, args.experiment_name)
+
+			for option in self.trained_options:
+				visualize_ddpg_replay_buffer(option.solver, episode, self.seed, args.experiment_name)
+				visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, args.experiment_name)
+				visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, args.experiment_name)
 
 		for trained_option in self.trained_options:  # type: Option
 			self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])

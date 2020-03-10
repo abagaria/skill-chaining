@@ -206,6 +206,10 @@ class DQNAgent(Agent):
             self.num_executions = 0
             self.fitting_interval = 200  # every episode
             self.sampled_bonus_for_action = defaultdict(lambda : [])
+        elif exploration_strategy == "shaping":
+            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start)
+            self.epsilon = eps_start
+            self.num_executions = 0
 
         # Debugging attributes
         self.num_updates = 0
@@ -352,21 +356,6 @@ class DQNAgent(Agent):
             done (bool): is_terminal
             num_steps (int): number of steps taken by the option to terminate
         """
-        # if self.exploration_strategy == "pseudo-counts":
-        #     state_buffer = np.array([transition[3] for transition in self.replay_buffer.memory])
-        #     if state_buffer.shape[0] > BATCH_SIZE:
-        #         exploration_bonus = self.density_model.get_online_exploration_bonus(state_buffer, next_state)
-        #     else:
-        #         exploration_bonus = 0.
-        #     augmented_reward = reward + (exploration_bonus * (1 - done))
-        #     self.replay_buffer.add(state, action, augmented_reward, next_state, done, num_steps)
-        # elif self.exploration_strategy == "counts":
-        #     exploration_bonus = self.density_model.get_online_exploration_bonus(state, action)
-        #     augmented_reward = reward + (exploration_bonus * (1 - done))
-        #     self.replay_buffer.add(state, action, augmented_reward, next_state, done, num_steps)
-        # else:
-        #     self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
-
         self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
         # Learn every UPDATE_EVERY time steps.
@@ -396,6 +385,22 @@ class DQNAgent(Agent):
             for action in np_actions:
                 self.sampled_bonus_for_action[action[0]].append(bonuses.mean())
             rewards += torch.from_numpy(bonuses).unsqueeze(1).float().to(self.device)
+
+        elif self.exploration_strategy == "shaping":
+            np_next_states = states.cpu().numpy()
+            np_actions = actions.cpu().numpy()
+
+            # 1. Shaped exploration bonus for getting to states from which certain options can be executed
+            for option in self.trained_options:
+                if option.should_target_with_bonus():
+                    shaped_bonus = 1. * option.batched_is_init_true(np_next_states)
+                    rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
+
+            # 2. Shaped exploration bonus for simply executing certain options
+            options = [self.trained_options[int(a)] for a in np_actions]
+            encouraged_options = [option.should_target_with_bonus() for option in options]
+            shaped_bonus = 1. * np.array(encouraged_options)
+            rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
 
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
