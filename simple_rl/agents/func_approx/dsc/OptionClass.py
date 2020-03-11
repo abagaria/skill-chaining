@@ -74,6 +74,9 @@ class Option(object):
 		self.nu = nu
 		self.experiment_name = experiment_name
 
+		# TODO: seed random class
+		self.rand_seed = self.set_rand_seed()
+
 		# Global option operates on a time-scale of 1 while child (learned) options are temporally extended
 		if enable_timeout:
 			self.timeout = 1 if name == "global_option" else timeout
@@ -102,16 +105,16 @@ class Option(object):
 		self.positive_examples = []
 		self.negative_examples = []
 		self.experience_buffer = []
-		self.initiation_classifier = None
+		self.optimistic_classifier = None
 
 		# TODO: option classifier variables
 		self.X = None		
 		self.y = None		
-		self.termination_classifier = None
+		self.pessimistic_classifier = None
 		# self.psmod = None
 		self.train_counter = 0
-		self.initiation_classifier_probs = []
-		self.termination_classifier_probs = []
+		self.optimistic_classifier_probs = []
+		self.pessimistic_classifier_probs = []
 
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -140,6 +143,10 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	# TODO: set reandom seed
+	def set_rand_seed(self):
+		return random.Random()
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
@@ -170,11 +177,12 @@ class Option(object):
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
-	def batched_is_init_true(self, state_matrix):
-		if self.name == "global_option":
-			return np.ones((state_matrix.shape[0]))
-		position_matrix = state_matrix[:, :2]
-		return self.initiation_classifier.predict(position_matrix) == 1
+	# NOTE: old
+	# def batched_is_init_true(self, state_matrix):
+	# 	if self.name == "global_option":
+	# 		return np.ones((state_matrix.shape[0]))
+	# 	position_matrix = state_matrix[:, :2]
+	# 	return self.initiation_classifier.predict(position_matrix) == 1
 
 	# TODO: utilities
 	def get_average_predict_proba(self, clf, X):
@@ -184,21 +192,23 @@ class Option(object):
 		probs = np.multiply(clf.predict_proba(X)[:,1], y_pred)
 		return np.average(probs[probs > 0])
 
+	# TODO: added seed
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
 			return True
 	
-		# TODO: probabilistic initiation with two-class classifier
+		# TODO: probabilistic initiation with optimistic classifier
 		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]				
-		return random.random() < self.initiation_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+		return self.rand_seed.random() < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
 
 	def is_term_true(self, ground_state):
-		if self.parent is not None:
+		# if self.parent is not None:
 			# return self.parent.is_init_true(ground_state)
-			
-			# TODO: termination with one-class classifier
+		
+		# TODO: termination with pessimistic classifier
+		if self.pessimistic_classifier is not None and self.parent is not None:
 			state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]				
-			return self.termination_classifier.predict(state.reshape(1,-1))[-1] == 1
+			return self.pessimistic_classifier.predict(state.reshape(1,-1))[-1] == 1
 		
 		# If option does not have a parent, it must be the goal option or the global option
 		assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
@@ -332,7 +342,7 @@ class Option(object):
 		if self.num_goal_hits >= self.num_subgoal_hits_required:
 			# self.train_initiation_classifier()
 			# TODO: call new initiation set classifier
-			self.train_option_classifiers()
+			self.train_initiation_classifier()
 			self.initialize_option_policy()
 			return True
 
@@ -463,7 +473,7 @@ class Option(object):
 
 			return option_transitions, total_reward
 
-		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
+		raise Warning("Wanted to execute {}, but initiation condition not met".format(self.name))
 
 	def refine_option_classifiers(self, visited_states, start_state, final_state, num_steps,
                                       outer_step_number, episode=None):
@@ -483,7 +493,7 @@ class Option(object):
 		if len(self.negative_examples) > 0:
 			# self.train_two_class_classifier()
 			# TODO: call new initiation set classifier
-			self.train_option_classifiers()
+			self.train_initiation_classifier()
 
 
 	# TODO: utilities
@@ -606,7 +616,7 @@ class Option(object):
 			print("      |-> {}/option_{}_{}_{}.png saved!".format(path, option_id, clf_name, cnt))
 
 	# TODO: Optimistic classifier
-	def train_two_class_classifier(self, X, y):
+	def train_optimistic_classifier(self, X, y):
 		"""
 		Optimistic classifier that is a two-class SVM 
 		
@@ -620,7 +630,7 @@ class Option(object):
 		return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y)
 	
 	# TODO: Pessimistic classifier
-	def train_one_class_classifier(self, tc_svm, X, y, nu):
+	def train_pessimistic_classifier(self, tc_svm, X, y, nu):
 		"""
 		Pessimistic classifier that is a one-class SVM
 		
@@ -649,7 +659,7 @@ class Option(object):
 	# TODO: classifier convertion 
 	def one_class_to_two_class_classifier(self, oc_svm, X):
 		y_pred = (oc_svm.predict(X) > 0).astype(int)
-		return self.train_two_class_classifier(X, y_pred)
+		return self.train_optimistic_classifier(X, y_pred)
 	
 	# TODO: Platt Scalling module (not accurate)
 	# def platt_scale(self, oc_svm, X, train_size, cv_size):
@@ -699,9 +709,9 @@ class Option(object):
 
 
 	# TODO: main initiation and termination classifier call
-	def train_option_classifiers(self):		
+	def train_initiation_classifier(self):		
 		# TODO: remove
-		print("    |-> (OptionClass::train_option_classifiers): call")
+		print("    |-> (OptionClass::train_initiation_classifier): call")
 
 		# If no negative examples, pick first k states to be negative
 		if not self.negative_examples:
@@ -709,6 +719,7 @@ class Option(object):
 			print("      |-> No negative examples!...Adding {} now".format(k))
 			self.negative_examples.append(self.get_rand_global_samples(k))
 		
+		# NOTE: this shouldn't ever happen
 		if not self.positive_examples:
 			print("      |-> No positive examples!") 
 
@@ -719,39 +730,34 @@ class Option(object):
 			self.negative_examples)
 		positive_labels = [1] * positive_feature_matrix.shape[0]
 		negative_labels = [0] * negative_feature_matrix.shape[0]
-
-		# print("      |-> num pos: {}, num neg: {}".format(len(positive_labels), len(negative_labels)))
 		
 		# Save input and labels
 		self.X = np.concatenate((positive_feature_matrix[:,:2], negative_feature_matrix[:,:2]))
 		self.y = np.concatenate((positive_labels, negative_labels))
 
 		# Fit classifiers
-		self.initiation_classifier = self.train_two_class_classifier(self.X, self.y)
-		
-		oc_svm = self.train_one_class_classifier(self.initiation_classifier, self.X, self.y, nu=self.nu)
+		self.optimistic_classifier = self.train_optimistic_classifier(self.X, self.y)
+		oc_svm = self.train_pessimistic_classifier(self.optimistic_classifier, self.X, self.y, nu=self.nu)
 		if oc_svm != False:
-			self.termination_classifier = self.one_class_to_two_class_classifier(oc_svm, self.X)
+			self.pessimistic_classifier = self.one_class_to_two_class_classifier(oc_svm, self.X)
 
 		# Update variables		
 		self.train_counter += 1
 		X_global = self.get_all_global_samples()
-		self.initiation_classifier_probs.append(self.get_average_predict_proba(
-			self.initiation_classifier, X_global))
-		self.termination_classifier_probs.append(self.get_average_predict_proba(self.termination_classifier, X_global))
+		self.optimistic_classifier_probs.append(self.get_average_predict_proba(
+			self.optimistic_classifier, X_global))
+		self.pessimistic_classifier_probs.append(self.get_average_predict_proba(self.pessimistic_classifier, X_global))
 
 		# Platt scalling module
-		# self.psmod, _ = self.platt_scale(self.termination_classifier, self.X, 0.90, 5)
+		# self.psmod, _ = self.platt_scale(self.pessimistic_classifier, self.X, 0.90, 5)
 
 		# Plotting variables
 		option_id = self.option_idx
 		num_colors = 100
-		# cmaps = [sns.cubehelix_palette(n_colors=num_colors, start=2.8, rot=0.1, light=1, dark=0.3, as_cmap=True),
-        #             sns.cubehelix_palette(n_colors=num_colors, start=2, rot=0.1, light=1, dark=0.3, as_cmap=True)]
 		cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
 		colors = ['blue', 'green']
-		clfs = {'initiation_classifier':self.initiation_classifier,
-				'termination_classifier':self.termination_classifier}
+		clfs = {'initiation_classifier':self.optimistic_classifier,
+				'pessimistic_classifier':self.pessimistic_classifier}
 
 		# Plot boundaries of classifiers
 		self.plot_boundary(X_global, self.X, self.y, clfs, colors, option_id, self.train_counter, self.experiment_name, alpha=0.5)

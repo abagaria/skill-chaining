@@ -15,10 +15,10 @@ Experience Format (s, a, r, s'):
 
 
 # test (CPU)
-python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="test3_hits_10_nu_0.8" --episodes=100 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cpu" --num_subgoal_hits=1 --nu=0.8
+python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="1 - num_sub_goal_hits=1, nu=0.8" --episodes=100 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cpu" --num_subgoal_hits=1 --nu=0.8
 
 # test (GPU)
-python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="test_hits_10_nu_0.8" --episodes=100 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda" --num_subgoal_hits=1 --nu=0.8
+python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="1 - num_sub_goal_hits=10, nu=0.8" --episodes=1000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=10 --nu=0.8
 
 # baseline
 python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="sc_opt_pes_test" --episodes=2000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cpu" --num_subgoal_hits=3 --nu=0.5

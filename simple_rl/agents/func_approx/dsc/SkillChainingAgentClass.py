@@ -15,6 +15,8 @@ from tensorboardX import SummaryWriter
 import torch
 import pandas as pd
 from pathlib import Path
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -237,6 +239,9 @@ class SkillChaining(object):
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
 
+		# TODO: set selected option's seed
+		selected_option.set_rand_seed()
+
 		# Debug: If it was possible to take an option, did we take it?
 		for option in self.trained_options:  # type: Option
 			if option.is_init_true(state):
@@ -319,6 +324,28 @@ class SkillChaining(object):
 		# return len(self.trained_options) < self.max_num_options
 
 	# TODO: utilities
+	def plot_learning_curves(self, tests, experiment_name):
+		# Create plotting dir (if not created)
+		path = 'plots/{}/learning_curves'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
+		
+		colors = sns.hls_palette(len(tests), l=0.5)
+		for i, (label, rewards) in tests.items():
+			plt.plot(rewards, color=colors[i], label=label)
+			
+		plt.title("Domain")
+		plt.ylabel("Rewards")
+		plt.xlabel("Episodes")
+		plt.legend(title="Tests", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+
+		# Save plots
+		plt.savefig("{}/learning_curve.png".format(path), bbox_inches='tight')
+		plt.close()
+
+		# TODO: remove
+		print("      |-> {}/learning_curve.png saved!".format(path))
+
+	# TODO: utilities
 	def plot_prob(self, all_clf_probs, experiment_name):
 		# Create plotting dir (if not created)
 		path = 'plots/{}/prob_plots'.format(experiment_name)
@@ -397,6 +424,9 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
+				# TODO: seed each step
+				seed = random.Random()
+
 				if step_number % 100 == 0:
 					print("  |-> step_number: {}".format(step_number))  # TODO: remove
 				experiences, reward, state, steps = self.take_action(
@@ -435,9 +465,15 @@ class SkillChaining(object):
 
 			# TODO: plot processing
 			self.plot_processing(episode)
+			
+			# TODO: plot learning curves
+			tests = {}
+			tests[0] = (self.experiment_name, per_episode_scores)
+			self.plot_learning_curves(tests, self.experiment_name)
 
 		return per_episode_scores, per_episode_durations
 
+	
 	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
 
 		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
