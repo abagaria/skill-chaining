@@ -376,24 +376,24 @@ class SkillChaining(object):
 		sns.set_style("white")
 
 		for option in self.trained_options:
-			if option.initiation_classifier:
+			if option.optimistic_classifier:
 				option_id = option.option_idx
 
 				# update option's probability values
 				if option_id not in self.all_init_clf_probs:
-					self.all_init_clf_probs[option_id] = ([option.initiation_classifier_probs[-1]], [episode])
-					self.all_term_clf_probs[option_id] = ([option.termination_classifier_probs[-1]], [episode])
+					self.all_init_clf_probs[option_id] = ([option.optimistic_classifier_probs[-1]], [episode])
+					self.all_term_clf_probs[option_id] = ([option.pessimistic_classifier_probs[-1]], [episode])
 				else:
 					self.all_init_clf_probs[option_id][0].append(
-						option.initiation_classifier_probs[-1])
+						option.optimistic_classifier_probs[-1])
 					self.all_init_clf_probs[option_id][1].append(episode)
 					
 					self.all_term_clf_probs[option_id][0].append(
-						option.termination_classifier_probs[-1])
+						option.pessimistic_classifier_probs[-1])
 					self.all_term_clf_probs[option_id][1].append(episode)
 		
 		# plot average probabilities
-		if option.initiation_classifier:
+		if option.optimistic_classifier:
 			all_clf_probs = {'initiation classifier':self.all_init_clf_probs, 'termination classifier':self.all_term_clf_probs}
 			self.plot_prob(all_clf_probs, self.experiment_name)
 
@@ -424,7 +424,7 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				# TODO: seed each step
+				# TODO: seed each step for OptionClass::is_init_true()
 				seed = random.Random()
 
 				if step_number % 100 == 0:
@@ -442,10 +442,10 @@ class SkillChaining(object):
 					state_buffer.append(state)
 
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
-						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
+						self.max_num_options > 0 and self.untrained_option.optimistic_classifier is None:
 					uo_episode_terminated = True
 					if self.untrained_option.train(experience_buffer, state_buffer):
-						# plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
+						# plot_one_class_optimistic_classifier(self.untrained_option, episode, args.experiment_name)
 								
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 						

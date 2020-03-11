@@ -206,7 +206,7 @@ class Option(object):
 			# return self.parent.is_init_true(ground_state)
 		
 		# TODO: termination with pessimistic classifier
-		if self.pessimistic_classifier is not None and self.parent is not None:
+		if self.parent is not None:
 			state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]				
 			return self.pessimistic_classifier.predict(state.reshape(1,-1))[-1] == 1
 		
