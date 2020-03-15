@@ -23,7 +23,7 @@ def get_coeffs_for_optimization_quantity(optimization_quantity):
     if optimization_quantity == "chunked-bonus":
         return -1.936, 18739760.
     elif optimization_quantity == "chunked-log":
-        return -1, 6e4  # TODO: Get exact fit results
+        return -1.930, 106623930.
     raise ValueError(f"No fit coeffs for {optimization_quantity}")
 
 def get_lam_for_buffer_size(buffer_size, optimization_quantity=None, c1=-1.936, c2=18739760.):

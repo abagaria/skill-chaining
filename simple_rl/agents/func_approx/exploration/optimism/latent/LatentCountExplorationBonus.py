@@ -9,7 +9,7 @@ import ipdb
 class LatentCountExplorationBonus(ExplorationBonus):
     def __init__(self, state_dim, action_dim, latent_dim=2, lam=.1, epsilon=0.1,
                  writer=None, *, experiment_name, pixel_observation, normalize_states,
-                 bonus_scaling_term, lam_scaling_term, optimization_quantity):
+                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames):
         """
 
         Args:
@@ -24,6 +24,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
             bonus_scaling_term (str)
             lam_scaling_term (str)
             optimization_quantity (str)
+            num_frames (int)
         """
         super(LatentCountExplorationBonus, self).__init__()
 
@@ -43,6 +44,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
         self.latent_dim = latent_dim
         self.normalize_states = normalize_states
         self.bonus_scaling_term = bonus_scaling_term
+        self.num_frames = num_frames
 
         # Normalization constants
         self.mean_state = np.array([0.])
@@ -50,6 +52,12 @@ class LatentCountExplorationBonus(ExplorationBonus):
 
     def add_transition(self, state, action, next_state=None):
         assert isinstance(state, np.ndarray), type(state)
+
+        # Modify the stacking of the frames to allow for different stacking
+        # between the RL agent and the exploration module
+        state = self.modify_num_frames(state)
+        next_state = self.modify_num_frames(next_state) if next_state is not None else next_state
+
         assert state.shape in (self.state_dim, (self.state_dim, )), state.shape
 
         if next_state is not None:
@@ -65,6 +73,16 @@ class LatentCountExplorationBonus(ExplorationBonus):
             state = normalize(state, self.mean_state, self.std_state)
 
         self.counting_space.add_transition(state, action)
+
+    def modify_num_frames(self, state):
+        if state.shape[0] == self.num_frames:
+            return state
+        return state[-self.num_frames:, ...]
+
+    def batched_modify_num_frames(self, states):
+        if states.shape[1] == self.num_frames:
+            return states
+        return states[:, -self.num_frames:, ...]
 
     def _set_mean_and_std_state(self, sns_buffer):
         if sns_buffer is not None:
@@ -143,6 +161,9 @@ class LatentCountExplorationBonus(ExplorationBonus):
 
         """
         state_dim = self.counting_space.state_dim
+
+        state = self.modify_num_frames(state)
+
         assert state.shape in ((state_dim,), state_dim), (state_dim, state.shape)
         assert isinstance(state, np.ndarray)
 
@@ -170,6 +191,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
 
     def get_batched_exploration_bonus(self, states):
         assert isinstance(states, np.ndarray), type(states)
+
+        states = self.batched_modify_num_frames(states)
 
         if self.normalize_states:
             states = normalize(states, self.mean_state, self.std_state)

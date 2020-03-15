@@ -24,7 +24,7 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.utils import creat
 class Experiment12:
     """ RL on mountain car using the learned exploration bonus. """
 
-    def __init__(self, seed, *, pixel_observation, optimization_quantity,
+    def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
@@ -46,6 +46,7 @@ class Experiment12:
         self.num_steps = num_steps
         self.seed = seed
         self.experiment_name = experiment_name
+        self.count_train_mode = count_train_mode
 
     def run_experiment(self):
         training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
@@ -79,6 +80,7 @@ class Experiment12:
             plt.subplot(1, len(self.mdp.actions), i + 1)
             plt.scatter(positions[:, 0], positions[:, 1], c=bonuses[:, action], norm=matplotlib.colors.LogNorm())
             plt.colorbar()
+            plt.yticks([])
 
         plt.suptitle("Exploration Bonuses after Episode {}".format(episode))
         plt.savefig(f"{self.experiment_name}/bonus_plots/bonuses_{episode}_seed_{self.seed}.png")
@@ -95,7 +97,7 @@ class Experiment12:
         plt.figure(figsize=(14, 10))
         for action in self.agent.actions:
             plt.subplot(1, len(self.agent.actions), action + 1)
-            plt.scatter(positions[:, 0], positions[:, 1], c=qvalues[:, action], norm=matplotlib.colors.LogNorm())
+            plt.scatter(positions[:, 0], positions[:, 1], c=qvalues[:, action])#, norm=matplotlib.colors.LogNorm())
             plt.colorbar()
 
         plt.suptitle("Q-functions after episode {}".format(episode))
@@ -123,7 +125,7 @@ class Experiment12:
                 action = agent.act(state.features(), train_mode=True, position=position, use_novelty=True)
                 reward, next_state = mdp.execute_agent_action(action)
 
-                reward = 1. if next_state.is_terminal() else 0.
+                reward = 20. if next_state.is_terminal() else 0.
                 next_position = mdp.get_position()
 
                 agent.step(state.features(), position, action, reward, next_state.features(), next_position,
@@ -140,7 +142,7 @@ class Experiment12:
                 agent.writer.add_scalar("Score", score, iteration_counter)
 
             if agent.exploration_method == "count-phi" and episode >= 1:
-                agent.train_novelty_detector()
+                agent.train_novelty_detector(mode=self.count_train_mode)
 
             if args.make_plots:
                 if self.exploration_method == "count-phi":
@@ -181,6 +183,7 @@ if __name__ == "__main__":
     parser.add_argument("--no_novelty_during_regression", action="store_true", default=False)
     parser.add_argument("--tensor_log", action="store_true", default=False)
     parser.add_argument("--optimization_quantity", type=str)
+    parser.add_argument("--count_train_mode", type=str, default="entire")
 
     args = parser.parse_args()
 
@@ -199,7 +202,7 @@ if __name__ == "__main__":
                       eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes, tensor_log=args.tensor_log,
                       num_steps=args.steps, device=device, experiment_name=full_experiment_name, bonus_scaling_term=args.bonus_scaling_term,
                        no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
-                       optimization_quantity=args.optimization_quantity)
+                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode)
 
     episodic_scores, episodic_durations = exp.run_experiment()
 

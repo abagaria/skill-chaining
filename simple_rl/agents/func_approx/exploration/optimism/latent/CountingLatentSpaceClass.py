@@ -241,6 +241,10 @@ class CountingLatentSpace(object):
         raise ValueError(f"Bad value for lam_scaling_term: {self.lam_scaling_term}")
 
     def _get_scaled_num_epochs(self, N, num_grad_steps=600):
+
+        # TODO: HACK - testing _train_partial()
+        num_grad_steps = num_grad_steps / 10
+
         return int((1. * num_grad_steps * self.approx_chunk_size) / N)
 
     def _train_function_bonuses(self, *, buffers, state_next_state_buffer, epochs):

@@ -107,14 +107,15 @@ class DQNAgent(Agent):
             self.epsilon_schedule = ConstantEpsilonSchedule(0)
             self.epsilon = 0.
 
-            self.novelty_tracker = LatentCountExplorationBonus(state_dim=state_size,
+            self.novelty_tracker = LatentCountExplorationBonus(state_dim=(1, 28, 28),
                                                                action_dim=action_size,
                                                                experiment_name=experiment_name,
                                                                pixel_observation=self.pixel_observation,
                                                                normalize_states=normalize_states, writer=self.writer,
                                                                bonus_scaling_term=bonus_scaling_term,
                                                                lam_scaling_term=lam_scaling_term,
-                                                               optimization_quantity=optimization_quantity)
+                                                               optimization_quantity=optimization_quantity,
+                                                               num_frames=1)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -385,9 +386,9 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
-    def train_novelty_detector(self):
+    def train_novelty_detector(self, mode="entire"):
         epochs = -1 if self.novelty_tracker.counting_space.optimization_quantity in ("chunked-bonus", "chunked-log") else 50
-        self.novelty_tracker.train(epochs=epochs)
+        self.novelty_tracker.train(epochs=epochs, mode=mode)
 
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
