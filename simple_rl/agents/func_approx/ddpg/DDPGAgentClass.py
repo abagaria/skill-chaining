@@ -127,10 +127,6 @@ class DDPGAgent(Agent):
             if len(self.trained_options) > 0 and self.name == "global_option_ddpg_agent":
                 for option in self.trained_options:
                     if option.should_target_with_bonus():
-                        # TODO: How is this shaping best done?
-                        # phi(s') - phi(s) is more correct, but it is hard to sample those pairs
-                        # of states such that phi(s') is 1 but phi(s) is 0. Moreover, this might be ok because the
-                        # augmented shaped reward is still negative, while the goal is a terminating non-negative reward
                         phi = option.batched_is_init_true
                         shaped_bonus = 1. * phi(np_next_states)
                         rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
