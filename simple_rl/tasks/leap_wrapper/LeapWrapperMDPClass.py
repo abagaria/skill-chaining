@@ -27,10 +27,11 @@ class LeapWrapperMDP(MDP):
             env_name (str)
         '''
         self.env_name = env_name
+        multiworld.register_all_envs()
         self.base_env = gym.make(self.env_name)
         self.env = FlatGoalEnv(self.base_env)
         self.render = render
-        MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func, init_state=LeapWrapperState(self.env.reset()))
+        MDP.__init__(self, range(self.env.action_space.shape[0]), self._transition_func, self._reward_func, init_state=LeapWrapperState(self.env.reset()))
 
     def _reward_func(self, state, action):
         '''
