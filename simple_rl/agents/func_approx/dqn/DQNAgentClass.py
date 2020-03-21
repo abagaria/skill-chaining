@@ -58,7 +58,7 @@ class DQNAgent(Agent):
         self.loss_function = loss_function
         self.gradient_clip = gradient_clip
         self.evaluation_epsilon = evaluation_epsilon
-        assert exploration_method in ("eps-decay", "eps-const", "count-phi", "count-gt")
+        assert exploration_method in ("eps-decay", "eps-const", "count-phi", "count-gt"), exploration_method
         self.exploration_method = exploration_method
         self.pixel_observation = pixel_observation
         self.seed = random.seed(seed)
@@ -129,7 +129,7 @@ class DQNAgent(Agent):
         print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
                                                                                self.use_ddqn, BUFFER_SIZE))
 
-        Agent.__init__(self, name, range(action_size), GAMMA)
+        Agent.__init__(self, name, range(action_size), self.gamma)
 
     def act(self, state, position, train_mode=True, use_novelty=False):
         """
@@ -297,7 +297,7 @@ class DQNAgent(Agent):
             # If enough samples are available in memory, get random subset and learn
             if len(self.replay_buffer) > BATCH_SIZE:
                 experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
-                self._learn(experiences, GAMMA)
+                self._learn(experiences, self.gamma)
                 if self.tensor_log:
                     self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
                 self.num_updates += 1
@@ -309,6 +309,7 @@ class DQNAgent(Agent):
             experiences (tuple<torch.Tensor>): tuple of (s, a, r, s', done, tau) tuples
             gamma (float): discount factor
         """
+        # print(f"gamma: {gamma}")
         states, positions, actions, rewards, next_states, next_positions, dones, steps = experiences
 
         # Get max predicted Q values (for next states) from target model
