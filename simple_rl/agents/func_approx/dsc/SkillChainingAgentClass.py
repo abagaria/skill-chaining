@@ -26,7 +26,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False):
+				 initiation_period=2, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -63,6 +63,7 @@ class SkillChaining(object):
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
 		self.dense_reward = mdp.dense_reward
+		self.initiation_period = initiation_period
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -96,7 +97,7 @@ class SkillChaining(object):
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-							 dense_reward=self.dense_reward)
+							 dense_reward=self.dense_reward, initiation_period=self.initiation_period)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -137,6 +138,7 @@ class SkillChaining(object):
 									  num_subgoal_hits_required=self.num_subgoal_hits_required,
 									  seed=self.seed, parent=parent_option,  max_steps=self.max_steps,
 									  enable_timeout=self.enable_option_timeout,
+									  initiation_period=self.initiation_period,
 									  writer=self.writer, device=self.device, dense_reward=self.dense_reward)
 
 		new_untrained_option_id = id(new_untrained_option)
@@ -501,6 +503,7 @@ if __name__ == '__main__':
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+	parser.add_argument("--initiation_period", type=int, help="Initiation period of discovered options", default=2)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -542,7 +545,8 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
+							initiation_period=args.initiation_period, generate_plots=args.generate_plots,
+							tensor_log=args.tensor_log, device=args.device)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
