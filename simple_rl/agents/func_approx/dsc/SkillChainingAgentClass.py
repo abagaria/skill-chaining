@@ -162,7 +162,6 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing the option
 			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
 		"""
-		assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
 
 		def get_reward(transitions):
 			gamma = self.global_option.solver.gamma
@@ -307,7 +306,6 @@ class SkillChaining(object):
 		for start_state in self.init_states:
 			for option in local_options:  # type: Option
 				if option.is_init_true(start_state):
-					print("Init state is in {}'s initiation set classifier".format(option.name))
 					return False
 		return True
 		# return len(self.trained_options) < self.max_num_options
@@ -350,9 +348,11 @@ class SkillChaining(object):
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						plot_one_class_initiation_classifier(self.untrained_option, episode, args.experiment_name)
 						self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
-						if self.should_create_more_options():
-							new_option = self.create_child_option(self.untrained_option)
-							self.untrained_option = new_option
+
+				if self.should_create_more_options() and self.untrained_option.get_training_phase() == "initiation_done":
+					plot_two_class_classifier(self.untrained_option, episode, args.experiment_name)
+					new_option = self.create_child_option(self.untrained_option)
+					self.untrained_option = new_option
 
 				if state.is_terminal():
 					break
@@ -381,7 +381,7 @@ class SkillChaining(object):
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		if episode > 0 and episode % 100 == 0:
-			eval_score = self.trained_forward_pass(render=False)
+			eval_score = 0.  #self.trained_forward_pass(render=False)
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 

@@ -63,8 +63,8 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
 	ss = []
-	for x in np.arange(0., 11., 1.):
-		for y in np.arange(0., 11., 1.):
+	for x in np.arange(-2., 13., 1.):
+		for y in np.arange(-2., 13., 1.):
 			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
 							   theta=0., theta_dot=0., done=False)
 			ss.append(s)
@@ -73,8 +73,8 @@ def get_grid_states():
 
 def get_initiation_set_values(option):
 	values = []
-	for x in np.arange(-2., 11., 1.):
-		for y in np.arange(-2., 18., 1.):
+	for x in np.arange(-2., 13., 1.):
+		for y in np.arange(-2., 13., 1.):
 			s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
 							   theta=0, theta_dot=0, done=False)
 			values.append(option.is_init_true(s))

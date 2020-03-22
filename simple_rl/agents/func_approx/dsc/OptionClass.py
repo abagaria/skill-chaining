@@ -84,6 +84,9 @@ class Option(object):
 		self.positive_examples = []
 		self.negative_examples = []
 		self.experience_buffer = []
+		self.gestation_replay_trajectories = []
+		self.positive_initiation_replay_trajectories = []
+		self.negative_initiation_replay_trajectories = []
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -177,6 +180,10 @@ class Option(object):
 		experiences = [Experience(*exp) for exp in segmented_experiences]
 		self.experience_buffer.append(experiences)
 
+		# To replay trajectories, we want to store them as (option_idx, state) pairs
+		trajectory = [(self.option_idx, exp[-1]) for exp in experience_queue]
+		self.gestation_replay_trajectories.append(trajectory)
+
 	@staticmethod
 	def construct_feature_matrix(examples):
 		states = list(itertools.chain.from_iterable(examples))
@@ -225,10 +232,10 @@ class Option(object):
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
-		# if len(self.negative_examples) >= 10:
-		kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
-		# else:
-		# 	kwargs = {"kernel": "linear", "gamma": "scale"}
+		if len(self.negative_examples) >= 10:
+			kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
+		else:
+			kwargs = {"kernel": "linear", "gamma": "scale"}
 
 		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
 		initiation_classifier = svm.SVC(**kwargs)
@@ -380,6 +387,7 @@ class Option(object):
 
 				self.solver.update_epsilon()
 				option_transitions.append((state, action, reward, next_state))
+				visited_states.append(state)
 
 				total_reward += reward
 				state = next_state
@@ -398,12 +406,26 @@ class Option(object):
 			if self.get_training_phase() == "initiation" and self.name != "global_option":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
+			if self.name != "global_option":
+				self.save_replay_trajectories(visited_states, state, num_steps, step_number)
+
 			if self.writer is not None:
 				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
 
 			return option_transitions, total_reward
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
+
+	def save_replay_trajectories(self, visited_states, final_state, num_steps, outer_step_number):
+		if self.is_term_true(final_state):
+			positive_replay_traj = [(self.option_idx, state) for state in visited_states]
+			self.positive_initiation_replay_trajectories.append(positive_replay_traj)
+		elif num_steps == self.timeout:
+			negative_replay_traj = [(self.option_idx, state) for state in visited_states]
+			self.negative_initiation_replay_trajectories.append(negative_replay_traj)
+		else:
+			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
+				"[save_trajectories] Hit else case, but {} was not terminal".format(final_state)
 
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps,
 										 outer_step_number):
