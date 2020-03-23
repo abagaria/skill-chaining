@@ -65,7 +65,7 @@ class SkillChaining(object):
 		self.device = torch.device(device)
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
-		self.dense_reward = mdp.dense_reward
+		self.dense_reward = mdp.dense_reward 
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -123,7 +123,10 @@ class SkillChaining(object):
 		self.untrained_options = [goal_option_1, goal_option_2]
 
 		# Keep track of which chain each created option belongs to
-		s0 = self.mdp.env._init_positions
+		# s0 = self.mdp.env._init_positions
+		# TODO: Figure out what s0 is supposed to be,
+		# 		and fix this because what we're doing right now is wrong
+		s0 = [self.mdp.init_state.endeff_pos]
 		self.s0 = s0
 		self.chains = [SkillChain(start_states=s0, target_predicate=target, options=[], chain_id=(i+1),
 		 intersecting_options=[], mdp_start_states=s0) for i, target in enumerate(self.mdp.get_original_target_events())]
@@ -438,7 +441,8 @@ class SkillChaining(object):
 
 	def get_current_salient_events(self):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
-		return [self.mdp.goal_position, self.mdp.key_position]
+		# This is better abstraction but breaks compat with PointMazeMDP
+		return self.mdp.get_current_salient_events()
 
 	def create_intersection_salient_event(self, option1, option2):
 		"""
@@ -757,8 +761,8 @@ if __name__ == '__main__':
 	# Kiran and Kshitij edits
 	elif "sawyer" in args.env.lower():
 		from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
-		overall_mdp = LeapWrapperMDP(args.env, render=args.render)
-		state_dim = overall_mdp.env.observation_space.shape[0]
+		overall_mdp = LeapWrapperMDP(dense_reward=args.dense_reward, render=args.render)
+		state_dim = overall_mdp.env.observation_space['observation'].shape[0]
 		action_dim = overall_mdp.env.action_space.shape[0]
 		overall_mdp.env.seed(args.seed)
 	else:
