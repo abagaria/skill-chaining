@@ -9,6 +9,7 @@ import seaborn as sns
 sns.set()
 import imageio
 from PIL import Image
+from glfw import destroy_window
 
 # Other imports.
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
@@ -262,6 +263,8 @@ def replay_trajectory(trajectory, dir_name):
 
 		mdp.env.wrapped_env.set_state(qpos, qvel)
 		mdp.env.render()
+		old_viewer = mdp.env.viewer
 		img_array = mdp.env.render(mode="rgb_array")
 		img = Image.fromarray(img_array)
 		img.save("{}/frame{}.png".format(dir_name, i))
+		destroy_window(old_viewer.window)
