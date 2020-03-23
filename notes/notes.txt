@@ -1,51 +1,132 @@
-NOTE: too conservative nu for oc_svm will result in no classes
+Conda
+=====
+	conda env export --no-builds > environment2.yml
+	conda env create -f=environment2.yml
 
-conda env export --no-builds > environment2.yml
-conda env create -f=environment2.yml
+	python -m ipykernel install --user --name dsc --display-name "Python (dsc)"
 
-python -m ipykernel install --user --name dsc --display-name "Python (dsc)"
+	Experience Format (s, a, r, s'):
+		(
+			x: 0.04563510852011676	y: 0.025069855877261793 has_key: False theta: 0.020345420899034905 xdot: 0.027840619382801225 ydot: -0.0870369329932777 thetadot: -0.08814207475220448 terminal: False,
+			array([1., 0.36957714], dtype=float32),
+			-1.0,
+			x: 0.9728018368897211	y: 0.3982240908521795	has_key: False	theta: 0.3828711945348712	xdot: 0.027865134602680385ydot: -0.08702695899573652	thetadot: -0.08814207475220448	terminal: False
+		)
 
-Experience Format (s, a, r, s'):
-    (
-        x: 0.04563510852011676	y: 0.025069855877261793 has_key: False theta: 0.020345420899034905 xdot: 0.027840619382801225 ydot: -0.0870369329932777 thetadot: -0.08814207475220448 terminal: False,
-        array([1., 0.36957714], dtype=float32),
-        -1.0,
-        x: 0.9728018368897211	y: 0.3982240908521795	has_key: False	theta: 0.3828711945348712	xdot: 0.027865134602680385ydot: -0.08702695899573652	thetadot: -0.08814207475220448	terminal: False
-    )
+Run
+===
+	# test (CPU)
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="1 - num_sub_goal_hits=1, nu=0.8" --episodes=100 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cpu" --num_subgoal_hits=1 --nu=0.8
+
+	# test (GPU)
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="1 - num_sub_goal_hits=5, nu=0.8" --episodes=1000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.8
+
+	# baseline
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="sc_opt_pes_test" --episodes=2000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cpu" --num_subgoal_hits=3 --nu=0.5
+
+	# Debugging
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) num_sub_goal_hits=1, nu=0.5" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5
 
 
-# test (CPU)
-python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="1 - num_sub_goal_hits=1, nu=0.8" --episodes=100 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cpu" --num_subgoal_hits=1 --nu=0.8
+Bugs
+====
+	[ ] 1st option has init state and never learns more options.
+		- Q: maybe the init set of the goal policy option is too large at first but then is refined 
+		down but if an option is created early then this will break?
 
-# test (GPU)
-python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="1 - num_sub_goal_hits=10, nu=0.8" --episodes=1000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=10 --nu=0.8
+Structure
+=========
+	{Class}::{Method}
 
-# baseline
-python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="sc_opt_pes_test" --episodes=2000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cpu" --num_subgoal_hits=3 --nu=0.5
-
-
-	def train_one_class_svm(self):
-		# print("-> (Option::train_one_class_svm): call")		# TODO: remove
-		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-		# print("|-> Feature matrix ([X,y]): \n", positive_feature_matrix)		# TODO: remove
-
-		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
-		self.initiation_classifier.fit(positive_feature_matrix)
-
-{Class}::{Method}
-
-SkillChainingAgentClass::skill_chaining(...)
-  |- ...
-  |- SkillChainingAgentClass::take_action(...)
-    |- ...
-	|- OptionClass::execute_option_in_mdp(...)
-	  |- ...
-	  |- OptionClass::refine_initiation_set_classifier(...)
-	    |- ...
+	SkillChainingAgentClass::skill_chaining(...)
+	|- ...
+	|- SkillChainingAgentClass::take_action(...)
+		|- ...
+		|- OptionClass::execute_option_in_mdp(...)
+		|- ...
+		|- OptionClass::refine_initiation_set_classifier(...)
+			|- ...
+			|- OptionClass::train_initiation_set_classifier()
+	|- ...
+	|- OptionClass::train(...)
+		|- ...
 		|- OptionClass::train_initiation_set_classifier()
-  |- ...
-  |- OptionClass::train(...)
-    |- ...
-	|- OptionClass::train_initiation_set_classifier()
+
+
+Hyperparameter search
+=====================
+
+	Run
+	---
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(2) num_subgoal_hits=5, nu=0.5" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 
+
+
+	Hyperparameters
+	---------------
+	- episodes
+	- steps
+	- num_sub_goal_hits: size of gestation period
+	- nu: % of how conservative the OneClassSVM (i.e. if nu=7 then will treat 70% of data as outlier)
+	- subgoal_reward
+	- buffer_len
+
+	Defaults
+	--------
+	- episodes = 300
+	- steps = 1000
+	- subgoal_reward = 300
+	- buffer_len = 100
+
+	Search (seed=0)
+	---------------
+	- num_sub_goal_hits: (5), 10, 15
+	- nu: 0.5, 0.6, 0.7, 0.8
+
+
+Experiments
+===========
+
+	Domains
+	-------
+		- Point Maze
+		- Ant Maze
+
+Writeup
+=======
+	ScM Final Paper (DUE: F May 15th)
+	---------------------------------
+		** Required to submit a solelyauthored paper to your research advisor that outlines your research thesis, the work done and any future work that could be undertaken.
+		   Once your advisor has approved your paper, please send it to the Faculty and Student Affairs Manager (fasam@cs.brown.edu).
+
+		- Abstract
+		- Introduction
+		- Background
+			* Sequential decision making with MDPs
+			* Options Framework
+			* Deep Skill Chaining
+		- Initation Set Classifier (aka Methods)
+		- Experiments
+			* Domains
+			* Comparative Analysis (include Hyperparameter Search)
+		- Discussion & Conclusions
+		- Acknowledgments
+			* George and Akhil
+		- References
+	
+	CS2951X Final Paper (DUE: T May 5th)
+	------------------------------------
+
+ToDo
+====
+	[ ] Bugs
+		- only creating 1 option. could be with how is_term_true() is being called?
+
+		episodes=100
+		steps=2000
+		subgoal_reward=300
+		buffer_len=100
+		num_sub_goal_hits=5
+		nu=0.5
+
+	[ ] ScM Writeup
+	[ ] CS2951X Writeup

@@ -180,6 +180,9 @@ class DQNAgent(Agent):
         self.num_updates = 0
         self.num_epsilon_updates = 0
 
+        # TODO: step seed from main loop (int)
+        self.step_seed = None
+
         if self.tensor_log:
             self.writer = SummaryWriter() if writer is None else writer
 
@@ -187,6 +190,10 @@ class DQNAgent(Agent):
                                                                                self.use_ddqn, BUFFER_SIZE))
 
         Agent.__init__(self, name, range(action_size), GAMMA)
+
+    # TODO: set step seed from main loop
+    def set_step_seed(self, seed):
+        self.step_seed = seed
 
     def set_new_learning_rate(self, learning_rate):
         self.learning_rate = learning_rate
@@ -209,8 +216,11 @@ class DQNAgent(Agent):
         for idx, option in enumerate(self.trained_options):
             np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
 
+            # TODO: set option's step seed
+            option.set_step_seed(self.step_seed)
+
             if option.parent is None:
-                assert option.name == "overall_goal_policy" or option.name == "global_option"
+                # assert option.name == "overall_goal_policy" or option.name == "global_option"
                 impossible = not option.is_init_true(np_state)
             else:
                 impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
@@ -304,6 +314,9 @@ class DQNAgent(Agent):
             # Move the states and action values to the cpu to allow numpy computations
             states = states.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
+
+            # TODO:
+
 
             for idx, option in enumerate(self.trained_options): # type: Option
                 try:

@@ -23,8 +23,12 @@ import matplotlib.patches as mpatches
 import matplotlib.cm as cm
 import seaborn as sns
 import pandas as pd
+
 # sns.set(color_codes=True)
 sns.set_style("white")
+
+# Debugging imports
+import inspect
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -74,8 +78,8 @@ class Option(object):
 		self.nu = nu
 		self.experiment_name = experiment_name
 
-		# TODO: seed random class
-		self.rand_seed = self.set_rand_seed()
+		# TODO: step seed from main loop (int)
+		self.step_seed = None
 
 		# Global option operates on a time-scale of 1 while child (learned) options are temporally extended
 		if enable_timeout:
@@ -83,7 +87,7 @@ class Option(object):
 
 		if self.name == "global_option":
 			self.option_idx = 0
-		elif self.name == "overall_goal_policy":
+		elif self.name == "overall_goal_policy_option":
 			self.option_idx = 1
 		else:
 			self.option_idx = self.parent.option_idx + 1
@@ -105,16 +109,18 @@ class Option(object):
 		self.positive_examples = []
 		self.negative_examples = []
 		self.experience_buffer = []
-		self.optimistic_classifier = None
 
-		# TODO: option classifier variables
-		self.X = None		
-		self.y = None		
+		# TODO: initiation classifier variables
+		self.X = None
+		self.y = None
+		self.optimistic_classifier = None
 		self.pessimistic_classifier = None
+		self.approx_pessimistic_classifier = None
 		# self.psmod = None
-		self.train_counter = 0
+		# self.train_counter = 0
 		self.optimistic_classifier_probs = []
 		self.pessimistic_classifier_probs = []
+		self.X_global = None
 
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -145,8 +151,8 @@ class Option(object):
 		return not self == other
 
 	# TODO: set reandom seed
-	def set_rand_seed(self):
-		return random.Random()
+	def set_step_seed(self, seed):
+		self.step_seed = seed
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
@@ -177,12 +183,15 @@ class Option(object):
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
-	# NOTE: old
-	# def batched_is_init_true(self, state_matrix):
-	# 	if self.name == "global_option":
-	# 		return np.ones((state_matrix.shape[0]))
-	# 	position_matrix = state_matrix[:, :2]
-	# 	return self.initiation_classifier.predict(position_matrix) == 1
+	def batched_is_init_true(self, state_matrix):
+		if self.name == "global_option":
+			return np.ones((state_matrix.shape[0]))
+		position_matrix = state_matrix[:, :2]
+		#return self.initiation_classifier.predict(position_matrix) == 1
+		
+		# TODO: probabilistic batch initation with optimistic classifier
+		np.random.seed(self.step_seed)
+		return np.random.rand(len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
 
 	# TODO: utilities
 	def get_average_predict_proba(self, clf, X):
@@ -194,24 +203,30 @@ class Option(object):
 
 	# TODO: added seed
 	def is_init_true(self, ground_state):
+		'''NOTE: due to probabilistic initialization, self.step_seed needs to be set anytime this method is called'''
+
 		if self.name == "global_option":
 			return True
 	
 		# TODO: probabilistic initiation with optimistic classifier
-		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]				
-		return self.rand_seed.random() < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
+		np.random.seed(self.step_seed)
+		return np.random.random() < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
 
 	def is_term_true(self, ground_state):
 		# if self.parent is not None:
 			# return self.parent.is_init_true(ground_state)
 		
 		# TODO: termination with pessimistic classifier
-		if self.parent is not None:
-			state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]				
+		if self.parent is not None and self.pessimistic_classifier is not None:
+			state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 			return self.pessimistic_classifier.predict(state.reshape(1,-1))[-1] == 1
+		elif self.parent is not None:
+			# NOTE: untrained option will not have any trained classifiers so use parent until trained
+			return self.parent.is_init_true(ground_state)
 		
 		# If option does not have a parent, it must be the goal option or the global option
-		assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
+		# assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
 		return self.overall_mdp.is_goal_state(ground_state)
 
 	def add_initiation_experience(self, states):
@@ -329,7 +344,7 @@ class Option(object):
 			trained (bool): whether or not we actually trained this option
 		"""
 		# TODO: remove
-		print("    |-> (Option::train): call (train option {})".format(self.option_idx))
+		print("    |-> (Option::train): call (train {})".format(self.name))
 		
 		self.add_initiation_experience(state_buffer)
 		self.add_experience_buffer(experience_buffer)
@@ -393,7 +408,7 @@ class Option(object):
 		assert not s.is_terminal(), "Terminal state did not terminate at some point"
 
 		if self.is_term_true(s):
-			print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
+			# print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
 			return
 
 		if self.is_term_true(s_prime):
@@ -496,124 +511,124 @@ class Option(object):
 			self.train_initiation_classifier()
 
 
-	# TODO: utilities
-	def make_meshgrid(self, x, y, h=.01):
-		"""Create a mesh of points to plot in
+	# # TODO: utilities
+	# def make_meshgrid(self, x, y, h=.01):
+	# 	"""Create a mesh of points to plot in
 
-		Args:
-			x: data to base x-axis meshgrid on
-			y: data to base y-axis meshgrid on
-			h: stepsize for meshgrid, optional
+	# 	Args:
+	# 		x: data to base x-axis meshgrid on
+	# 		y: data to base y-axis meshgrid on
+	# 		h: stepsize for meshgrid, optional
 
-		Returns:
-			X and y mesh grid
-		"""
-		x_min, x_max = x.min() - 1, x.max() + 1
-		y_min, y_max = y.min() - 1, y.max() + 1
-		xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                       np.arange(y_min, y_max, h))
-		return xx, yy
+	# 	Returns:
+	# 		X and y mesh grid
+	# 	"""
+	# 	x_min, x_max = x.min() - 1, x.max() + 1
+	# 	y_min, y_max = y.min() - 1, y.max() + 1
+	# 	xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+    #                    np.arange(y_min, y_max, h))
+	# 	return xx, yy
 
-	# TODO: utilities
-	def plot_contours(self, ax, clf, xx, yy, **params):
-		"""Plot the decision boundaries for a classifier.
+	# # TODO: utilities
+	# def plot_contours(self, ax, clf, xx, yy, **params):
+	# 	"""Plot the decision boundaries for a classifier.
 
-		Args:
-			ax: matplotlib axes object
-			clf: a classifier
-			xx: meshgrid ndarray
-			yy: meshgrid ndarray
-			params: dictionary of params to pass to contourf, optional
+	# 	Args:
+	# 		ax: matplotlib axes object
+	# 		clf: a classifier
+	# 		xx: meshgrid ndarray
+	# 		yy: meshgrid ndarray
+	# 		params: dictionary of params to pass to contourf, optional
 		
-		Returns:
-			Contour of decision boundary
-		"""
-		Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
-		Z = Z.reshape(xx.shape)
-		out = ax.contourf(xx, yy, Z, **params)
-		return out
+	# 	Returns:
+	# 		Contour of decision boundary
+	# 	"""
+	# 	Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
+	# 	Z = Z.reshape(xx.shape)
+	# 	out = ax.contourf(xx, yy, Z, **params)
+	# 	return out
 
-	# TODO: utilities
-	def plot_boundary(self, X_global, X_buff, y_labels, clfs, colors, option_id, cnt, experiment_name, alpha):
-		# Create plotting dir (if not created)
-		path = 'plots/{}/clf_plots'.format(experiment_name)
-		Path(path).mkdir(exist_ok=True)
+	# # TODO: utilities
+	# def plot_boundary(self, X_global, X_buff, y_labels, clfs, colors, option_id, cnt, experiment_name, alpha):
+	# 	# Create plotting dir (if not created)
+	# 	path = 'plots/{}/clf_plots'.format(experiment_name)
+	# 	Path(path).mkdir(exist_ok=True)
 		
-		x_coord, y_coord = X_global[:,0], X_global[:,1]
-		x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
+	# 	x_coord, y_coord = X_global[:,0], X_global[:,1]
+	# 	x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
 
-		patches = []
+	# 	patches = []
 
-		# Plot classifier boundaries
-		for (clf_name, clf), color in zip(clfs.items(), colors):
-			z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
-			z = (z.reshape(x_mesh.shape) > 0).astype(int)
-			z = np.ma.masked_where(z == 0, z)
+	# 	# Plot classifier boundaries
+	# 	for (clf_name, clf), color in zip(clfs.items(), colors):
+	# 		z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
+	# 		z = (z.reshape(x_mesh.shape) > 0).astype(int)
+	# 		z = np.ma.masked_where(z == 0, z)
 
-			cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
-			patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
+	# 		cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
+	# 		patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
 
-		cb = plt.colorbar()
-		cb.remove()
+	# 	cb = plt.colorbar()
+	# 	cb.remove()
 
-		# Plot positive examples
-		X_pos = X_buff[y_labels == 1]
-		x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
-		pos_color = 'black'
-		p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='positive samples')
-		patches.append(p)
+	# 	# Plot positive examples
+	# 	X_pos = X_buff[y_labels == 1]
+	# 	x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
+	# 	pos_color = 'black'
+	# 	p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='positive samples', alpha=alpha)
+	# 	patches.append(p)
 
-		plt.xticks(())
-		plt.yticks(())
-		plt.title("Option {} - Classifier boundaries (t = {})".format(option_id, cnt))
-		plt.legend(handles=patches, 
-				   bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+	# 	plt.xticks(())
+	# 	plt.yticks(())
+	# 	plt.title("Option {} - Classifier boundaries (t = {})".format(option_id, cnt))
+	# 	plt.legend(handles=patches, 
+	# 			   bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 		
-		# Save plots
-		plt.savefig("{}/option_{}_{}.png".format(path, option_id, cnt),
-                    bbox_inches='tight', edgecolor='black')
-		plt.close()
+	# 	# Save plots
+	# 	plt.savefig("{}/option_{}_{}.png".format(path, option_id, cnt),
+    #                 bbox_inches='tight', edgecolor='black')
+	# 	plt.close()
 
-		# TODO: remove
-		print("      |-> {}/option_{}_{}.png saved!".format(path, option_id, cnt))
+	# 	# TODO: remove
+	# 	print("      |-> {}/option_{}_{}.png saved!".format(path, option_id, cnt))
 
-	# TODO: utilities
-	def plot_state_probs(self, X, clfs, option_id, cmaps, cnt, experiment_name):
-		# Create plotting dir (if not created)
-		path = 'plots/{}/state_prob_plots'.format(experiment_name)
-		Path(path).mkdir(exist_ok=True)
+	# # TODO: utilities
+	# def plot_state_probs(self, X, clfs, option_id, cmaps, cnt, experiment_name):
+	# 	# Create plotting dir (if not created)
+	# 	path = 'plots/{}/state_prob_plots'.format(experiment_name)
+	# 	Path(path).mkdir(exist_ok=True)
 		
-		# Generate mesh grid
-		x_coord, y_coord = X[:, 0], X[:, 1]
-		x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
+	# 	# Generate mesh grid
+	# 	x_coord, y_coord = X[:, 0], X[:, 1]
+	# 	x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
 
-		# Plot state probability estimates
-		for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
+	# 	# Plot state probability estimates
+	# 	for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
 
-			fig, ax = plt.subplots()
+	# 		fig, ax = plt.subplots()
 			
-			# Only plot positive predictions
-			X_mesh = np.vstack([x_mesh.flatten(), y_mesh.flatten()]).T
-			probs = clf.predict_proba(X_mesh)[:, 1]
-			preds = (clf.predict(X_mesh) > 0).astype(int)
-			probs = np.multiply(probs, preds)
+	# 		# Only plot positive predictions
+	# 		X_mesh = np.vstack([x_mesh.flatten(), y_mesh.flatten()]).T
+	# 		probs = clf.predict_proba(X_mesh)[:, 1]
+	# 		preds = (clf.predict(X_mesh) > 0).astype(int)
+	# 		probs = np.multiply(probs, preds)
 
-			ax.set_title(
-				'Option {} - Probability estimates of {} (t = {})'.format(option_id, clf_name, cnt))
+	# 		ax.set_title(
+	# 			'Option {} - Probability estimates of {} (t = {})'.format(option_id, clf_name, cnt))
 			
-			states = ax.pcolormesh(x_mesh, y_mesh, probs.reshape(x_mesh.shape), shading='gouraud', cmap=cmap, vmin=0.0, vmax=1.0)
-			cbar = fig.colorbar(states)
+	# 		states = ax.pcolormesh(x_mesh, y_mesh, probs.reshape(x_mesh.shape), shading='gouraud', cmap=cmap, vmin=0.0, vmax=1.0)
+	# 		cbar = fig.colorbar(states)
 
-			ax.set_xticks(())
-			ax.set_yticks(())
+	# 		ax.set_xticks(())
+	# 		ax.set_yticks(())
 			
-			# Save plots
-			plt.savefig("{}/option_{}_{}_{}.png".format(path, option_id,
-						clf_name, cnt), bbox_inches='tight', edgecolor='black')
-			plt.close()
+	# 		# Save plots
+	# 		plt.savefig("{}/option_{}_{}_{}.png".format(path, option_id,
+	# 					clf_name, cnt), bbox_inches='tight', edgecolor='black')
+	# 		plt.close()
 
-			# TODO: remove
-			print("      |-> {}/option_{}_{}_{}.png saved!".format(path, option_id, clf_name, cnt))
+	# 		# TODO: remove
+	# 		print("      |-> {}/option_{}_{}_{}.png saved!".format(path, option_id, clf_name, cnt))
 
 	# TODO: Optimistic classifier
 	def train_optimistic_classifier(self, X, y):
@@ -711,7 +726,7 @@ class Option(object):
 	# TODO: main initiation and termination classifier call
 	def train_initiation_classifier(self):		
 		# TODO: remove
-		print("    |-> (OptionClass::train_initiation_classifier): call")
+		# print("    |-> (OptionClass::train_initiation_classifier): call")
 
 		# If no negative examples, pick first k states to be negative
 		if not self.negative_examples:
@@ -737,33 +752,38 @@ class Option(object):
 
 		# Fit classifiers
 		self.optimistic_classifier = self.train_optimistic_classifier(self.X, self.y)
-		oc_svm = self.train_pessimistic_classifier(self.optimistic_classifier, self.X, self.y, nu=self.nu)
-		if oc_svm != False:
-			self.pessimistic_classifier = self.one_class_to_two_class_classifier(oc_svm, self.X)
+		self.pessimistic_classifier = self.train_pessimistic_classifier(self.optimistic_classifier, self.X, self.y, nu=self.nu)
+		self.approx_pessimistic_classifier = self.one_class_to_two_class_classifier(self.pessimistic_classifier, self.X)
+		# if oc_svm != False:
+			# self.pessimistic_classifier = self.one_class_to_two_class_classifier(oc_svm, self.X)
 
+		# self.train_counter += 1
+		
+		# NOTE: Update global buffer once
+		if self.X_global is None:
+			self.X_global = self.get_all_global_samples()
+		
 		# Update variables		
-		self.train_counter += 1
-		X_global = self.get_all_global_samples()
 		self.optimistic_classifier_probs.append(self.get_average_predict_proba(
-			self.optimistic_classifier, X_global))
-		self.pessimistic_classifier_probs.append(self.get_average_predict_proba(self.pessimistic_classifier, X_global))
+			self.optimistic_classifier, self.X_global))
+		self.pessimistic_classifier_probs.append(self.get_average_predict_proba(self.approx_pessimistic_classifier, self.X_global))
 
 		# Platt scalling module
 		# self.psmod, _ = self.platt_scale(self.pessimistic_classifier, self.X, 0.90, 5)
 
 		# Plotting variables
-		option_id = self.option_idx
-		num_colors = 100
-		cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
-		colors = ['blue', 'green']
-		clfs = {'initiation_classifier':self.optimistic_classifier,
-				'pessimistic_classifier':self.pessimistic_classifier}
+		# option_id = self.option_idx
+		# num_colors = 100
+		# cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
+		# colors = ['blue', 'green']
+		# clfs = {'optimistic_classifier':self.optimistic_classifier,
+		# 		'pessimistic_classifier':self.pessimistic_classifier}
 
 		# Plot boundaries of classifiers
-		self.plot_boundary(X_global, self.X, self.y, clfs, colors, option_id, self.train_counter, self.experiment_name, alpha=0.5)
+		# self.plot_boundary(X_global, self.X, self.y, clfs, colors, option_id, self.train_counter, self.experiment_name, alpha=0.5)
 
 		# Plot state probability estimates
-		self.plot_state_probs(X_global, clfs, option_id, cmaps, self.train_counter, self.experiment_name)
+		# self.plot_state_probs(X_global, clfs, option_id, cmaps, self.train_counter, self.experiment_name)
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state

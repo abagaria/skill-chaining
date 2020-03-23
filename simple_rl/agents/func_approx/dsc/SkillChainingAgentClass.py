@@ -17,6 +17,8 @@ import pandas as pd
 from pathlib import Path
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.cm as cm
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -96,13 +98,13 @@ class SkillChaining(object):
 		# Once we pick this option, we will use its internal DDPG solver to take primitive actions until termination
 		# Once we hit its termination condition N times, we will start learning its initiation set
 		# Once we have learned its initiation set, we will create its child option
-		goal_option = Option(overall_mdp=self.mdp, name='overall_goal_policy', global_solver=self.global_option.solver,
+		goal_option = Option(overall_mdp=self.mdp, name='overall_goal_policy_option', global_solver=self.global_option.solver,
 							 lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 							 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 							 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 							 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 							 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-                       dense_reward=self.dense_reward, nu=self.nu, experiment_name=self.experiment_name)
+							 dense_reward=self.dense_reward, nu=self.nu, experiment_name=self.experiment_name)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -128,8 +130,19 @@ class SkillChaining(object):
 		self.num_options_history = []
 
 		# TODO: classifier variables
-		self.all_init_clf_probs = {}
-		self.all_term_clf_probs = {}
+		self.all_opt_clf_probs = {}
+		self.all_pes_clf_probs = {}
+
+		# TODO: plotting variables
+		self.x_mesh = None
+		self.y_mesh = None
+
+		# TODO: per step seed (int)
+		self.step_seed = None
+
+	# TODO: Set random seed value
+	def set_step_seed(self):
+		self.step_seed = np.random.randint(2**32 - 1)
 
 	def create_child_option(self, parent_option):
 		# Create new option whose termination is the initiation of the option we just trained
@@ -232,15 +245,15 @@ class SkillChaining(object):
 		self.agent_over_options = new_global_agent
 
 	def act(self, state):
+		# TODO: set step seed for DQN agent
+		self.agent_over_options.set_step_seed(self.step_seed)
+		
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
 		self.agent_over_options.update_epsilon()
 
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
-
-		# TODO: set selected option's seed
-		selected_option.set_rand_seed()
 
 		# Debug: If it was possible to take an option, did we take it?
 		for option in self.trained_options:  # type: Option
@@ -324,6 +337,87 @@ class SkillChaining(object):
 		# return len(self.trained_options) < self.max_num_options
 
 	# TODO: utilities
+	def make_meshgrid(self, x, y, h=.01):
+		"""Create a mesh of points to plot in
+
+		Args:
+			x: data to base x-axis meshgrid on
+			y: data to base y-axis meshgrid on
+			h: stepsize for meshgrid, optional
+
+		Returns:
+			X and y mesh grid
+		"""
+		x_min, x_max = x.min() - 1, x.max() + 1
+		y_min, y_max = y.min() - 1, y.max() + 1
+		xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                       np.arange(y_min, y_max, h))
+		return xx, yy
+
+	# TODO: utilities
+	def plot_contours(self, ax, clf, xx, yy, **params):
+		"""Plot the decision boundaries for a classifier.
+
+		Args:
+			ax: matplotlib axes object
+			clf: a classifier
+			xx: meshgrid ndarray
+			yy: meshgrid ndarray
+			params: dictionary of params to pass to contourf, optional
+		
+		Returns:
+			Contour of decision boundary
+		"""
+		Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
+		Z = Z.reshape(xx.shape)
+		out = ax.contourf(xx, yy, Z, **params)
+		return out
+
+	# TODO: utilities
+	def plot_boundary(self, x_mesh, y_mesh, clfs, colors, option_name, episode, experiment_name, alpha):
+		# Create plotting dir (if not created)
+		path = 'plots/{}/clf_plots'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
+		
+		# x_coord, y_coord = X_global[:,0], X_global[:,1]
+		# x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
+
+		patches = []
+
+		# Plot classifier boundaries
+		for (clf_name, clf), color in zip(clfs.items(), colors):
+			z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
+			z = (z.reshape(x_mesh.shape) > 0).astype(int)
+			z = np.ma.masked_where(z == 0, z)
+
+			cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
+			patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
+
+		cb = plt.colorbar()
+		cb.remove()
+
+		# Plot successful trajectories
+		# X_pos = X_buff[y_labels == 1]
+		# x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
+		# pos_color = 'black'
+		# p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='successful trajectories', alpha=alpha)
+		# patches.append(p)
+
+		plt.xticks(())
+		plt.yticks(())
+		plt.title("Classifier Boundaries - {}".format(option_name))
+		plt.legend(handles=patches, 
+				   bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+		
+		# Save plots
+		plt.savefig("{}/{}_{}.png".format(path, option_name, episode),
+                    bbox_inches='tight', edgecolor='black')
+		plt.close()
+
+		# TODO: remove
+		print("|-> {}/{}_{}.png saved!".format(path, option_name, episode))
+
+	# TODO: utilities
 	def plot_learning_curves(self, tests, experiment_name):
 		# Create plotting dir (if not created)
 		path = 'plots/{}/learning_curves'.format(experiment_name)
@@ -333,7 +427,7 @@ class SkillChaining(object):
 		for i, (label, rewards) in tests.items():
 			plt.plot(rewards, color=colors[i], label=label)
 			
-		plt.title("Domain")
+		plt.title("{}".format(self.mdp.env_name))
 		plt.ylabel("Rewards")
 		plt.xlabel("Episodes")
 		plt.legend(title="Tests", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
@@ -343,7 +437,7 @@ class SkillChaining(object):
 		plt.close()
 
 		# TODO: remove
-		print("      |-> {}/learning_curve.png saved!".format(path))
+		print("|-> {}/learning_curve.png saved!".format(path))
 
 	# TODO: utilities
 	def plot_prob(self, all_clf_probs, experiment_name):
@@ -353,12 +447,12 @@ class SkillChaining(object):
 
 		for clf_name, clf_probs in all_clf_probs.items():
 			colors = sns.hls_palette(len(clf_probs), l=0.5)
-			for i, (opt_id, opt_probs) in enumerate(clf_probs.items()):
+			for i, (opt_name, opt_probs) in enumerate(clf_probs.items()):
 				probs, episodes = opt_probs
-				if 'initiation' in clf_name:
-					plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(opt_id, clf_name))
+				if 'optimistic' in clf_name:
+					plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(clf_name, opt_name))
 				else:
-					plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(opt_id, clf_name), linestyle='--')
+					plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(clf_name, opt_name), linestyle='--')
 
 		plt.title("Average Probability Estimates")
 		plt.ylabel("Probabilities")
@@ -370,32 +464,91 @@ class SkillChaining(object):
 		plt.close()
 		
 		# TODO: remove
-		print("      |-> {}/option_prob_estmates.png saved!".format(path))
+		print("|-> {}/option_prob_estmates.png saved!".format(path))
 
-	def plot_processing(self, episode):
+	# TODO: utilities
+	def plot_state_probs(self, x_mesh, y_mesh, clfs, option_name, cmaps, episode, experiment_name):
+		# Create plotting dir (if not created)
+		path = 'plots/{}/state_prob_plots'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
+		
+		# Generate mesh grid
+		# x_coord, y_coord = X[:, 0], X[:, 1]
+		# x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
+
+		# Plot state probability estimates
+		for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
+
+			fig, ax = plt.subplots()
+			
+			# Only plot positive predictions
+			X_mesh = np.vstack([x_mesh.flatten(), y_mesh.flatten()]).T
+			probs = clf.predict_proba(X_mesh)[:, 1]
+			preds = (clf.predict(X_mesh) > 0).astype(int)
+			probs = np.multiply(probs, preds)
+
+			ax.set_title(
+				'Probability Estimates ({}) - {}'.format(clf_name, option_name))
+			
+			states = ax.pcolormesh(x_mesh, y_mesh, probs.reshape(x_mesh.shape), shading='gouraud', cmap=cmap, vmin=0.0, vmax=1.0)
+			cbar = fig.colorbar(states)
+
+			ax.set_xticks(())
+			ax.set_yticks(())
+			
+			# Save plots
+			plt.savefig("{}/{}_{}_{}.png".format(path, option_name,
+						clf_name, episode), bbox_inches='tight', edgecolor='black')
+			plt.close()
+
+			# TODO: remove
+			print("|-> {}/{}_{}_{}.png saved!".format(path, option_name, clf_name, episode))
+
+	def plot_processing(self, episode, per_episode_scores):
 		sns.set_style("white")
 
 		for option in self.trained_options:
 			if option.optimistic_classifier:
-				option_id = option.option_idx
+				# plotting variables
+				num_colors = 100
+				cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
+				colors = ['blue', 'green']
+				clfs_bound = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.pessimistic_classifier}
+				clfs_prob = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.approx_pessimistic_classifier}
+				
+				# NOTE: make domain mesh once
+				if self.x_mesh is None:
+					x_coord, y_coord = option.X_global[:, 0], option.X_global[:, 1]
+					self.x_mesh, self.y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
+
+				# plot boundaries of classifiers
+				self.plot_boundary(self.x_mesh, self.y_mesh, clfs_bound, colors, option.name, episode, self.experiment_name, alpha=0.5)
+
+				# plot state probabilty estimates
+				self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_prob, option.name, cmaps, episode, self.experiment_name)
 
 				# update option's probability values
-				if option_id not in self.all_init_clf_probs:
-					self.all_init_clf_probs[option_id] = ([option.optimistic_classifier_probs[-1]], [episode])
-					self.all_term_clf_probs[option_id] = ([option.pessimistic_classifier_probs[-1]], [episode])
+				if option.name not in self.all_opt_clf_probs:
+					self.all_opt_clf_probs[option.name] = ([option.optimistic_classifier_probs[-1]], [episode])
+					self.all_pes_clf_probs[option.name] = ([option.pessimistic_classifier_probs[-1]], [episode])
 				else:
-					self.all_init_clf_probs[option_id][0].append(
+					self.all_opt_clf_probs[option.name][0].append(
 						option.optimistic_classifier_probs[-1])
-					self.all_init_clf_probs[option_id][1].append(episode)
+					self.all_opt_clf_probs[option.name][1].append(episode)
 					
-					self.all_term_clf_probs[option_id][0].append(
+					self.all_pes_clf_probs[option.name][0].append(
 						option.pessimistic_classifier_probs[-1])
-					self.all_term_clf_probs[option_id][1].append(episode)
+					self.all_pes_clf_probs[option.name][1].append(episode)
 		
 		# plot average probabilities
 		if option.optimistic_classifier:
-			all_clf_probs = {'initiation classifier':self.all_init_clf_probs, 'termination classifier':self.all_term_clf_probs}
+			all_clf_probs = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
 			self.plot_prob(all_clf_probs, self.experiment_name)
+
+		# plot learning curves
+		tests = {}
+		tests[0] = (self.experiment_name, per_episode_scores)
+		self.plot_learning_curves(tests, self.experiment_name)
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -424,8 +577,8 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				# TODO: seed each step for OptionClass::is_init_true()
-				seed = random.Random()
+				# TODO: seed each step
+				self.set_step_seed()
 
 				if step_number % 100 == 0:
 					print("  |-> step_number: {}".format(step_number))  # TODO: remove
@@ -444,6 +597,10 @@ class SkillChaining(object):
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
 						self.max_num_options > 0 and self.untrained_option.optimistic_classifier is None:
 					uo_episode_terminated = True
+
+					# TODO: set option step seed
+					self.untrained_option.set_step_seed(self.step_seed)
+					
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						# plot_one_class_optimistic_classifier(self.untrained_option, episode, args.experiment_name)
 								
@@ -463,13 +620,8 @@ class SkillChaining(object):
 
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
 
-			# TODO: plot processing
-			self.plot_processing(episode)
-			
-			# TODO: plot learning curves
-			tests = {}
-			tests[0] = (self.experiment_name, per_episode_scores)
-			self.plot_learning_curves(tests, self.experiment_name)
+			# TODO: call for making plots
+			self.plot_processing(episode, per_episode_scores)
 
 		return per_episode_scores, per_episode_durations
 
