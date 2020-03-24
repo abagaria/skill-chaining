@@ -65,7 +65,11 @@ class CountingLatentSpace(object):
         self.lam_scaling_term = lam_scaling_term
 
         assert bonus_scaling_term in ("none", "sqrt", "linear", "chunked-sqrt"), bonus_scaling_term
-        assert lam_scaling_term in ("none", "fit")
+        assert lam_scaling_term in ("none", "fit"), lam_scaling_term
+        if lam_scaling_term == "fit":
+            assert bonus_scaling_term == "none", "You should probably only be scaling either lam OR bonus."
+        assert repulsive_loss_type in ("exponential", "normal"), repulsive_loss_type
+        assert attractive_loss_type in ("normal", "quadratic", "exponential"), attractive_loss_type
 
         print(f"Created CountingLatentSpace object with bonus_scaling_term {bonus_scaling_term} and lam_scaling_term {lam_scaling_term}")
 
@@ -76,9 +80,9 @@ class CountingLatentSpace(object):
 
     def reset_model(self):
         if self.pixel_observations:
-            self.model = MNISTConvPhiNetwork(self.state_dim, latent_size=self.latent_dim)
+            self.model = MNISTConvPhiNetwork(self.state_dim, latent_size=self.latent_dim, device=self.device)
         else:
-            self.model = DensePhiNetwork(self.state_dim, latent_size=self.latent_dim)
+            self.model = DensePhiNetwork(self.state_dim, latent_size=self.latent_dim, device=self.device)
 
     def add_transition(self, state, action):
         """"""
@@ -145,6 +149,8 @@ class CountingLatentSpace(object):
             latent_reprs (np.ndarray)
 
         """
+        if self.phi_type == "raw":
+            return np.array(states) # cloned
         self.model.eval()
         with torch.no_grad():
             features = self.model(torch.from_numpy(states).float().to(self.device))
@@ -734,16 +740,28 @@ class CountingLatentSpace(object):
         return self._get_function_counts(X, buffer_idx, chunk_size)
 
     def _get_raw_count_from_distances(self, distances):
-        std_devs = distances / self.epsilon
-        counts_per = np.exp(-(std_devs**2))
-        counts = counts_per.sum(axis=1)
-        return counts
+        """
+        These are numpy arrays! Not so sure why we want it that way, but it is how it is.
+        """
+        assert self.repulsive_loss_type in ("normal", "exponential"), self.repulsive_loss_type
 
-    def _get_function_count_from_distances(self, distances):
-        pass
+        if self.repulsive_loss_type == "normal":
+            for_exp = -(distances / self.epsilon) ** 2
+            counts_per = np.exp(for_exp)
+            counts = counts_per.sum(axis=1)
+            return counts
+        else:
+            for_exp = -distances / self.epsilon
+            counts_per = np.exp(for_exp)
+            counts = counts_per.sum(axis=1)
+            return counts
 
     def _get_raw_counts(self, X, buffer_idx):
-        buffer = self.buffers[buffer_idx]
+        buffer = self.buffers[buffer_idx] # type: np.ndarray
+        # If we have never taken this action before, return max counts
+        if buffer is None:
+            max_counts = np.zeros((X.shape[0],))
+            return max_counts
         distances = naive_spread_counter.get_all_distances_to_buffer(X, buffer)
         counts = self._get_raw_count_from_distances(distances)
         return counts

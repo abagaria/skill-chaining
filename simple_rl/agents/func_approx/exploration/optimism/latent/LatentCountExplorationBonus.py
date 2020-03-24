@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 from simple_rl.agents.func_approx.exploration.optimism.ExplorationBonusClass import ExplorationBonus
 from simple_rl.agents.func_approx.exploration.optimism.latent.CountingLatentSpaceClass import CountingLatentSpace
@@ -8,7 +9,8 @@ import ipdb
 
 class LatentCountExplorationBonus(ExplorationBonus):
     def __init__(self, state_dim, action_dim, latent_dim=2, lam=.1, epsilon=0.1,
-                 writer=None, *, experiment_name, pixel_observation, normalize_states,
+                 writer=None, phi_type="function", device=torch.device("cuda"),
+                 *, experiment_name, pixel_observation, normalize_states,
                  bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames):
         """
 
@@ -28,14 +30,23 @@ class LatentCountExplorationBonus(ExplorationBonus):
         """
         super(LatentCountExplorationBonus, self).__init__()
 
+        # Special casing for num_frames..
+        if pixel_observation:
+            state_dim = list(state_dim)
+            state_dim[0] = num_frames
+            state_dim = tuple(state_dim)
+
         self.counting_space = CountingLatentSpace(state_dim=state_dim, action_dim=action_dim,
                                                   latent_dim=latent_dim, epsilon=epsilon,
-                                                  phi_type="function", experiment_name=experiment_name,
+                                                  phi_type=phi_type, experiment_name=experiment_name,
                                                   pixel_observations=pixel_observation, lam=lam,
                                                   optimization_quantity=optimization_quantity, writer=writer,
                                                   bonus_scaling_term=bonus_scaling_term,
-                                                  lam_scaling_term=lam_scaling_term)
+                                                  lam_scaling_term=lam_scaling_term,
+                                                  device=device)
 
+
+        self.pixel_observation = pixel_observation
         self.un_normalized_sns_buffer = []
         self.actions = list(range(0, action_dim))
         self.un_normalized_action_buffers = [[] for _ in self.actions]
@@ -55,8 +66,9 @@ class LatentCountExplorationBonus(ExplorationBonus):
 
         # Modify the stacking of the frames to allow for different stacking
         # between the RL agent and the exploration module
-        state = self.modify_num_frames(state)
-        next_state = self.modify_num_frames(next_state) if next_state is not None else next_state
+        if self.pixel_observation:
+            state = self.modify_num_frames(state)
+            next_state = self.modify_num_frames(next_state) if next_state is not None else next_state
 
         assert state.shape in (self.state_dim, (self.state_dim, )), state.shape
 
@@ -162,7 +174,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
         """
         state_dim = self.counting_space.state_dim
 
-        state = self.modify_num_frames(state)
+        if self.pixel_observation:
+            state = self.modify_num_frames(state)
 
         assert state.shape in ((state_dim,), state_dim), (state_dim, state.shape)
         assert isinstance(state, np.ndarray)
@@ -192,7 +205,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
     def get_batched_exploration_bonus(self, states):
         assert isinstance(states, np.ndarray), type(states)
 
-        states = self.batched_modify_num_frames(states)
+        if self.pixel_observation:
+            states = self.batched_modify_num_frames(states)
 
         if self.normalize_states:
             states = normalize(states, self.mean_state, self.std_state)

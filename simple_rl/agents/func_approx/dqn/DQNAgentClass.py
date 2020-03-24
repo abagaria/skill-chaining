@@ -48,7 +48,9 @@ class DQNAgent(Agent):
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
-                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity=""):
+                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity="",
+                 phi_type="function", counting_epsilon=0.1):
+
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -67,6 +69,9 @@ class DQNAgent(Agent):
         self.device = device
         self.bonus_scaling_term = bonus_scaling_term
         self.novelty_during_regression = novelty_during_regression
+        assert phi_type in ("function", "raw")
+        self.phi_type = phi_type
+        self.counting_epsilon = counting_epsilon
 
         # Q-Network
         if pixel_observation:
@@ -107,7 +112,7 @@ class DQNAgent(Agent):
             self.epsilon_schedule = ConstantEpsilonSchedule(0)
             self.epsilon = 0.
 
-            self.novelty_tracker = LatentCountExplorationBonus(state_dim=(1, 28, 28),
+            self.novelty_tracker = LatentCountExplorationBonus(state_dim=state_size,
                                                                action_dim=action_size,
                                                                experiment_name=experiment_name,
                                                                pixel_observation=self.pixel_observation,
@@ -115,7 +120,10 @@ class DQNAgent(Agent):
                                                                bonus_scaling_term=bonus_scaling_term,
                                                                lam_scaling_term=lam_scaling_term,
                                                                optimization_quantity=optimization_quantity,
-                                                               num_frames=1)
+                                                               num_frames=1,
+                                                               device=device,
+                                                               phi_type=phi_type,
+                                                               epsilon=counting_epsilon)
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
