@@ -26,10 +26,12 @@ class Experiment12:
 
     def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
-                 bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log):
+                 bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
+                 phi_type):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
+
         self.novelty_during_regression = not no_novelty_during_regression
         self.agent = DQNAgent(state_size=state_dim, action_size=len(self.mdp.actions),
                               trained_options=[], seed=seed, device=device,
@@ -40,7 +42,8 @@ class Experiment12:
                               lam_scaling_term=lam_scaling_term,
                               novelty_during_regression=self.novelty_during_regression,
                               normalize_states=(not pixel_observation),
-                              optimization_quantity=optimization_quantity)
+                              optimization_quantity=optimization_quantity,
+                              phi_type=phi_type)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -165,17 +168,22 @@ class Experiment12:
 
 
 if __name__ == "__main__":
+    """
+    Example run (from root dir):
+        python simple_rl/agents/func_approx/exploration/optimism/latent/experiments/experiment12.py --experiment_name testing --run_title testing --episodes 100 --pixel_observation --exploration_method chunked-log --use_bonus_during_action_selection --make_plots --bonus_scaling_term none --lam_scaling_term fit --optimization_quantity count-phi --count_train_mode partial
+    """
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name", required=True)
     parser.add_argument("--run_title", type=str, required=True) # This is the subdir that we'll be saving in.
 
     parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
     parser.add_argument("--episodes", type=int, help="# episodes", default=100)
-    parser.add_argument("--steps", type=int, help="# steps", default=25)
+    parser.add_argument("--steps", type=int, help="# steps", default=200)
     parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
     parser.add_argument("--pixel_observation", action="store_true", help="Images / Dense input", default=False)
     parser.add_argument("--exploration_method", type=str, default="eps-decay")
-    parser.add_argument("--use_bonus_during_action_selection", type=bool, default=False)
+    parser.add_argument("--use_bonus_during_action_selection", action="store_true", default=False)
     parser.add_argument("--eval_eps", type=float, default=0.05)
     parser.add_argument("--make_plots", action="store_true", default=False)
     parser.add_argument("--bonus_scaling_term", type=str, default="none")
@@ -184,6 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("--tensor_log", action="store_true", default=False)
     parser.add_argument("--optimization_quantity", type=str)
     parser.add_argument("--count_train_mode", type=str, default="entire")
+    parser.add_argument("--phi_type", type=str, default="function")
 
     args = parser.parse_args()
 
@@ -201,8 +210,10 @@ if __name__ == "__main__":
     exp = Experiment12(args.seed, pixel_observation=args.pixel_observation,
                       eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes, tensor_log=args.tensor_log,
                       num_steps=args.steps, device=device, experiment_name=full_experiment_name, bonus_scaling_term=args.bonus_scaling_term,
-                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
-                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode)
+                      no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
+                      optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
+                      phi_type=args.phi_type,
+                    )
 
     episodic_scores, episodic_durations = exp.run_experiment()
 

@@ -49,7 +49,9 @@ class DQNAgent(Agent):
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
-                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity=""):
+                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity="",
+                 phi_type="function", counting_epsilon=0.1):
+
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -59,7 +61,7 @@ class DQNAgent(Agent):
         self.loss_function = loss_function
         self.gradient_clip = gradient_clip
         self.evaluation_epsilon = evaluation_epsilon
-        assert exploration_method in ("eps-decay", "eps-const", "count-phi", "count-gt", "oc-svm")
+        assert exploration_method in ("eps-decay", "eps-const", "count-phi", "count-gt", "oc-svm"), exploration_method
         self.exploration_method = exploration_method
         self.pixel_observation = pixel_observation
         self.seed = random.seed(seed)
@@ -68,6 +70,9 @@ class DQNAgent(Agent):
         self.device = device
         self.bonus_scaling_term = bonus_scaling_term
         self.novelty_during_regression = novelty_during_regression
+        assert phi_type in ("function", "raw")
+        self.phi_type = phi_type
+        self.counting_epsilon = counting_epsilon
         self.actions = list(range(self.action_size))
 
         # Q-Network
@@ -109,7 +114,7 @@ class DQNAgent(Agent):
             self.epsilon_schedule = ConstantEpsilonSchedule(0)
             self.epsilon = 0.
 
-            self.novelty_tracker = LatentCountExplorationBonus(state_dim=(1, 28, 28),
+            self.novelty_tracker = LatentCountExplorationBonus(state_dim=state_size,
                                                                action_dim=action_size,
                                                                experiment_name=experiment_name,
                                                                pixel_observation=self.pixel_observation,
@@ -117,7 +122,11 @@ class DQNAgent(Agent):
                                                                bonus_scaling_term=bonus_scaling_term,
                                                                lam_scaling_term=lam_scaling_term,
                                                                optimization_quantity=optimization_quantity,
-                                                               num_frames=1)
+                                                               num_frames=1,
+                                                               device=device,
+                                                               phi_type=phi_type,
+                                                               epsilon=counting_epsilon)
+
         elif exploration_method == "oc-svm":
             self.visited_state_action_pairs = defaultdict(lambda : [])
             self.one_class_classifiers = [None] * len(self.actions)
@@ -136,7 +145,7 @@ class DQNAgent(Agent):
         print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
                                                                                self.use_ddqn, BUFFER_SIZE))
 
-        Agent.__init__(self, name, range(action_size), GAMMA)
+        Agent.__init__(self, name, range(action_size), self.gamma)
 
     def act(self, state, position, train_mode=True, use_novelty=False):
         """
@@ -327,7 +336,7 @@ class DQNAgent(Agent):
             # If enough samples are available in memory, get random subset and learn
             if len(self.replay_buffer) > BATCH_SIZE:
                 experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
-                self._learn(experiences, GAMMA)
+                self._learn(experiences, self.gamma)
                 if self.tensor_log:
                     self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
                 self.num_updates += 1
@@ -339,6 +348,7 @@ class DQNAgent(Agent):
             experiences (tuple<torch.Tensor>): tuple of (s, a, r, s', done, tau) tuples
             gamma (float): discount factor
         """
+        # print(f"gamma: {gamma}")
         states, positions, actions, rewards, next_states, next_positions, dones, steps = experiences
 
         # Get max predicted Q values (for next states) from target model

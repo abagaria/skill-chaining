@@ -62,11 +62,12 @@ def get_all_distances_to_buffer(states, buffer):
     shape and then subtract them. That's what I'll do.
 
     """
-    assert isinstance(states, np.ndarray)
-    assert isinstance(buffer, np.ndarray)
+    assert isinstance(states, np.ndarray), type(states)
+    assert isinstance(buffer, np.ndarray), type(buffer)
 
-    assert states.shape[1] == buffer.shape[1]
-    assert len(states.shape) == len(buffer.shape) == 2
+    # import ipdb; ipdb.set_trace()
+    assert states.shape[1] == buffer.shape[1], (states.shape[1], buffer.shape[1])
+    assert len(states.shape) == len(buffer.shape) == 2, (len(states.shape), len(buffer.shape))
 
     num_features = states.shape[1]
     num_states = states.shape[0]
@@ -88,7 +89,7 @@ def get_all_distances_to_buffer(states, buffer):
 
     distances = np.sqrt(distances)
 
-    assert len(distances.shape) == 2, len(distances.shape)
+    assert distances.shape == (len(states), len(buffer))
     return distances
 
 
