@@ -4,7 +4,7 @@ from collections import namedtuple, deque
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
-import pdb
+import ipdb
 from copy import deepcopy
 import shutil
 import os
@@ -12,6 +12,7 @@ import time
 import argparse
 import pickle
 from collections import defaultdict
+from sklearn import svm
 
 import torch.optim as optim
 
@@ -58,7 +59,7 @@ class DQNAgent(Agent):
         self.loss_function = loss_function
         self.gradient_clip = gradient_clip
         self.evaluation_epsilon = evaluation_epsilon
-        assert exploration_method in ("eps-decay", "eps-const", "count-phi", "count-gt")
+        assert exploration_method in ("eps-decay", "eps-const", "count-phi", "count-gt", "oc-svm")
         self.exploration_method = exploration_method
         self.pixel_observation = pixel_observation
         self.seed = random.seed(seed)
@@ -67,6 +68,7 @@ class DQNAgent(Agent):
         self.device = device
         self.bonus_scaling_term = bonus_scaling_term
         self.novelty_during_regression = novelty_during_regression
+        self.actions = list(range(self.action_size))
 
         # Q-Network
         if pixel_observation:
@@ -116,6 +118,11 @@ class DQNAgent(Agent):
                                                                lam_scaling_term=lam_scaling_term,
                                                                optimization_quantity=optimization_quantity,
                                                                num_frames=1)
+        elif exploration_method == "oc-svm":
+            self.visited_state_action_pairs = defaultdict(lambda : [])
+            self.one_class_classifiers = [None] * len(self.actions)
+            self.epsilon_schedule = ConstantEpsilonSchedule(0)
+            self.epsilon = 0.
         else:
             raise NotImplementedError("{} not implemented", exploration_method)
 
@@ -164,6 +171,10 @@ class DQNAgent(Agent):
                 bonus = self.novelty_tracker.get_exploration_bonus(position)
                 assert bonus.shape == action_values.shape
                 return np.argmax(action_values + bonus)
+            elif use_novelty and self.exploration_method == "oc-svm":
+                Q_MAX = 100.
+                novelty = np.array([clf.predict(position.reshape(1, -1))[0] if clf is not None else -1 for clf in self.one_class_classifiers])
+                action_values = np.where(novelty == 1, action_values, Q_MAX)
             return np.argmax(action_values)
 
         return random.randint(0, self.action_size - 1)
@@ -251,6 +262,10 @@ class DQNAgent(Agent):
             next_state = np.array(next_state)
             assert state.shape in ((2,), self.state_size)
             self.novelty_tracker.add_transition(state, action, next_state)
+        if self.exploration_method == "oc-svm":
+            assert position.shape == (2,)
+            assert isinstance(position, np.ndarray), position
+            self.visited_state_action_pairs[action].append(tuple(position))
 
     def _get_q_targets(self, next_states, next_positions):
         """
@@ -273,6 +288,21 @@ class DQNAgent(Agent):
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
+        if self.exploration_method == "oc-svm" and self.novelty_during_regression:
+            Q_MAX = 100.
+            np_next_states = next_positions.cpu().numpy()
+            np_Q_next = Q_targets_next.cpu().numpy()
+
+            for action in self.actions:
+                if self.one_class_classifiers[action] is not None:
+                    X = np_next_states[:, :2]
+                    Y = self.one_class_classifiers[action].predict(X)
+                    np_Q_next[np.where(Y != 1)[0], action] = Q_MAX
+                else:
+                    np_Q_next[:, action] = Q_MAX
+
+            return torch.from_numpy(np_Q_next).to(self.device)
+
         return Q_targets_next
 
     def step(self, state, position, action, reward, next_state, next_position, done, num_steps=1):
@@ -387,8 +417,16 @@ class DQNAgent(Agent):
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
     def train_novelty_detector(self, mode="entire"):
-        epochs = -1 if self.novelty_tracker.counting_space.optimization_quantity in ("chunked-bonus", "chunked-log") else 50
-        self.novelty_tracker.train(epochs=epochs, mode=mode)
+        if self.exploration_method == "oc-svm":
+            for action in self.actions:
+                visited_states = np.array(list(self.visited_state_action_pairs[action]))
+                if len(visited_states) > 0:
+                    self.one_class_classifiers[action] = svm.OneClassSVM(kernel="rbf", gamma=50., nu=0.01)
+                    X = visited_states[:, :2]
+                    self.one_class_classifiers[action].fit(X)
+        else:
+            epochs = -1 if self.novelty_tracker.counting_space.optimization_quantity in ("chunked-bonus", "chunked-log") else 50
+            self.novelty_tracker.train(epochs=epochs, mode=mode)
 
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
