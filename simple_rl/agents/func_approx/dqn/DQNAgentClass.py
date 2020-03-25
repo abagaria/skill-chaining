@@ -50,7 +50,7 @@ class DQNAgent(Agent):
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
                  lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity="",
-                 phi_type="function", counting_epsilon=0.1):
+                 phi_type="function", counting_epsilon=0.1, bonus_from_position=False):
 
         self.state_size = state_size
         self.action_size = action_size
@@ -74,6 +74,7 @@ class DQNAgent(Agent):
         self.phi_type = phi_type
         self.counting_epsilon = counting_epsilon
         self.actions = list(range(self.action_size))
+        self.bonus_from_position = bonus_from_position
 
         # Q-Network
         if pixel_observation:
@@ -114,10 +115,13 @@ class DQNAgent(Agent):
             self.epsilon_schedule = ConstantEpsilonSchedule(0)
             self.epsilon = 0.
 
-            self.novelty_tracker = LatentCountExplorationBonus(state_dim=state_size,
+            novelty_tracker_state_dim = 2 if bonus_from_position else state_size
+            novelty_use_pixels = False if bonus_from_position else self.pixel_observation
+
+            self.novelty_tracker = LatentCountExplorationBonus(state_dim=novelty_tracker_state_dim,
                                                                action_dim=action_size,
                                                                experiment_name=experiment_name,
-                                                               pixel_observation=self.pixel_observation,
+                                                               pixel_observation=novelty_use_pixels,
                                                                normalize_states=normalize_states, writer=self.writer,
                                                                bonus_scaling_term=bonus_scaling_term,
                                                                lam_scaling_term=lam_scaling_term,
@@ -173,7 +177,8 @@ class DQNAgent(Agent):
         # Epsilon-greedy action selection
         if random.random() > epsilon:
             if use_novelty and self.exploration_method == "count-phi":
-                bonus = self.novelty_tracker.get_exploration_bonus(state.cpu().numpy().squeeze(0))
+                bonus_input = position if self.bonus_from_position else state.cpu().numpy().squeeze(0)
+                bonus = self.novelty_tracker.get_exploration_bonus(bonus_input)
                 assert bonus.shape == action_values.shape
                 return np.argmax(action_values + bonus)
             elif use_novelty and self.exploration_method == "count-gt":
@@ -267,10 +272,10 @@ class DQNAgent(Agent):
             assert isinstance(position, np.ndarray), position
             self.novelty_tracker.add_transition(tuple(position), action)
         if self.exploration_method == "count-phi":
-            state = np.array(state)
-            next_state = np.array(next_state)
-            assert state.shape in ((2,), self.state_size)
-            self.novelty_tracker.add_transition(state, action, next_state)
+            bonus_input = np.array(position) if self.bonus_from_position else np.array(state)
+            next_bonus_input = np.array(next_position) if self.bonus_from_position else np.array(next_state)
+            assert bonus_input.shape in ((2,), self.state_size)
+            self.novelty_tracker.add_transition(bonus_input, action, next_bonus_input)
         if self.exploration_method == "oc-svm":
             assert position.shape == (2,)
             assert isinstance(position, np.ndarray), position
@@ -292,8 +297,9 @@ class DQNAgent(Agent):
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
         if self.exploration_method == "count-phi" and self.novelty_during_regression:
-            next_states_array = next_states.cpu().numpy()
-            bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_states_array)
+            next_bonus_input = next_positions if self.bonus_from_position else next_states
+            next_bonus_input = next_bonus_input.cpu().numpy()
+            bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_bonus_input)
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
@@ -400,9 +406,11 @@ class DQNAgent(Agent):
             self.writer.add_scalar("DQN-GradientNorm", compute_gradient_norm(self.policy_network), self.num_updates)
 
             if self.exploration_method == "count-phi":
+                bonus_inputs = positions if self.bonus_from_position else states
                 self.writer.add_scalar(
                     "DQN-AverageBonus",
-                    self.novelty_tracker.get_batched_exploration_bonus(states.cpu().numpy()).mean().item(),
+                    # self.novelty_tracker.get_batched_exploration_bonus(states.cpu().numpy()).mean().item(),
+                    self.novelty_tracker.get_batched_exploration_bonus(bonus_inputs.cpu().numpy()).mean().item(),
                     self.num_updates)
 
         # ------------------- update target network ------------------- #

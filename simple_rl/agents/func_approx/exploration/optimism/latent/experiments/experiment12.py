@@ -27,12 +27,15 @@ class Experiment12:
     def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
-                 phi_type):
+                 phi_type, bonus_from_position):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
 
         self.novelty_during_regression = not no_novelty_during_regression
+        self.bonus_from_position = bonus_from_position
+        normalize_states = not pixel_observation or bonus_from_position
+
         self.agent = DQNAgent(state_size=state_dim, action_size=len(self.mdp.actions),
                               trained_options=[], seed=seed, device=device,
                               name="GlobalDDQN", lr=1e-3, use_double_dqn=False,
@@ -41,9 +44,9 @@ class Experiment12:
                               bonus_scaling_term=bonus_scaling_term,
                               lam_scaling_term=lam_scaling_term,
                               novelty_during_regression=self.novelty_during_regression,
-                              normalize_states=(not pixel_observation),
+                              normalize_states=normalize_states,
                               optimization_quantity=optimization_quantity,
-                              phi_type=phi_type)
+                              phi_type=phi_type, bonus_from_position=bonus_from_position)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -76,7 +79,9 @@ class Experiment12:
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
 
-        bonuses = agent.novelty_tracker.get_batched_exploration_bonus(states)
+        bonus_inputs = positions if self.bonus_from_position else states
+
+        bonuses = agent.novelty_tracker.get_batched_exploration_bonus(bonus_inputs)
 
         plt.figure(figsize=(14, 10))
         for i, action in enumerate(self.mdp.actions):
@@ -103,9 +108,56 @@ class Experiment12:
             plt.scatter(positions[:, 0], positions[:, 1], c=qvalues[:, action])#, norm=matplotlib.colors.LogNorm())
             plt.colorbar()
 
-        plt.suptitle("Q-functions after episode {}".format(episode))
+        plt.suptitle("Q-functions (no novelty bonus) after episode {}".format(episode))
         plt.savefig(f"{self.experiment_name}/qf_plots/vf_{episode}_seed_{self.seed}.png")
         plt.close()
+
+    def make_advantage_plot(self, agent, episode):
+        states = np.array([transition.state for transition in agent.replay_buffer])
+        positions = np.array([transition.position for transition in agent.replay_buffer])
+
+        states_tensor = torch.from_numpy(states).float().to(agent.device)
+
+        qvalues = agent.get_batched_qvalues(states_tensor, None).cpu().numpy()
+        av_qs = qvalues.mean(axis=1, keepdims=True)
+        q_advantage = qvalues - av_qs
+
+        plt.figure(figsize=(14, 10))
+        for action in self.agent.actions:
+            plt.subplot(1, len(self.agent.actions), action + 1)
+            plt.scatter(positions[:, 0], positions[:, 1], c=q_advantage[:, action])#, norm=matplotlib.colors.LogNorm())
+            plt.colorbar()
+
+        plt.suptitle("Q-Advantage (no novelty bonus) after episode {}".format(episode))
+        plt.savefig(f"{self.experiment_name}/q_advantage_plots/qadv_{episode}_seed_{self.seed}.png")
+        plt.close()
+
+    def make_which_actions_plot(self, agent, episode):
+        evaluation_epsilon = agent.evaluation_epsilon
+        agent.evaluation_epsilon = 0.
+
+        states = np.array([transition.state for transition in agent.replay_buffer])
+        positions = np.array([transition.position for transition in agent.replay_buffer])
+
+        actions = []
+        for s, p in zip(states, positions):
+            action = agent.act(s, p, train_mode=True, use_novelty=True)
+            actions.append(action)
+
+        plt.figure(figsize=(14, 10))
+        for action in self.agent.actions:
+            plt.subplot(1, len(self.agent.actions), action + 1)
+            take_this_action_from = np.array([p for p,a in zip(positions, actions) if a == action])
+            take_other_action_from = np.array([p for p,a in zip(positions, actions) if a != action])
+            if len(take_other_action_from) != 0:
+                plt.scatter(take_other_action_from[:, 0], take_other_action_from[:, 1], c='#000000')#, norm=matplotlib.colors.LogNorm())
+            if len(take_this_action_from) != 0:
+                plt.scatter(take_this_action_from[:, 0], take_this_action_from[:, 1], c='r')#, norm=matplotlib.colors.LogNorm())
+
+        plt.suptitle("Action chosen after episode {}".format(episode))
+        plt.savefig(f"{self.experiment_name}/which_action/which_action_{episode}_seed_{self.seed}.png")
+        plt.close()
+        agent.evaluation_epsilon = evaluation_epsilon
 
     def train_dqn_agent(self, agent, mdp, episodes, steps):
         per_episode_scores = []
@@ -152,6 +204,8 @@ class Experiment12:
                     self.make_latent_plot(agent, episode)
                     self.make_bonus_plot(agent, episode)
                     self.make_value_plot(agent, episode)
+                    self.make_advantage_plot(agent, episode)
+                    self.make_which_actions_plot(agent, episode)
 
             last_10_scores.append(score)
             last_10_durations.append(step + 1)
@@ -193,6 +247,7 @@ if __name__ == "__main__":
     parser.add_argument("--optimization_quantity", type=str)
     parser.add_argument("--count_train_mode", type=str, default="entire")
     parser.add_argument("--phi_type", type=str, default="function")
+    parser.add_argument("--bonus_from_position", action="store_true", default=False)
 
     args = parser.parse_args()
 
@@ -203,7 +258,10 @@ if __name__ == "__main__":
     create_log_dir(f"{full_experiment_name}/bonus_plots")
     create_log_dir(f"{full_experiment_name}/latent_plots")
     create_log_dir(f"{full_experiment_name}/qf_plots")
+    create_log_dir(f"{full_experiment_name}/q_advantage_plots")
+    create_log_dir(f"{full_experiment_name}/which_action")
     create_log_dir(f"{full_experiment_name}/scores")
+
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -212,7 +270,7 @@ if __name__ == "__main__":
                       num_steps=args.steps, device=device, experiment_name=full_experiment_name, bonus_scaling_term=args.bonus_scaling_term,
                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
-                      phi_type=args.phi_type,
+                      phi_type=args.phi_type, bonus_from_position=args.bonus_from_position,
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()

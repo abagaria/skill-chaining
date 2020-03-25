@@ -66,7 +66,7 @@ def get_all_distances_to_buffer(states, buffer):
     assert isinstance(buffer, np.ndarray), type(buffer)
 
     # import ipdb; ipdb.set_trace()
-    assert states.shape[1] == buffer.shape[1], (states.shape[1], buffer.shape[1])
+    assert states.shape[1] == buffer.shape[1], (states.shape, buffer.shape)
     assert len(states.shape) == len(buffer.shape) == 2, (len(states.shape), len(buffer.shape))
 
     num_features = states.shape[1]
