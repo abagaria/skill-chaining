@@ -116,7 +116,7 @@ class PointMazeMDP(MDP):
 
         """
 
-        if option.chain_id == 3:
+        if option.backward_option:
             satisfied_goal_salience = option.is_init_true(self.goal_position)
             satisfied_key_salience = option.is_init_true(self.key_position)
 

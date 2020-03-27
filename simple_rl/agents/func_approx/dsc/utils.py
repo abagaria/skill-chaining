@@ -63,8 +63,8 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
     ss = []
-    for x in np.arange(-2., 17., 1.):
-        for y in np.arange(-8., 8., 0.5):
+    for x in np.arange(-11., 11., 1.):
+        for y in np.arange(-11., 11., 0.5):
             s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
                                theta=0., theta_dot=0., done=False, has_key=False)
             ss.append(s)
@@ -72,8 +72,8 @@ def get_grid_states():
 
 def get_initiation_set_values(option, has_key):
     values = []
-    for x in np.arange(-2., 17., 1.):
-        for y in np.arange(-8., 8., 0.5):
+    for x in np.arange(-11., 11., 1.):
+        for y in np.arange(-11., 11., 0.5):
             s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
                                theta=0, theta_dot=0, done=False, has_key=has_key)
             values.append(option.is_init_true(s))
@@ -149,8 +149,8 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
     # plt.xticks([])
     # plt.yticks([])
 
-    plt.xlim((-2, 17))
-    plt.ylim((-8, 8))
+    plt.xlim((-10, 10))
+    plt.ylim((-10, 10))
 
     plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
@@ -183,8 +183,8 @@ def plot_two_class_classifier(option, episode, experiment_name):
         # background_image = imageio.imread("four_room_domain.png")
         # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-        plt.xlim((-2, 17))
-        plt.ylim((-8, 8))
+        plt.xlim((-10, 10))
+        plt.ylim((-10, 10))
 
         name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
         plt.title("{} Initiation Set".format(option.name))

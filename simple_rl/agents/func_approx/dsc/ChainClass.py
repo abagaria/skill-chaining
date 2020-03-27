@@ -4,7 +4,9 @@ from simple_rl.agents.func_approx.dsc.OptionClass import Option
 
 
 class SkillChain(object):
-    def __init__(self, start_states, mdp_start_states, target_predicate, options, chain_id, intersecting_options=[]):
+    def __init__(self, start_states, mdp_start_states, target_predicate, options, chain_id,
+                 target_position=None, batched_target_predicate=None, intersecting_options=[],
+                 is_backward_chain=False, has_backward_chain=False, chain_until_intersection=False):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here
@@ -15,14 +17,25 @@ class SkillChain(object):
             target_predicate (function): f: s -> {0, 1} based on salience  # TODO: Also accept an optional start_predicate
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
+            target_position (np.ndarray): A sample from the termination set corresponding to this chain
+            batched_target_predicate (function): f: s -> {0, 1} batched version of `target_predicate` for numpy parallelism
             intersecting_options (list): List of options whose initiation sets overlap
+            is_backward_chain (bool): Whether this chain goes from start -> salient or from salient -> start
+            has_backward_chain (bool): Does there exist a backward chain corresponding to the current forward chain (N/A if `is_backward_chain`)
+            chain_until_intersection (bool): Whether to chain until the current chain intersects with another OR simply until the start states
         """
         self.options = options
         self.start_states = start_states
         self.mdp_start_states = mdp_start_states
         self.target_predicate = target_predicate
+        self.batched_target_predicate = batched_target_predicate
+        self.target_position = target_position
         self.chain_id = chain_id
         self.intersecting_options = intersecting_options
+
+        self.is_backward_chain = is_backward_chain
+        self.has_backward_chain = has_backward_chain
+        self.chain_until_intersection = chain_until_intersection
 
         if target_predicate is None and len(intersecting_options) > 0:
             self.target_predicate = lambda s: all([option.is_init_true(s) for option in intersecting_options])
@@ -65,12 +78,10 @@ class SkillChain(object):
         # Continue if not all the start states have been covered by the options in the current chain
         start_state_in_chain = all([self._state_in_chain(s) for s in self.start_states])
 
-        if self.chain_id == 3:
+        if self.is_backward_chain or not self.chain_until_intersection:
             return not start_state_in_chain
 
-        assert self.chain_id != 3, self.chain_id
-
-        # Continue if no chain intersections have been found yet
+        # For forward chains, continue until chain intersections have been found yet
         chain_itersects_another = any([self.is_intersecting(chain) for chain in chains])
 
         # If chain intersects another, check if at least some other chain has
@@ -137,3 +148,7 @@ class SkillChain(object):
 
     def chain_salience_satisfied(self, state):
         return self.target_predicate(state)
+
+    def chained_till_start_state(self):
+        start_state_in_chain = all([self._state_in_chain(s) for s in self.start_states])
+        return start_state_in_chain

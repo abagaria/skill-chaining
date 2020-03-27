@@ -21,8 +21,8 @@ class Option(object):
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, intersecting_options=[], max_num_children=3,
-				 init_predicate=None, batched_init_predicate=None,
-				 generate_plots=False, device=torch.device("cpu"), writer=None):
+				 init_predicate=None, batched_init_predicate=None, target_predicate=None, batched_target_predicate=None,
+				 gestation_init_predicates=[], is_backward_option=False, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -43,6 +43,10 @@ class Option(object):
 			initialize_everywhere (bool)
 			init_predicate (f: s -> bool)
 			batched_init_predicate (f: s -> bool)
+			target_predicate (function): f: s -> bool
+			batched_target_predicate (function): f: s -> bool
+			gestation_init_predicates (list)
+			is_backward_option (bool)
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
@@ -54,7 +58,7 @@ class Option(object):
 		self.parent = parent
 		self.dense_reward = dense_reward
 		self.enable_timeout = enable_timeout
-		self.initiation_period = 0 if chain_id == 3 else initiation_period
+		self.initiation_period = initiation_period
 		self.max_num_children = max_num_children
 		self.classifier_type = classifier_type
 		self.generate_plots = generate_plots
@@ -62,6 +66,9 @@ class Option(object):
 		self.initialize_everywhere = initialize_everywhere
 		self.init_predicate = init_predicate
 		self.batched_init_predicate = batched_init_predicate
+		self.target_predicate = target_predicate
+		self.batched_target_predicate = batched_target_predicate
+		self.gestation_init_predicates = gestation_init_predicates
 
 		self.timeout = np.inf
 
@@ -69,18 +76,9 @@ class Option(object):
 		if enable_timeout:
 			self.timeout = 1 if name == "global_option" else timeout
 
-		if self.name == "global_option":
-			self.option_idx = 0
-		elif self.name == "exploration_option":
-			self.option_idx = 1
-		elif self.name == "goal_option_1":
-			self.option_idx = 2
-		elif self.name == "goal_option_2":
-			self.option_idx = 3
-		else:
-			self.option_idx = option_idx
-
+		self.option_idx = option_idx
 		self.chain_id = chain_id
+		self.backward_option = is_backward_option
 		self.intersecting_options = intersecting_options
 		exploration = "shaping" if self.name == "global_option" else ""
 
@@ -196,23 +194,32 @@ class Option(object):
 			if self.is_term_true(next_state):
 				self.solver.step(state, action, self.subgoal_reward, next_state, True)
 			else:
-				if np.random.rand() > 0.6:
+				if np.random.rand() > 0.6:  # TODO: Make this magic number somehow dependent on the size of the replay buffer
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
-		if self.batched_init_predicate is not None:
-			return self.batched_init_predicate(state_matrix)
+
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
+
 		if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
-			if self.chain_id == 3:
+			if self.backward_option:
 				state_matrix = state_matrix[:, :2]
+
+				# When we treat the start state as a salient event, we pass in the
+				# init predicate that we are going to use during gestation
+				if self.batched_init_predicate is not None:
+					return self.batched_init_predicate(state_matrix)
+
+				# When we create intersection salient events, then we treat the union of all salient
+				# events as the joint initiation set of the backward options
 				salients = [event(state_matrix) for event in self.overall_mdp.get_current_batched_target_events()]
 
-				if len(salients) == 2:
-					assert len(salients) == 2, f"Code not written for arbitrary number of salient events {len(salients)}"
-					return np.logical_or(*tuple(salients))
+				if len(salients) > 1:
+					gestation_inits = np.logical_or.reduce(tuple(salients))
+					assert gestation_inits.shape == (state_matrix.shape[0],), gestation_inits.shape
+					return gestation_inits
 				elif len(salients) == 1:
 					return salients[0]
 				elif len(salients) == 0:
@@ -229,6 +236,9 @@ class Option(object):
 		# Extract the relevant dimensions from the state matrix (x, y)
 		state_matrix = state_matrix[:, :2]
 
+		if self.batched_target_predicate is not None:
+			return self.batched_target_predicate(state_matrix)
+
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option" or self.name == "exploration_option":
 			return np.zeros((state_matrix.shape[0]))
@@ -242,8 +252,6 @@ class Option(object):
 			return np.logical_and(o1.batched_is_init_true(state_matrix), o2.batched_is_init_true(state_matrix))
 
 	def is_init_true(self, ground_state):
-		if self.init_predicate is not None:
-			return self.init_predicate(ground_state)
 
 		if self.name == "global_option":
 			return True
@@ -251,7 +259,13 @@ class Option(object):
 		if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
 			# For options in the backward chain, the default initiation set is the
 			# union of the discovered salient events in the MDP
-			if self.chain_id == 3:
+			if self.backward_option:
+
+				# Backward chain is just the reverse of the start and target regions
+				if self.init_predicate is not None:
+					return self.init_predicate(ground_state)
+
+				# Intersection salient event
 				salients = [event(ground_state) for event in self.overall_mdp.get_current_target_events()]
 				return any(salients)
 			return True
@@ -262,6 +276,9 @@ class Option(object):
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
+
+		if self.target_predicate is not None:
+			return self.target_predicate(ground_state)
 
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
@@ -290,7 +307,7 @@ class Option(object):
 		# events. From there, we hope to execute the new backward option so that it can
 		# trigger the intersection salient event. However, if the backward option has progressed
 		# to the initiation_done phase, we no longer need to give exploration bonuses to target it
-		if self.chain_id == 3 and self.get_training_phase() != "initiation_done":
+		if self.backward_option and self.get_training_phase() != "initiation_done":
 			return True
 
 		# If the current option is not in the backward chain, then we give exploration bonus
@@ -298,6 +315,20 @@ class Option(object):
 		# it can initiate anywhere (consequence of initialize_everywhere). When it is in
 		# initiation phase, this term will yield exploration bonuses
 		return self.get_training_phase() == "initiation"
+
+	def get_init_predicates_during_gestation(self):
+		assert self.backward_option
+		assert len(self.gestation_init_predicates) > 0, self.gestation_init_predicates
+
+		my_original_init_predicates = self.gestation_init_predicates
+		overall_current_init_predicates = self.overall_mdp.get_current_target_events()
+		my_current_init_predicates = [pred for pred in my_original_init_predicates if pred in overall_current_init_predicates]
+		return my_current_init_predicates
+
+	def get_batched_init_predicates_during_gestation(self):
+		assert self.backward_option
+		assert len(self.gestation_init_predicates) > 0, self.gestation_init_predicates
+		pass
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -360,9 +391,9 @@ class Option(object):
 		Y = np.concatenate((positive_labels, negative_labels))
 
 		if len(self.negative_examples) >= 5:
-			kwargs = {"kernel": "linear", "gamma": "scale", "class_weight": "balanced"}
+			kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
 		else:
-			kwargs = {"kernel": "linear", "gamma": "scale"}
+			kwargs = {"kernel": "rbf", "gamma": "scale"}
 
 		# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
 		initiation_classifier = svm.SVC(**kwargs)
@@ -378,7 +409,7 @@ class Option(object):
 			self.classifier_type = "tcsvm"
 			return True
 		else:
-			print("\r Couldn't fit linear SVM for {}".format(self.name))
+			print("\r Couldn't fit first SVM for {}".format(self.name))
 			kwargs = {"kernel": "rbf", "gamma": "scale"}
 
 			# We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
@@ -444,7 +475,7 @@ class Option(object):
 
 		if self.is_term_true(state):
 			print("~~~~~ Warning: subgoal query at goal ~~~~~")
-			return 0.
+			return self.subgoal_reward
 
 		# Return step penalty in sparse reward domain
 		if not self.dense_reward:
