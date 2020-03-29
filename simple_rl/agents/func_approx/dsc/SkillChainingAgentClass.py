@@ -30,7 +30,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False):
+				 log_dir="", seed=0, tensor_log=False, use_hard_coded_event=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -125,6 +125,7 @@ class SkillChaining(object):
 		self.current_option_idx = 1
 		self.generated_salient_events = []
 		self.covering_options_freq = 5
+		self.use_hard_coded_event = use_hard_coded_event
 
 		# Debug variables
 		self.global_execution_states = []
@@ -203,14 +204,14 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing the option
 			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
 		"""
-		assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
+		# assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
 
 		def get_reward(transitions):
 			gamma = self.global_option.solver.gamma
 			raw_rewards = [tt[2] for tt in transitions]
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
-		selected_option = self.trained_options[action]  # type: Option
+		selected_option = self.trained_options[action]	# type: Option
 		for i, transition in enumerate(option_transitions):
 			start_state = transition[0]
 			if selected_option.is_init_true(start_state):
@@ -278,7 +279,7 @@ class SkillChaining(object):
 		self.agent_over_options.update_epsilon()
 
 		# Selected option
-		selected_option = self.trained_options[option_idx]  # type: Option
+		selected_option = self.trained_options[option_idx]	# type: Option
 
 		return selected_option
 
@@ -367,23 +368,27 @@ class SkillChaining(object):
 	def create_new_salient_event(self):
 		""" Call to deep covering options: create new salient event and corresponding skill chain. """
 
-		# replay_buffer = self.global_option.solver.replay_buffer
-		# c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-		# 						   num_training_steps=1000,
-		# 						   chain_id=len(self.chains) + 1,
-		# 						   option_idx=len(self.generated_salient_events),
-		# 						   name="covering-options-" + str(len(self.generated_salient_events)))
-		#
-		# plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
-		# 					  experiment_name=args.experiment_name)
+		if not self.use_hard_coded_event:
+			 replay_buffer = self.global_option.solver.replay_buffer
+			 c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+									   num_training_steps=1000,
+									   chain_id=len(self.chains) + 1,
+									   option_idx=len(self.generated_salient_events),
+									   name="covering-options-" + str(len(self.generated_salient_events)))
 
-		# TODO: Hack - hard coded salient event
-		if len(self.generated_salient_events) == 0:
-			target_predicate = self.mdp.get_target_events()[1]
-			batched_target_predicate = self.mdp.get_batched_target_events()[1]
+			 target_predicate = c_option.is_init_true
+			 batched_target_predicate = c_option.batched_is_init_true
+
+			 plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
+								  experiment_name=args.experiment_name)
 		else:
-			target_predicate = self.global_option.is_term_true
-			batched_target_predicate = self.global_option.batched_is_term_true
+			# TODO: Hack - hard coded salient event
+			if len(self.generated_salient_events) == 0:
+				target_predicate = self.mdp.get_target_events()[1]
+				batched_target_predicate = self.mdp.get_batched_target_events()[1]
+			else:
+				target_predicate = self.global_option.is_term_true
+				batched_target_predicate = self.global_option.batched_is_term_true
 
 		# Determine start state for new skill chain
 		s0 = self.s0
@@ -531,7 +536,7 @@ class SkillChaining(object):
 			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 			# visualize_bonus_for_actions(self.agent_over_options.density_model, self.trained_options, episode,
-			# 							args.experiment_name, args.seed)
+			#							args.experiment_name, args.seed)
 
 		if episode > 0 and episode % 100 == 0:
 			# eval_score, trajectory = self.trained_forward_pass(render=False)
@@ -651,6 +656,7 @@ if __name__ == '__main__':
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+	parser.add_argument("--use_hard_coded_event", type=bool, help="Whether to use hard-coded salient events", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -692,7 +698,7 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
+							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device, use_hard_coded_event=args.use_hard_coded_event)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
