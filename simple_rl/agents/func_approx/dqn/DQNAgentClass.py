@@ -330,18 +330,18 @@ class DQNAgent(Agent):
                     inits = option.batched_is_init_true(states)
                 except Exception as e:
                     pdb.set_trace()
-					print(e)
+                    print(e)
                 try:
                     # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
                     terms = option.batched_is_term_true(states)
                 except Exception as e:
                     pdb.set_trace()
-					print(e)
+                    print(e)
                 try:
                     action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
                 except Exception as e:
                     pdb.set_trace()
-					print(e)
+                    print(e)
 
             # Move the q-values back the GPU
             action_values = torch.from_numpy(action_values).float().to(self.device)
