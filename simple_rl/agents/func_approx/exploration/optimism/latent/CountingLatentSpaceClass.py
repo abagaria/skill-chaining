@@ -731,13 +731,14 @@ class CountingLatentSpace(object):
         TODO: This should return shape (batch_size, 1). Right now it returns (batch_size,)
         """
 
-        if self.phi_type == "raw":
-            return self._get_raw_counts(X, buffer_idx)
-
         chunked = self.optimization_quantity in ("chunked-count", "chunked-bonus")
+        chunked = "chunked" in self.optimization_quantity
         chunk_size = self.approx_chunk_size if chunked else None
 
-        return self._get_function_counts(X, buffer_idx, chunk_size)
+        if self.phi_type == "raw":
+            return self._get_raw_counts(X, buffer_idx, chunk_size=chunk_size)
+
+        return self._get_function_counts(X, buffer_idx, chunk_size=chunk_size)
 
     def _get_raw_count_from_distances(self, distances):
         """
@@ -756,12 +757,24 @@ class CountingLatentSpace(object):
             counts = counts_per.sum(axis=1)
             return counts
 
-    def _get_raw_counts(self, X, buffer_idx):
+    def _get_raw_counts(self, X, buffer_idx, chunk_size=None):
         buffer = self.buffers[buffer_idx] # type: np.ndarray
         # If we have never taken this action before, return max counts
         if buffer is None:
             max_counts = np.zeros((X.shape[0],))
             return max_counts
+
+        if chunk_size is not None:
+            num_chunks = int(np.ceil(buffer.shape[0] / chunk_size))
+            action_buffer_chunks = np.array_split(buffer, num_chunks, axis=0)
+            counts = np.zeros((X.shape[0],))
+
+            for buffer_chunk in action_buffer_chunks:  # type: np.ndarray
+                chunk_distances = naive_spread_counter.get_all_distances_to_buffer(X, buffer_chunk)
+                chunk_counts = self._get_raw_count_from_distances(chunk_distances)
+                counts = counts + chunk_counts
+            return counts
+
         distances = naive_spread_counter.get_all_distances_to_buffer(X, buffer)
         counts = self._get_raw_count_from_distances(distances)
         return counts
