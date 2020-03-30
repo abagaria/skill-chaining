@@ -58,7 +58,7 @@ class Experiment12:
         training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
         return training_scores, training_durations
 
-    def make_latent_plot(self, agent, episode, chunk_size=100):
+    def make_latent_plot(self, agent, episode, chunk_size=1000):
 
         # Normalize the data before asking for its embeddings
         normalized_sns_buffer = agent.novelty_tracker.get_sns_buffer(normalized=(not self.mdp.pixel_observation))
@@ -86,7 +86,7 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/latent_plots/latents_{episode}_seed_{self.seed}.png")
         plt.close()
 
-    def make_bonus_plot(self, agent, episode, chunk_size=100):
+    def make_bonus_plot(self, agent, episode, chunk_size=1000):
 
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
@@ -117,7 +117,7 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/bonus_plots/bonuses_{episode}_seed_{self.seed}.png")
         plt.close()
 
-    def make_value_plot(self, agent, episode, chunk_size=100):
+    def make_value_plot(self, agent, episode, chunk_size=1000):
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
 
