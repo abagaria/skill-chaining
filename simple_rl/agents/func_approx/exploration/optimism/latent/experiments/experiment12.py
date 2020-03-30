@@ -58,14 +58,26 @@ class Experiment12:
         training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
         return training_scores, training_durations
 
-    def make_latent_plot(self, agent, episode):
+    def make_latent_plot(self, agent, episode, chunk_size=100):
 
         # Normalize the data before asking for its embeddings
         normalized_sns_buffer = agent.novelty_tracker.get_sns_buffer(normalized=(not self.mdp.pixel_observation))
 
         # phi(s)
         states = np.array([sns[0] for sns in normalized_sns_buffer])
-        states_repr = self.agent.novelty_tracker.counting_space.extract_features(states)
+
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+        input_chunks = np.array_split(states, num_chunks, axis=0)
+        states_repr = np.zeros((states.shape[0], agent.novelty_tracker.counting_space.latent_dim))
+
+        for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making latent plot"):  # type: (int, np.ndarray)
+            chunk_repr = self.agent.novelty_tracker.counting_space.extract_features(input_chunk)
+            start_idx = chunk_number * chunk_size
+            end_idx = start_idx + chunk_size
+            states_repr[start_idx:end_idx] = chunk_repr
+
+        # states_repr = self.agent.novelty_tracker.counting_space.extract_features(states)
 
         # Plotting
         plt.scatter(states_repr[:, 0], states_repr[:, 1], alpha=0.3)
@@ -74,14 +86,25 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/latent_plots/latents_{episode}_seed_{self.seed}.png")
         plt.close()
 
-    def make_bonus_plot(self, agent, episode):
+    def make_bonus_plot(self, agent, episode, chunk_size=100):
 
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
 
         bonus_inputs = positions if self.bonus_from_position else states
 
-        bonuses = agent.novelty_tracker.get_batched_exploration_bonus(bonus_inputs)
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(bonus_inputs.shape[0] / chunk_size))
+        input_chunks = np.array_split(bonus_inputs, num_chunks, axis=0)
+        bonuses = np.zeros((bonus_inputs.shape[0], len(agent.actions)))
+
+        for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making bonus plot"):  # type: (int, np.ndarray)
+            chunk_bonuses = agent.novelty_tracker.get_batched_exploration_bonus(input_chunk)
+            start_idx = chunk_number * chunk_size
+            end_idx = start_idx + chunk_size
+            bonuses[start_idx:end_idx] += chunk_bonuses
+
+        # bonuses = agent.novelty_tracker.get_batched_exploration_bonus(bonus_inputs)
 
         plt.figure(figsize=(14, 10))
         for i, action in enumerate(self.mdp.actions):
@@ -94,13 +117,21 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/bonus_plots/bonuses_{episode}_seed_{self.seed}.png")
         plt.close()
 
-    def make_value_plot(self, agent, episode):
+    def make_value_plot(self, agent, episode, chunk_size=100):
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
 
-        states_tensor = torch.from_numpy(states).float().to(agent.device)
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+        input_chunks = np.array_split(states, num_chunks, axis=0)
+        qvalues = np.zeros((states.shape[0], len(agent.actions)))
 
-        qvalues = agent.get_batched_qvalues(states_tensor, None).cpu().numpy()
+        for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making VF plot"):  # type: (int, np.ndarray)
+            states_chunk = torch.from_numpy(input_chunk).float().to(agent.device)
+            chunk_qvalues = agent.get_batched_qvalues(states_chunk, None).cpu().numpy()
+            start_idx = chunk_number * chunk_size
+            end_idx = start_idx + chunk_size
+            qvalues[start_idx:end_idx] += chunk_qvalues
 
         plt.figure(figsize=(14, 10))
         for action in self.agent.actions:
@@ -204,8 +235,8 @@ class Experiment12:
                     self.make_latent_plot(agent, episode)
                     self.make_bonus_plot(agent, episode)
                     self.make_value_plot(agent, episode)
-                    self.make_advantage_plot(agent, episode)
-                    self.make_which_actions_plot(agent, episode)
+                    # self.make_advantage_plot(agent, episode)
+                    # self.make_which_actions_plot(agent, episode)
 
             last_10_scores.append(score)
             last_10_durations.append(step + 1)
