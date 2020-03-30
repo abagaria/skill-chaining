@@ -11,6 +11,7 @@ import argparse
 from copy import deepcopy
 from collections import deque
 import matplotlib
+import time
 
 # Other imports.
 from simple_rl.tasks.gridworld.gridworld import GridWorld
@@ -199,6 +200,7 @@ class Experiment12:
         iteration_counter = 0
 
         for episode in range(episodes):
+            episode_start_time = time.time()
             mdp.reset()
             state = deepcopy(mdp.cur_state)
 
@@ -224,6 +226,8 @@ class Experiment12:
                 if state.is_terminal():
                     break
 
+            total_episode_time = time.time() - episode_start_time
+
             if agent.tensor_log:
                 agent.writer.add_scalar("Score", score, iteration_counter)
 
@@ -245,10 +249,12 @@ class Experiment12:
 
             sns_size = len(agent.novelty_tracker.un_normalized_sns_buffer) if self.exploration_method == "count-phi" else 0
             lam = agent.novelty_tracker.counting_space.lam if self.exploration_method == "count-phi" else 0
-            print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam {}'.format(episode,
+            print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam: {}\tTime: {:.2f}'.format(episode,
                                                                                                                              np.mean(last_10_scores),
                                                                                                                              np.mean(last_10_durations),
-                                                                                                                             agent.epsilon, sns_size, lam))
+                                                                                                                             agent.epsilon, sns_size, lam, total_episode_time))
+            save_scores(scores=per_episode_durations, experiment_name=self.experiment_name, seed=self.seed)
+
         return per_episode_scores, per_episode_durations
 
 
