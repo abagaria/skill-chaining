@@ -71,12 +71,13 @@ class Experiment12:
         num_chunks = int(np.ceil(states.shape[0] / chunk_size))
         input_chunks = np.array_split(states, num_chunks, axis=0)
         states_repr = np.zeros((states.shape[0], agent.novelty_tracker.counting_space.latent_dim))
+        current_idx = 0
 
         for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making latent plot"):  # type: (int, np.ndarray)
             chunk_repr = self.agent.novelty_tracker.counting_space.extract_features(input_chunk)
-            start_idx = chunk_number * chunk_size
-            end_idx = start_idx + chunk_size
-            states_repr[start_idx:end_idx] = chunk_repr
+            current_chunk_size = len(chunk_repr)
+            states_repr[current_idx:current_idx+current_chunk_size] = chunk_repr
+            current_idx += current_chunk_size
 
         # states_repr = self.agent.novelty_tracker.counting_space.extract_features(states)
 
@@ -98,12 +99,13 @@ class Experiment12:
         num_chunks = int(np.ceil(bonus_inputs.shape[0] / chunk_size))
         input_chunks = np.array_split(bonus_inputs, num_chunks, axis=0)
         bonuses = np.zeros((bonus_inputs.shape[0], len(agent.actions)))
+        current_idx = 0
 
         for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making bonus plot"):  # type: (int, np.ndarray)
             chunk_bonuses = agent.novelty_tracker.get_batched_exploration_bonus(input_chunk)
-            start_idx = chunk_number * chunk_size
-            end_idx = start_idx + chunk_size
-            bonuses[start_idx:end_idx] += chunk_bonuses
+            current_chunk_size = len(chunk_bonuses)
+            bonuses[current_idx:current_idx+current_chunk_size] = chunk_bonuses
+            current_idx += current_chunk_size
 
         # bonuses = agent.novelty_tracker.get_batched_exploration_bonus(bonus_inputs)
 
@@ -126,13 +128,14 @@ class Experiment12:
         num_chunks = int(np.ceil(states.shape[0] / chunk_size))
         input_chunks = np.array_split(states, num_chunks, axis=0)
         qvalues = np.zeros((states.shape[0], len(agent.actions)))
+        current_idx = 0
 
         for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making VF plot"):  # type: (int, np.ndarray)
             states_chunk = torch.from_numpy(input_chunk).float().to(agent.device)
             chunk_qvalues = agent.get_batched_qvalues(states_chunk, None).cpu().numpy()
-            start_idx = chunk_number * chunk_size
-            end_idx = start_idx + chunk_size
-            qvalues[start_idx:end_idx] += chunk_qvalues
+            current_chunk_size = len(states_chunk)
+            qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+            current_idx += current_chunk_size
 
         plt.figure(figsize=(14, 10))
         for action in self.agent.actions:
