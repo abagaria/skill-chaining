@@ -11,6 +11,7 @@ import argparse
 from copy import deepcopy
 from collections import deque
 import matplotlib
+matplotlib.use('Agg') # non-interactive
 import time
 
 # Other imports.
@@ -28,7 +29,7 @@ class Experiment12:
     def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
-                 phi_type, bonus_from_position):
+                 phi_type, bonus_from_position, max_to_plot):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -54,18 +55,23 @@ class Experiment12:
         self.seed = seed
         self.experiment_name = experiment_name
         self.count_train_mode = count_train_mode
+        self.max_to_plot = max_to_plot
 
     def run_experiment(self):
         training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
         return training_scores, training_durations
 
-    def make_latent_plot(self, agent, episode, chunk_size=1000):
+    def make_latent_plot(self, agent, episode, chunk_size=1000, max_to_plot=10000):
 
         # Normalize the data before asking for its embeddings
         normalized_sns_buffer = agent.novelty_tracker.get_sns_buffer(normalized=(not self.mdp.pixel_observation))
 
         # phi(s)
         states = np.array([sns[0] for sns in normalized_sns_buffer])
+        max_to_plot = min(max_to_plot, len(states))
+        shuffler = np.random.permutation(len(states))[:max_to_plot]
+        states = states[shuffler]
+
 
         # Chunk up the inputs so as to conserve GPU memory
         num_chunks = int(np.ceil(states.shape[0] / chunk_size))
@@ -88,12 +94,19 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/latent_plots/latents_{episode}_seed_{self.seed}.png")
         plt.close()
 
-    def make_bonus_plot(self, agent, episode, chunk_size=1000):
+    def make_bonus_plot(self, agent, episode, chunk_size=1000, max_to_plot=10000):
 
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
 
         bonus_inputs = positions if self.bonus_from_position else states
+
+        max_to_plot = min(max_to_plot, len(states))
+        shuffler = np.random.permutation(len(states))[:max_to_plot]
+
+        states = states[shuffler]
+        positions = positions[shuffler]
+        bonus_inputs = bonus_inputs[shuffler]
 
         # Chunk up the inputs so as to conserve GPU memory
         num_chunks = int(np.ceil(bonus_inputs.shape[0] / chunk_size))
@@ -120,9 +133,15 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/bonus_plots/bonuses_{episode}_seed_{self.seed}.png")
         plt.close()
 
-    def make_value_plot(self, agent, episode, chunk_size=1000):
+    def make_value_plot(self, agent, episode, chunk_size=1000, max_to_plot=10000):
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
+
+        max_to_plot = min(max_to_plot, len(states))
+        shuffler = np.random.permutation(len(states))[:max_to_plot]
+        states = states[shuffler]
+        positions = positions[shuffler]
+
 
         # Chunk up the inputs so as to conserve GPU memory
         num_chunks = int(np.ceil(states.shape[0] / chunk_size))
@@ -147,35 +166,41 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/qf_plots/vf_{episode}_seed_{self.seed}.png")
         plt.close()
 
-    def make_advantage_plot(self, agent, episode):
-        states = np.array([transition.state for transition in agent.replay_buffer])
-        positions = np.array([transition.position for transition in agent.replay_buffer])
+    # def make_advantage_plot(self, agent, episode):
+    #     states = np.array([transition.state for transition in agent.replay_buffer])
+    #     positions = np.array([transition.position for transition in agent.replay_buffer])
 
-        states_tensor = torch.from_numpy(states).float().to(agent.device)
+    #     states_tensor = torch.from_numpy(states).float().to(agent.device)
 
-        qvalues = agent.get_batched_qvalues(states_tensor, None).cpu().numpy()
-        av_qs = qvalues.mean(axis=1, keepdims=True)
-        q_advantage = qvalues - av_qs
+    #     qvalues = agent.get_batched_qvalues(states_tensor, None).cpu().numpy()
+    #     av_qs = qvalues.mean(axis=1, keepdims=True)
+    #     q_advantage = qvalues - av_qs
 
-        plt.figure(figsize=(14, 10))
-        for action in self.agent.actions:
-            plt.subplot(1, len(self.agent.actions), action + 1)
-            plt.scatter(positions[:, 0], positions[:, 1], c=q_advantage[:, action])#, norm=matplotlib.colors.LogNorm())
-            plt.colorbar()
+    #     plt.figure(figsize=(14, 10))
+    #     for action in self.agent.actions:
+    #         plt.subplot(1, len(self.agent.actions), action + 1)
+    #         plt.scatter(positions[:, 0], positions[:, 1], c=q_advantage[:, action])#, norm=matplotlib.colors.LogNorm())
+    #         plt.colorbar()
 
-        plt.suptitle("Q-Advantage (no novelty bonus) after episode {}".format(episode))
-        plt.savefig(f"{self.experiment_name}/q_advantage_plots/qadv_{episode}_seed_{self.seed}.png")
-        plt.close()
+    #     plt.suptitle("Q-Advantage (no novelty bonus) after episode {}".format(episode))
+    #     plt.savefig(f"{self.experiment_name}/q_advantage_plots/qadv_{episode}_seed_{self.seed}.png")
+    #     plt.close()
 
-    def make_which_actions_plot(self, agent, episode):
+    def make_which_actions_plot(self, agent, episode, max_to_plot=10000):
         evaluation_epsilon = agent.evaluation_epsilon
         agent.evaluation_epsilon = 0.
 
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
 
+        max_to_plot = min(max_to_plot, len(states))
+        shuffler = np.random.permutation(len(states))[:max_to_plot]
+        states = states[shuffler]
+        positions = positions[shuffler]
+
+        # Doesn't need chunking cause we do one state at a time...
         actions = []
-        for s, p in zip(states, positions):
+        for s, p in tqdm(zip(states, positions), desc="Making Which-Action plot"):
             action = agent.act(s, p, train_mode=True, use_novelty=True)
             actions.append(action)
 
@@ -239,11 +264,11 @@ class Experiment12:
 
             if args.make_plots:
                 if self.exploration_method == "count-phi":
-                    self.make_latent_plot(agent, episode)
-                    self.make_bonus_plot(agent, episode)
-                    self.make_value_plot(agent, episode)
+                    self.make_latent_plot(agent, episode, max_to_plot=self.max_to_plot)
+                    self.make_bonus_plot(agent, episode, max_to_plot=self.max_to_plot)
+                    self.make_value_plot(agent, episode, max_to_plot=self.max_to_plot)
                     # self.make_advantage_plot(agent, episode)
-                    # self.make_which_actions_plot(agent, episode)
+                    self.make_which_actions_plot(agent, episode, max_to_plot=self.max_to_plot)
 
             last_10_scores.append(score)
             last_10_durations.append(step + 1)
@@ -311,6 +336,7 @@ if __name__ == "__main__":
                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
                       phi_type=args.phi_type, bonus_from_position=args.bonus_from_position,
+                      max_to_plot=10000,
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()
