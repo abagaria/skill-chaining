@@ -18,6 +18,9 @@ class LeapWrapperState(State):
                 x,y position of the puck on the table
             done (Boolean)
         """
+        # TODO: Make this cleaner because we're reusing endeff_pos
+        self.position = endeff_pos
+
         self.endeff_pos = endeff_pos
         self.puck_pos = puck_pos
         features = [endeff_pos[0], endeff_pos[1], endeff_pos[2], puck_pos[0], puck_pos[1]]
