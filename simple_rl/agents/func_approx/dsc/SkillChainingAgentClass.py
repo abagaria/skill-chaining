@@ -761,8 +761,6 @@ if __name__ == '__main__':
 	# Kiran and Kshitij edits
 	elif "sawyer" in args.env.lower():
 		from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
-		print('SKILLCHAINING RENDER IS: ')
-		print(args.render)
 		overall_mdp = LeapWrapperMDP(dense_reward=args.dense_reward, render=args.render)
 		state_dim = overall_mdp.env.observation_space['observation'].shape[0]
 		action_dim = overall_mdp.env.action_space.shape[0]

@@ -8,6 +8,7 @@ import random
 import sys
 import os
 import numpy as np
+from scipy.spatial import distance
 
 # Other imports.
 import gym
@@ -55,16 +56,16 @@ class LeapWrapperMDP(MDP):
         return self.pos_dist(endeff_pos, self.endeff_goal_pos) < self.threshold
 
     def batched_endeff_in_goal_pos(self, position_matrix):
-        # TODO: How do we do batching?
-        pass
+        end_goal_pos = distance.cdist(position_matrix, self.endeff_goal_pos[None, :]) < self.threshold
+        return end_goal_pos.squeeze(1)
 
     def puck_in_goal_pos(self, state):
         puck_pos = state.puck_pos if isinstance(state, LeapWrapperState) else state[3:]
         return self.pos_dist(puck_pos, self.puck_goal_pos) < self.threshold
 
     def batched_puck_in_goal_pos(self, position_matrix):
-        # TODO: How do we do batching?
-        pass
+        puck_goal_pos = distance.cdist(position_matrix, self.puck_goal_pos[None, :]) < self.threshold
+        return puck_goal_pos.squeeze(1)
 
     def get_current_salient_events(self):
         return [self.endeff_goal_pos, self.puck_goal_pos]
@@ -76,8 +77,6 @@ class LeapWrapperMDP(MDP):
 
     def _reward_func(self, state, action):
         next_state, reward, done, _ = self.env.step(action)
-        print('Self. render is: ')
-        print(self.render)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
@@ -109,7 +108,6 @@ class LeapWrapperMDP(MDP):
     def is_goal_state(self, state):
         if isinstance(state, LeapWrapperState):
             return state.is_terminal()
-
         return self.endeff_in_goal_pos(state) and self.puck_in_goal_pos(state)
 
     def distance_to_goal(self, state):
