@@ -50,13 +50,12 @@ class LeapWrapperMDP(MDP):
         action_dims = range(self.env.action_space.shape[0])
         MDP.__init__(self, action_dims, self._transition_func, self._reward_func, self.init_state)
 
-
     def endeff_in_goal_pos(self, state):
         endeff_pos = state.endeff_pos if isinstance(state, LeapWrapperState) else state[:3]
         return self.pos_dist(endeff_pos, self.endeff_goal_pos) < self.threshold
 
     def batched_endeff_in_goal_pos(self, position_matrix):
-        end_goal_pos = distance.cdist(position_matrix, self.endeff_goal_pos[None, :]) < self.threshold
+        end_goal_pos = distance.cdist(position_matrix[:, :3], self.endeff_goal_pos[None, :]) < self.threshold
         return end_goal_pos.squeeze(1)
 
     def puck_in_goal_pos(self, state):
@@ -64,7 +63,7 @@ class LeapWrapperMDP(MDP):
         return self.pos_dist(puck_pos, self.puck_goal_pos) < self.threshold
 
     def batched_puck_in_goal_pos(self, position_matrix):
-        puck_goal_pos = distance.cdist(position_matrix, self.puck_goal_pos[None, :]) < self.threshold
+        puck_goal_pos = distance.cdist(position_matrix[:, 3:], self.puck_goal_pos[None, :]) < self.threshold
         return puck_goal_pos.squeeze(1)
 
     def get_current_salient_events(self):
