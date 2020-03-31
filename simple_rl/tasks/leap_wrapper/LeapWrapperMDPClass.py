@@ -76,6 +76,8 @@ class LeapWrapperMDP(MDP):
 
     def _reward_func(self, state, action):
         next_state, reward, done, _ = self.env.step(action)
+        print('Self. render is: ')
+        print(self.render)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
