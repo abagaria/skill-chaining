@@ -227,7 +227,8 @@ class Option(object):
 			return self.parent.batched_is_init_true(state_matrix)
 
 		# Extract the relevant dimensions from the state matrix (x, y)
-		state_matrix = state_matrix[:, :2]
+		# TODO: Kshitij deleted this to get his code running
+		# state_matrix = state_matrix[:, :2]
 
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option" or self.name == "exploration_option":
