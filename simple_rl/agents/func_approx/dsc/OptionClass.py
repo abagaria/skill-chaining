@@ -257,6 +257,7 @@ class Option(object):
 			# union of the discovered salient events in the MDP
 			if self.chain_id == 3:
 				salients = [event(ground_state) for event in self.overall_mdp.get_current_target_events()]
+				pdb.set_trace()
 				return any(salients)
 			return True
 
@@ -457,7 +458,7 @@ class Option(object):
 			return -1.
 
 		# Rewards based on position only
-		position_vector = state.features()[:2] if isinstance(state, State) else state[:2]
+		position_vector = state.features() if isinstance(state, State) else state[:5]
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
