@@ -50,7 +50,7 @@ class DQNAgent(Agent):
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
                  lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity="",
-                 phi_type="function", counting_epsilon=0.1, bonus_from_position=False):
+                 phi_type="function", counting_epsilon=0.1, bonus_from_position=False, bonus_form="sqrt"):
 
         self.state_size = state_size
         self.action_size = action_size
@@ -75,6 +75,7 @@ class DQNAgent(Agent):
         self.counting_epsilon = counting_epsilon
         self.actions = list(range(self.action_size))
         self.bonus_from_position = bonus_from_position
+        self.bonus_form = bonus_form
 
         # Q-Network
         if pixel_observation:
@@ -129,7 +130,8 @@ class DQNAgent(Agent):
                                                                num_frames=1,
                                                                device=device,
                                                                phi_type=phi_type,
-                                                               epsilon=counting_epsilon)
+                                                               epsilon=counting_epsilon,
+                                                               bonus_form=bonus_form)
 
         elif exploration_method == "oc-svm":
             self.visited_state_action_pairs = defaultdict(lambda : [])
