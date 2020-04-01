@@ -260,7 +260,6 @@ class Option(object):
 				return any(salients)
 			return True
 
-		pdb.set_trace()
 		# TODO: Kshitij deleted
 		# features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		features = ground_state.features() if isinstance(ground_state, State) else ground_state[:5]
@@ -312,7 +311,6 @@ class Option(object):
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
 		segmented_positions = [segmented_state.position for segmented_state in segmented_states]
-		pdb.set_trace()
 		self.positive_examples.append(segmented_positions)
 
 	def add_experience_buffer(self, experience_queue):
@@ -594,8 +592,7 @@ class Option(object):
 				positive_states = [start_state] + visited_states[-self.buffer_length:]
 
 			# if self.is_valid_init_data(positive_states):
-			positive_examples = [state.position for state in positive_states]
-			pdb.set_trace()
+			positive_examples = [state.features() for state in positive_states]
 			self.positive_examples.append(positive_examples)
 
 		elif num_steps == self.timeout and self.get_training_phase() == "initiation":
