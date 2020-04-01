@@ -257,6 +257,7 @@ class Option(object):
 				return any(salients)
 			return True
 
+		pdb.set_trace()
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		return self.initiation_classifier.predict([features])[0] == 1
 
