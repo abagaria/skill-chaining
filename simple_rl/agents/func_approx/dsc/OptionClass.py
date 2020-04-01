@@ -219,7 +219,10 @@ class Option(object):
 					return np.zeros((state_matrix.shape[0]))
 
 			return np.ones((state_matrix.shape[0]))
-		position_matrix = state_matrix[:, :2]
+
+		# TODO: Kshitij deleted
+		# position_matrix = state_matrix[:, :2]
+		position_matrix = state_matrix[:, :]
 		return self.initiation_classifier.predict(position_matrix) == 1
 
 	def batched_is_term_true(self, state_matrix):
@@ -258,7 +261,9 @@ class Option(object):
 			return True
 
 		pdb.set_trace()
-		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
+		# TODO: Kshitij deleted
+		# features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
+		features = ground_state.features() if isinstance(ground_state, State) else ground_state[:5]
 		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
