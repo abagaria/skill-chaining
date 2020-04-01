@@ -353,6 +353,7 @@ class Option(object):
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
+		pdb.set_trace()
 		self.initiation_classifier.fit(positive_feature_matrix)
 
 		return True
