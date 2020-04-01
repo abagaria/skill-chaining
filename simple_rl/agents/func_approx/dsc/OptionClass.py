@@ -312,6 +312,7 @@ class Option(object):
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
 		segmented_positions = [segmented_state.position for segmented_state in segmented_states]
+		pdb.set_trace()
 		self.positive_examples.append(segmented_positions)
 
 	def add_experience_buffer(self, experience_queue):
