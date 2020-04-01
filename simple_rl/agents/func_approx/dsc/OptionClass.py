@@ -115,6 +115,8 @@ class Option(object):
 		self.taken_or_not = []
 		self.n_taken_or_not = 0
 		self.option_start_states = []
+		self.num_test_executions = 0
+		self.num_successful_test_executions = 0
 
 	def __str__(self):
 		return self.name
@@ -637,6 +639,7 @@ class Option(object):
 		score, step_number = 0., deepcopy(outer_step_counter)
 		num_steps = 0
 		state_option_trajectory = []
+		self.num_test_executions += 1
 
 		while not self.is_term_true(state) and not state.is_terminal()\
 				and step_number < self.max_steps and num_steps < self.timeout:
@@ -647,5 +650,8 @@ class Option(object):
 			score += reward
 			step_number += 1
 			num_steps += 1
+
+		if self.is_term_true(state):
+			self.num_successful_test_executions += 1
 
 		return score, state, step_number, state_option_trajectory

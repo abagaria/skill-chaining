@@ -188,5 +188,9 @@ class PointReacherMDP(MDP):
         self.init_state = self._get_state(init_state_array, done=False)
         super(PointReacherMDP, self).reset()
 
+    def set_xy(self, position):  # TODO: Set MDP current state
+        self.env.wrapped_env.set_xy(position)
+        self.cur_state = self._get_state(np.array((position[0], position[1], 0, 0, 0, 0, 0)), done=False)
+
     def __str__(self):
         return self.env_name

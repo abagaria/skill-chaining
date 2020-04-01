@@ -14,6 +14,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 import torch
 import itertools
+from tqdm import tqdm
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -23,6 +24,7 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
+from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
 
 
 class SkillChaining(object):
@@ -847,6 +849,82 @@ class SkillChaining(object):
 
 		return overall_reward, option_trajectories
 
+	def planning_run_loop(self, plan_graph, goal_state, start_state=None):
+		"""
+		This is a test-time run loop that uses planning to select options when it can.
+		Args:
+			plan_graph (GraphSearch)
+			goal_state (State)
+			start_state (State)
+
+		Returns:
+			accumulated_reward (float)
+			executed_options (list)
+		"""
+
+		def _select_option(s, sg):
+			if plan_graph.does_path_exist(s, sg):
+				plan = plan_graph.get_path_to_execute(s, sg)
+				if len(plan) > 0:
+					filtered_plan = [o for o in plan if o.is_init_true(s) and not o.is_term_true(s)]
+					if len(filtered_plan) > 0:
+						return filtered_plan[0]
+			return self.act(s)
+
+		self.mdp.reset()
+		if start_state is not None:
+			start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
+			self.mdp.set_xy(start_position)
+
+		state = deepcopy(self.mdp.init_state)
+		overall_reward = 0.
+		num_steps = 0
+		option_trajectories = []
+
+		goal_position = goal_state.position if isinstance(goal_state, State) else goal_state[:2]
+		is_terminal = lambda s: np.linalg.norm(s.position - goal_position) <= 0.6
+
+		while not is_terminal(state) and num_steps < self.max_steps:
+
+			selected_option = _select_option(state, goal_state)
+
+			option_reward, next_state, num_steps, option_state_trajectory = selected_option.trained_option_execution(self.mdp, num_steps)
+			overall_reward += option_reward
+
+			# option_state_trajectory is a list of (o, s) tuples
+			option_trajectories.append(option_state_trajectory)
+
+			state = next_state
+
+		return overall_reward, option_trajectories
+
+	def perform_test_rollouts(self, num_rollouts):
+		""" Perform test rollouts to collect statistics on option success rates.
+		    We can then use those success rates to set edge weights in our
+		    abstract skill graph.
+		"""
+		summed_reward = 0.
+		for _ in tqdm(range(num_rollouts), desc="Performing DSC Test Rollouts"):
+			r, _ = self.trained_forward_pass(render=False)
+			summed_reward += r
+		return summed_reward
+
+	def construct_plan_graph(self):
+
+		# Perform test rollouts to determine edge weights in the plan graph
+		self.perform_test_rollouts(num_rollouts=1000)
+
+		# Construct the plan graph
+		plan_graph = GraphSearch()
+		plan_graph.construct_graph(self.chains)
+
+		# Visualize the graph
+		file_name = f"value_function_plots/{args.experiment_name}/plan_graph_seed_{self.seed}.png"
+		plan_graph.visualize_plan_graph(file_name)
+
+		return plan_graph
+
+
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
 	try:
@@ -938,3 +1016,5 @@ if __name__ == '__main__':
 	# chainer.save_all_models()
 	# chainer.perform_experiments()
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
+
+	graph = chainer.construct_plan_graph()
