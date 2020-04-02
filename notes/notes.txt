@@ -25,7 +25,7 @@ Run
 	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="sc_opt_pes_test" --episodes=2000 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cpu" --num_subgoal_hits=3 --nu=0.5
 
 	# Debugging
-	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) num_sub_goal_hits=1, nu=0.5" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) num_sub_goal_hits=5, nu=0.7" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.7
 
 
 Bugs
@@ -33,6 +33,57 @@ Bugs
 	[ ] 1st option has init state and never learns more options.
 		- Q: maybe the init set of the goal policy option is too large at first but then is refined 
 		down but if an option is created early then this will break?
+		
+		- Akhil: buff len too large, try smaller buffer
+
+		- Hyperparameters
+
+			episodes=100
+			steps=2000
+			subgoal_reward=300
+			buffer_len=20
+			num_sub_goal_hits=1
+			nu=0.5
+			seed=0
+		
+		- test run
+
+			python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) predict()" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5 --episodic_plots=True
+			python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) predict_proba()" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5 --episodic_plots=True
+
+		- Testing:
+			[o] set nu=0.7: only created 1 option
+			[o] set num_sub_goal_hits=5, nu=0.7: only created 1 option
+			[x] init=opt clf, terminate=parent init: more options have been created!
+			[o] init=prob(opt clf) and terminate=parent init: creating 1 option
+				-> issue is with proba init?
+			[x] (1) init=opt clf, terminate=pes clf: more options have been created!
+			[x] (2) init=opt clf, terminate=pes clf: more options have beem created!
+				-> confirmed that proba init is the issue and not term
+			[x/o] set dsc seed=1, init=prob(opt clf), terminate=pes clf: two options created but fairly near init state
+			[o] set dsc seed=2, init=prob(opt clf), terminate=pes clf: only created 1 option
+			[o] set dsc seed=3, init=prob(opt clf), terminate=pes clf: goal option only created
+			[o] set dsc seed=4, init=prob(opt clf), terminate=pes clf: 1 option created but goal option has init state
+			[o] set dsc seed=4, init=prob(opt clf), terminate=pes clf, num_sub_goal_hits=3: 1 option created, goal option and option 1 has init state
+				-> increasing gestation period doesn't help
+				-> overall, proba init is the issue across diff seeds
+				-> need to figure out the main difference
+			
+			Q: what's the difference between using opt_clf.predict() and opt_clf.predict_proba()?
+				- opt_clf.predict(): returns TRUE if classifier at a given state is POS
+				- opt_clf.predict_proba(): returns TRUE if probability of classifier of POS predicted state is higher than a random probability distribution
+
+			[o] seed=1, a) init=opt_clf.predict(), terminate=pes_clf.predict(), b) init=opt_clf.predict_proba(), terminate=pes_clf.predict():
+				- both a) and b) have goal option takes up top half, option 1 has init state
+				-> bad seed?
+			[x] (default seed=0), a) init=opt_clf.predict(), terminate=pes_clf.predict(), b) init=opt_clf.predict_proba(), terminate=pes_clf.predict():
+				- a) more options created that spread the domain! 
+				- b) only created option 1
+			
+				- both a) and b) goal option are reletively the same
+				- option 1 for a) is bottom right while for b) it is bottom left (around init state)
+
+			Q: could using probabilistc init be only working for an option around init state? Why?
 
 Structure
 =========
@@ -68,14 +119,14 @@ Hyperparameter search
 	- num_sub_goal_hits: size of gestation period
 	- nu: % of how conservative the OneClassSVM (i.e. if nu=7 then will treat 70% of data as outlier)
 	- subgoal_reward
-	- buffer_len
+	- buffer_len: can't be too big
 
 	Defaults
 	--------
 	- episodes = 300
 	- steps = 1000
 	- subgoal_reward = 300
-	- buffer_len = 100
+	- buffer_len = 20
 
 	Search (seed=0)
 	---------------
@@ -98,6 +149,7 @@ Writeup
 		** Required to submit a solelyauthored paper to your research advisor that outlines your research thesis, the work done and any future work that could be undertaken.
 		   Once your advisor has approved your paper, please send it to the Faculty and Student Affairs Manager (fasam@cs.brown.edu).
 
+		- Title: Initation Set Confidence
 		- Abstract
 		- Introduction
 		- Background
@@ -115,18 +167,28 @@ Writeup
 	
 	CS2951X Final Paper (DUE: T May 5th)
 	------------------------------------
+		* Tighter bound on Initation set with use of pessimistic classifier
+
+		- Title: Learning Tight Initation Set
+		- Abstract
+
+Misc
+====
+	Speed up (plots)
+	----------------
+	- for each episode:
+		- for each learned option:
+			- for each clf:
+				- save clf boundary lines
+				- save average probability value
+				- save state probability values
+		- save learning score
+	- plot all
 
 ToDo
 ====
 	[ ] Bugs
-		- only creating 1 option. could be with how is_term_true() is being called?
-
-		episodes=100
-		steps=2000
-		subgoal_reward=300
-		buffer_len=100
-		num_sub_goal_hits=5
-		nu=0.5
+		- only creating 1 option that has init state
 
 	[ ] ScM Writeup
 	[ ] CS2951X Writeup

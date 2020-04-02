@@ -187,11 +187,13 @@ class Option(object):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
 		position_matrix = state_matrix[:, :2]
-		#return self.initiation_classifier.predict(position_matrix) == 1
+		
+		# TODO: old
+		return self.optimistic_classifier.predict(position_matrix) == 1
 		
 		# TODO: probabilistic batch initation with optimistic classifier
-		np.random.seed(self.step_seed)
-		return np.random.rand(len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
+		# np.random.seed(self.step_seed)
+		# return np.random.rand(len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
 
 	# TODO: utilities
 	def get_average_predict_proba(self, clf, X):
@@ -204,16 +206,19 @@ class Option(object):
 	# TODO: added seed
 	def is_init_true(self, ground_state):
 		'''NOTE: due to probabilistic initialization, self.step_seed needs to be set anytime this method is called'''
-
 		if self.name == "global_option":
 			return True
-	
-		# TODO: probabilistic initiation with optimistic classifier
 		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
-		np.random.seed(self.step_seed)
-		return np.random.random() < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+		
+		# TODO: old
+		return self.optimistic_classifier.predict([state])[0] == 1
+
+		# TODO: probabilistic initiation with optimistic classifier
+		# np.random.seed(self.step_seed)
+		# return np.random.random() < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
 
 	def is_term_true(self, ground_state):
+		# TODO: old
 		# if self.parent is not None:
 			# return self.parent.is_init_true(ground_state)
 		
@@ -673,8 +678,7 @@ class Option(object):
 
 	# TODO: classifier convertion 
 	def one_class_to_two_class_classifier(self, oc_svm, X):
-		y_pred = (oc_svm.predict(X) > 0).astype(int)
-		return self.train_optimistic_classifier(X, y_pred)
+		return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, oc_svm.predict(X))
 	
 	# TODO: Platt Scalling module (not accurate)
 	# def platt_scale(self, oc_svm, X, train_size, cv_size):
@@ -731,7 +735,7 @@ class Option(object):
 		# If no negative examples, pick first k states to be negative
 		if not self.negative_examples:
 			k=5
-			print("      |-> No negative examples!...Adding {} now".format(k))
+			print("      |-> No negative examples...Adding {} now!".format(k))
 			self.negative_examples.append(self.get_rand_global_samples(k))
 		
 		# NOTE: this shouldn't ever happen
@@ -754,10 +758,6 @@ class Option(object):
 		self.optimistic_classifier = self.train_optimistic_classifier(self.X, self.y)
 		self.pessimistic_classifier = self.train_pessimistic_classifier(self.optimistic_classifier, self.X, self.y, nu=self.nu)
 		self.approx_pessimistic_classifier = self.one_class_to_two_class_classifier(self.pessimistic_classifier, self.X)
-		# if oc_svm != False:
-			# self.pessimistic_classifier = self.one_class_to_two_class_classifier(oc_svm, self.X)
-
-		# self.train_counter += 1
 		
 		# NOTE: Update global buffer once
 		if self.X_global is None:

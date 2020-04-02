@@ -31,7 +31,7 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
-				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
+				 classifier_type="ocsvm", init_q=None, generate_plots=False, episodic_plots=False, use_full_smdp_update=False,
 				 log_dir="", seed=0, tensor_log=False, nu=0.5, experiment_name=None):
 		"""
 		Args:
@@ -48,6 +48,7 @@ class SkillChaining(object):
 			classifier_type (str): Type of classifier we will train for option initiation sets
 			init_q (float): If not none, we use this value to initialize the value of a new option
 			generate_plots (bool): whether or not to produce plots in this run
+			episodic_plots (bool): whether or not to produce plots for each episode 
 			use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
@@ -134,8 +135,11 @@ class SkillChaining(object):
 		self.all_pes_clf_probs = {}
 
 		# TODO: plotting variables
+		self.episodic_plots = episodic_plots
 		self.x_mesh = None
 		self.y_mesh = None
+		self.option_data = {}
+		self.learning_data = None
 
 		# TODO: per step seed (int)
 		self.step_seed = None
@@ -374,14 +378,11 @@ class SkillChaining(object):
 		return out
 
 	# TODO: utilities
-	def plot_boundary(self, x_mesh, y_mesh, clfs, colors, option_name, episode, experiment_name, alpha):
+	def plot_boundary(self, x_mesh, y_mesh, X_pos, clfs, colors, option_name, episode, experiment_name, alpha):
 		# Create plotting dir (if not created)
-		path = 'plots/{}/clf_plots'.format(experiment_name)
+		path = '{}/plots/clf_plots'.format(experiment_name)
 		Path(path).mkdir(exist_ok=True)
-		
-		# x_coord, y_coord = X_global[:,0], X_global[:,1]
-		# x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
-
+	
 		patches = []
 
 		# Plot classifier boundaries
@@ -397,11 +398,10 @@ class SkillChaining(object):
 		cb.remove()
 
 		# Plot successful trajectories
-		# X_pos = X_buff[y_labels == 1]
-		# x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
-		# pos_color = 'black'
-		# p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='successful trajectories', alpha=alpha)
-		# patches.append(p)
+		x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
+		pos_color = 'black'
+		p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='successful trajectories', alpha=alpha)
+		patches.append(p)
 
 		plt.xticks(())
 		plt.yticks(())
@@ -418,14 +418,12 @@ class SkillChaining(object):
 		print("|-> {}/{}_{}.png saved!".format(path, option_name, episode))
 
 	# TODO: utilities
-	def plot_learning_curves(self, tests, experiment_name):
+	def plot_learning_curves(self, experiment_name, data):
 		# Create plotting dir (if not created)
-		path = 'plots/{}/learning_curves'.format(experiment_name)
+		path = '{}/plots/learning_curves'.format(experiment_name)
 		Path(path).mkdir(exist_ok=True)
 		
-		colors = sns.hls_palette(len(tests), l=0.5)
-		for i, (label, rewards) in tests.items():
-			plt.plot(rewards, color=colors[i], label=label)
+		plt.plot(data, label=experiment_name)
 			
 		plt.title("{}".format(self.mdp.env_name))
 		plt.ylabel("Rewards")
@@ -442,7 +440,7 @@ class SkillChaining(object):
 	# TODO: utilities
 	def plot_prob(self, all_clf_probs, experiment_name):
 		# Create plotting dir (if not created)
-		path = 'plots/{}/prob_plots'.format(experiment_name)
+		path = '{}/plots/prob_plots'.format(experiment_name)
 		Path(path).mkdir(exist_ok=True)
 
 		for clf_name, clf_probs in all_clf_probs.items():
@@ -469,13 +467,9 @@ class SkillChaining(object):
 	# TODO: utilities
 	def plot_state_probs(self, x_mesh, y_mesh, clfs, option_name, cmaps, episode, experiment_name):
 		# Create plotting dir (if not created)
-		path = 'plots/{}/state_prob_plots'.format(experiment_name)
+		path = '{}/plots/state_prob_plots'.format(experiment_name)
 		Path(path).mkdir(exist_ok=True)
 		
-		# Generate mesh grid
-		# x_coord, y_coord = X[:, 0], X[:, 1]
-		# x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
-
 		# Plot state probability estimates
 		for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
 
@@ -504,7 +498,85 @@ class SkillChaining(object):
 			# TODO: remove
 			print("|-> {}/{}_{}_{}.png saved!".format(path, option_name, clf_name, episode))
 
-	def plot_processing(self, episode, per_episode_scores):
+	def generate_all_plots(self, per_episode_scores):
+		sns.set_style("white")
+		num_colors = 100
+		colors = ['blue', 'green']
+		cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
+		
+		for option_name, option in self.option_data.items():
+			for episode, episode_data in option.items():
+				clfs_bounds = episode_data['clfs_bounds']
+				clfs_probs = episode_data['clfs_probs']
+				X_pos = episode_data['X_pos']
+				
+				# plot boundaries of classifiers
+				self.plot_boundary(self.x_mesh, self.y_mesh, X_pos, clfs_bounds, colors, option_name, episode, self.experiment_name, alpha=0.5)
+
+				# plot state probability estimates
+				self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option_name, cmaps, episode, self.experiment_name)
+		
+		# plot average probabilities
+		all_clf_probs = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
+		self.plot_prob(all_clf_probs, self.experiment_name)
+
+		# plot learning curves
+		self.plot_learning_curves(self.experiment_name, per_episode_scores)
+
+	# TODO: export option data
+	def save_all_data(self, logdir):
+		print("Saving all data..")
+		data_dir = logdir + '/all_data(seed={})'.format(self.seed)
+		Path(data_dir).mkdir(exist_ok=True)
+		
+		all_data = {}
+		all_data['option_data'] = self.option_data
+		all_data['x_mesh'] = self.x_mesh
+		all_data['y_mesh'] = self.y_mesh
+		all_data['experiment_name'] = self.experiment_name
+		all_data['all_clf_probs'] = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
+		all_data['per_episode_scores'] = self.learning_data
+		all_data['mdp_env_name'] = self.mdp.env_name
+		
+		for var_name, data in all_data.items():
+			with open(data_dir + '/' + var_name + '.pkl', 'wb+') as f:
+				pickle.dump(data, f)
+
+	def run_plot_processing(self, episode):
+		for option in self.trained_options:
+			if option.optimistic_classifier:
+				# NOTE: make domain mesh once
+				if self.x_mesh is None:
+					x_coord, y_coord = option.X_global[:, 0], option.X_global[:, 1]
+					self.x_mesh, self.y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
+
+				# Per option data
+				clfs_bounds = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.pessimistic_classifier}
+				clfs_probs = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.approx_pessimistic_classifier}
+				X_pos = option.X[option.y == 1]
+
+				# Per episode data
+				if option.name not in self.option_data:
+					episode_data = {}
+					episode_data[episode] = {'clfs_bounds' : clfs_bounds, 'clfs_probs' : clfs_probs, 'X_pos' : X_pos}
+					self.option_data[option.name] = episode_data
+				else:
+					self.option_data[option.name][episode] = {'clfs_bounds' : clfs_bounds, 'clfs_probs' : clfs_probs, 'X_pos' : X_pos}
+
+				# update option's probability values
+				if option.name not in self.all_opt_clf_probs:
+					self.all_opt_clf_probs[option.name] = ([option.optimistic_classifier_probs[-1]], [episode])
+					self.all_pes_clf_probs[option.name] = ([option.pessimistic_classifier_probs[-1]], [episode])
+				else:
+					self.all_opt_clf_probs[option.name][0].append(
+						option.optimistic_classifier_probs[-1])
+					self.all_opt_clf_probs[option.name][1].append(episode)
+					
+					self.all_pes_clf_probs[option.name][0].append(
+						option.pessimistic_classifier_probs[-1])
+					self.all_pes_clf_probs[option.name][1].append(episode)
+
+	def episodic_plot_processing(self, episode, per_episode_scores):
 		sns.set_style("white")
 
 		for option in self.trained_options:
@@ -513,8 +585,8 @@ class SkillChaining(object):
 				num_colors = 100
 				cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
 				colors = ['blue', 'green']
-				clfs_bound = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.pessimistic_classifier}
-				clfs_prob = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.approx_pessimistic_classifier}
+				clfs_bounds = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.pessimistic_classifier}
+				clfs_probs = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.approx_pessimistic_classifier}
 				
 				# NOTE: make domain mesh once
 				if self.x_mesh is None:
@@ -522,10 +594,11 @@ class SkillChaining(object):
 					self.x_mesh, self.y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
 
 				# plot boundaries of classifiers
-				self.plot_boundary(self.x_mesh, self.y_mesh, clfs_bound, colors, option.name, episode, self.experiment_name, alpha=0.5)
+				X_pos = option.X[option.y == 1]
+				self.plot_boundary(self.x_mesh, self.y_mesh, X_pos, clfs_bounds, colors, option.name, episode, self.experiment_name, alpha=0.5)
 
 				# plot state probabilty estimates
-				self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_prob, option.name, cmaps, episode, self.experiment_name)
+				# self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option.name, cmaps, episode, self.experiment_name)
 
 				# update option's probability values
 				if option.name not in self.all_opt_clf_probs:
@@ -543,12 +616,10 @@ class SkillChaining(object):
 		# plot average probabilities
 		if option.optimistic_classifier:
 			all_clf_probs = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
-			self.plot_prob(all_clf_probs, self.experiment_name)
+			# self.plot_prob(all_clf_probs, self.experiment_name)
 
 		# plot learning curves
-		tests = {}
-		tests[0] = (self.experiment_name, per_episode_scores)
-		self.plot_learning_curves(tests, self.experiment_name)
+		self.plot_learning_curves(self.experiment_name, per_episode_scores)
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -561,7 +632,9 @@ class SkillChaining(object):
 		last_10_durations = deque(maxlen=10)
 
 		# TODO: create plotting directory
-		Path('plots/{}'.format(self.experiment_name)).mkdir(exist_ok=True)
+		if self.episodic_plots or self.generate_plots:
+			print("Generating {}/plots..".format(experiment_name))
+			Path('{}/plots'.format(self.experiment_name)).mkdir(exist_ok=True)
 
 		for episode in range(num_episodes):
 
@@ -620,8 +693,18 @@ class SkillChaining(object):
 
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
 
-			# TODO: call for making plots
-			self.plot_processing(episode, per_episode_scores)
+			# TODO: call for making episodic plots
+			if self.episodic_plots:
+				self.episodic_plot_processing(episode, per_episode_scores)
+			else:
+				self.run_plot_processing(episode)
+
+		# TODO: call for generating plots at end of the run
+		if self.generate_plots:
+			self.generate_all_plots(per_episode_scores)
+
+		# TODO: save scores to class
+		self.learning_data = per_episode_scores
 
 		return per_episode_scores, per_episode_durations
 
@@ -727,14 +810,15 @@ class SkillChaining(object):
 
 		return overall_reward, option_trajectories
 
-def create_log_dir(experiment_name):
-	path = os.path.join(os.getcwd(), experiment_name)
-	try:
-		os.mkdir(path)
-	except OSError:
-		print("Creation of the directory %s failed" % path)
-	else:
-		print("Successfully created the directory %s " % path)
+def create_log_dir(path):
+	# path = os.path.join(os.getcwd(), experiment_name)
+	Path(path).mkdir(exist_ok=True)
+	# try:
+	# 	os.mkdir(path)
+	# except OSError:
+	# 	print("Creation of the directory %s failed" % path)
+	# else:
+	# 	print("Successfully created the directory %s " % path)
 	return path
 
 
@@ -754,6 +838,7 @@ if __name__ == '__main__':
 	parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
 	parser.add_argument("--option_timeout", type=bool, help="Whether option times out at 200 steps", default=False)
 	parser.add_argument("--generate_plots", type=bool, help="Whether or not to generate plots", default=False)
+	parser.add_argument("--episodic_plots", type=bool, help="Whether or not to produce plots for each episode ", default=False)
 	parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
 	parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
 	parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
@@ -806,7 +891,7 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device, nu=args.nu, experiment_name=args.experiment_name)
+							generate_plots=args.generate_plots, episodic_plots=args.episodic_plots, tensor_log=args.tensor_log, device=args.device, nu=args.nu, experiment_name=args.experiment_name)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# TODO: remove
@@ -816,3 +901,4 @@ if __name__ == '__main__':
 	chainer.save_all_models()
 	chainer.perform_experiments()
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
+	chainer.save_all_data(logdir)

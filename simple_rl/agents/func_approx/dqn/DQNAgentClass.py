@@ -315,9 +315,6 @@ class DQNAgent(Agent):
             states = states.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
 
-            # TODO:
-
-
             for idx, option in enumerate(self.trained_options): # type: Option
                 try:
                     inits = option.batched_is_init_true(states)
