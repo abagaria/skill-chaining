@@ -50,7 +50,8 @@ class DQNAgent(Agent):
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
                  lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity="",
-                 phi_type="function", counting_epsilon=0.1, bonus_from_position=False, bonus_form="sqrt"):
+                 phi_type="function", counting_epsilon=0.1, bonus_from_position=False, bonus_form="sqrt",
+                 prioritize_positive_terminal_transitions=False):
 
         self.state_size = state_size
         self.action_size = action_size
@@ -76,6 +77,7 @@ class DQNAgent(Agent):
         self.actions = list(range(self.action_size))
         self.bonus_from_position = bonus_from_position
         self.bonus_form = bonus_form
+        self.prioritize_positive_terminal_transitions = prioritize_positive_terminal_transitions
 
         # Q-Network
         if pixel_observation:
@@ -88,7 +90,11 @@ class DQNAgent(Agent):
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
         # Replay memory
-        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.device, pixel_observation)
+        self.replay_buffer = ReplayBuffer(action_size=action_size, buffer_size=BUFFER_SIZE,
+                                          batch_size=BATCH_SIZE, seed=seed,
+                                          device=self.device, pixel_observation=pixel_observation,
+                                          prioritize_positive_terminal_transitions=prioritize_positive_terminal_transitions)
+
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
@@ -345,8 +351,6 @@ class DQNAgent(Agent):
             if len(self.replay_buffer) > BATCH_SIZE:
                 experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
                 self._learn(experiences, self.gamma)
-                if self.tensor_log:
-                    self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
                 self.num_updates += 1
 
     def _learn(self, experiences, gamma):

@@ -29,7 +29,8 @@ class Experiment12:
     def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
-                 phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form):
+                 phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form,
+                 prioritize_positive_terminal_transitions):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -48,7 +49,8 @@ class Experiment12:
                               novelty_during_regression=self.novelty_during_regression,
                               normalize_states=normalize_states,
                               optimization_quantity=optimization_quantity,
-                              phi_type=phi_type, bonus_from_position=bonus_from_position, bonus_form=bonus_form)
+                              phi_type=phi_type, bonus_from_position=bonus_from_position, bonus_form=bonus_form,
+                              prioritize_positive_terminal_transitions=prioritize_positive_terminal_transitions)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -57,6 +59,7 @@ class Experiment12:
         self.count_train_mode = count_train_mode
         self.max_to_plot = max_to_plot
         self.mcar_win_reward = mcar_win_reward
+        self.prioritize_positive_terminal_transitions = prioritize_positive_terminal_transitions
 
     def run_experiment(self):
         training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
@@ -280,10 +283,20 @@ class Experiment12:
 
             sns_size = len(agent.novelty_tracker.un_normalized_sns_buffer) if self.exploration_method == "count-phi" else 0
             lam = agent.novelty_tracker.counting_space.lam if self.exploration_method == "count-phi" else 0
-            print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam: {}\tTime: {:.2f}'.format(episode,
+
+            if self.prioritize_positive_terminal_transitions:
+                log_str = '\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam: {}\tNum Pos Transitions: {}\tTime: {:.2f}'.format(episode,
                                                                                                                              np.mean(last_10_scores),
                                                                                                                              np.mean(last_10_durations),
-                                                                                                                             agent.epsilon, sns_size, lam, total_episode_time))
+                                                                                                                             agent.epsilon, sns_size, lam,
+                                                                                                                             len(self.agent.replay_buffer.positive_transitions),
+                                                                                                                             total_episode_time)
+            else:
+                log_str = '\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}\tSNS Size: {}\tLam: {}\tTime: {:.2f}'.format(episode,
+                                                                                                                             np.mean(last_10_scores),
+                                                                                                                             np.mean(last_10_durations),
+                                                                                                                             agent.epsilon, sns_size, lam, total_episode_time)
+            print(log_str)
             save_scores(scores=per_episode_durations, experiment_name=self.experiment_name, seed=self.seed)
 
         return per_episode_scores, per_episode_durations
@@ -318,6 +331,7 @@ if __name__ == "__main__":
     parser.add_argument("--bonus_from_position", action="store_true", default=False)
     parser.add_argument("--mcar_win_reward", type=float, default=20.)
     parser.add_argument("--bonus_form", type=str, default="sqrt")
+    parser.add_argument("--prioritize_positive_terminal_transitions", action="store_true", default=False)
 
     args = parser.parse_args()
 
@@ -342,6 +356,7 @@ if __name__ == "__main__":
                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
                       phi_type=args.phi_type, bonus_from_position=args.bonus_from_position,
                       max_to_plot=10000, mcar_win_reward=args.mcar_win_reward, bonus_form=args.bonus_form,
+                      prioritize_positive_terminal_transitions=args.prioritize_positive_terminal_transitions
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()
