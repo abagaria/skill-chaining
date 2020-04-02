@@ -29,7 +29,7 @@ class Experiment12:
     def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
-                 phi_type, bonus_from_position, max_to_plot, mcar_win_reward):
+                 phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -48,7 +48,7 @@ class Experiment12:
                               novelty_during_regression=self.novelty_during_regression,
                               normalize_states=normalize_states,
                               optimization_quantity=optimization_quantity,
-                              phi_type=phi_type, bonus_from_position=bonus_from_position)
+                              phi_type=phi_type, bonus_from_position=bonus_from_position, bonus_form=bonus_form)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -317,6 +317,7 @@ if __name__ == "__main__":
     parser.add_argument("--phi_type", type=str, default="function")
     parser.add_argument("--bonus_from_position", action="store_true", default=False)
     parser.add_argument("--mcar_win_reward", type=float, default=20.)
+    parser.add_argument("--bonus_form", type=str, default="sqrt")
 
     args = parser.parse_args()
 
@@ -340,7 +341,7 @@ if __name__ == "__main__":
                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
                       phi_type=args.phi_type, bonus_from_position=args.bonus_from_position,
-                      max_to_plot=10000, mcar_win_reward=args.mcar_win_reward,
+                      max_to_plot=10000, mcar_win_reward=args.mcar_win_reward, bonus_form=args.bonus_form,
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()

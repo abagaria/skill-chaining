@@ -11,7 +11,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
     def __init__(self, state_dim, action_dim, latent_dim=2, lam=.1, epsilon=0.1,
                  writer=None, phi_type="function", device=torch.device("cuda"),
                  *, experiment_name, pixel_observation, normalize_states,
-                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames):
+                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames, bonus_form="sqrt"):
         """
 
         Args:
@@ -27,6 +27,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
             lam_scaling_term (str)
             optimization_quantity (str)
             num_frames (int)
+            bonus_form (str)
         """
         super(LatentCountExplorationBonus, self).__init__()
 
@@ -56,6 +57,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
         self.normalize_states = normalize_states
         self.bonus_scaling_term = bonus_scaling_term
         self.num_frames = num_frames
+
+        self.bonus_form = bonus_form
 
         # Normalization constants
         self.mean_state = np.array([0.])
@@ -223,7 +226,13 @@ class LatentCountExplorationBonus(ExplorationBonus):
         return self._counts_to_bonus(count_array)
 
     def _counts_to_bonus(self, counts):
-        return 1. / np.sqrt(counts + 1e-2)
+        if self.bonus_form == "sqrt":
+            return 1. / np.sqrt(counts + 1e-2)
+        if self.bonus_form == "linear":
+            return 1. / (counts + 1e-1)
+        if self.bonus_form == "exp":
+            return np.exp(-0.5 * counts)
+        raise NotImplementedError(self.bonus_form)
 
     def get_counts(self, X, buffer_idx):
         """
