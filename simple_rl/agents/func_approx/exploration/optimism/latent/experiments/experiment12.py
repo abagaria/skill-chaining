@@ -29,7 +29,7 @@ class Experiment12:
     def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
-                 phi_type, bonus_from_position, max_to_plot):
+                 phi_type, bonus_from_position, max_to_plot, mcar_win_reward):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -56,6 +56,7 @@ class Experiment12:
         self.experiment_name = experiment_name
         self.count_train_mode = count_train_mode
         self.max_to_plot = max_to_plot
+        self.mcar_win_reward = mcar_win_reward
 
     def run_experiment(self):
         training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
@@ -186,7 +187,9 @@ class Experiment12:
     #     plt.savefig(f"{self.experiment_name}/q_advantage_plots/qadv_{episode}_seed_{self.seed}.png")
     #     plt.close()
 
-    def make_which_actions_plot(self, agent, episode, max_to_plot=10000):
+    def make_which_actions_plot(self, agent, episode, max_to_plot=10000, allow_novelty=False):
+        # Allow novelty determines whether novelty is used to make the plots.
+        # Sort of simulates how the agent would do greedily.
         evaluation_epsilon = agent.evaluation_epsilon
         agent.evaluation_epsilon = 0.
 
@@ -201,7 +204,7 @@ class Experiment12:
         # Doesn't need chunking cause we do one state at a time...
         actions = []
         for s, p in tqdm(zip(states, positions), desc="Making Which-Action plot"):
-            action = agent.act(s, p, train_mode=True, use_novelty=True)
+            action = agent.act(s, p, train_mode=True, use_novelty=allow_novelty)
             actions.append(action)
 
         plt.figure(figsize=(14, 10))
@@ -241,7 +244,7 @@ class Experiment12:
                 action = agent.act(state.features(), train_mode=True, position=position, use_novelty=True)
                 reward, next_state = mdp.execute_agent_action(action)
 
-                reward = 20. if next_state.is_terminal() else 0.
+                reward = self.mcar_win_reward if next_state.is_terminal() else 0.
                 next_position = mdp.get_position()
 
                 agent.step(state.features(), position, action, reward, next_state.features(), next_position,
@@ -268,7 +271,7 @@ class Experiment12:
                     self.make_bonus_plot(agent, episode, max_to_plot=self.max_to_plot)
                     self.make_value_plot(agent, episode, max_to_plot=self.max_to_plot)
                     # self.make_advantage_plot(agent, episode)
-                    self.make_which_actions_plot(agent, episode, max_to_plot=self.max_to_plot)
+                    self.make_which_actions_plot(agent, episode, max_to_plot=self.max_to_plot, allow_novelty=False)
 
             last_10_scores.append(score)
             last_10_durations.append(step + 1)
@@ -313,6 +316,7 @@ if __name__ == "__main__":
     parser.add_argument("--count_train_mode", type=str, default="entire")
     parser.add_argument("--phi_type", type=str, default="function")
     parser.add_argument("--bonus_from_position", action="store_true", default=False)
+    parser.add_argument("--mcar_win_reward", type=float, default=20.)
 
     args = parser.parse_args()
 
@@ -336,7 +340,7 @@ if __name__ == "__main__":
                       no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
                       phi_type=args.phi_type, bonus_from_position=args.bonus_from_position,
-                      max_to_plot=10000,
+                      max_to_plot=10000, mcar_win_reward=args.mcar_win_reward,
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()
