@@ -231,9 +231,11 @@ class SpectrumNetwork():
         self.sess.run(self.initializer, feed_dict={})
 
     def f_ret(self, state):
-        assert (isinstance(state, list))
-
-        obs = [np.asarray(s) for s in state]
+        if isinstance(state, list):
+            obs = [np.asarray(s) for s in state]
+        else:
+            assert isinstance(state, np.ndarray)
+            obs = state
 
         return self.sess.run(self.f_value, feed_dict={
             self.obs: obs
@@ -246,8 +248,6 @@ class SpectrumNetwork():
         })
 
     def __call__(self, obs):
-        assert (isinstance(obs, list))
-
         r = self.f_ret(obs)
         return r
 

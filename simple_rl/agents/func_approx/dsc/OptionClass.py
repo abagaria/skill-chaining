@@ -188,7 +188,7 @@ class Option(object):
 		if self.batched_init_predicate is not None:
 			return self.batched_init_predicate(state_matrix)
 
-		if self.name == "global_option":
+		if self.name == "global_option" or self.name == "exploration_option":
 			return np.ones((state_matrix.shape[0]))
 
 		position_matrix = state_matrix[:, :2]
