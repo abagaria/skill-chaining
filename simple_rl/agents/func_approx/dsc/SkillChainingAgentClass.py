@@ -146,7 +146,7 @@ class SkillChaining(object):
 		self.step_seed = None
 
 	# TODO: Set random seed value
-	def set_step_seed(self):
+	def set_random_step_seed(self):
 		self.step_seed = np.random.randint(2**32 - 1)
 
 	def create_child_option(self, parent_option):
@@ -512,17 +512,17 @@ class SkillChaining(object):
 				X_pos = episode_data['X_pos']
 				
 				# plot boundaries of classifiers
-				self.plot_boundary(self.x_mesh, self.y_mesh, X_pos, clfs_bounds, colors, option_name, episode, self.experiment_name, alpha=0.5)
+				self.plot_boundary(self.x_mesh, self.y_mesh, X_pos, clfs_bounds, colors, option_name, episode, self.log_dir, alpha=0.5)
 
 				# plot state probability estimates
-				self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option_name, cmaps, episode, self.experiment_name)
+				self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option_name, cmaps, episode, self.log_dir)
 		
 		# plot average probabilities
 		all_clf_probs = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
-		self.plot_prob(all_clf_probs, self.experiment_name)
+		self.plot_prob(all_clf_probs, self.log_dir)
 
 		# plot learning curves
-		self.plot_learning_curves(self.experiment_name, per_episode_scores)
+		self.plot_learning_curves(self.log_dir, per_episode_scores)
 
 	# TODO: export option data
 	def save_all_data(self, logdir, args, episodic_scores, episodic_durations):
@@ -601,10 +601,10 @@ class SkillChaining(object):
 
 				# plot boundaries of classifiers
 				X_pos = option.X[option.y == 1]
-				self.plot_boundary(self.x_mesh, self.y_mesh, X_pos, clfs_bounds, colors, option.name, episode, self.experiment_name, alpha=0.5)
+				self.plot_boundary(self.x_mesh, self.y_mesh, X_pos, clfs_bounds, colors, option.name, episode, self.log_dir, alpha=0.5)
 
 				# plot state probabilty estimates
-				# self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option.name, cmaps, episode, self.experiment_name)
+				# self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option.name, cmaps, episode, self.log_dir)
 
 				# update option's probability values
 				if option.name not in self.all_opt_clf_probs:
@@ -622,10 +622,10 @@ class SkillChaining(object):
 		# plot average probabilities
 		if option.optimistic_classifier:
 			all_clf_probs = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
-			# self.plot_prob(all_clf_probs, self.experiment_name)
+			# self.plot_prob(all_clf_probs, self.log_dir)
 
 		# plot learning curves
-		self.plot_learning_curves(self.experiment_name, per_episode_scores)
+		self.plot_learning_curves(self.log_dir, per_episode_scores)
 
 	def skill_chaining(self, num_episodes, num_steps):
 
@@ -639,8 +639,8 @@ class SkillChaining(object):
 
 		# TODO: create plotting directory
 		if self.episodic_plots or self.generate_plots:
-			print("Generating {}/plots..".format(experiment_name))
-			Path('{}/plots'.format(self.experiment_name)).mkdir(exist_ok=True)
+			print("Generating {}/plots..".format(self.log_dir))
+			Path('{}/plots'.format(self.log_dir)).mkdir(exist_ok=True)
 
 		for episode in range(num_episodes):
 
@@ -657,7 +657,7 @@ class SkillChaining(object):
 
 			while step_number < num_steps:
 				# TODO: seed each step
-				self.set_step_seed()
+				self.set_random_step_seed()
 
 				if step_number % 100 == 0:
 					print("  |-> step_number: {}".format(step_number))  # TODO: remove
@@ -673,12 +673,15 @@ class SkillChaining(object):
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
 
+				# TODO: set option step seed
+				self.untrained_option.set_step_seed(self.step_seed)
+
 				if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
 						self.max_num_options > 0 and self.untrained_option.optimistic_classifier is None:
 					uo_episode_terminated = True
 
-					# TODO: set option step seed
-					self.untrained_option.set_step_seed(self.step_seed)
+					# # TODO: set option step seed
+					# self.untrained_option.set_step_seed(self.step_seed)
 					
 					if self.untrained_option.train(experience_buffer, state_buffer):
 						# plot_one_class_optimistic_classifier(self.untrained_option, episode, args.experiment_name)

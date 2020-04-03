@@ -78,7 +78,7 @@ class Option(object):
 		self.nu = nu
 		self.experiment_name = experiment_name
 
-		# TODO: step seed from main loop (int)
+		# TODO: step seed from main dsc loop
 		self.step_seed = None
 
 		# Global option operates on a time-scale of 1 while child (learned) options are temporally extended
@@ -150,9 +150,19 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
-	# TODO: set reandom seed
+	# TODO: set random seed
 	def set_step_seed(self, seed):
 		self.step_seed = seed
+
+	# TODO: get seeded value
+	def get_seeded_random_value(self, seed):
+		np.random.seed(seed)
+		return np.random.random()
+
+	# TODO: get seeded array
+	def get_seeded_random_array(self, seed, len_array):
+		np.random.seed(seed)
+		return np.random.rand(len_array)
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
@@ -189,11 +199,11 @@ class Option(object):
 		position_matrix = state_matrix[:, :2]
 		
 		# TODO: old
-		return self.optimistic_classifier.predict(position_matrix) == 1
+		# return self.optimistic_classifier.predict(position_matrix) == 1
 		
 		# TODO: probabilistic batch initation with optimistic classifier
 		# np.random.seed(self.step_seed)
-		# return np.random.rand(len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
+		return self.get_seeded_random_array(self.step_seed, len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
 
 	# TODO: utilities
 	def get_average_predict_proba(self, clf, X):
@@ -205,17 +215,25 @@ class Option(object):
 
 	# TODO: added seed
 	def is_init_true(self, ground_state):
-		'''NOTE: due to probabilistic initialization, self.step_seed needs to be set anytime this method is called'''
 		if self.name == "global_option":
 			return True
 		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		
 		# TODO: old
-		return self.optimistic_classifier.predict([state])[0] == 1
+		# return self.optimistic_classifier.predict([state])[0] == 1
 
 		# TODO: probabilistic initiation with optimistic classifier
 		# np.random.seed(self.step_seed)
-		# return np.random.random() < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+		return self.get_seeded_random_value(self.step_seed) < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+
+	# TODO: needed for new term method
+	def batched_is_term_true(self, state_matrix):
+		position_matrix = state_matrix[:, :2]
+
+		if self.parent is not None and self.pessimistic_classifier is not None:
+			return self.pessimistic_classifier.predict(position_matrix) == 1
+		elif self.parent is not None:
+			return self.parent.batched_is_init_true(state_matrix)
 
 	def is_term_true(self, ground_state):
 		# TODO: old
