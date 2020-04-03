@@ -48,7 +48,7 @@ Bugs
 		- test run
 
 			python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) predict()" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5 --episodic_plots=True
-			python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) predict_proba()" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5 --episodic_plots=True
+			python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) prob_init" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5 --episodic_plots=True
 
 		- Testing:
 			[o] set nu=0.7: only created 1 option
@@ -75,7 +75,7 @@ Bugs
 			[o] seed=1, a) init=opt_clf.predict(), terminate=pes_clf.predict(), b) init=opt_clf.predict_proba(), terminate=pes_clf.predict():
 				- both a) and b) have goal option takes up top half, option 1 has init state
 				-> bad seed?
-			[x] (default seed=0), a) init=opt_clf.predict(), terminate=pes_clf.predict(), b) init=opt_clf.predict_proba(), terminate=pes_clf.predict():
+			[x] seed=0; a) init=opt_clf.predict(), terminate=pes_clf.predict(), b) init=opt_clf.predict_proba(), terminate=pes_clf.predict():
 				- a) more options created that spread the domain! 
 				- b) only created option 1
 			
@@ -83,6 +83,13 @@ Bugs
 				- option 1 for a) is bottom right while for b) it is bottom left (around init state)
 
 			Q: could using probabilistc init be only working for an option around init state? Why?
+
+			* Seeding for prob init might have been wrong but fixed now
+
+			[o] seed=0, init=prob(opt clf), term=pes clf, added batch term to DQN:
+				- still only creates 1 option but is top right and not in init state
+				-> is there a different bug in creating options?
+			[] seed=0, init=prob(opt clf), term=pes clf, changed setting seed:
 
 Structure
 =========
@@ -107,8 +114,7 @@ Hyperparameter search
 
 	Run
 	---
-	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(2) num_subgoal_hits=5, nu=0.5" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 
-
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(dsc) baseline" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 
 
 	Hyperparameters
 	---------------
@@ -144,19 +150,21 @@ Experiments
 	-------
 		- Methods:
 			* DSC
-			* DSC w/ Opt/Pes classifiers
+			* DSC w/ Opt/Pes
 
 		- Domains:
 			* Point Maze
 			* Ant Maze
 		
 		- Experiments:
-			* DSC - Point Maze
+			* DSC w/ Opt/Pes - Point Maze
+				runs=5
 				episodes=300
 				steps=1000
 				subgoal_reward=300
 				buffer_len=20
-				runs=5
+				num_sub_goal_hits=5
+				nu=0.5
 
 Writeup
 =======
@@ -183,9 +191,9 @@ Writeup
 	
 	CS2951X Final Paper (DUE: T May 5th)
 	------------------------------------
-		* Tighter bound on Initation set with use of pessimistic classifier
+		* Obj: Tighter bound on Initation set with use of pessimistic classifier
+		* Obj: No worse than previous methods and can continuously learn
 		* BACKUP: choose non-robust domain and show new method can learn
-
 
 		- Title: Learning Tight Initation Set
 		- Abstract
