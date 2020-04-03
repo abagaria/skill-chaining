@@ -678,7 +678,15 @@ class Option(object):
 
 	# TODO: classifier convertion 
 	def one_class_to_two_class_classifier(self, oc_svm, X):
-		return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, oc_svm.predict(X))
+		y_pred = oc_svm.predict(X)
+		try:
+			return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y_pred)
+		except:
+			print("ClassifierWarning: The number of classes has to be greater than one; got 1 class")
+			print("|-> Flipping random prediction..")
+			i = random.randint(0, len(y_pred))
+			y_pred[i] = y_pred[i] * -1
+			return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y_pred)
 	
 	# TODO: Platt Scalling module (not accurate)
 	# def platt_scale(self, oc_svm, X, train_size, cv_size):

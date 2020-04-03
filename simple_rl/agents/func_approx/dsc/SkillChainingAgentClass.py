@@ -32,7 +32,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, episodic_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False, nu=0.5, experiment_name=None):
+				 log_dir="", seed=0, tensor_log=False, nu=0.5, experiment_name=None, num_run=0):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -53,6 +53,7 @@ class SkillChaining(object):
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
+			num_run (int): Number of the current run.
 		"""
 		self.mdp = mdp
 		self.original_actions = deepcopy(mdp.actions)
@@ -72,6 +73,7 @@ class SkillChaining(object):
 		self.dense_reward = mdp.dense_reward
 		self.nu = nu
 		self.experiment_name = experiment_name
+		self.num_run = num_run
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -139,7 +141,6 @@ class SkillChaining(object):
 		self.x_mesh = None
 		self.y_mesh = None
 		self.option_data = {}
-		self.learning_data = None
 
 		# TODO: per step seed (int)
 		self.step_seed = None
@@ -524,20 +525,25 @@ class SkillChaining(object):
 		self.plot_learning_curves(self.experiment_name, per_episode_scores)
 
 	# TODO: export option data
-	def save_all_data(self, logdir):
+	def save_all_data(self, logdir, args, episodic_scores, episodic_durations):
 		print("Saving all data..")
-		data_dir = logdir + '/all_data(seed={})'.format(self.seed)
+		data_dir = logdir + '/run_{}_all_data'.format(self.num_run)
 		Path(data_dir).mkdir(exist_ok=True)
 		
 		all_data = {}
+		all_data['args'] = args
 		all_data['option_data'] = self.option_data
 		all_data['x_mesh'] = self.x_mesh
 		all_data['y_mesh'] = self.y_mesh
 		all_data['experiment_name'] = self.experiment_name
 		all_data['all_clf_probs'] = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
-		all_data['per_episode_scores'] = self.learning_data
+		all_data['per_episode_scores'] = episodic_scores
 		all_data['mdp_env_name'] = self.mdp.env_name
-		
+		all_data['episodic_durations'] = episodic_durations
+		all_data['pretrained'] = args.pretrained
+		all_data['validation_scores'] = self.validation_scores
+		all_data['num_options_history'] = self.num_options_history
+
 		for var_name, data in all_data.items():
 			with open(data_dir + '/' + var_name + '.pkl', 'wb+') as f:
 				pickle.dump(data, f)
@@ -704,7 +710,7 @@ class SkillChaining(object):
 			self.generate_all_plots(per_episode_scores)
 
 		# TODO: save scores to class
-		self.learning_data = per_episode_scores
+		# self.learning_data = per_episode_scores
 
 		return per_episode_scores, per_episode_durations
 
@@ -741,27 +747,27 @@ class SkillChaining(object):
 		for option in self.trained_options: # type: Option
 			save_model(option.solver, args.episodes, best=False)
 
-	def save_all_scores(self, pretrained, scores, durations):
-		print("\rSaving training and validation scores..")
-		training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
-		training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
-		validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
-		num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
+	# def save_all_scores(self, pretrained, scores, durations):
+	# 	print("\rSaving training and validation scores..")
+	# 	training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
+	# 	training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
+	# 	validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
+	# 	num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
 
-		if self.log_dir:
-			training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
-			training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
-			validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
-			num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
+	# 	if self.log_dir:
+	# 		training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
+	# 		training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
+	# 		validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
+	# 		num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
 
-		with open(training_scores_file_name, "wb+") as _f:
-			pickle.dump(scores, _f)
-		with open(training_durations_file_name, "wb+") as _f:
-			pickle.dump(durations, _f)
-		with open(validation_scores_file_name, "wb+") as _f:
-			pickle.dump(self.validation_scores, _f)
-		with open(num_option_history_file_name, "wb+") as _f:
-			pickle.dump(self.num_options_history, _f)
+	# 	with open(training_scores_file_name, "wb+") as _f:
+	# 		pickle.dump(scores, _f)
+	# 	with open(training_durations_file_name, "wb+") as _f:
+	# 		pickle.dump(durations, _f)
+	# 	with open(validation_scores_file_name, "wb+") as _f:
+	# 		pickle.dump(self.validation_scores, _f)
+	# 	with open(num_option_history_file_name, "wb+") as _f:
+	# 		pickle.dump(self.num_options_history, _f)
 
 	def perform_experiments(self):
 		for option in self.trained_options:
@@ -850,6 +856,7 @@ if __name__ == '__main__':
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	parser.add_argument(
 		"--nu", type=float, help="For OneClassSVM, an upper bound on the fraction of training errors and a lower bound of the fraction of support vectors. Should be in the interval (0, 1].", default=0.5)
+	parser.add_argument("--num_run", type=int, help="The number of the current run.", default=0)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -875,7 +882,7 @@ if __name__ == '__main__':
 		overall_mdp.env.seed(args.seed)
 
 	# Create folders for saving various things
-	logdir = create_log_dir(args.experiment_name)
+	logdir = create_log_dir(args.experiment_name + '_seed_{}'.format(args.seed))
 	create_log_dir("saved_runs")
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")
@@ -891,7 +898,8 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, episodic_plots=args.episodic_plots, tensor_log=args.tensor_log, device=args.device, nu=args.nu, experiment_name=args.experiment_name)
+							generate_plots=args.generate_plots, episodic_plots=args.episodic_plots, tensor_log=args.tensor_log, device=args.device,
+							nu=args.nu, experiment_name=args.experiment_name, num_run=args.num_run)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# TODO: remove
@@ -900,5 +908,5 @@ if __name__ == '__main__':
 	# Log performance metrics
 	chainer.save_all_models()
 	chainer.perform_experiments()
-	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
-	chainer.save_all_data(logdir)
+	# chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
+	chainer.save_all_data(logdir, args, episodic_scores, episodic_durations)

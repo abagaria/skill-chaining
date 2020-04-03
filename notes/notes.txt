@@ -27,7 +27,6 @@ Run
 	# Debugging
 	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) num_sub_goal_hits=5, nu=0.7" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.7
 
-
 Bugs
 ====
 	[ ] 1st option has init state and never learns more options.
@@ -103,7 +102,6 @@ Structure
 		|- ...
 		|- OptionClass::train_initiation_set_classifier()
 
-
 Hyperparameter search
 =====================
 
@@ -133,14 +131,32 @@ Hyperparameter search
 	- num_sub_goal_hits: (5), 10, 15
 	- nu: 0.5, 0.6, 0.7, 0.8
 
-
 Experiments
 ===========
 
-	Domains
+	ScM Project
+	-----------
+		- Domains:
+			* Point Maze
+			* Ant Maze
+
+	CS2951X
 	-------
-		- Point Maze
-		- Ant Maze
+		- Methods:
+			* DSC
+			* DSC w/ Opt/Pes classifiers
+
+		- Domains:
+			* Point Maze
+			* Ant Maze
+		
+		- Experiments:
+			* DSC - Point Maze
+				episodes=300
+				steps=1000
+				subgoal_reward=300
+				buffer_len=20
+				runs=5
 
 Writeup
 =======
@@ -168,6 +184,8 @@ Writeup
 	CS2951X Final Paper (DUE: T May 5th)
 	------------------------------------
 		* Tighter bound on Initation set with use of pessimistic classifier
+		* BACKUP: choose non-robust domain and show new method can learn
+
 
 		- Title: Learning Tight Initation Set
 		- Abstract
