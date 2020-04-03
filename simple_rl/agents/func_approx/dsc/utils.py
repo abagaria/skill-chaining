@@ -318,5 +318,7 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
 	plt.xlabel("x")
 	plt.ylabel("y")
 	name = option.name
-	plt.savefig("initiation_set_plots/{}/{}_covering-options.png".format(experiment_name, name))
+	threshold = option.threshold
+	plt.title("Covering Options with threshold {} and buffer size {}".format(threshold, len(replay_buffer)))
+	plt.savefig("initiation_set_plots/{}/{}_covering-options-{}_threshold.png".format(experiment_name, name, threshold))
 	plt.close()

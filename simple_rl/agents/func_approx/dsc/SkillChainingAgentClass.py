@@ -30,7 +30,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 log_dir="", seed=0, tensor_log=False, use_hard_coded_event=False):
+				 log_dir="", seed=0, tensor_log=False, use_hard_coded_event=False, threshold=0.95):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -67,6 +67,7 @@ class SkillChaining(object):
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
 		self.dense_reward = mdp.dense_reward
+		self.threshold = threshold
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -374,7 +375,8 @@ class SkillChaining(object):
 									   num_training_steps=1000,
 									   chain_id=len(self.chains) + 1,
 									   option_idx=len(self.generated_salient_events),
-									   name="covering-options-" + str(len(self.generated_salient_events)))
+									   name="covering-options-" + str(len(self.generated_salient_events)),
+									   threshold=self.threshold)
 
 			 target_predicate = c_option.is_init_true
 			 batched_target_predicate = c_option.batched_is_init_true
@@ -657,6 +659,7 @@ if __name__ == '__main__':
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	parser.add_argument("--use_hard_coded_event", type=bool, help="Whether to use hard-coded salient events", default=False)
+	parser.add_argument("--threshold", type=float, help="Threshold determining size of termination set", default=0.95)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -698,7 +701,8 @@ if __name__ == '__main__':
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device, use_hard_coded_event=args.use_hard_coded_event)
+							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device, use_hard_coded_event=args.use_hard_coded_event,
+							threshold=args.threshold)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# Log performance metrics
