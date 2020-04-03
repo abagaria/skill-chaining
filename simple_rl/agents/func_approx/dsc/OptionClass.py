@@ -199,11 +199,11 @@ class Option(object):
 		position_matrix = state_matrix[:, :2]
 		
 		# TODO: old
-		# return self.optimistic_classifier.predict(position_matrix) == 1
+		return self.optimistic_classifier.predict(position_matrix) == 1
 		
 		# TODO: probabilistic batch initation with optimistic classifier
 		# np.random.seed(self.step_seed)
-		return self.get_seeded_random_array(self.step_seed, len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
+		# return self.get_seeded_random_array(self.step_seed, len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
 
 	# TODO: utilities
 	def get_average_predict_proba(self, clf, X):
@@ -220,11 +220,11 @@ class Option(object):
 		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		
 		# TODO: old
-		# return self.optimistic_classifier.predict([state])[0] == 1
+		return self.optimistic_classifier.predict([state])[0] == 1
 
 		# TODO: probabilistic initiation with optimistic classifier
 		# np.random.seed(self.step_seed)
-		return self.get_seeded_random_value(self.step_seed) < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+		# return self.get_seeded_random_value(self.step_seed) < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
 
 	# TODO: needed for new term method
 	def batched_is_term_true(self, state_matrix):
