@@ -30,7 +30,8 @@ class Experiment12:
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
                  phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form,
-                 prioritize_positive_terminal_transitions):
+                 prioritize_positive_terminal_transitions,
+                 use_opiq, opiq_regression_exponent, action_selection_exponent):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -50,7 +51,9 @@ class Experiment12:
                               normalize_states=normalize_states,
                               optimization_quantity=optimization_quantity,
                               phi_type=phi_type, bonus_from_position=bonus_from_position, bonus_form=bonus_form,
-                              prioritize_positive_terminal_transitions=prioritize_positive_terminal_transitions)
+                              prioritize_positive_terminal_transitions=prioritize_positive_terminal_transitions,
+                              use_opiq=use_opiq, opiq_regression_exponent=opiq_regression_exponent,
+                              action_selection_exponent=action_selection_exponent)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -332,6 +335,10 @@ if __name__ == "__main__":
     parser.add_argument("--mcar_win_reward", type=float, default=20.)
     parser.add_argument("--bonus_form", type=str, default="sqrt")
     parser.add_argument("--prioritize_positive_terminal_transitions", action="store_true", default=False)
+    parser.add_argument("--use_opiq", action="store_true", default=False)
+    parser.add_argument("--opiq_regression_exponent", type=float, default=-0.5)
+    parser.add_argument("--action_selection_exponent", type=float, default=-2.0)
+
 
     args = parser.parse_args()
 
@@ -356,7 +363,9 @@ if __name__ == "__main__":
                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
                       phi_type=args.phi_type, bonus_from_position=args.bonus_from_position,
                       max_to_plot=10000, mcar_win_reward=args.mcar_win_reward, bonus_form=args.bonus_form,
-                      prioritize_positive_terminal_transitions=args.prioritize_positive_terminal_transitions
+                      prioritize_positive_terminal_transitions=args.prioritize_positive_terminal_transitions,
+                      use_opiq=args.use_opiq, opiq_regression_exponent=args.opiq_regression_exponent,
+                      action_selection_exponent=args.action_selection_exponent,
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()

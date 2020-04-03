@@ -11,7 +11,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
     def __init__(self, state_dim, action_dim, latent_dim=2, lam=.1, epsilon=0.1,
                  writer=None, phi_type="function", device=torch.device("cuda"),
                  *, experiment_name, pixel_observation, normalize_states,
-                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames, bonus_form="sqrt"):
+                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames):
         """
 
         Args:
@@ -57,8 +57,6 @@ class LatentCountExplorationBonus(ExplorationBonus):
         self.normalize_states = normalize_states
         self.bonus_scaling_term = bonus_scaling_term
         self.num_frames = num_frames
-
-        self.bonus_form = bonus_form
 
         # Normalization constants
         self.mean_state = np.array([0.])
@@ -163,7 +161,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
         #     return self._normalize_sns_buffer(self.un_normalized_sns_buffer)
         # raise Warning("Asking for normalized buffer when self.normalize_states is False")
 
-    def get_exploration_bonus(self, state, action=None):
+    def get_exploration_bonus(self, state, action=None, bonus_form="sqrt", add_one=False, power=None, mult=1.0):
         """
 
         Args:
@@ -188,7 +186,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
 
         if action is not None:
             count = self.counting_space.get_counts(np.expand_dims(state, 0), action)
-            bonus = self._counts_to_bonus(count)
+            bonus = self._counts_to_bonus(count, bonus_form=bonus_form, add_one=add_one, power=power, mult=mult)
             assert bonus.shape == (1,), bonus.shape
             return bonus
 
@@ -197,7 +195,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
         bonuses = []
         for action in self.actions:
             count = self.counting_space.get_counts(np.expand_dims(state, 0), action)[0]
-            bonus = self._counts_to_bonus(count)
+            bonus = self._counts_to_bonus(count, bonus_form=bonus_form, add_one=add_one, power=power, mult=mult)
             bonuses.append(bonus)
         bonuses = np.array(bonuses)
         bonuses = np.expand_dims(bonuses, 0)
@@ -205,7 +203,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
         assert bonuses.shape == (1, len(self.actions)), bonuses
         return bonuses
 
-    def get_batched_exploration_bonus(self, states):
+    def get_batched_exploration_bonus(self, states, actions=None, bonus_form="sqrt", add_one=False, power=None, mult=1.0):
         assert isinstance(states, np.ndarray), type(states)
 
         if self.pixel_observation:
@@ -219,20 +217,35 @@ class LatentCountExplorationBonus(ExplorationBonus):
             action_counts = self.counting_space.get_counts(states, action)
             counts.append(action_counts)
 
-        count_array = np.array(counts).T
+        count_array = np.array(counts).T # type: np.ndarray
 
         assert count_array.shape == (states.shape[0], len(self.actions))
+        if actions is not None:
+            assert actions.shape == (len(states),1), actions.shape # This has the extra dimension because of history.
+            actions = actions[:,0]
+            # This isn't the most efficient way to do it, but it should work fine...
+            # inefficient because it computes more counts than it needs to...
+            # It's like gather in pytorch...
+            count_array = count_array[np.arange(len(actions)), actions]
+            assert count_array.shape == (len(states), ), count_array.shape
 
-        return self._counts_to_bonus(count_array)
+        return self._counts_to_bonus(count_array, bonus_form=bonus_form, add_one=add_one, power=power, mult=mult)
 
-    def _counts_to_bonus(self, counts):
-        if self.bonus_form == "sqrt":
-            return 1. / np.sqrt(counts + 1e-2)
-        if self.bonus_form == "linear":
-            return 1. / (counts + 1e-1)
-        if self.bonus_form == "exp":
-            return np.exp(-0.5 * counts)
-        raise NotImplementedError(self.bonus_form)
+    def _counts_to_bonus(self, counts, bonus_form="sqrt", add_one=False, power=None, mult=1.0):
+        """e.g. power=-0.5 would be 1/sqrt(n)"""
+        if add_one:
+            counts += 1.
+        if bonus_form == "sqrt":
+            return mult / np.sqrt(counts + 1e-2)
+        if bonus_form == "linear":
+            return mult / (counts + 1e-1)
+        if bonus_form == "exp":
+            return mult * np.exp(-0.5 * counts)
+        if bonus_form == "power":
+            # Here, we assume that they've added 1 if they needed to.
+            assert isinstance(power, float), f"power must be a float, instead got {power} (type {type(power)})"
+            return mult * (counts ** power)
+        raise NotImplementedError(bonus_form)
 
     def get_counts(self, X, buffer_idx):
         """

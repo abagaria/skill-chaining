@@ -51,8 +51,14 @@ class DQNAgent(Agent):
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
                  lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity="",
                  phi_type="function", counting_epsilon=0.1, bonus_from_position=False, bonus_form="sqrt",
-                 prioritize_positive_terminal_transitions=False):
+                 prioritize_positive_terminal_transitions=False,
+                 # OPIQ params...
+                 use_opiq=False, action_selection_exponent=-2., c_action=1., c_bootstrap=1.,
+                 opiq_regression_exponent=-0.5, # This is applied on N(s,a) not N(s',a'). -0.5 in theory, but maybe not in practice.
+                 beta_regression=1.,
+                 ):
 
+        assert bonus_form in ("sqrt", "linear", "exp"), bonus_form # Because "power" is handled by use_opiq...
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -78,6 +84,15 @@ class DQNAgent(Agent):
         self.bonus_from_position = bonus_from_position
         self.bonus_form = bonus_form
         self.prioritize_positive_terminal_transitions = prioritize_positive_terminal_transitions
+
+        self.use_opiq = use_opiq
+        self.action_selection_exponent = action_selection_exponent
+
+        self.c_action = c_action
+        self.c_bootstrap = c_bootstrap
+        self.opiq_regression_exponent = opiq_regression_exponent
+        self.beta_regression = beta_regression
+
 
         # Q-Network
         if pixel_observation:
@@ -136,8 +151,7 @@ class DQNAgent(Agent):
                                                                num_frames=1,
                                                                device=device,
                                                                phi_type=phi_type,
-                                                               epsilon=counting_epsilon,
-                                                               bonus_form=bonus_form)
+                                                               epsilon=counting_epsilon)
 
         elif exploration_method == "oc-svm":
             self.visited_state_action_pairs = defaultdict(lambda : [])
@@ -186,7 +200,14 @@ class DQNAgent(Agent):
         if random.random() > epsilon:
             if use_novelty and self.exploration_method == "count-phi":
                 bonus_input = position if self.bonus_from_position else state.cpu().numpy().squeeze(0)
-                bonus = self.novelty_tracker.get_exploration_bonus(bonus_input)
+                if self.use_opiq:
+                    bonus = self.novelty_tracker.get_exploration_bonus(
+                        bonus_input, bonus_form="power", power=self.action_selection_exponent,
+                        add_one=True, mult=self.c_action)
+                else:
+                    bonus = self.novelty_tracker.get_exploration_bonus(bonus_input, bonus_form=self.bonus_form, mult=self.c_action)
+
+                # bonus = self.novelty_tracker.get_exploration_bonus(bonus_input)
                 assert bonus.shape == action_values.shape
                 return np.argmax(action_values + bonus)
             elif use_novelty and self.exploration_method == "count-gt":
@@ -307,7 +328,12 @@ class DQNAgent(Agent):
         if self.exploration_method == "count-phi" and self.novelty_during_regression:
             next_bonus_input = next_positions if self.bonus_from_position else next_states
             next_bonus_input = next_bonus_input.cpu().numpy()
-            bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_bonus_input)
+            if self.use_opiq:
+                bonus_array = self.novelty_tracker.get_batched_exploration_bonus(
+                    next_bonus_input, bonus_form="power", add_one=True, mult=self.c_bootstrap,
+                    power=self.action_selection_exponent)
+            else:
+                bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_bonus_input, bonus_form=self.bonus_form, mult=self.beta_regression)
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
@@ -375,13 +401,24 @@ class DQNAgent(Agent):
         else:
             Q_targets_next = self._get_q_targets(next_states, next_positions).max(1)[0].unsqueeze(1)
 
-
         # Options in SMDPs can take multiple steps to terminate, the Q-value needs to be discounted appropriately
         discount_factors = gamma ** steps
 
         # Compute Q targets for current states
         # Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
         Q_targets = rewards + (discount_factors * Q_targets_next * (1 - dones))
+
+        if self.use_opiq:
+            bonus_inputs = positions if self.bonus_from_position else states
+            novelty_bonus = self.novelty_tracker.get_batched_exploration_bonus(
+                bonus_inputs.cpu().numpy(), actions=actions.cpu().numpy(),
+                bonus_form="power", add_one=False, #no add one because we know we have one (s,a) in here.
+                power=self.opiq_regression_exponent, mult=self.beta_regression,                
+            )
+            novelty_bonus = torch.from_numpy(novelty_bonus).to(self.device).unsqueeze(1)
+            assert Q_targets.shape == novelty_bonus.shape
+            Q_targets += novelty_bonus
+
 
         # Get expected Q values from local model
         Q_expected = self.policy_network(states).gather(1, actions)
@@ -415,8 +452,7 @@ class DQNAgent(Agent):
                 bonus_inputs = positions if self.bonus_from_position else states
                 self.writer.add_scalar(
                     "DQN-AverageBonus",
-                    # self.novelty_tracker.get_batched_exploration_bonus(states.cpu().numpy()).mean().item(),
-                    self.novelty_tracker.get_batched_exploration_bonus(bonus_inputs.cpu().numpy()).mean().item(),
+                    self.novelty_tracker.get_batched_exploration_bonus(bonus_inputs.cpu().numpy(), bonus_form=self.bonus_form).mean().item(),
                     self.num_updates)
 
         # ------------------- update target network ------------------- #
