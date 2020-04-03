@@ -415,7 +415,7 @@ class DQNAgent(Agent):
                 bonus_form="power", add_one=False, #no add one because we know we have one (s,a) in here.
                 power=self.opiq_regression_exponent, mult=self.beta_regression,                
             )
-            novelty_bonus = torch.from_numpy(novelty_bonus).to(self.device).unsqueeze(1)
+            novelty_bonus = torch.from_numpy(novelty_bonus).float().to(self.device).unsqueeze(1)
             assert Q_targets.shape == novelty_bonus.shape
             Q_targets += novelty_bonus
 
