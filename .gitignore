@@ -2,10 +2,14 @@
 results/
 build/
 dist/
+initiation_set_plots/
+sc_opt_pes_test/
 todo.txt
 update.py
 *.egg-info
 *.idea
+.vscode
+tags
 .DS_Store
 to_update_instr.txt
 examples/blank_example.py
