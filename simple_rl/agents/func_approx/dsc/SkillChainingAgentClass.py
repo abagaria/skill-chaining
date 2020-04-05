@@ -475,6 +475,14 @@ class SkillChaining(object):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
 		return [self.mdp.goal_position, self.mdp.key_position]
 
+	def get_original_salient_events(self):
+		original_salient_events = self.mdp.get_original_target_events()
+		original_batched_salient_events = self.mdp.get_original_batched_target_events()
+		if self.start_state_salience:
+			original_salient_events.append(self.mdp.is_start_state)
+			original_batched_salient_events.append(self.mdp.batched_is_start_state)
+		return original_salient_events, original_batched_salient_events
+
 	def get_backward_chain_start_states(self, option1, option2):
 		"""
 		Given 2 forward options, return the target states associated with the corresponding
@@ -849,6 +857,46 @@ class SkillChaining(object):
 
 		return overall_reward, option_trajectories
 
+	def create_test_time_goal_option(self, train_goal_option):
+		pass
+
+	def should_planning_run_loop_terminate(self, state, goal_state):
+		"""
+		There are 3 possible cases:
+		1. When the goal_state is a salient event we already know how to get to:
+		   In this case, we only want to terminate when we reach the goal_state
+		2. When the goal_state is not a salient event we know how to get to, but is inside the initiation
+		   set of some option that we have already learned:
+		   In this case, we want to terminate when we reach the option that contains that goal_state, but
+		   not execute the option itself. Later, we will learn a new option that will drive us to that goal state.
+		3. When the goal_state is not a salient event we know about AND it is not inside the initiation set of
+		   any of the options that we have learned:
+		   In this case, we have to find the option whose initiation set is "closest" to the goal state.
+		   We can either use a pre-specified measure (eg euclidean distance) or use the space of option value functions
+		   to find the "closest" option.
+		Args:
+			state (State)
+			goal_state (State)
+
+		Returns:
+			should_terminate (bool)
+		"""
+
+		# TODO: Maybe get the salient events from self.chains?
+		# Case 1: goal_state satisfies one of the salient events we already know about
+		salient_events, batched_salient_events = self.get_original_salient_events()
+		satisfied_salients = [salient_event for salient_event in salient_events if salient_event(goal_state)]
+		if len(satisfied_salients) > 0:
+			return satisfied_salients[0](state)
+
+		chains_with_goal_state = [chain for chain in self.chains if chain.state_in_chain(goal_state)]
+		options_with_goal_state = [chain.get_option_for_state(goal_state) for chain in chains_with_goal_state]
+		if len(options_with_goal_state) > 0:  # TODO: How to pick an option from this list of feasible choices?
+			target_option = options_with_goal_state[0]
+			return target_option.is_init_true(state)
+
+		raise NotImplementedError("Not implemented case 3")
+
 	def planning_run_loop(self, plan_graph, goal_state, start_state=None):
 		"""
 		This is a test-time run loop that uses planning to select options when it can.
@@ -860,31 +908,34 @@ class SkillChaining(object):
 		Returns:
 			accumulated_reward (float)
 			executed_options (list)
+			reached_goal (bool)
 		"""
 
 		def _select_option(s, sg):
+			""" Given a start state `s` and a goal state `sg` pick an option to execute.
+				Use planning if possible, else revert to the trained policy over options. """
 			if plan_graph.does_path_exist(s, sg):
 				plan = plan_graph.get_path_to_execute(s, sg)
 				if len(plan) > 0:
-					filtered_plan = [o for o in plan if o.is_init_true(s) and not o.is_term_true(s)]
-					if len(filtered_plan) > 0:
-						return filtered_plan[0]
+					admissible_options = [o for o in plan if o.is_init_true(s) and not o.is_term_true(s)]
+					if len(admissible_options) > 0:
+						return admissible_options[0]
 			return self.act(s)
 
 		self.mdp.reset()
+
 		if start_state is not None:
 			start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
 			self.mdp.set_xy(start_position)
 
-		state = deepcopy(self.mdp.init_state)
+		state = deepcopy(self.mdp.cur_state)
 		overall_reward = 0.
 		num_steps = 0
 		option_trajectories = []
+		should_terminate_run_loop = False
+		goal_position = goal_state.position if isinstance(goal_state, State) else goal_state
 
-		goal_position = goal_state.position if isinstance(goal_state, State) else goal_state[:2]
-		is_terminal = lambda s: np.linalg.norm(s.position - goal_position) <= 0.6
-
-		while not is_terminal(state) and num_steps < self.max_steps:
+		while not should_terminate_run_loop and num_steps < self.max_steps:
 
 			selected_option = _select_option(state, goal_state)
 
@@ -895,6 +946,13 @@ class SkillChaining(object):
 			option_trajectories.append(option_state_trajectory)
 
 			state = next_state
+
+			should_terminate_run_loop = self.should_planning_run_loop_terminate(state, goal_state)
+			reached_goal_state = np.linalg.norm(state.position - goal_position) <= 0.6
+
+			if should_terminate_run_loop and not reached_goal_state:  # Case II
+				# Create new option
+				pass
 
 		return overall_reward, option_trajectories
 

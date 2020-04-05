@@ -55,12 +55,18 @@ class SkillChain(object):
     def __getitem__(self, item):
         return self.options[item]
 
-    def _state_in_chain(self, state):
+    def state_in_chain(self, state):
         """ Is state inside the initiation set of any of the options in the chain. """
         for option in self.options:  # type: Option
             if option.initiation_classifier is not None and option.is_init_true(state):
                 return True
         return False
+
+    def get_option_for_state(self, state):
+        for option in self.options:  # type: Option
+            if option.initiation_classifier is not None and option.is_init_true(state):
+                return option
+        return None
 
     def should_continue_chaining(self, chains):
         """
@@ -76,7 +82,7 @@ class SkillChain(object):
                                   not inside any of the options in the current chain
         """
         # Continue if not all the start states have been covered by the options in the current chain
-        start_state_in_chain = all([self._state_in_chain(s) for s in self.start_states])
+        start_state_in_chain = all([self.state_in_chain(s) for s in self.start_states])
 
         if self.is_backward_chain or not self.chain_until_intersection:
             return not start_state_in_chain
@@ -89,7 +95,7 @@ class SkillChain(object):
         mdp_chained = False
         for chain in chains:  # type: SkillChain
             if chain.chain_id != self.chain_id:
-                mdp_start_states_in_chain = all([chain._state_in_chain(s) for s in self.mdp_start_states])
+                mdp_start_states_in_chain = all([chain.state_in_chain(s) for s in self.mdp_start_states])
                 if mdp_start_states_in_chain:
                     mdp_chained = True
 
@@ -150,5 +156,5 @@ class SkillChain(object):
         return self.target_predicate(state)
 
     def chained_till_start_state(self):
-        start_state_in_chain = all([self._state_in_chain(s) for s in self.start_states])
+        start_state_in_chain = all([self.state_in_chain(s) for s in self.start_states])
         return start_state_in_chain

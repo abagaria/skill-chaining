@@ -114,7 +114,8 @@ class GraphSearch(object):
     def get_path_to_execute(self, start_state, goal_state):
         paths = self.get_shortest_paths(start_state, goal_state)
 
-        # TODO: Handle case where paths is empty
+        if not paths:
+            return paths
 
         # TODO: Hack - currently just picking the plan with the largest length
         # TODO: We need to come up with a method of picking the current plan in general
@@ -122,6 +123,13 @@ class GraphSearch(object):
 
         return paths_sorted_by_length[-1]
 
+    def get_goal_option(self, start_state, goal_state):
+        path_to_execute = self.get_path_to_execute(start_state, goal_state)
+
+        if len(path_to_execute) > 0:
+            return path_to_execute[-1]
+
+        return None
 
 
 if __name__ == "__main__":
