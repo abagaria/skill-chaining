@@ -8,6 +8,7 @@ from scipy.spatial import distance
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
 from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class PointReacherMDP(MDP):
@@ -34,20 +35,17 @@ class PointReacherMDP(MDP):
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.reset()
 
-        self.salient_positions = [np.array((-9, 9)), np.array((9, 9)),
-                                  np.array((9, -9)), np.array((-9, -9))]
+        self.salient_positions = [np.array((-9, 9)), np.array((9, 9))]
+                                  # np.array((9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
-        self.current_target_events = [self.is_in_salient_position_1, self.is_in_salient_position_2,
-                                      self.is_in_salient_position_3, self.is_in_salient_position_4]
-        self.current_batched_target_events = [self.batched_is_in_goal_position_1, self.batched_is_in_goal_position_2,
-                                              self.batched_is_in_goal_position_3, self.batched_is_in_goal_position_4]
+        self.current_salient_events = [SalientEvent(pos) for pos in self.salient_positions]
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_target_events = [self.is_in_salient_position_1, self.is_in_salient_position_2,
-                                       self.is_in_salient_position_3, self.is_in_salient_position_4]
-        self.original_batched_target_events = [self.batched_is_in_goal_position_1, self.batched_is_in_goal_position_2,
-                                              self.batched_is_in_goal_position_3, self.batched_is_in_goal_position_4]
+        self.original_salient_events = [SalientEvent(pos) for pos in self.salient_positions]
+
+        # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
+        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position)
 
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
 
@@ -79,58 +77,12 @@ class PointReacherMDP(MDP):
         reward, next_state = super(PointReacherMDP, self).execute_agent_action(action)
         return reward, next_state
 
-    def is_in_salient_position_1(self, state):
-        position = self._get_position(state)
-        goal_pos = self.salient_positions[0]
-        return np.linalg.norm(position - goal_pos) <= 0.6
-
-    def is_in_salient_position_2(self, state):
-        position = self._get_position(state)
-        goal_pos = self.salient_positions[1]
-        return np.linalg.norm(position - goal_pos) <= 0.6
-
-    def is_in_salient_position_3(self, state):
-        position = self._get_position(state)
-        goal_pos = self.salient_positions[2]
-        return np.linalg.norm(position - goal_pos) <= 0.6
-
-    def is_in_salient_position_4(self, state):
-        position = self._get_position(state)
-        goal_pos = self.salient_positions[3]
-        return np.linalg.norm(position - goal_pos) <= 0.6
-
-    def batched_is_in_goal_position_1(self, position_matrix):
-        goal_pos = self.salient_positions[0]
-        in_goal_pos = distance.cdist(position_matrix, goal_pos[None, :]) <= 0.6
-        return in_goal_pos.squeeze(1)
-
-    def batched_is_in_goal_position_2(self, position_matrix):
-        goal_pos = self.salient_positions[1]
-        in_goal_pos = distance.cdist(position_matrix, goal_pos[None, :]) <= 0.6
-        return in_goal_pos.squeeze(1)
-
-    def batched_is_in_goal_position_3(self, position_matrix):
-        goal_pos = self.salient_positions[1]
-        in_goal_pos = distance.cdist(position_matrix, goal_pos[None, :]) <= 0.6
-        return in_goal_pos.squeeze(1)
-
-    def batched_is_in_goal_position_4(self, position_matrix):
-        goal_pos = self.salient_positions[3]
-        in_goal_pos = distance.cdist(position_matrix, goal_pos[None, :]) <= 0.6
-        return in_goal_pos.squeeze(1)
-
     def get_current_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """
-        return self.current_target_events
-
-    def get_current_batched_target_events(self):
-        return self.current_batched_target_events
+        return self.current_salient_events
 
     def get_original_target_events(self):
-        return self.original_target_events
-
-    def get_original_batched_target_events(self):
-        return self.original_batched_target_events
+        return self.original_salient_events
 
     def is_goal_state(self, state):
         # return any([predicate(state) for predicate in self.get_current_target_events()])
@@ -146,6 +98,9 @@ class PointReacherMDP(MDP):
         in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= 0.6
         return in_start_pos.squeeze(1)
 
+    def get_start_state_salient_event(self):
+        return self.start_state_salient_event
+
     def satisfy_target_event(self, option):
         """
         Once a salient event has both forward and backward options related to it,
@@ -160,11 +115,11 @@ class PointReacherMDP(MDP):
 
         """
         if option.backward_option:
-            for salient_position, salient_event in zip(self.salient_positions, self.current_target_events):
-                satisfied_salience = option.is_init_true(salient_position)
+            for salient_event in self.current_salient_events:
+                satisfied_salience = option.is_init_true(salient_event.target_state)
 
-                if satisfied_salience and (salient_event in self.current_target_events):
-                    self.current_target_events.remove(salient_event)
+                if satisfied_salience and (salient_event in self.current_salient_events):
+                    self.current_salient_events.remove(salient_event)
 
     @staticmethod
     def _get_position(state):

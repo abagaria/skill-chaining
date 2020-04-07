@@ -25,6 +25,7 @@ from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class SkillChaining(object):
@@ -102,7 +103,7 @@ class SkillChaining(object):
 		# Once we pick this option, we will use its internal DDPG solver to take primitive actions until termination
 		# Once we hit its termination condition N times, we will start learning its initiation set
 		# Once we have learned its initiation set, we will create its child option
-		for i, (target_predicate, batched_target_predicate) in enumerate(zip(mdp.get_original_target_events(), mdp.get_original_batched_target_events())):
+		for i, salient_event in enumerate(self.mdp.get_original_target_events()):
 			goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{i + 1}', global_solver=self.global_option.solver,
 								 lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 								 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
@@ -110,8 +111,7 @@ class SkillChaining(object):
 								 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 								 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 								 dense_reward=self.dense_reward, chain_id=i+1, max_num_children=1,
-								 target_predicate=target_predicate, batched_target_predicate=batched_target_predicate,
-								 option_idx=i+1)
+								 target_salient_event=salient_event, option_idx=i+1)
 			self.untrained_options.append(goal_option)
 
 		# This is our policy over options
@@ -128,14 +128,8 @@ class SkillChaining(object):
 		self.s0 = s0
 		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
 		 			   			  intersecting_options=[], mdp_start_states=s0, is_backward_chain=False,
-								  target_predicate=target_pred, target_position=target_pos, batched_target_predicate=batched_target_pred)
-					   for i, (target_pred, target_pos, batched_target_pred) in
-					   enumerate(zip(self.mdp.get_original_target_events(),
-									 self.mdp.salient_positions,
-									 self.mdp.get_original_batched_target_events()
-									 )
-								 )
-					   ]
+								  target_salient_event=salient_event)
+					   for i, salient_event in enumerate(self.mdp.get_original_target_events())]
 
 		# List of init states seen while running this algorithm
 		self.init_states = []
@@ -246,11 +240,14 @@ class SkillChaining(object):
 		name = prefix + "_{}".format(len(parent_option.children))
 		print("Creating {} with parent {}".format(name, parent_option.name))
 
+		# Options in the backward chain have a pre-set init_salient_event defined for them.
+		# This is generally the target event of the corresponding forward skill chain. Options
+		# in the current backward chain have their init_salient_event parameter set, which
+		# is only used during the gestation period of options
 		is_backward_option = self.chains[parent_option.chain_id - 1].is_backward_chain
-		gestation_init_predicate, batched_gestation_init_predicate = None, None
+		gestation_init_salient_event = None
 		if is_backward_option:
-			gestation_init_predicate = parent_option.init_predicate
-			batched_gestation_init_predicate = parent_option.batched_init_predicate
+			gestation_init_salient_event = parent_option.init_salient_event  # type: SalientEvent
 
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
@@ -267,8 +264,7 @@ class SkillChaining(object):
 									  initialize_everywhere=parent_option.initialize_everywhere,
 									  max_num_children=parent_option.max_num_children,
 									  is_backward_option=is_backward_option,
-									  init_predicate=gestation_init_predicate,
-									  batched_init_predicate=batched_gestation_init_predicate)
+									  init_salient_event=gestation_init_salient_event)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -554,7 +550,7 @@ class SkillChaining(object):
 			# 2. The target_predicate for the backward chain is set inside the SkillChain class - it is the region of
 			#    intersection between the two intersecting chains
 			new_chain_start_states = self.get_backward_chain_start_states(option1, option2)
-			new_chain = SkillChain(start_states=new_chain_start_states, target_predicate=None, chain_id=len(self.chains)+1,
+			new_chain = SkillChain(start_states=new_chain_start_states, target_salient_event=None, chain_id=len(self.chains)+1,
 								   options=[], intersecting_options=[option1, option2],
 								   mdp_start_states=self.s0, is_backward_chain=True)
 			self.chains.append(new_chain)
@@ -597,18 +593,15 @@ class SkillChaining(object):
 			# 1. The new skill chain will chain back until it covers `start_states`
 			# 2. The options in this new backward chain will use `start_predicate` as the
 			#	 default initiation set during gestation
-			start_states = [chain.target_position]
-			gestation_init_predicate = chain.target_predicate
-			gestation_batched_init_predicate = chain.batched_target_predicate
+			start_states = [chain.target_salient_event.target_state]
+			init_salient_event = chain.target_salient_event
 
 			# These target predicates are used to determine the goal of the new skill chain
-			target_state = chain.start_states[0]
-			target_predicate = self.mdp.is_start_state
-			batched_target_predicate = self.mdp.batched_is_start_state
+			target_salient_event = self.mdp.get_start_state_salient_event()
 
 			new_chain = SkillChain(start_states=start_states, mdp_start_states=self.s0,
-								   target_predicate=target_predicate, batched_target_predicate=batched_target_predicate,
-								   options=[], chain_id=len(self.chains)+1, target_position=target_state,
+								   target_salient_event=target_salient_event,
+								   options=[], chain_id=len(self.chains)+1,
 								   intersecting_options=[], is_backward_chain=True)
 			self.chains.append(new_chain)
 
@@ -628,10 +621,8 @@ class SkillChaining(object):
 								initialize_everywhere=True, max_num_children=1,
 								writer=self.writer, device=self.device, dense_reward=self.dense_reward,
 								is_backward_option=True,
-								init_predicate=gestation_init_predicate,
-								batched_init_predicate=gestation_batched_init_predicate,
-								target_predicate=target_predicate,
-								batched_target_predicate=batched_target_predicate)
+								init_salient_event=init_salient_event,
+								target_salient_event=target_salient_event)
 
 			self._augment_agent_with_new_option(new_option, 0.)
 			new_option.initialize_with_global_ddpg()
@@ -729,8 +720,8 @@ class SkillChaining(object):
 					if untrained_option.get_training_phase() == "initiation_done" and untrained_option.backward_option:
 						self.mdp.satisfy_target_event(untrained_option)
 
-					if untrained_option.get_training_phase() == "initiation_done" and not untrained_option.backward_option \
-							and self.start_state_salience:
+					if untrained_option.get_training_phase() == "initiation_done" and \
+							not untrained_option.backward_option and self.start_state_salience:
 						self.manage_skill_chain_to_start_state(untrained_option)
 
 				if not self.start_state_salience:

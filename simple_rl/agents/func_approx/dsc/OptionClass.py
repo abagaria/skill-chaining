@@ -14,6 +14,8 @@ from scipy.spatial import distance
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+
 
 class Option(object):
 
@@ -21,7 +23,7 @@ class Option(object):
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, intersecting_options=[], max_num_children=3,
-				 init_predicate=None, batched_init_predicate=None, target_predicate=None, batched_target_predicate=None,
+				 init_salient_event=None, target_salient_event=None,
 				 gestation_init_predicates=[], is_backward_option=False, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -41,10 +43,8 @@ class Option(object):
 			timeout (int)
 			chain_id (int)
 			initialize_everywhere (bool)
-			init_predicate (f: s -> bool)
-			batched_init_predicate (f: s -> bool)
-			target_predicate (function): f: s -> bool
-			batched_target_predicate (function): f: s -> bool
+			init_salient_event (SalientEvent)
+			target_salient_event (SalientEvent)
 			gestation_init_predicates (list)
 			is_backward_option (bool)
 			generate_plots (bool)
@@ -64,10 +64,8 @@ class Option(object):
 		self.generate_plots = generate_plots
 		self.writer = writer
 		self.initialize_everywhere = initialize_everywhere
-		self.init_predicate = init_predicate
-		self.batched_init_predicate = batched_init_predicate
-		self.target_predicate = target_predicate
-		self.batched_target_predicate = batched_target_predicate
+		self.init_salient_event = init_salient_event
+		self.target_salient_event = target_salient_event
 		self.gestation_init_predicates = gestation_init_predicates
 
 		self.timeout = np.inf
@@ -211,12 +209,12 @@ class Option(object):
 
 				# When we treat the start state as a salient event, we pass in the
 				# init predicate that we are going to use during gestation
-				if self.batched_init_predicate is not None:
-					return self.batched_init_predicate(state_matrix)
+				if self.init_salient_event is not None:
+					return self.init_salient_event(state_matrix)
 
 				# When we create intersection salient events, then we treat the union of all salient
 				# events as the joint initiation set of the backward options
-				salients = [event(state_matrix) for event in self.overall_mdp.get_current_batched_target_events()]
+				salients = [event(state_matrix) for event in self.overall_mdp.get_current_salient_events()]
 
 				if len(salients) > 1:
 					gestation_inits = np.logical_or.reduce(tuple(salients))
@@ -238,16 +236,16 @@ class Option(object):
 		# Extract the relevant dimensions from the state matrix (x, y)
 		state_matrix = state_matrix[:, :2]
 
-		if self.batched_target_predicate is not None:
-			return self.batched_target_predicate(state_matrix)
+		if self.target_salient_event is not None:
+			return self.target_salient_event(state_matrix)
 
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option" or self.name == "exploration_option":
 			return np.zeros((state_matrix.shape[0]))
 		elif self.name == "goal_option_1":
-			return self.overall_mdp.get_original_batched_target_events()[0](state_matrix)
+			return self.overall_mdp.get_original_salient_events()[0](state_matrix)
 		elif self.name == "goal_option_2":
-			return self.overall_mdp.get_original_batched_target_events()[1](state_matrix)
+			return self.overall_mdp.get_original_salient_events()[1](state_matrix)
 		else:
 			assert len(self.intersecting_options) > 0
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
@@ -264,11 +262,13 @@ class Option(object):
 			if self.backward_option:
 
 				# Backward chain is just the reverse of the start and target regions
-				if self.init_predicate is not None:
-					return self.init_predicate(ground_state)
+				# During gestation, we use the old target salient events as initiation sets for
+				# options in the backward chain
+				if self.init_salient_event is not None:
+					return self.init_salient_event(ground_state)
 
 				# Intersection salient event
-				salients = [event(ground_state) for event in self.overall_mdp.get_current_target_events()]
+				salients = [event(ground_state) for event in self.overall_mdp.get_current_salient_events()]
 				return any(salients)
 			return True
 
@@ -279,8 +279,8 @@ class Option(object):
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
 
-		if self.target_predicate is not None:
-			return self.target_predicate(ground_state)
+		if self.target_salient_event is not None:
+			return self.target_salient_event(ground_state)
 
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
@@ -323,7 +323,7 @@ class Option(object):
 		assert len(self.gestation_init_predicates) > 0, self.gestation_init_predicates
 
 		my_original_init_predicates = self.gestation_init_predicates
-		overall_current_init_predicates = self.overall_mdp.get_current_target_events()
+		overall_current_init_predicates = self.overall_mdp.get_current_salient_events()
 		my_current_init_predicates = [pred for pred in my_original_init_predicates if pred in overall_current_init_predicates]
 		return my_current_init_predicates
 
