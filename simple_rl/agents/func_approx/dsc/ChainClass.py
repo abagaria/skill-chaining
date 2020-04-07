@@ -78,7 +78,6 @@ class SkillChain(object):
         mdp_chained = False
         for chain in chains:  # type: SkillChain
             if chain.chain_id != self.chain_id:
-                pdb.set_trace()
                 mdp_start_states_in_chain = all([chain._state_in_chain(s) for s in self.mdp_start_states])
                 if mdp_start_states_in_chain:
                     mdp_chained = True
