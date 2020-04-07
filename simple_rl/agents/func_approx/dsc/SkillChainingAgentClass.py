@@ -126,7 +126,7 @@ class SkillChaining(object):
 		# s0 = self.mdp.env._init_positions
 		# TODO: Figure out what s0 is supposed to be,
 		# 		and fix this because what we're doing right now is wrong
-		s0 = self.mdp.init_state.endeff_pos + self.mdp.init_state.puck_pos
+		s0 = self.mdp.init_state.endeff_pos[0] + self.mdp.init_state.puck_pos[0]
 		self.s0 = s0
 		self.chains = [SkillChain(start_states=s0, target_predicate=target, options=[], chain_id=(i+1),
 		 intersecting_options=[], mdp_start_states=s0) for i, target in enumerate(self.mdp.get_original_target_events())]
