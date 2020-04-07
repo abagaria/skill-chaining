@@ -263,6 +263,7 @@ class Option(object):
 
 		# TODO: Kshitij deleted
 		# features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
+		pdb.set_trace()
 		features = ground_state.features() if isinstance(ground_state, State) else ground_state[:5]
 		try:
 			return self.initiation_classifier.predict([features])[0] == 1
