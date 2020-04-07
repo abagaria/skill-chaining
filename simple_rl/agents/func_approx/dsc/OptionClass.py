@@ -264,12 +264,9 @@ class Option(object):
 		# TODO: Kshitij deleted
 		# features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 
-		try:
-			print('using svm for predicting if in initiation set.')
-			features = ground_state.features() if isinstance(ground_state, State) else ground_state[:5]
-			return self.initiation_classifier.predict([features])[0] == 1
-		except:
-			pdb.set_trace()
+		print('using svm for predicting if in initiation set.')
+		features = ground_state.features() if isinstance(ground_state, State) else ground_state[:5]
+		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:

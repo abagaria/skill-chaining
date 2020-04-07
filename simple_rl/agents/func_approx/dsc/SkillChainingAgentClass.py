@@ -785,12 +785,16 @@ if __name__ == '__main__':
 
 	q0 = 0. if args.init_q == "zero" else None
 
-	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
+
+	try:
+		chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
 							seed=args.seed, subgoal_reward=args.subgoal_reward,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
-	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+		episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+	except:
+		pdb.set_trace()
 
 	# Log performance metrics
 	# chainer.save_all_models()
