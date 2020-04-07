@@ -10,8 +10,8 @@ class SkillChain(object):
         where each chain is identified by a unique target salient event. Chain here
         may also refer to Skill Trees.
         Args:
-            start_states (list): List of states at which chaining stops
-            mdp_start_states (list): list of MDP start states, if distinct from `start_states`
+            start_states (ndarray): List of states at which chaining stops
+            mdp_start_states (ndarray): list of MDP start states, if distinct from `start_states`
             target_predicate (function): f: s -> {0, 1} based on salience  # TODO: Also accept an optional start_predicate
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
