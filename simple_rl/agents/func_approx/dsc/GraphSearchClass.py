@@ -1,15 +1,19 @@
+import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class GraphSearch(object):
-    def __init__(self, pre_compute_shortest_paths=True):
+    def __init__(self, pre_compute_shortest_paths=False):
         self.plan_graph = nx.DiGraph()
         self.pre_compute_shortest_paths = pre_compute_shortest_paths
         self.shortest_paths = {}
+        self.option_nodes = []
+        self.salient_nodes = []
 
     def add_node(self, option):
         self.plan_graph.add_node(option)
@@ -28,8 +32,24 @@ class GraphSearch(object):
                 return o.num_successful_test_executions / o.num_test_executions
             return 1.
 
+        # Add the init salient event as a node to the plan-graph
+        if skill_chain.init_salient_event not in list(self.plan_graph.nodes):
+            self.add_node(skill_chain.init_salient_event)
+
+        # Add connections between the init salient event and all the leaf nodes in the current chain
+        for leaf_node in skill_chain.get_leaf_nodes_from_skill_chain():
+            self.add_edge(skill_chain.init_salient_event, leaf_node, edge_weight=0.)
+
         for option in skill_chain.options:  # type: Option
             self.add_node(option)
+
+        # Add the target salient event as a node to the plan-graph
+        if skill_chain.target_salient_event not in list(self.plan_graph.nodes):
+            self.add_node(skill_chain.target_salient_event)
+
+        # Add connections between all the root nodes of the current chain and the target salient event
+        for root_node in skill_chain.get_root_nodes_from_skill_chain():
+            self.add_edge(root_node, skill_chain.target_salient_event, edge_weight=0.)
 
         for option in skill_chain.options:  # type: Option
             if option.children:
@@ -44,6 +64,10 @@ class GraphSearch(object):
 
         if self.pre_compute_shortest_paths:
             self.shortest_paths = shortest_paths.shortest_path(self.plan_graph)
+            
+        # Keep track of the options and the salient events separately in the graph
+        self.option_nodes = [node for node in self.plan_graph.nodes if isinstance(node, Option)]
+        self.salient_nodes = [node for node in self.plan_graph.nodes if isinstance(node, SalientEvent)]
 
     def visualize_plan_graph(self, file_name=None):
         pos = nx.planar_layout(self.plan_graph)
@@ -58,70 +82,71 @@ class GraphSearch(object):
 
         plt.savefig(file_name) if file_name is not None else plt.show()
 
-    def does_path_exist(self, start_state, goal_state, use_init_predicate=False):
-        def _does_path_exist(option1, option2):
-            return shortest_paths.has_path(self.plan_graph, option1, option2)
+    def does_path_exist(self, start_state, goal_state):
+        def _does_path_exist(node1, node2):
+            return shortest_paths.has_path(self.plan_graph, node1, node2)
 
-        if use_init_predicate:
-            start_options = [option for option in self.plan_graph.nodes if option.init_predicate(start_state)]
-            goal_options = [option for option in self.plan_graph.nodes if option.init_predicate(goal_state)]
-        else:
-            start_options = [option for option in self.plan_graph.nodes if option.is_init_true(start_state)]
-            goal_options = [option for option in self.plan_graph.nodes if option.is_term_true(goal_state)]
+        start_options, goal_options = self._get_start_nodes_and_goal_nodes(start_state, goal_state)
 
-        for start_option in start_options:  # type: Option
-            for goal_option in goal_options:  # type: Option
+        for start_option in start_options:  # type: Option or SalientEvent
+            for goal_option in goal_options:  # type: Option or SalientEvent
                 if _does_path_exist(start_option, goal_option):
                     return True
         return False
 
-    def get_shortest_paths(self, start_state, goal_state, use_init_predicate=False):
+    def get_shortest_paths(self, start_state, goal_state):
         """
         Return all the shortest paths that go from options that cover the start state
         and options that cover the goal state.
         Args:
             start_state (State): state where plan must start
             goal_state (State): state where plan must end
-            use_init_predicate (bool): Mainly set for testing, used if option doesn't have an is_init_true
 
         Returns:
             paths (list): Shortest paths (in terms of graph with options as nodes) that get you from
                           `start_state` to `goal_state`.
+            path_lengths (list): the cost associated with each of the paths in `paths`
         """
 
         def _get_shortest_path(option1, option2):
             if self.pre_compute_shortest_paths:
-                return self.shortest_paths[option1][option2]
-            return shortest_paths.shortest_path(self.plan_graph, option1, option2)
+                return self.shortest_paths[option1][option2], nx.dijkstra_path_length(self.plan_graph, option1, option2)
+            return nx.dijkstra_path(self.plan_graph, option1, option2), nx.dijkstra_path_length(self.plan_graph, option1, option2)
 
         paths = []
+        path_lengths = []
 
-        if use_init_predicate:
-            start_options = [option for option in self.plan_graph.nodes if option.init_predicate(start_state)]
-            goal_options = [option for option in self.plan_graph.nodes if option.init_predicate(goal_state)]
-        else:
-            start_options = [option for option in self.plan_graph.nodes if option.is_init_true(start_state)]
-            goal_options = [option for option in self.plan_graph.nodes if option.is_term_true(goal_state)]
+        start_options, goal_options = self._get_start_nodes_and_goal_nodes(start_state, goal_state)
 
         # Get the shortest paths between all pairs of start and goal options
-        for start_option in start_options:  # type: Option
-            for goal_option in goal_options:  # type: Option
+        for start_option in start_options:  # type: Option or SalientEvent
+            for goal_option in goal_options:  # type: Option or SalientEvent
                 if shortest_paths.has_path(self.plan_graph, start_option, goal_option):
-                        paths.append(_get_shortest_path(start_option, goal_option))
+                    path, path_length = _get_shortest_path(start_option, goal_option)
 
-        return paths
+                    paths.append(path)
+                    path_lengths.append(path_length)
+
+        return paths, path_lengths
 
     def get_path_to_execute(self, start_state, goal_state):
-        paths = self.get_shortest_paths(start_state, goal_state)
+        paths, path_costs = self.get_shortest_paths(start_state, goal_state)
 
         if not paths:
             return paths
 
-        # TODO: Hack - currently just picking the plan with the largest length
-        # TODO: We need to come up with a method of picking the current plan in general
-        paths_sorted_by_length = sorted(paths, key=lambda x: len(x))
+        # Sort all the paths in ascending order of path-costs
+        min_cost = min(path_costs)
+        paths_with_min_costs = [path for (path, path_cost) in zip(paths, path_costs) if path_cost == min_cost]
 
-        return paths_sorted_by_length[-1]
+        # If there are multiple paths with the same cost, choose the one that has the fewest number of options
+        paths_sorted_by_length = sorted(paths_with_min_costs, key=lambda x: len(x))
+        path_to_execute = paths_sorted_by_length[0]
+
+        # Filter out all the salient events from the path so that it is actually executable
+        option_sequence_to_execute = list(filter(lambda node: isinstance(node, Option), path_to_execute))
+
+        return option_sequence_to_execute
 
     def get_goal_option(self, start_state, goal_state):
         path_to_execute = self.get_path_to_execute(start_state, goal_state)
@@ -131,39 +156,34 @@ class GraphSearch(object):
 
         return None
 
+    def _get_start_nodes_and_goal_nodes(self, start_state, goal_state):
+        start_salient_event = self._get_salient_node_for_state(start_state)
+        goal_salient_event = self._get_salient_node_for_state(goal_state)
 
-if __name__ == "__main__":
-    from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
-    import numpy as np
+        # Four possible cases:
+        # Case 1: Both states are in some known salient event
+        # Case 2: Only start state is in some known salient event
+        # Case 3: Only goal state is in some known salient event
+        # Case 4: Neither start nor goal states are in known salient events
+        if start_salient_event is not None and goal_salient_event is not None:
+            return [start_salient_event], [goal_salient_event]
+        elif start_salient_event is not None and goal_salient_event is None:
+            goal_options = [option for option in self.option_nodes if option.is_term_true(goal_state)]
+            return [start_salient_event], goal_options
+        elif start_salient_event is None and goal_salient_event is not None:
+            start_options = [option for option in self.option_nodes if option.is_init_true(start_state)]
+            return start_options, [goal_salient_event]
+        else:
+            assert start_salient_event is None and goal_salient_event is None
+            start_options = [option for option in self.option_nodes if option.is_init_true(start_state)]
+            goal_options = [option for option in self.option_nodes if option.is_term_true(goal_state)]
+            return start_options, goal_options
 
-    mdp = PointReacherMDP(0, render=False)
-    o1 = Option(mdp, "o1", None, 0., 0., 0.)
-    o2 = Option(mdp, "o2", None, 0., 0., 0.)
-    o3 = Option(mdp, "o3", None, 0., 0., 0.)
-    o4 = Option(mdp, "o4", None, 0., 0., 0.)
-    o1.children = [o2, o3]
-    o2.children = [o3]
-    c1 = SkillChain([], [], None, [o1, o2, o3], 1)
-    g = GraphSearch()
-    g.add_skill_chain(c1)
-    g.add_node(o4)
-    g.visualize_plan_graph()
-    plt.show()
+    def _get_salient_node_for_state(self, state):
+        for salient_node in self.salient_nodes:  # type: SalientEvent
+            if salient_node(state):
+                return salient_node
+        return None
 
-    s0 = np.array((0., 0.))
-    sg = np.array((10., 10.))
-    sm = np.array((5., 5.))
-    sn = np.array((7., 7.))
-
-    o1.init_predicate = lambda s: np.linalg.norm(s - s0) <= 0.1
-    o2.init_predicate = lambda s: np.linalg.norm(s - sm) <= 0.1
-    o3.init_predicate = lambda s: np.linalg.norm(s - sg) <= 0.1
-    o4.init_predicate = lambda s: np.linalg.norm(s - sn) <= 0.1
-
-    f1 = g.does_path_exist(s0, sg, use_init_predicate=True)  # True: o1 -> o2 -> o3, o1 -> o3
-    f2 = g.does_path_exist(s0, sm, use_init_predicate=True)  # True: o1 -> o2
-    f3 = g.does_path_exist(s0, sn, use_init_predicate=True)  # False
-
-    p1 = g.get_shortest_paths(s0, sg, use_init_predicate=True)  # o1 -> o3
-    p2 = g.get_shortest_paths(s0, sm, use_init_predicate=True)  # o1 -> o2
-    p3 = g.get_shortest_paths(s0, sn, use_init_predicate=True)  # []
+    def _get_options_node_for_state(self, state):
+        return [option for option in self.option_nodes if option.is_init_true(state)]

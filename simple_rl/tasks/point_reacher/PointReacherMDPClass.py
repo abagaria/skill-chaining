@@ -39,13 +39,13 @@ class PointReacherMDP(MDP):
                                   # np.array((9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
-        self.current_salient_events = [SalientEvent(pos) for pos in self.salient_positions]
+        self.current_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_salient_events = [SalientEvent(pos) for pos in self.salient_positions]
+        self.original_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position)
+        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
 
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
 

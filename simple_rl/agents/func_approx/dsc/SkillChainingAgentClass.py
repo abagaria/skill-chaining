@@ -473,11 +473,9 @@ class SkillChaining(object):
 
 	def get_original_salient_events(self):
 		original_salient_events = self.mdp.get_original_target_events()
-		original_batched_salient_events = self.mdp.get_original_batched_target_events()
 		if self.start_state_salience:
 			original_salient_events.append(self.mdp.is_start_state)
-			original_batched_salient_events.append(self.mdp.batched_is_start_state)
-		return original_salient_events, original_batched_salient_events
+		return original_salient_events
 
 	def get_backward_chain_start_states(self, option1, option2):
 		"""
@@ -875,7 +873,7 @@ class SkillChaining(object):
 
 		# TODO: Maybe get the salient events from self.chains?
 		# Case 1: goal_state satisfies one of the salient events we already know about
-		salient_events, batched_salient_events = self.get_original_salient_events()
+		salient_events = self.get_original_salient_events()
 		satisfied_salients = [salient_event for salient_event in salient_events if salient_event(goal_state)]
 		if len(satisfied_salients) > 0:
 			return satisfied_salients[0](state)

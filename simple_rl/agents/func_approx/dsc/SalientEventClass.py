@@ -5,8 +5,9 @@ import ipdb
 
 
 class SalientEvent(object):
-    def __init__(self, target_state, tolerance=0.6):
+    def __init__(self, target_state, event_idx, tolerance=0.6):
         self.target_state = target_state
+        self.event_idx = event_idx
         self.tolerance = tolerance
 
     def __call__(self, states):
@@ -26,10 +27,12 @@ class SalientEvent(object):
         return self.batched_is_init_true(states)
 
     def __eq__(self, other):
-        return self.target_state == other.target_state and self.tolerance == other.tolerance
+        if not isinstance(other, SalientEvent):
+            return False
+        return (self.target_state == other.target_state).all() and self.tolerance == other.tolerance
 
     def __hash__(self):
-        return tuple(self.target_state)
+        return self.event_idx
 
     def is_init_true(self, state):
         position = self._get_position(state)

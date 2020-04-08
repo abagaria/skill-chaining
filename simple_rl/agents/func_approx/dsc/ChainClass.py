@@ -1,10 +1,11 @@
 import pdb
 import numpy as np
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class SkillChain(object):
-    def __init__(self, start_states, mdp_start_states, target_salient_event, options, chain_id,
+    def __init__(self, start_states, mdp_start_states, init_salient_event, target_salient_event, options, chain_id,
                  intersecting_options=[], is_backward_chain=False, has_backward_chain=False, chain_until_intersection=False):
         """
         Data structure that keeps track of all options in a particular chain,
@@ -13,7 +14,8 @@ class SkillChain(object):
         Args:
             start_states (list): List of states at which chaining stops
             mdp_start_states (list): list of MDP start states, if distinct from `start_states`
-            target_salient_event (SalientEvent): f: s -> {0, 1} based on salience  # TODO: Also accept an optional start_predicate
+            init_salient_event (SalientEvent): f: s -> {0, 1} based on start salience
+            target_salient_event (SalientEvent): f: s -> {0, 1} based on target salience
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
             intersecting_options (list): List of options whose initiation sets overlap
@@ -24,6 +26,7 @@ class SkillChain(object):
         self.options = options
         self.start_states = start_states
         self.mdp_start_states = mdp_start_states
+        self.init_salient_event = init_salient_event  # TODO: USE THIS IN PLACE OF START STATES
         self.target_salient_event = target_salient_event
         self.target_position = target_salient_event.target_state
         self.chain_id = chain_id
@@ -157,3 +160,9 @@ class SkillChain(object):
     def chained_till_start_state(self):
         start_state_in_chain = all([self.state_in_chain(s) for s in self.start_states])
         return start_state_in_chain
+
+    def get_leaf_nodes_from_skill_chain(self):
+        return [option for option in self.options if len(option.children) == 0]
+
+    def get_root_nodes_from_skill_chain(self):
+        return [option for option in self.options if option.parent is None]
