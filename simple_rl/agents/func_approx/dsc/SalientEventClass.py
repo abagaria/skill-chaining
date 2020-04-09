@@ -29,7 +29,9 @@ class SalientEvent(object):
     def __eq__(self, other):
         if not isinstance(other, SalientEvent):
             return False
-        return (self.target_state == other.target_state).all() and self.tolerance == other.tolerance
+        return (self.target_state == other.target_state).all() and \
+               self.tolerance == other.tolerance and \
+               self.event_idx == other.event_idx
 
     def __hash__(self):
         return self.event_idx

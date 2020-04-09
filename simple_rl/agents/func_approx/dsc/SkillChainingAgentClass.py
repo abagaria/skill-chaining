@@ -971,6 +971,15 @@ class SkillChaining(object):
 
 		return plan_graph
 
+	def measure_success(self, goal_state, start_state=None):
+		successes = 0
+		for _ in range(100):
+			self.planning_run_loop(graph, goal_state, start_state)
+			goal_pos = goal_state
+			is_terminal = np.linalg.norm(overall_mdp.cur_state.position-goal_pos) <= 0.6
+			if is_terminal: successes += 1
+		return successes
+
 
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
