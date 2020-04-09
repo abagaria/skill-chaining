@@ -198,11 +198,16 @@ class Option(object):
 			return np.ones((state_matrix.shape[0]))
 		position_matrix = state_matrix[:, :2]
 		
-		# TODO: old
+		# TODO: use predict optimistic clf
 		return self.optimistic_classifier.predict(position_matrix) == 1
 		
+		# TODO: use predict pessimistic clf
+		# return self.pessimistic_classifier.predict(position_matrix) == 1
+		
+		# TODO: use proba predict pessimistic clf
+		# return self.get_seeded_random_array(self.step_seed, len(position_matrix)) < self.approx_pessimistic_classifier.predict_proba(position_matrix)[:,-1]
+
 		# TODO: probabilistic batch initation with optimistic classifier
-		# np.random.seed(self.step_seed)
 		# return self.get_seeded_random_array(self.step_seed, len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
 
 	# TODO: utilities
@@ -219,37 +224,49 @@ class Option(object):
 			return True
 		state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 		
-		# TODO: old
+		# TODO: use optimistic clf
 		return self.optimistic_classifier.predict([state])[0] == 1
 
+		# TODO use pessimistic clf
+		# return self.pessimistic_classifier.predict([state])[0] == 1
+
+		# TODO: use proba predict pessimistic clf
+		# return self.get_seeded_random_value(self.step_seed) < self.approx_pessimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+
 		# TODO: probabilistic initiation with optimistic classifier
-		# np.random.seed(self.step_seed)
 		# return self.get_seeded_random_value(self.step_seed) < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
-
-	# TODO: needed for new term method
-	def batched_is_term_true(self, state_matrix):
-		position_matrix = state_matrix[:, :2]
-
-		if self.parent is not None and self.pessimistic_classifier is not None:
-			return self.pessimistic_classifier.predict(position_matrix) == 1
-		elif self.parent is not None:
-			return self.parent.batched_is_init_true(state_matrix)
 
 	def is_term_true(self, ground_state):
 		# TODO: old
 		# if self.parent is not None:
-			# return self.parent.is_init_true(ground_state)
+		# 	return self.parent.is_init_true(ground_state)
 		
 		# TODO: termination with pessimistic classifier
 		if self.parent is not None and self.pessimistic_classifier is not None:
 			state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 			return self.pessimistic_classifier.predict(state.reshape(1,-1))[-1] == 1
 		elif self.parent is not None:
-			# NOTE: untrained option will not have any trained classifiers so use parent until trained
+			# NOTE: untrained option will not have any trained classifiers so use parent init until trained
 			return self.parent.is_init_true(ground_state)
 		
 		# If option does not have a parent, it must be the goal option or the global option
 		# assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
+		return self.overall_mdp.is_goal_state(ground_state)
+
+	# TODO: needed for new term method
+	def batched_is_term_true(self, state_matrix):
+		position_matrix = state_matrix[:, :2]
+
+		# TODO: use parent init
+		# if self.parent is not None:
+		# 	return self.parent.batched_is_init_true(state_matrix)
+
+		# TODO: termination with pessimistic classifier
+		if self.parent is not None and self.pessimistic_classifier is not None:
+			return self.pessimistic_classifier.predict(position_matrix) == 1
+		elif self.parent is not None:
+			return self.parent.batched_is_init_true(state_matrix)
+
 		return self.overall_mdp.is_goal_state(ground_state)
 
 	def add_initiation_experience(self, states):
@@ -509,6 +526,10 @@ class Option(object):
 			if self.writer is not None:
 				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
 
+			# TODO: track empty option transitions
+			if option_transitions == []:
+				print("OptionClass::execute_option_in_mdp: option_transition is empty!")
+			
 			return option_transitions, total_reward
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self.name))
@@ -702,7 +723,7 @@ class Option(object):
 		except:
 			print("ClassifierWarning: The number of classes has to be greater than one; got 1 class")
 			print("|-> Flipping random prediction..")
-			i = random.randint(0, len(y_pred))
+			i = random.randint(len(y_pred))
 			y_pred[i] = y_pred[i] * -1
 			return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y_pred)
 	

@@ -323,8 +323,6 @@ class DQNAgent(Agent):
                 try:
                     action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
                 except:
-                    print(inits)
-                    print(terms)
                     pdb.set_trace()
 
             # Move the q-values back the GPU

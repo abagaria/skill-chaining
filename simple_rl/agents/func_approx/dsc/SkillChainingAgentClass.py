@@ -527,7 +527,7 @@ class SkillChaining(object):
 	# TODO: export option data
 	def save_all_data(self, logdir, args, episodic_scores, episodic_durations):
 		print("Saving all data..")
-		data_dir = logdir + '/run_{}_all_data'.format(self.num_run)
+		data_dir = logdir + '/run_{}_all_data'.format(self.seed)
 		Path(data_dir).mkdir(exist_ok=True)
 		
 		all_data = {}
@@ -597,7 +597,7 @@ class SkillChaining(object):
 				# NOTE: make domain mesh once
 				if self.x_mesh is None:
 					x_coord, y_coord = option.X_global[:, 0], option.X_global[:, 1]
-					self.x_mesh, self.y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
+					self.x_mesh, self.y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.01)
 
 				# plot boundaries of classifiers
 				X_pos = option.X[option.y == 1]
@@ -711,9 +711,6 @@ class SkillChaining(object):
 		# TODO: call for generating plots at end of the run
 		if self.generate_plots:
 			self.generate_all_plots(per_episode_scores)
-
-		# TODO: save scores to class
-		# self.learning_data = per_episode_scores
 
 		return per_episode_scores, per_episode_durations
 
@@ -885,7 +882,7 @@ if __name__ == '__main__':
 		overall_mdp.env.seed(args.seed)
 
 	# Create folders for saving various things
-	logdir = create_log_dir(args.experiment_name + '_seed_{}'.format(args.seed))
+	logdir = create_log_dir(args.experiment_name)
 	create_log_dir("saved_runs")
 	create_log_dir("value_function_plots")
 	create_log_dir("initiation_set_plots")

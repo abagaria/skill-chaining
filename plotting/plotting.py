@@ -8,6 +8,9 @@ import pandas as pd
 import seaborn as sns
 from pathlib import Path
 
+sns.set(color_codes=True)
+sns.set_style("white")
+
 def load_data(file_name):
 	with open(file_name, 'rb') as f:
 		data = pickle.load(f)
@@ -33,10 +36,10 @@ def plot_boundary(x_mesh, y_mesh, X_pos, clfs, colors, option_name, episode, exp
 	cb.remove()
 
 	# Plot successful trajectories
-	x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
-	pos_color = 'black'
-	p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='successful trajectories', alpha=alpha)
-	patches.append(p)
+	# x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
+	# pos_color = 'black'
+	# p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='successful trajectories', alpha=alpha)
+	# patches.append(p)
 
 	plt.xticks(())
 	plt.yticks(())
@@ -110,7 +113,7 @@ def plot_prob(all_clf_probs, experiment_name):
 	# TODO: remove
 	print("|-> {}/option_prob_estmates.png saved!".format(path))
 
-def plot_learning_curves(experiment_name, data, mdp_env_name):
+def plot_learning_curve(experiment_name, data, mdp_env_name, num_run):
 	# Create plotting dir (if not created)
 	path = '{}/plots/learning_curves'.format(experiment_name)
 	Path(path).mkdir(exist_ok=True)
@@ -123,35 +126,104 @@ def plot_learning_curves(experiment_name, data, mdp_env_name):
 	plt.legend(title="Tests", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 
 	# Save plots
-	plt.savefig("{}/learning_curve.png".format(path), bbox_inches='tight')
+	plt.savefig("{}/learning_curve_{}.png".format(path, num_run), bbox_inches='tight')
 	plt.close()
 
 	# TODO: remove
-	print("|-> {}/learning_curve.png saved!".format(path))
+	print("Plot {}/{}_learning_curve.png saved!".format(path, num_run))
 
-def generate_all_plots(experiment_name, all_clf_probs, option_data, per_episode_scores, x_mesh, y_mesh, mdp_env_name):
+def get_all_cur_data(run_dir, start, end):
+	all_data = []
+	for i in range(start, end+1):
+		scores = load_data(run_dir + '/run_{}_all_data'.format(i) + '/per_episode_scores.pkl')
+		all_data.append(scores)
+	return np.array(all_data)
+
+def get_all_old_data(old_run_dir, start, end):
+	all_old_runs = []
+	for i in range(start, end+1):
+		scores = load_data(old_run_dir + '/sc_pretrained_False_training_scores_{}.pkl'.format(i))
+		all_old_runs.append(scores)
+	return np.array(all_old_runs)
+
+def get_avg_data(all_data):
+	return np.sum(all_data, axis=0) / len(all_data)
+
+def plot_avg_learning_curves(experiment_name, all_data, mdp_env_name, args):
+	# Create plotting dir (if not created)
+	path = '{}/plots/learning_curves'.format(experiment_name)
+	Path(path).mkdir(exist_ok=True)
+
+	columns = ['time_steps', 'run_data']
+
+	for data_name, data in all_data.items():
+		num_eps = len(data[0])
+		time_steps = np.linspace(1, num_eps, num=num_eps)
+
+		# Method labels
+		if 'all_cur_data' in data_name:
+			label = 'DSC w/ Opt/Pes: nu={}'.format(args.nu)
+		else:
+			label = 'DSC (old)'
+
+		# Append all runs
+		df_all_data = pd.DataFrame(columns=columns)
+		for run in data:
+			df = pd.DataFrame(np.column_stack((time_steps, run)), columns=columns)
+			df_all_data = df_all_data.append(df)
+
+		sns.lineplot(x='time_steps', y='run_data', data=df_all_data, label=label)		
+
+	plt.title('Average Reward ({} runs): {}'.format(len(data), mdp_env_name))
+	plt.ylabel('Reward')
+	plt.xlabel('Episodes')
+	plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+
+	# num_eps = len(old_data[0])
+	# time_steps = np.linspace(1,num_eps,num=num_eps)
+
+	# all_old_data = pd.DataFrame(columns=columns)
+	# for run in old_data:
+	# 	df = pd.DataFrame(np.column_stack((time_steps, run)), columns=columns)
+	# 	all_old_data = all_data.append(df)
+
+
+	# ax = sns.lineplot(x='time_steps', y='run_data', data=all_data, label=label)
+	# sns.lineplot(x='time_steps', y='run_data', data=all_old_data, label='DSC (old)')
+
+	# ax.set(xlabel='Episodes', ylabel='Rewards', title='Average Reward ({} runs): {}'.format(len(data), mdp_env_name))
+	# ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+
+	# Save plots
+	plt.savefig("{}/average_learning_curves.png".format(path), bbox_inches='tight')
+	plt.close()
+
+	# TODO: remove
+	print("Plot {}/average_learning_curves.png saved!".format(path))
+
+def generate_all_plots(run_dir, all_clf_probs, option_data, per_episode_scores, x_mesh, y_mesh, mdp_env_name, num_run, args, all_cur_data, all_old_data=None, multi_cur_data=None):
 	sns.set_style("white")
 	num_colors = 100
 	colors = ['blue', 'green']
 	cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
 
 	for option_name, option in option_data.items():
-		print("Generating plots for {}..".format(option_name))
+		# print("Generating plots for {}..".format(option_name))
 		for episode, episode_data in option.items():
 			clfs_bounds = episode_data['clfs_bounds']
 			clfs_probs = episode_data['clfs_probs']
 			X_pos = episode_data['X_pos']
 
 			# plot boundaries of classifiers
-			plot_boundary(x_mesh=x_mesh,
-						  y_mesh=y_mesh,
-						  X_pos=X_pos,
-						  clfs=clfs_bounds,
-						  colors=colors,
-						  option_name=option_name,
-						  episode=episode,
-						  experiment_name=experiment_name,
-						  alpha=0.5)
+			# plot_boundary(x_mesh=x_mesh,
+			# 			  y_mesh=y_mesh,
+			# 			  X_pos=X_pos,
+			# 			  clfs=clfs_bounds,
+			# 			  colors=colors,
+			# 			  option_name=option_name,
+			# 			  episode=episode,
+			# 			  experiment_name=run_dir,
+			# 			  alpha=0.5)
 
 			# plot state probability estimates
 			# plot_state_probs(x_mesh=x_mesh,
@@ -160,45 +232,62 @@ def generate_all_plots(experiment_name, all_clf_probs, option_data, per_episode_
 			# 				 option_name=option_name,
 			# 				 cmaps=cmaps,
 			# 				 episode=episode,
-			# 				 experiment_name=experiment_name)
-		print()
+			# 				 experiment_name=run_dir)
+		# print()
 		
 	# plot average probabilities
 	# plot_prob(all_clf_probs=all_clf_probs,
-	# 		  experiment_name=experiment_name)
+	# 		  experiment_name=run_dir)
 
-	# plot learning curves
-	plot_learning_curves(experiment_name=experiment_name,
-						 data=per_episode_scores,
-						 mdp_env_name=mdp_env_name)
+	# plot single learning curve
+	# plot_learning_curve(experiment_name=run_dir,
+	# 					data=per_episode_scores,
+	# 					mdp_env_name=mdp_env_name,
+	# 					num_run=num_run)
 
-def main(run_dir, data_dir):
+	# plot cur vs old average learning curves
+	all_data = {'all_cur_data': all_cur_data, 'all_old_data' : all_old_data}
+	plot_avg_learning_curves(experiment_name=run_dir,
+					all_data=all_data,
+					mdp_env_name=mdp_env_name,
+					args=args)
 
+def main(run_dir, data_dir, old_run_dir):
 	# Load variables
-	experiment_name = load_data(run_dir + '/' + data_dir + '/experiment_name.pkl')
+	# experiment_name = load_data(run_dir + '/' + data_dir + '/experiment_name.pkl')
 	all_clf_probs = load_data(run_dir + '/' + data_dir + '/all_clf_probs.pkl')
 	option_data = load_data(run_dir + '/' + data_dir + '/option_data.pkl')
 	per_episode_scores = load_data(run_dir + '/' + data_dir + '/per_episode_scores.pkl')
 	x_mesh = load_data(run_dir + '/' + data_dir + '/x_mesh.pkl')
 	y_mesh = load_data(run_dir + '/' + data_dir + '/y_mesh.pkl')
 	mdp_env_name = load_data(run_dir + '/' + data_dir + '/mdp_env_name.pkl')
+	args = load_data(run_dir + '/' + data_dir + '/args.pkl')
+	
+	# Multiple score data
+	all_old_data = get_all_old_data(old_run_dir, 11, 20)
+	all_cur_data = get_all_cur_data(run_dir, 1, 10)
 
 	# Create plotting directory
 	Path(run_dir + '/plots').mkdir(exist_ok=True)
 
 	# Generate plots
-	generate_all_plots(experiment_name=experiment_name,
+	generate_all_plots(run_dir=run_dir,
 					   all_clf_probs=all_clf_probs,
 					   option_data=option_data,
 					   per_episode_scores=per_episode_scores,
 					   x_mesh=x_mesh,
 					   y_mesh=y_mesh,
-					   mdp_env_name=mdp_env_name)
+					   mdp_env_name=mdp_env_name,
+					   num_run=args.num_run,
+					   args=args,
+					   all_cur_data=all_cur_data,
+					   all_old_data=all_old_data)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--run_dir', type=str, default="")
+	parser.add_argument('--old_run_dir', type=str, default="")
 	parser.add_argument('--data_dir', type=str, default="")
 	args = parser.parse_args()
 
-	main(run_dir=args.run_dir, data_dir=args.data_dir)
+	main(run_dir=args.run_dir, old_run_dir=args.old_run_dir, data_dir=args.data_dir)

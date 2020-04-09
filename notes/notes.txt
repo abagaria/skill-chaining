@@ -29,6 +29,27 @@ Run
 
 Bugs
 ====
+	[ ] Test failed unexpectedly during episode 267/300
+		- Command:
+			
+			python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name='(cs2951x) dsc_opt_pes_nu_0.5' --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 --num_run=4 --seed=4
+
+		- Error message:
+
+			Traceback (most recent call last):
+			File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 903, in <module>
+				episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+			File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 665, in skill_chaining
+				state, step_number, episode_option_executions, episode)
+			File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 292, in take_action
+				next_state = self.get_next_state_from_experiences(option_transitions)
+			File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 324, in get_next_state_from_experiences
+				return experiences[-1][-1]
+			IndexError: list index out of range
+
+		- happened again with random test
+	[	
+
 	[ ] 1st option has init state and never learns more options.
 		- Q: maybe the init set of the goal policy option is too large at first but then is refined 
 		down but if an option is created early then this will break?
@@ -86,15 +107,38 @@ Bugs
 
 			* Seeding for prob init might have been wrong but fixed now
 
-			[o] seed=0, init=prob(opt clf), term=pes clf, added batch term to DQN:
+			[o] seed=0, init=prob(opt clf), term=pes clf, added batch term, updated batch init in DQN:
 				- still only creates 1 option but is top right and not in init state
 				-> is there a different bug in creating options?
-			[] seed=0, init=prob(opt clf), term=pes clf, changed setting seed:
+			[o] (1) seed=0, init=prob(opt clf), term=pes clf, setting seed before: only created 1 option in init state 
+			[o] (2) seed=0, init=prob(opt clf), term=pes clf, setting seed before: only created 1 option in init state
+
+			Q: what does the first option look like when created? why is it only being created around the initial state?
+
+			[o] seed=0, init=prob(opt clf), term=pes clf:
+				- when created, only successful trajectories collected are around initial state.
+				-> why?
+
+			[o] seed=1, init=prob(opt clf), term=pes clf:
+				- again, successful trajectories are only around initial state
+				-> maybe look into how trajectories are collected per option?
+
+			[o] seed=2, init=prob(opt clf), term=pes clf:
+				- probability values are very low most likely due to the fact that there are so little
+				positive samples but this is expected
+				-> how would this affect only creating an option around the initial state?
+			
+			Q: when first option is created, why are all the successful trajectories around the initial state with prob init
+			   but when predict is used, they aren't?
+				- Somehow, is_init_true() is affecting the samples being collected during gestation
+
+
+
 
 Structure
 =========
 	{Class}::{Method}
-
+ls
 	SkillChainingAgentClass::skill_chaining(...)
 	|- ...
 	|- SkillChainingAgentClass::take_action(...)
@@ -140,31 +184,20 @@ Hyperparameter search
 Experiments
 ===========
 
+	DSC (old)
+	---------
+	- is_init_true: 1_class_clf.predict()
+	- is_term_true: parent.is_init_true()
+
 	ScM Project
 	-----------
-		- Domains:
-			* Point Maze
-			* Ant Maze
+	- is_init_true: optimistic_clf.predict_proba()
+	- is_term_true: pessimistic_clf.predict()
 
 	CS2951X
 	-------
-		- Methods:
-			* DSC
-			* DSC w/ Opt/Pes
-
-		- Domains:
-			* Point Maze
-			* Ant Maze
-		
-		- Experiments:
-			* DSC w/ Opt/Pes - Point Maze
-				runs=5
-				episodes=300
-				steps=1000
-				subgoal_reward=300
-				buffer_len=20
-				num_sub_goal_hits=5
-				nu=0.5
+	- is_init_true: optimistic_clf.predict()
+	- is_term_true: pessimistic_clf.predict()
 
 Writeup
 =======
@@ -200,6 +233,19 @@ Writeup
 
 Misc
 ====
+	Other Methods
+	-------------
+	- Method:
+		* is_init_true: pessimistic_clf.predict()
+		* is_term_true: parent.is_init_true()
+	-> creates multiple options that have a "tigher" spread of options
+
+	- Method:
+		* is_init_true: pessimistic_clf.predict_proba()
+		* is_term_true: parent.is_init_true()
+	-> approx of pess clf is wayyyy off. this won't work.
+	
+	
 	Speed up (plots)
 	----------------
 	- for each episode:
