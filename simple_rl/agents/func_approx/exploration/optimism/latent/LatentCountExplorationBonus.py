@@ -10,6 +10,7 @@ import ipdb
 class LatentCountExplorationBonus(ExplorationBonus):
     def __init__(self, state_dim, action_dim, latent_dim=3, lam=.1, epsilon=0.1,
                  writer=None, phi_type="function", device=torch.device("cuda"),
+                 lam_c1=None, lam_c2=None,
                  *, experiment_name, pixel_observation, normalize_states,
                  bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames):
         """
@@ -44,7 +45,9 @@ class LatentCountExplorationBonus(ExplorationBonus):
                                                   optimization_quantity=optimization_quantity, writer=writer,
                                                   bonus_scaling_term=bonus_scaling_term,
                                                   lam_scaling_term=lam_scaling_term,
-                                                  device=device)
+                                                  device=device,
+                                                  lam_c1=lam_c1,
+                                                  lam_c2=lam_c2)
 
 
         self.pixel_observation = pixel_observation

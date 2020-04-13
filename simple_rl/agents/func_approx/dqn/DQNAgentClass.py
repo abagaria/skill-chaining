@@ -49,7 +49,8 @@ class DQNAgent(Agent):
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
                  gradient_clip=None, evaluation_epsilon=0.05, exploration_method="eps-decay",
                  pixel_observation=False, writer=None, experiment_name="", bonus_scaling_term="sqrt",
-                 lam_scaling_term="fit", novelty_during_regression=True, normalize_states=False, optimization_quantity="",
+                 lam_scaling_term="fit", lam_c1=None, lam_c2=None,
+                 novelty_during_regression=True, normalize_states=False, optimization_quantity="",
                  phi_type="function", counting_epsilon=0.1, bonus_from_position=False, bonus_form="sqrt",
                  prioritize_positive_terminal_transitions=False, cls_latent_dim=2,
                  # OPIQ params...
@@ -148,6 +149,7 @@ class DQNAgent(Agent):
                                                                normalize_states=normalize_states, writer=self.writer,
                                                                bonus_scaling_term=bonus_scaling_term,
                                                                lam_scaling_term=lam_scaling_term,
+                                                               lam_c1=lam_c1, lam_c2=lam_c2,
                                                                optimization_quantity=optimization_quantity,
                                                                num_frames=1,
                                                                device=device,

@@ -29,7 +29,8 @@ class Experiment12:
 
     def __init__(self, seed, *, pixel_observation, optimization_quantity, count_train_mode,
                  eval_eps, exploration_method, num_episodes, num_steps, device, experiment_name,
-                 bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
+                 bonus_scaling_term, lam_scaling_term, lam_c1, lam_c2,
+                 no_novelty_during_regression, tensor_log,
                  phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form,
                  prioritize_positive_terminal_transitions,
                  use_opiq, opiq_regression_exponent, action_selection_exponent, cls_latent_dim):
@@ -48,7 +49,7 @@ class Experiment12:
                               exploration_method=exploration_method, pixel_observation=pixel_observation,
                               evaluation_epsilon=eval_eps, tensor_log=tensor_log, experiment_name=experiment_name,
                               bonus_scaling_term=bonus_scaling_term,
-                              lam_scaling_term=lam_scaling_term,
+                              lam_scaling_term=lam_scaling_term, lam_c1=lam_c1, lam_c2=lam_c2,
                               novelty_during_regression=self.novelty_during_regression,
                               normalize_states=normalize_states,
                               optimization_quantity=optimization_quantity,
@@ -353,6 +354,8 @@ if __name__ == "__main__":
     parser.add_argument("--opiq_regression_exponent", type=float, default=-0.5)
     parser.add_argument("--action_selection_exponent", type=float, default=-2.0)
     parser.add_argument("--cls_latent_dim", type=int, default=2)
+    parser.add_argument("--lam_c1", type=float, default=None)
+    parser.add_argument("--lam_c2", type=float, default=None)
 
     args = parser.parse_args()
 
@@ -373,7 +376,8 @@ if __name__ == "__main__":
     exp = Experiment12(args.seed, pixel_observation=args.pixel_observation,
                       eval_eps=args.eval_eps, exploration_method=args.exploration_method, num_episodes=args.episodes, tensor_log=args.tensor_log,
                       num_steps=args.steps, device=device, experiment_name=full_experiment_name, bonus_scaling_term=args.bonus_scaling_term,
-                      no_novelty_during_regression=args.no_novelty_during_regression, lam_scaling_term=args.lam_scaling_term,
+                      no_novelty_during_regression=args.no_novelty_during_regression,
+                      lam_scaling_term=args.lam_scaling_term, lam_c1=args.lam_c1, lam_c2=args.lam_c2,
                       optimization_quantity=args.optimization_quantity, count_train_mode=args.count_train_mode,
                       phi_type=args.phi_type, bonus_from_position=args.bonus_from_position,
                       max_to_plot=10000, mcar_win_reward=args.mcar_win_reward, bonus_form=args.bonus_form,

@@ -21,7 +21,8 @@ from simple_rl.agents.func_approx.exploration.optimism.latent.utils import get_l
 class CountingLatentSpace(object):
     def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
                  pixel_observations=False, lam=0.1, attractive_loss_type="quadratic", repulsive_loss_type="exponential",
-                 optimization_quantity="count", bonus_scaling_term="sqrt", lam_scaling_term="none", writer=None, approx_chunk_size=1000):
+                 optimization_quantity="count", bonus_scaling_term="sqrt", lam_scaling_term="none", writer=None, approx_chunk_size=1000,
+                 lam_c1=None, lam_c2=None):
         """
         Latent space useful for generating pseudo-counts for states.
         Args:
@@ -63,11 +64,18 @@ class CountingLatentSpace(object):
         self.optimization_quantity = optimization_quantity
         self.bonus_scaling_term = bonus_scaling_term
         self.lam_scaling_term = lam_scaling_term
+        self.lam_c1 = lam_c1
+        self.lam_c2 = lam_c2
 
         assert bonus_scaling_term in ("none", "sqrt", "linear", "chunked-sqrt"), bonus_scaling_term
-        assert lam_scaling_term in ("none", "fit"), lam_scaling_term
-        if lam_scaling_term == "fit":
+        assert lam_scaling_term in ("none", "fit", "fit-custom"), lam_scaling_term
+        if lam_scaling_term.startswith("fit"):
             assert bonus_scaling_term == "none", "You should probably only be scaling either lam OR bonus."
+        if lam_scaling_term == "fit-custom":
+            assert lam_c1 is not None, "lam_c1 should not be None"
+            assert lam_c2 is not None, "lam_c1 should not be None"
+
+
         assert repulsive_loss_type in ("exponential", "normal"), repulsive_loss_type
         assert attractive_loss_type in ("normal", "quadratic", "exponential"), attractive_loss_type
 
@@ -244,6 +252,8 @@ class CountingLatentSpace(object):
             return self.lam
         if self.lam_scaling_term == "fit":
             return get_lam_for_buffer_size(N, optimization_quantity=self.optimization_quantity)
+        if self.lam_scaling_term == "fit-custom":
+            return get_lam_for_buffer_size(N, optimization_quantity=None, c1=self.lam_c1, c2=self.lam_c2)
         raise ValueError(f"Bad value for lam_scaling_term: {self.lam_scaling_term}")
 
     def _get_scaled_num_epochs(self, N, num_grad_steps=600):
