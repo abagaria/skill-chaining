@@ -13,6 +13,7 @@ from collections import deque
 import matplotlib
 matplotlib.use('Agg') # non-interactive
 import time
+from math import ceil
 
 # Other imports.
 from simple_rl.tasks.gridworld.gridworld import GridWorld
@@ -31,10 +32,11 @@ class Experiment12:
                  bonus_scaling_term, lam_scaling_term, no_novelty_during_regression, tensor_log,
                  phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form,
                  prioritize_positive_terminal_transitions,
-                 use_opiq, opiq_regression_exponent, action_selection_exponent):
+                 use_opiq, opiq_regression_exponent, action_selection_exponent, cls_latent_dim):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
+        self.cls_latent_dim = cls_latent_dim
 
         self.novelty_during_regression = not no_novelty_during_regression
         self.bonus_from_position = bonus_from_position
@@ -53,7 +55,8 @@ class Experiment12:
                               phi_type=phi_type, bonus_from_position=bonus_from_position, bonus_form=bonus_form,
                               prioritize_positive_terminal_transitions=prioritize_positive_terminal_transitions,
                               use_opiq=use_opiq, opiq_regression_exponent=opiq_regression_exponent,
-                              action_selection_exponent=action_selection_exponent)
+                              action_selection_exponent=action_selection_exponent,
+                              cls_latent_dim=cls_latent_dim)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -92,12 +95,23 @@ class Experiment12:
             states_repr[current_idx:current_idx+current_chunk_size] = chunk_repr
             current_idx += current_chunk_size
 
-        # states_repr = self.agent.novelty_tracker.counting_space.extract_features(states)
+        assert states_repr.shape[1] == self.cls_latent_dim, states_repr.shape
 
-        # Plotting
-        plt.scatter(states_repr[:, 0], states_repr[:, 1], alpha=0.3)
+        # Create all pair-wise combinations of the possible indices in the latent space
+        latent_dimensions = list(range(self.cls_latent_dim))
+        pairwise_combinations = list(itertools.combinations(latent_dimensions, 2))
 
-        plt.title("Latent Space after Episode {}".format(episode))
+        plt.figure(figsize=(16, 12))
+        n_rows = ceil(len(pairwise_combinations) / 3)
+        n_cols = 3
+
+        for i, (latent_dim_1, latent_dim_2) in enumerate(pairwise_combinations):
+            plt.subplot(n_rows, n_cols, i + 1)
+            plt.scatter(states_repr[:, latent_dim_1], states_repr[:, latent_dim_2], alpha=0.3)
+            plt.xlabel(f"Latent dimension {latent_dim_1}")
+            plt.ylabel(f"Latent dimension {latent_dim_2}")
+
+        plt.suptitle("Latent Space after Episode {}".format(episode))
         plt.savefig(f"{self.experiment_name}/latent_plots/latents_{episode}_seed_{self.seed}.png")
         plt.close()
 
@@ -338,7 +352,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_opiq", action="store_true", default=False)
     parser.add_argument("--opiq_regression_exponent", type=float, default=-0.5)
     parser.add_argument("--action_selection_exponent", type=float, default=-2.0)
-
+    parser.add_argument("--cls_latent_dim", type=int, default=2)
 
     args = parser.parse_args()
 
@@ -365,7 +379,7 @@ if __name__ == "__main__":
                       max_to_plot=10000, mcar_win_reward=args.mcar_win_reward, bonus_form=args.bonus_form,
                       prioritize_positive_terminal_transitions=args.prioritize_positive_terminal_transitions,
                       use_opiq=args.use_opiq, opiq_regression_exponent=args.opiq_regression_exponent,
-                      action_selection_exponent=args.action_selection_exponent,
+                      action_selection_exponent=args.action_selection_exponent, cls_latent_dim=args.cls_latent_dim
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()
