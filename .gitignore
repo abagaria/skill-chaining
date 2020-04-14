@@ -11,3 +11,5 @@ update.py
 .DS_Store
 to_update_instr.txt
 examples/blank_example.py
+notes/
+plots/

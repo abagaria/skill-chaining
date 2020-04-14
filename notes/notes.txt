@@ -29,7 +29,7 @@ Run
 
 Bugs
 ====
-	[ ] Test failed unexpectedly during episode 267/300
+	[ ] Test failed unexpectedly due to option_transitions list being empty
 		- Command:
 			
 			python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name='(cs2951x) dsc_opt_pes_nu_0.5' --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 --num_run=4 --seed=4
@@ -47,7 +47,11 @@ Bugs
 				return experiences[-1][-1]
 			IndexError: list index out of range
 
-		- happened again with random test
+		- Cause?
+			- trying to execute option from a state that was previously in termination set of option
+
+		- seems to happen more with the higher nu is
+		-> a lot of FAILED tests when nu=0.8, some with nu=0.7, a couple with nu=0.6
 	[	
 
 	[ ] 1st option has init state and never learns more options.
@@ -132,13 +136,10 @@ Bugs
 			   but when predict is used, they aren't?
 				- Somehow, is_init_true() is affecting the samples being collected during gestation
 
-
-
-
 Structure
 =========
 	{Class}::{Method}
-ls
+
 	SkillChainingAgentClass::skill_chaining(...)
 	|- ...
 	|- SkillChainingAgentClass::take_action(...)
@@ -165,20 +166,20 @@ Hyperparameter search
 	- episodes
 	- steps
 	- num_sub_goal_hits: size of gestation period
-	- nu: % of how conservative the OneClassSVM (i.e. if nu=7 then will treat 70% of data as outlier)
+	- nu: % of how conservative the OneClassSVM (i.e. if nu=0.7 then will treat 70% of data as outlier)
 	- subgoal_reward
 	- buffer_len: can't be too big
 
-	Defaults
-	--------
+	Defaults (Point Maze)
+	---------------------
 	- episodes = 300
 	- steps = 1000
 	- subgoal_reward = 300
 	- buffer_len = 20
+	- num_sub_goal_hits: 5
 
-	Search (seed=0)
+	Search
 	---------------
-	- num_sub_goal_hits: (5), 10, 15
 	- nu: 0.5, 0.6, 0.7, 0.8
 
 Experiments
@@ -186,18 +187,25 @@ Experiments
 
 	DSC (old)
 	---------
-	- is_init_true: 1_class_clf.predict()
+	- train(): init_clf = 1_class_clf
+	- refine(): init_clf = 2_class_clf for fixed number of episodes
+
+	- is_init_true: init_clf.predict()
 	- is_term_true: parent.is_init_true()
 
-	ScM Project
+	CS2951X
+	-------
+	- train() and refine(): optimistic_clf and pessimistic_clf until end of run
+
+	- is_init_true: optimistic_clf.predict()
+	- is_term_true: pessimistic_clf.predict()
+
+
+	NEEDS CHANGE - ScM Project
 	-----------
 	- is_init_true: optimistic_clf.predict_proba()
 	- is_term_true: pessimistic_clf.predict()
 
-	CS2951X
-	-------
-	- is_init_true: optimistic_clf.predict()
-	- is_term_true: pessimistic_clf.predict()
 
 Writeup
 =======
@@ -206,7 +214,14 @@ Writeup
 		** Required to submit a solelyauthored paper to your research advisor that outlines your research thesis, the work done and any future work that could be undertaken.
 		   Once your advisor has approved your paper, please send it to the Faculty and Student Affairs Manager (fasam@cs.brown.edu).
 
-		- Title: Initation Set Confidence
+		* Objs:
+			- Continous learning of initiation and terminatino set
+			- No worse than old DSC
+			- Optimistic initiation and pessimistic termination should lead to more robust learning
+			- (BACKUP) Choose non-robost domain and show new method can learn
+			-> Treasure Domain?
+
+		- Title: Robust Initation Set Confidence
 		- Abstract
 		- Introduction
 		- Background
@@ -224,12 +239,7 @@ Writeup
 	
 	CS2951X Final Paper (DUE: T May 5th)
 	------------------------------------
-		* Obj: Tighter bound on Initation set with use of pessimistic classifier
-		* Obj: No worse than previous methods and can continuously learn
-		* BACKUP: choose non-robust domain and show new method can learn
 
-		- Title: Learning Tight Initation Set
-		- Abstract
 
 Misc
 ====
@@ -261,6 +271,7 @@ ToDo
 ====
 	[ ] Bugs
 		- only creating 1 option that has init state
+		- randomly failing 
 
 	[ ] ScM Writeup
 	[ ] CS2951X Writeup

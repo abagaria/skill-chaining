@@ -38,17 +38,22 @@ def get_multi_cur_data(run_dirs, start, end):
 		multi_cur_data['all_cur_data_nu_{}'.format(args.nu)] = {'cur_data' : cur_data, 'args' : args}
 	return multi_cur_data
 
-def plot_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, one_v_one=False, best_color_idx=None):
+def plot_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, file_name, ci=95, one_v_one=False, single_color_idx=None):
 	columns = ['time_steps', 'run_data']
 	colors = sns.color_palette("deep")
 	i=0
+	num_runs = 0
 
-	for data_name, data in all_data.items():		
+	for data_name, data in all_data.items():
 		if 'cur' in data_name:	# Multiple current tests
 			for cur_name, cur_dict in data.items():
 				# Export current data dict
 				args = cur_dict['args']
 				cur_data = cur_dict['cur_data']
+
+				# Set number of runs
+				if num_runs == 0:
+					num_runs, _ = cur_data.shape
 				
 				# Plotting variables
 				num_eps = len(cur_data[0])
@@ -62,9 +67,9 @@ def plot_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, one_v_one=F
 					df_data = df_data.append(df)
 
 				if one_v_one:
-					sns.lineplot(x='time_steps', y='run_data', data=df_data, label=label, ci=None, color=colors[best_color_idx])
+					sns.lineplot(x='time_steps', y='run_data', data=df_data, label=label, ci=ci, color=colors[single_color_idx])
 				else:
-					sns.lineplot(x='time_steps', y='run_data', data=df_data, label=label, ci=None, color=colors[i])
+					sns.lineplot(x='time_steps', y='run_data', data=df_data, label=label, ci=ci, color=colors[i])
 					i+=1
 
 		else:	# Old tests
@@ -73,33 +78,34 @@ def plot_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, one_v_one=F
 			time_steps = np.linspace(1, num_eps, num=num_eps)
 			label = 'DSC (old)'
 
+			# Set number of runs
+			if num_runs == 0:
+				num_runs, _ = data.shape
+
 			# Append all runs
 			df_data = pd.DataFrame(columns=columns)
 			for run in data:
 				df = pd.DataFrame(np.column_stack((time_steps, run)), columns=columns)
 				df_data = df_data.append(df)
 
-			if one_v_one:
-				sns.lineplot(x='time_steps', y='run_data', data=df_data, label=label, ci=None, color=colors[-1])
-			else:
-				sns.lineplot(x='time_steps', y='run_data', data=df_data, label=label, ci=None, color=colors[i])
-				i+=1
+			sns.lineplot(x='time_steps', y='run_data', data=df_data, label=label, ci=ci, color=colors[-3])
+
 
 	# Plotting features
-	plt.title('Average Reward: {}'.format(mdp_env_name))
+	plt.title('Average Reward: {} ({} runs)'.format(mdp_env_name, num_runs))
 	plt.ylabel('Reward')
 	plt.xlabel('Episodes')
 	plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 
 	# Save plots
 	if one_v_one:
-		plt.savefig("{}/one_v_one_learning_curves.png".format(plot_dir), bbox_inches='tight')
+		plt.savefig("{}/{}.png".format(plot_dir, file_name), bbox_inches='tight')
 		plt.close()
-		print("Plot {}/one_v_one_learning_curves.png saved!".format(plot_dir))
+		print("Plot {}/{}.png saved!".format(plot_dir, file_name))
 	else:
-		plt.savefig("{}/multi_learning_curves.png".format(plot_dir), bbox_inches='tight')
+		plt.savefig("{}/{}.png".format(plot_dir, file_name), bbox_inches='tight')
 		plt.close()
-		print("Plot {}/multi_learning_curves.png saved!".format(plot_dir))
+		print("Plot {}/{}.png saved!".format(plot_dir, file_name))
 
 def main(args):
 	# Create plotting dir (if not created)
@@ -107,16 +113,32 @@ def main(args):
 	Path(path).mkdir(exist_ok=True)
 
 	# Old comparative data
-	all_old_data = get_all_old_data(args.old_run_dir, 1, 5)
+	all_old_data = get_all_old_data(args.old_run_dir, 1, 20)
 
 	# Multi hyperparameter data
-	multi_cur_data = get_multi_cur_data(args.run_dirs, 1, 5)
+	multi_cur_data = get_multi_cur_data(args.run_dirs, 1, 20)
 
-	# Plot hyperparameter search runs
+	# Plot old runs
+	# all_data = {'all_old_data' : all_old_data}
+	# plot_multi_avg_learning_curves(plot_dir=path,
+	# 							   all_data=all_data,
+	# 							   mdp_env_name=args.mdp_env_name,
+	# 							   file_name='old_learning_curve')
+	
+	# Plot single hyperparameter
+	# all_data = {'multi_cur_data' : multi_cur_data}
+	# plot_multi_avg_learning_curves(plot_dir=path,
+	# 							   all_data=all_data,
+	# 							   mdp_env_name=args.mdp_env_name,
+	# 							   file_name='single_learning_curve_nu=0.6')
+
+	# Plot multiple hyperparameter runs
 	all_data = {'multi_cur_data' : multi_cur_data}
 	plot_multi_avg_learning_curves(plot_dir=path,
 								   all_data=all_data,
-								   mdp_env_name=args.mdp_env_name)
+								   mdp_env_name=args.mdp_env_name,
+								   ci=None,
+								   file_name='multi_learning_curves')
 
 	# Plot 1v1 methods
 	# best_cur_data = get_multi_cur_data([args.run_dirs[1]], 1, 5)
@@ -124,8 +146,37 @@ def main(args):
 	# plot_multi_avg_learning_curves(plot_dir=path,
 	# 								 all_data=all_data,
 	# 								 mdp_env_name=args.mdp_env_name,
+	# 								 file_name='one_v_one_learning_curves',
+	# 								 ci=None,
 	# 								 one_v_one=True,
 	# 								 best_color_idx=1)
+
+	# For each single, plot single vs old
+	nus = [0.5, 0.6, 0.7, 0.8]
+	for idx, nu in enumerate(nus):
+		name = 'all_cur_data_nu_{}'.format(nu)
+		single_cur_data = {name : multi_cur_data[name]}
+		all_data = {'single_cur_data' : single_cur_data, 'all_old_data' : all_old_data}
+
+		plot_multi_avg_learning_curves(plot_dir=path,
+									all_data=all_data,
+									mdp_env_name=args.mdp_env_name,
+									file_name='nu_{}_v_old_learning_curves'.format(nu),
+									ci=None,
+									one_v_one=True,
+									single_color_idx=idx)
+
+	# Plot single vs old
+	# best_name, best_idx = 'all_cur_data_nu_0.6', 1
+	# best_cur_data = {best_name : multi_cur_data[best_name]}
+	# all_data = {'best_cur_data' : best_cur_data, 'all_old_data' : all_old_data}
+	# plot_multi_avg_learning_curves(plot_dir=path,
+	# 								 all_data=all_data,
+	# 								 mdp_env_name=args.mdp_env_name,
+	# 								 file_name='one_v_one_learning_curves',
+	# 								 ci=None,
+	# 								 one_v_one=True,
+	# 								 single_color_idx=best_idx)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()

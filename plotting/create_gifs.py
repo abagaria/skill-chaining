@@ -4,6 +4,7 @@ import sys
 import argparse
 from pathlib import Path
 import json
+from PIL import Image, ImageFont, ImageDraw
 
 def json_to_dict(json_file):
     new_dict = {}
@@ -11,7 +12,20 @@ def json_to_dict(json_file):
         new_dict[k] = [int(item) for item in v.split(',')]
     return new_dict
 
-def create_clf_gifs(opt_dict, duration, plot_dir_path, gif_dir_path):
+def add_text_to_img(img_path, title, save_path, font_path):
+    img = Image.open(img_path)
+    draw = ImageDraw.Draw(img)
+    width, height = img.size
+
+    font = ImageFont.truetype(font_path, 15)
+    text_w, text_h = draw.textsize(title, font)
+
+    # Draw text bottom right of image
+    draw.text((width - text_w, height - text_h), title, (0,0,0), font=font)
+
+    img.save(save_path)
+
+def create_clf_gifs(opt_dict, duration, plot_dir_path, gif_dir_path, skip_window):
     # Create directory
     Path(gif_dir_path).mkdir(exist_ok=True)
 
@@ -21,8 +35,14 @@ def create_clf_gifs(opt_dict, duration, plot_dir_path, gif_dir_path):
         start, end = opt_range
         with imageio.get_writer(gif_path, mode='I', duration=duration) as writer:
             for i in range(start, end+1):
-                frames_path = plot_dir_path + '/{}_{}.png'.format(opt_name, i)
-                writer.append_data(imageio.imread(frames_path))
+                if i % skip_window == 0:
+                    frames_path = plot_dir_path + '/{}_{}.png'.format(opt_name, i)
+                    save_path = plot_dir_path + '/text_{}_{}.png'.format(opt_name, i)
+                    
+                    # Add episode to image
+                    add_text_to_img(frames_path, str(i), save_path, "plotting/Arial.ttf")
+                    
+                    writer.append_data(imageio.imread(save_path))
 
 def create_state_prob_gifs(opt_dict, duration, plot_dir_path, gif_dir_path):
     # Create directory
@@ -42,8 +62,10 @@ def create_state_prob_gifs(opt_dict, duration, plot_dir_path, gif_dir_path):
 def main(args):
     # Create gifs
     create_clf_gifs(opt_dict=json_to_dict(args.opt_json),
-                    duration = 0.5, plot_dir_path = '{}/clf_plots'.format(args.test_path),
-                    gif_dir_path='{}/clf_gifs'.format(args.test_path))
+                    duration = 0.5,
+                    plot_dir_path = '{}/clf_plots'.format(args.test_path),
+                    gif_dir_path='{}/clf_gifs'.format(args.test_path),
+                    skip_window=args.skip_window)
     # create_state_prob_gifs(opt_names=args.opt_names,
     #                        num_frames=args.num_frames,
     #                        duration = 0.5,
@@ -71,5 +93,12 @@ if __name__ == "__main__":
         '--opt_json',
         type=json.loads
     )
+    parser.add_argument(
+        '--skip_window',
+        type=int,
+        default=1
+    )
+    # Example
+    # python plotting/create_gifs.py --test_path '(debug) test/plots' --opt_json '{"option_1" : "2,4", "option_2" : "3,4", "overall_goal_policy_option" : "1,4"}'
 
     main(parser.parse_args())

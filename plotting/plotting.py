@@ -201,40 +201,55 @@ def plot_avg_learning_curves(experiment_name, all_data, mdp_env_name, args):
 	# TODO: remove
 	print("Plot {}/average_learning_curves.png saved!".format(path))
 
-def generate_all_plots(run_dir, all_clf_probs, option_data, per_episode_scores, x_mesh, y_mesh, mdp_env_name, num_run, args, all_cur_data, all_old_data=None, multi_cur_data=None):
+def generate_all_plots(run_dir, all_clf_probs, option_data, per_episode_scores, x_mesh, y_mesh, mdp_env_name, num_run, args, all_cur_data=None, all_old_data=None, multi_cur_data=None):
 	sns.set_style("white")
 	num_colors = 100
 	colors = ['blue', 'green']
 	cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
 
+	# TODO: debug
+	# option_names = []
+
 	for option_name, option in option_data.items():
-		# print("Generating plots for {}..".format(option_name))
-		for episode, episode_data in option.items():
-			clfs_bounds = episode_data['clfs_bounds']
-			clfs_probs = episode_data['clfs_probs']
-			X_pos = episode_data['X_pos']
-
-			# plot boundaries of classifiers
-			# plot_boundary(x_mesh=x_mesh,
-			# 			  y_mesh=y_mesh,
-			# 			  X_pos=X_pos,
-			# 			  clfs=clfs_bounds,
-			# 			  colors=colors,
-			# 			  option_name=option_name,
-			# 			  episode=episode,
-			# 			  experiment_name=run_dir,
-			# 			  alpha=0.5)
-
-			# plot state probability estimates
-			# plot_state_probs(x_mesh=x_mesh,
-			# 				 y_mesh=y_mesh,
-			# 				 clfs=clfs_probs,
-			# 				 option_name=option_name,
-			# 				 cmaps=cmaps,
-			# 				 episode=episode,
-			# 				 experiment_name=run_dir)
-		# print()
 		
+		# TODO: debug
+		# if option_name not in option_names:
+			# option_names.append(option_name) 
+			
+		# dont_plot = ['overall_goal_policy_option', 'option_1']
+		dont_plot = []
+		
+		if option_name not in dont_plot:
+			for episode, episode_data in option.items():
+				clfs_bounds = episode_data['clfs_bounds']
+				clfs_probs = episode_data['clfs_probs']
+				X_pos = episode_data['X_pos']
+
+				# plot boundaries of classifiers
+				if (episode % 10 == 0):
+					plot_boundary(x_mesh=x_mesh,
+								y_mesh=y_mesh,
+								X_pos=X_pos,
+								clfs=clfs_bounds,
+								colors=colors,
+								option_name=option_name,
+								episode=episode,
+								experiment_name=run_dir,
+								alpha=0.5)
+
+				# plot state probability estimates
+				# plot_state_probs(x_mesh=x_mesh,
+				# 				 y_mesh=y_mesh,
+				# 				 clfs=clfs_probs,
+				# 				 option_name=option_name,
+				# 				 cmaps=cmaps,
+				# 				 episode=episode,
+				# 				 experiment_name=run_dir)
+		# print()
+	
+	# TODO: debug
+	# print(option_names)
+
 	# plot average probabilities
 	# plot_prob(all_clf_probs=all_clf_probs,
 	# 		  experiment_name=run_dir)
@@ -246,13 +261,18 @@ def generate_all_plots(run_dir, all_clf_probs, option_data, per_episode_scores, 
 	# 					num_run=num_run)
 
 	# plot cur vs old average learning curves
-	all_data = {'all_cur_data': all_cur_data, 'all_old_data' : all_old_data}
-	plot_avg_learning_curves(experiment_name=run_dir,
-					all_data=all_data,
-					mdp_env_name=mdp_env_name,
-					args=args)
+	# all_data = {'all_cur_data': all_cur_data, 'all_old_data' : all_old_data}
+	# all_data = {'all_old_data' : all_old_data}
+	# plot_avg_learning_curves(experiment_name=run_dir,
+	# 				all_data=all_data,
+	# 				mdp_env_name=mdp_env_name,
+	# 				args=args)
 
-def main(run_dir, data_dir, old_run_dir):
+def main(args):
+	run_dir = args.run_dir
+	data_dir = args.data_dir
+	# old_run_dir = args.old_run_dir
+	
 	# Load variables
 	# experiment_name = load_data(run_dir + '/' + data_dir + '/experiment_name.pkl')
 	all_clf_probs = load_data(run_dir + '/' + data_dir + '/all_clf_probs.pkl')
@@ -264,8 +284,8 @@ def main(run_dir, data_dir, old_run_dir):
 	args = load_data(run_dir + '/' + data_dir + '/args.pkl')
 	
 	# Multiple score data
-	all_old_data = get_all_old_data(old_run_dir, 11, 20)
-	all_cur_data = get_all_cur_data(run_dir, 1, 10)
+	# all_old_data = get_all_old_data(old_run_dir, 1, 20)
+	# all_cur_data = get_all_cur_data(run_dir, 1, 10)
 
 	# Create plotting directory
 	Path(run_dir + '/plots').mkdir(exist_ok=True)
@@ -279,15 +299,13 @@ def main(run_dir, data_dir, old_run_dir):
 					   y_mesh=y_mesh,
 					   mdp_env_name=mdp_env_name,
 					   num_run=args.num_run,
-					   args=args,
-					   all_cur_data=all_cur_data,
-					   all_old_data=all_old_data)
+					   args=args)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--run_dir', type=str, default="")
-	parser.add_argument('--old_run_dir', type=str, default="")
-	parser.add_argument('--data_dir', type=str, default="")
+	parser.add_argument('--run_dir', type=str, default="None")
+	# parser.add_argument('--old_run_dir', type=str, default="None")
+	parser.add_argument('--data_dir', type=str, default="None")
 	args = parser.parse_args()
 
-	main(run_dir=args.run_dir, old_run_dir=args.old_run_dir, data_dir=args.data_dir)
+	main(args)
