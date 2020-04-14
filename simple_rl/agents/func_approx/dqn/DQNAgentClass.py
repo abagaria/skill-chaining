@@ -57,6 +57,7 @@ class DQNAgent(Agent):
                  use_opiq=False, action_selection_exponent=-2., c_action=1., c_bootstrap=1.,
                  opiq_regression_exponent=-0.5, # This is applied on N(s,a) not N(s',a'). -0.5 in theory, but maybe not in practice.
                  beta_regression=1.,
+                 cls_num_frames=1,
                  ):
 
         assert bonus_form in ("sqrt", "linear", "exp"), bonus_form # Because "power" is handled by use_opiq...
@@ -151,7 +152,7 @@ class DQNAgent(Agent):
                                                                lam_scaling_term=lam_scaling_term,
                                                                lam_c1=lam_c1, lam_c2=lam_c2,
                                                                optimization_quantity=optimization_quantity,
-                                                               num_frames=1,
+                                                               num_frames=cls_num_frames,
                                                                device=device,
                                                                phi_type=phi_type,
                                                                epsilon=counting_epsilon,

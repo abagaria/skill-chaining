@@ -33,7 +33,8 @@ class Experiment12:
                  no_novelty_during_regression, tensor_log,
                  phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form,
                  prioritize_positive_terminal_transitions,
-                 use_opiq, opiq_regression_exponent, action_selection_exponent, cls_latent_dim):
+                 use_opiq, opiq_regression_exponent, action_selection_exponent, cls_latent_dim,
+                 cls_num_frames):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -57,7 +58,7 @@ class Experiment12:
                               prioritize_positive_terminal_transitions=prioritize_positive_terminal_transitions,
                               use_opiq=use_opiq, opiq_regression_exponent=opiq_regression_exponent,
                               action_selection_exponent=action_selection_exponent,
-                              cls_latent_dim=cls_latent_dim)
+                              cls_latent_dim=cls_latent_dim, cls_num_frames=cls_num_frames)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -356,6 +357,7 @@ if __name__ == "__main__":
     parser.add_argument("--cls_latent_dim", type=int, default=2)
     parser.add_argument("--lam_c1", type=float, default=None)
     parser.add_argument("--lam_c2", type=float, default=None)
+    parser.add_argument("--cls_num_frames", type=int, default=1)
 
     args = parser.parse_args()
 
@@ -383,7 +385,8 @@ if __name__ == "__main__":
                       max_to_plot=10000, mcar_win_reward=args.mcar_win_reward, bonus_form=args.bonus_form,
                       prioritize_positive_terminal_transitions=args.prioritize_positive_terminal_transitions,
                       use_opiq=args.use_opiq, opiq_regression_exponent=args.opiq_regression_exponent,
-                      action_selection_exponent=args.action_selection_exponent, cls_latent_dim=args.cls_latent_dim
+                      action_selection_exponent=args.action_selection_exponent, cls_latent_dim=args.cls_latent_dim,
+                      cls_num_frames=args.cls_num_frames,
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()
