@@ -12,7 +12,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
                  writer=None, phi_type="function", device=torch.device("cuda"),
                  lam_c1=None, lam_c2=None,
                  *, experiment_name, pixel_observation, normalize_states,
-                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames):
+                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames, adaptive_bonus_target=0.1):
         """
 
         Args:
@@ -45,6 +45,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
                                                   optimization_quantity=optimization_quantity, writer=writer,
                                                   bonus_scaling_term=bonus_scaling_term,
                                                   lam_scaling_term=lam_scaling_term,
+                                                  adaptive_bonus_target=adaptive_bonus_target,
                                                   device=device,
                                                   lam_c1=lam_c1,
                                                   lam_c2=lam_c2)
@@ -60,6 +61,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
         self.normalize_states = normalize_states
         self.bonus_scaling_term = bonus_scaling_term
         self.num_frames = num_frames
+        self.adaptive_bonus_target = adaptive_bonus_target
+        self.lam_scaling_term = lam_scaling_term
 
         # Normalization constants
         self.mean_state = np.array([0.])
@@ -120,8 +123,33 @@ class LatentCountExplorationBonus(ExplorationBonus):
     def _normalize_action_buffers(self, action_buffers):
         return [normalize(b, self.mean_state, self.std_state) for b in action_buffers]
 
+    def _adapt_lam(self):
+        """This happens here because all the methods needed for it to work are here.
+        We're just gonna do this sqrt style, good for a first pass at least."""
+        assert self.lam_scaling_term == "fit-adaptive", f"why are you calling _adapt_lam with lam_scaling_term={self.lam_scaling_term}"
+        # Annoyingly, we need to get all the chunked bonuses -- that's a pretty slow operation...
+        states = self.get_sns_buffer(normalized=self.normalize_states)
+        states = [s[0] for s in states]
+        states = np.array(states)
+        all_bonuses = self.get_batched_exploration_bonus(states, bonus_form="sqrt")
+        average_bonus = all_bonuses.mean()
+        bonus_multiplier = average_bonus / self.adaptive_bonus_target
+        # Regress it towards 1 a bit... 
+        # How about we just do like a sqrt or something? That keeps 1 the same, makes small bigger, and big smaller.
+        bonus_multiplier = bonus_multiplier ** 0.5
+        old_lam = self.counting_space.lam
+        self.counting_space.lam = self.counting_space.lam * bonus_multiplier
+        print(f"Average bonus: {average_bonus}\tDesired Average bonus: {self.adaptive_bonus_target}")
+        print(f"Adapted lam by {bonus_multiplier}, from {old_lam} to {self.counting_space.lam}")
+
+
+
     def train(self, mode="entire", epochs=50):
         assert mode in ("entire", "partial")
+
+        if self.lam_scaling_term == "fit-adaptive":
+            self._adapt_lam()
+
         if mode == "entire":
             self._train_entire(epochs)
         else:
