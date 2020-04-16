@@ -106,6 +106,7 @@ class Option(object):
 
 		self.overall_mdp = overall_mdp
 		self.final_transitions = []
+		self.terminal_states = []
 		self.children = []
 
 		# Debug member variables
@@ -188,15 +189,36 @@ class Option(object):
 		return "trained"
 
 	def initialize_with_global_ddpg(self):
+		"""" Initialize option policy - unrestricted support because not checking if I_o(s) is true. """
 		# Not using off_policy_update() because we have numpy arrays not state objects here
 		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer.memory, desc=f"Initializing {self.name} policy"):
-			# if self.is_init_true(state):  # TODO: Without this check, we are not aggressively limiting the support of the option policy
+			if self.is_term_true(state):
+				continue
 			if self.is_term_true(next_state):
 				self.solver.step(state, action, self.subgoal_reward, next_state, True)
 			else:
-				if np.random.rand() > 0.6:  # TODO: Make this magic number somehow dependent on the size of the replay buffer
-					subgoal_reward = self.get_subgoal_reward(next_state)
-					self.solver.step(state, action, subgoal_reward, next_state, done)
+				subgoal_reward = self.get_subgoal_reward(next_state)
+				self.solver.step(state, action, subgoal_reward, next_state, done)
+
+	def initialize_option_ddpg_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
+
+		assert self.initiation_classifier is not None, f"{self.name} in phase {self.get_training_phase()}"
+
+		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer.memory,
+															desc=f"Initializing {self.name} policy with {self.global_solver.name}"):
+
+			# Adding terminal self transitions causes the option value function to explode
+			if self.is_term_true(state):
+				continue
+
+			# Give sub-goal reward for triggering your own subgoal
+			if self.is_term_true(next_state):
+				self.solver.step(state, action, self.subgoal_reward, next_state, True)
+
+			# Restricted support - only add transitions that begin from the initiation set of the option
+			elif self.is_init_true(state):
+				subgoal_reward = self.get_subgoal_reward(next_state)
+				self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
 
@@ -655,3 +677,8 @@ class Option(object):
 			self.num_successful_test_executions += 1
 
 		return score, state, step_number, state_option_trajectory
+
+	def get_option_success_rate(self):
+		if self.num_test_executions > 0:
+			return self.num_successful_test_executions / self.num_test_executions
+		return 1.

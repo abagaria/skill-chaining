@@ -84,6 +84,10 @@ class PointReacherMDP(MDP):
     def get_original_target_events(self):
         return self.original_salient_events
 
+    def add_new_target_event(self, new_event):
+        if new_event not in self.current_salient_events:
+            self.current_salient_events.append(new_event)
+
     def is_goal_state(self, state):
         # return any([predicate(state) for predicate in self.get_current_target_events()])
         return False

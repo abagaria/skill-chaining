@@ -329,3 +329,17 @@ def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experi
     file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}"
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
+
+def visualize_buffer(option, episode, seed, experiment_name):
+    buffer = option.solver.replay_buffer.memory
+    terminal_states = [transition[-2] for transition in buffer if transition[-1]]
+    terminal_start_states = [transition[0] for transition in buffer if transition[-1]]
+    non_terminal_states = [transition[0] for transition in buffer if transition[-1] == 0]
+    plt.figure()
+    plt.scatter([t[0] for t in non_terminal_states], [t[1] for t in non_terminal_states], alpha=0.1)
+    plt.scatter([t[0] for t in terminal_states], [t[1] for t in terminal_states], alpha=1.0)
+    plt.scatter([t[0] for t in terminal_start_states], [t[1] for t in terminal_start_states], alpha=1.0)
+    plt.title(f"{option.solver.name}s replay buffer with length {len(buffer)}")
+    file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}"
+    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    plt.close()

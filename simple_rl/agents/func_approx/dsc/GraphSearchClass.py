@@ -15,8 +15,17 @@ class GraphSearch(object):
         self.option_nodes = []
         self.salient_nodes = []
 
-    def add_node(self, option):
-        self.plan_graph.add_node(option)
+    def add_node(self, node):
+        if not node in self.plan_graph.nodes:
+            self.plan_graph.add_node(node)
+
+            #  Keep track of the options and the salient events separately in the graph
+            if isinstance(node, Option):
+                self.option_nodes.append(node)
+            elif isinstance(node, SalientEvent):
+                self.salient_nodes.append(node)
+            else:
+                raise IOError(f"Got {node} of type {type(node)}, but expected either Option or SalientEvent")
 
     def add_edge(self, option1, option2, edge_weight=1.):
         self.plan_graph.add_edge(option1, option2)
@@ -36,12 +45,13 @@ class GraphSearch(object):
         if skill_chain.init_salient_event not in list(self.plan_graph.nodes):
             self.add_node(skill_chain.init_salient_event)
 
+        # Add the option nodes to the plan graph
+        for option in skill_chain.options:  # type: Option
+            self.add_node(option)
+
         # Add connections between the init salient event and all the leaf nodes in the current chain
         for leaf_node in skill_chain.get_leaf_nodes_from_skill_chain():
             self.add_edge(skill_chain.init_salient_event, leaf_node, edge_weight=0.)
-
-        for option in skill_chain.options:  # type: Option
-            self.add_node(option)
 
         # Add the target salient event as a node to the plan-graph
         if skill_chain.target_salient_event not in list(self.plan_graph.nodes):
@@ -49,7 +59,8 @@ class GraphSearch(object):
 
         # Add connections between all the root nodes of the current chain and the target salient event
         for root_node in skill_chain.get_root_nodes_from_skill_chain():
-            self.add_edge(root_node, skill_chain.target_salient_event, edge_weight=0.)
+            root_option_success_rate = _get_option_success_rate(root_node)
+            self.add_edge(root_node, skill_chain.target_salient_event, edge_weight=1./root_option_success_rate)
 
         for option in skill_chain.options:  # type: Option
             if option.children:
@@ -64,10 +75,6 @@ class GraphSearch(object):
 
         if self.pre_compute_shortest_paths:
             self.shortest_paths = shortest_paths.shortest_path(self.plan_graph)
-            
-        # Keep track of the options and the salient events separately in the graph
-        self.option_nodes = [node for node in self.plan_graph.nodes if isinstance(node, Option)]
-        self.salient_nodes = [node for node in self.plan_graph.nodes if isinstance(node, SalientEvent)]
 
     def visualize_plan_graph(self, file_name=None):
         pos = nx.planar_layout(self.plan_graph)
@@ -81,6 +88,7 @@ class GraphSearch(object):
         nx.draw_networkx_edge_labels(self.plan_graph, pos, edge_labels=labels)
 
         plt.savefig(file_name) if file_name is not None else plt.show()
+        plt.close()
 
     def does_path_exist(self, start_state, goal_state):
         def _does_path_exist(node1, node2):

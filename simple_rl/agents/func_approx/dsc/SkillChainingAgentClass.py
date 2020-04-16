@@ -126,9 +126,10 @@ class SkillChaining(object):
 		# Keep track of which chain each created option belongs to
 		s0 = self.mdp.env._init_positions
 		self.s0 = s0
+		start_state_salient_event = self.mdp.get_start_state_salient_event() if self.start_state_salience else None
 		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
 		 			   			  intersecting_options=[], mdp_start_states=s0, is_backward_chain=False,
-								  target_salient_event=salient_event)
+								  target_salient_event=salient_event, init_salient_event=start_state_salient_event)
 					   for i, salient_event in enumerate(self.mdp.get_original_target_events())]
 
 		# List of init states seen while running this algorithm
@@ -162,7 +163,7 @@ class SkillChaining(object):
 		# If initialize_everywhere is True, also add to trained_options
 		for option in self.untrained_options:  # type: Option
 			if option.initialize_everywhere:
-				self._augment_agent_with_new_option(option, 0.)
+				self.augment_agent_with_new_option(option, 0.)
 
 		# Debug variables
 		self.global_execution_states = []
@@ -170,6 +171,10 @@ class SkillChaining(object):
 		self.option_rewards = defaultdict(lambda : [])
 		self.option_qvalues = defaultdict(lambda : [])
 		self.num_options_history = []
+
+	def add_skill_chain(self, new_chain):
+		if new_chain not in self.chains:
+			self.chains.append(new_chain)
 
 	def add_negative_examples(self, new_option):
 		""" When creating an option in the forward chain, add the positive examples of all the options
@@ -318,7 +323,7 @@ class SkillChaining(object):
 			q_values.append(q_value)
 		return np.max(q_values)
 
-	def _augment_agent_with_new_option(self, newly_trained_option, init_q_value):
+	def augment_agent_with_new_option(self, newly_trained_option, init_q_value):
 		"""
 		Train the current untrained option and initialize a new one to target.
 		Add the newly_trained_option as a new node to the Q-function over options
@@ -379,10 +384,12 @@ class SkillChaining(object):
 				return option
 		return None
 
-	def act(self, state):
+	def act(self, state, train_mode=True):
 		# Query the global Q-function to determine which option to take in the current state
-		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
-		self.agent_over_options.update_epsilon()
+		option_idx = self.agent_over_options.act(state.features(), train_mode=train_mode)
+
+		if not train_mode:
+			self.agent_over_options.update_epsilon()
 
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
@@ -422,6 +429,7 @@ class SkillChaining(object):
 		for untrained_option in self.untrained_options:
 			if untrained_option.is_term_true(next_state) and not untrained_option.is_term_true(state):
 				untrained_option.final_transitions.append((state, selected_option.option_idx))
+				untrained_option.terminal_states.append(next_state)
 
 		# Add data to train Q(s, o)
 		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
@@ -469,111 +477,19 @@ class SkillChaining(object):
 
 	def get_current_salient_events(self):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
-		return [self.mdp.goal_position, self.mdp.key_position]
+		return self.mdp.get_current_target_events()
 
+	# TODO: Get rid of this - it is prone to bugs. Instead, just add the start state to the original salient events in the MDP
 	def get_original_salient_events(self):
 		original_salient_events = self.mdp.get_original_target_events()
-		if self.start_state_salience:
-			original_salient_events.append(self.mdp.is_start_state)
+		if self.start_state_salience and self.mdp.get_start_state_salient_event() not in original_salient_events:
+			original_salient_events.append(self.mdp.get_start_state_salient_event())
 		return original_salient_events
 
-	def get_backward_chain_start_states(self, option1, option2):
-		"""
-		Given 2 forward options, return the target states associated with the corresponding
-		forward skill-chains. These target states serve as init states for the new
-		backward chain.
-		Args:
-			option1 (Option)
-			option2 (Option)
-
-		Returns:
-			states (list): List of states to chain back to in the backward chain
-		"""
-		chain1 = self.chains[option1.chain_id - 1]  # Forward chain 1
-		chain2 = self.chains[option2.chain_id - 1]  # Forward chain 2
-		assert not chain1.is_backward_chain
-		assert not chain2.is_backward_chain
-		start1 = chain1.target_position
-		start2 = chain2.target_position
-		return start1, start2
-
-	def create_intersection_salient_event(self, option1, option2):
-		"""
-		When 2 chains intersect, we treat the region of intersection as a target region. This method
-		returns an Option whose termination region is such a region of intersection.
-		Args:
-			option1 (Option): intersecting option from first chain
-			option2 (Option): intersecting option from second chain
-
-		Returns:
-			new_option (Option): whose termination set is the intersection of initiation sets of o1 and o2
-		"""
-		intersecting_chain_idx = (option1.chain_id, option2.chain_id)
-		chain1 = self.chains[option1.chain_id - 1]
-		chain2 = self.chains[option2.chain_id - 1]
-
-		assert not chain1.is_backward_chain, "Intersection should only be considered between forward chains"
-		assert not chain2.is_backward_chain, "Intersection should only be considered between forward chains"
-		assert option1.chain_id != option2.chain_id, f"Chain idx: {option1.chain_id, option2.chain_id}"
-
-		# Create a new intersection salient event for chain1 & chain2 only if we haven't done so already
-		if intersecting_chain_idx not in self.current_intersecting_chains and \
-				tuple(reversed(intersecting_chain_idx)) not in self.current_intersecting_chains:
-			self.current_intersecting_chains.append(intersecting_chain_idx)
-
-			# TODO: Use the goals of the intersecting forward chains as initiations for the backward chain
-			# The forward intersecting chains were targeting two different salient events
-			# Those two salient events are going to serve as the initiation condition of the options
-			# in the new chain we are about to create (during gestation only)
-			salient1 = chain1.target_predicate
-			salient2 = chain2.target_predicate
-
-			new_option = Option(self.mdp, name=f"chain_{intersecting_chain_idx}_intersection_option",
-								  global_solver=self.global_option.solver,
-								  lr_actor=option1.solver.actor_learning_rate,
-								  lr_critic=option1.solver.critic_learning_rate,
-								  ddpg_batch_size=option1.solver.batch_size,
-								  subgoal_reward=self.subgoal_reward,
-								  buffer_length=self.buffer_length,
-								  classifier_type=self.classifier_type,
-								  num_subgoal_hits_required=self.num_subgoal_hits_required,
-								  seed=self.seed, parent=None,  max_steps=self.max_steps,
-								  enable_timeout=self.enable_option_timeout, chain_id=len(self.chains)+1,
-								  intersecting_options=[option1, option2],
-								  initialize_everywhere=True, max_num_children=2,
-								  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-								  is_backward_option=True)
-
-			# 1. The new backward chain will chain backward to the salient events corresponding to the intersecting forward chains
-			# 2. The target_predicate for the backward chain is set inside the SkillChain class - it is the region of
-			#    intersection between the two intersecting chains
-			new_chain_start_states = self.get_backward_chain_start_states(option1, option2)
-			new_chain = SkillChain(start_states=new_chain_start_states, target_salient_event=None, chain_id=len(self.chains)+1,
-								   options=[], intersecting_options=[option1, option2],
-								   mdp_start_states=self.s0, is_backward_chain=True)
-			self.chains.append(new_chain)
-
-			# Allow agent to use this option to encourage chaining to it
-			self._augment_agent_with_new_option(new_option, 0.)
-			new_option.initialize_with_global_ddpg()
-
-			# Also reset the exploration module to encourage adding skills to the new chain
-			# self.agent_over_options.density_model.reset()
-			self.initialize_policy_over_options()
-
-			return new_option
-
-		return None
-
-	def manage_intersecting_skill_chains(self):
-		# Detect intersection salience to start building skill graph
-		intersecting_options = self.get_intersecting_options()
-
-		if intersecting_options:
-			for intersecting_1, intersecting_2 in intersecting_options:
-				new_option = self.create_intersection_salient_event(intersecting_1, intersecting_2)
-				if new_option is not None:
-					self.untrained_options.append(new_option)
+	def get_chained_salient_events(self):
+		chained_salient_events = [chain.target_salient_event for chain in self.chains if chain.chained_till_start_state()]
+		chained_salient_events = list(set(chained_salient_events))
+		return chained_salient_events
 
 	def manage_skill_chain_to_start_state(self, option):
 		"""
@@ -599,9 +515,10 @@ class SkillChaining(object):
 
 			new_chain = SkillChain(start_states=start_states, mdp_start_states=self.s0,
 								   target_salient_event=target_salient_event,
+								   init_salient_event=init_salient_event,
 								   options=[], chain_id=len(self.chains)+1,
 								   intersecting_options=[], is_backward_chain=True)
-			self.chains.append(new_chain)
+			self.add_skill_chain(new_chain)
 
 			# Create a new option and equip the SkillChainingAgent with it
 			new_option = Option(self.mdp, name=f"chain_{chain.chain_id}_backward_option",
@@ -622,8 +539,8 @@ class SkillChaining(object):
 								init_salient_event=init_salient_event,
 								target_salient_event=target_salient_event)
 
-			self._augment_agent_with_new_option(new_option, 0.)
 			new_option.initialize_with_global_ddpg()
+			self.augment_agent_with_new_option(new_option, 0.)
 			self.untrained_options.append(new_option)
 
 	def skill_chaining(self, num_episodes, num_steps):
@@ -679,7 +596,7 @@ class SkillChaining(object):
 							# the list of actions available to the agent (so that it may be executed before
 							# we train its one-class classifier)
 							if not untrained_option.initialize_everywhere:
-								self._augment_agent_with_new_option(untrained_option, self.init_q)
+								self.augment_agent_with_new_option(untrained_option, self.init_q)
 
 							# Visualize option you just learned
 							if untrained_option.classifier_type == "ocsvm":
@@ -708,8 +625,8 @@ class SkillChaining(object):
 
 								# If initialize_everywhere is True, also add to trained_options
 								if new_option.initialize_everywhere:
-									self._augment_agent_with_new_option(new_option, self.init_q)
 									new_option.initialize_with_global_ddpg()
+									self.augment_agent_with_new_option(new_option, self.init_q)
 
 					# If the current option's initiation set covers one of the target salient events
 					# (and the current is in a backward chain), then remove that salient event from the
@@ -722,8 +639,8 @@ class SkillChaining(object):
 							not untrained_option.backward_option and self.start_state_salience:
 						self.manage_skill_chain_to_start_state(untrained_option)
 
-				if not self.start_state_salience:
-					self.manage_intersecting_skill_chains()
+				# if not self.start_state_salience:
+				# 	self.manage_intersecting_skill_chains()
 
 				if state.is_terminal():
 					break
@@ -846,140 +763,6 @@ class SkillChaining(object):
 
 		return overall_reward, option_trajectories
 
-	def create_test_time_goal_option(self, train_goal_option):
-		pass
-
-	def should_planning_run_loop_terminate(self, state, goal_state):
-		"""
-		There are 3 possible cases:
-		1. When the goal_state is a salient event we already know how to get to:
-		   In this case, we only want to terminate when we reach the goal_state
-		2. When the goal_state is not a salient event we know how to get to, but is inside the initiation
-		   set of some option that we have already learned:
-		   In this case, we want to terminate when we reach the option that contains that goal_state, but
-		   not execute the option itself. Later, we will learn a new option that will drive us to that goal state.
-		3. When the goal_state is not a salient event we know about AND it is not inside the initiation set of
-		   any of the options that we have learned:
-		   In this case, we have to find the option whose initiation set is "closest" to the goal state.
-		   We can either use a pre-specified measure (eg euclidean distance) or use the space of option value functions
-		   to find the "closest" option.
-		Args:
-			state (State)
-			goal_state (State)
-
-		Returns:
-			should_terminate (bool)
-		"""
-
-		# TODO: Maybe get the salient events from self.chains?
-		# Case 1: goal_state satisfies one of the salient events we already know about
-		salient_events = self.get_original_salient_events()
-		satisfied_salients = [salient_event for salient_event in salient_events if salient_event(goal_state)]
-		if len(satisfied_salients) > 0:
-			return satisfied_salients[0](state)
-
-		chains_with_goal_state = [chain for chain in self.chains if chain.state_in_chain(goal_state)]
-		options_with_goal_state = [chain.get_option_for_state(goal_state) for chain in chains_with_goal_state]
-		if len(options_with_goal_state) > 0:  # TODO: How to pick an option from this list of feasible choices?
-			target_option = options_with_goal_state[0]
-			return target_option.is_init_true(state)
-
-		raise NotImplementedError("Not implemented case 3")
-
-	def planning_run_loop(self, plan_graph, goal_state, start_state=None):
-		"""
-		This is a test-time run loop that uses planning to select options when it can.
-		Args:
-			plan_graph (GraphSearch)
-			goal_state (State)
-			start_state (State)
-
-		Returns:
-			accumulated_reward (float)
-			executed_options (list)
-			reached_goal (bool)
-		"""
-
-		def _select_option(s, sg):
-			""" Given a start state `s` and a goal state `sg` pick an option to execute.
-				Use planning if possible, else revert to the trained policy over options. """
-			if plan_graph.does_path_exist(s, sg):
-				plan = plan_graph.get_path_to_execute(s, sg)
-				if len(plan) > 0:
-					admissible_options = [o for o in plan if o.is_init_true(s) and not o.is_term_true(s)]
-					if len(admissible_options) > 0:
-						return admissible_options[0]
-			return self.act(s)
-
-		self.mdp.reset()
-
-		if start_state is not None:
-			start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
-			self.mdp.set_xy(start_position)
-
-		state = deepcopy(self.mdp.cur_state)
-		overall_reward = 0.
-		num_steps = 0
-		option_trajectories = []
-		should_terminate_run_loop = False
-		goal_position = goal_state.position if isinstance(goal_state, State) else goal_state
-
-		while not should_terminate_run_loop and num_steps < self.max_steps:
-
-			selected_option = _select_option(state, goal_state)
-
-			option_reward, next_state, num_steps, option_state_trajectory = selected_option.trained_option_execution(self.mdp, num_steps)
-			overall_reward += option_reward
-
-			# option_state_trajectory is a list of (o, s) tuples
-			option_trajectories.append(option_state_trajectory)
-
-			state = next_state
-
-			should_terminate_run_loop = self.should_planning_run_loop_terminate(state, goal_state)
-			reached_goal_state = np.linalg.norm(state.position - goal_position) <= 0.6
-
-			if should_terminate_run_loop and not reached_goal_state:  # Case II
-				# Create new option
-				pass
-
-		return overall_reward, option_trajectories
-
-	def perform_test_rollouts(self, num_rollouts):
-		""" Perform test rollouts to collect statistics on option success rates.
-		    We can then use those success rates to set edge weights in our
-		    abstract skill graph.
-		"""
-		summed_reward = 0.
-		for _ in tqdm(range(num_rollouts), desc="Performing DSC Test Rollouts"):
-			r, _ = self.trained_forward_pass(render=False)
-			summed_reward += r
-		return summed_reward
-
-	def construct_plan_graph(self):
-
-		# Perform test rollouts to determine edge weights in the plan graph
-		self.perform_test_rollouts(num_rollouts=1000)
-
-		# Construct the plan graph
-		plan_graph = GraphSearch()
-		plan_graph.construct_graph(self.chains)
-
-		# Visualize the graph
-		file_name = f"value_function_plots/{args.experiment_name}/plan_graph_seed_{self.seed}.png"
-		plan_graph.visualize_plan_graph(file_name)
-
-		return plan_graph
-
-	def measure_success(self, goal_state, start_state=None):
-		successes = 0
-		for _ in range(100):
-			self.planning_run_loop(graph, goal_state, start_state)
-			goal_pos = goal_state
-			is_terminal = np.linalg.norm(overall_mdp.cur_state.position-goal_pos) <= 0.6
-			if is_terminal: successes += 1
-		return successes
-
 
 def create_log_dir(experiment_name):
 	path = os.path.join(os.getcwd(), experiment_name)
@@ -1072,5 +855,3 @@ if __name__ == '__main__':
 	# chainer.save_all_models()
 	# chainer.perform_experiments()
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
-
-	graph = chainer.construct_plan_graph()

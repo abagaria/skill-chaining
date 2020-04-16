@@ -10,6 +10,9 @@ class SalientEvent(object):
         self.event_idx = event_idx
         self.tolerance = tolerance
 
+        assert isinstance(event_idx, int)
+        assert isinstance(tolerance, float)
+
     def __call__(self, states):
         """
 
@@ -27,9 +30,15 @@ class SalientEvent(object):
         return self.batched_is_init_true(states)
 
     def __eq__(self, other):
+        def _state_eq(s1, s2):
+            s1 = self._get_position(s1)
+            s2 = self._get_position(s2)
+            return (s1 == s2).all()
+
         if not isinstance(other, SalientEvent):
             return False
-        return (self.target_state == other.target_state).all() and \
+
+        return _state_eq(self.target_state, other.target_state) and \
                self.tolerance == other.tolerance and \
                self.event_idx == other.event_idx
 
