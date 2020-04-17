@@ -12,7 +12,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
                  writer=None, phi_type="function", device=torch.device("cuda"),
                  lam_c1=None, lam_c2=None,
                  *, experiment_name, pixel_observation, normalize_states,
-                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames, adaptive_bonus_target=0.1):
+                 bonus_scaling_term, lam_scaling_term, optimization_quantity, num_frames,):
         """
 
         Args:
@@ -45,7 +45,6 @@ class LatentCountExplorationBonus(ExplorationBonus):
                                                   optimization_quantity=optimization_quantity, writer=writer,
                                                   bonus_scaling_term=bonus_scaling_term,
                                                   lam_scaling_term=lam_scaling_term,
-                                                  adaptive_bonus_target=adaptive_bonus_target,
                                                   device=device,
                                                   lam_c1=lam_c1,
                                                   lam_c2=lam_c2)
@@ -61,7 +60,6 @@ class LatentCountExplorationBonus(ExplorationBonus):
         self.normalize_states = normalize_states
         self.bonus_scaling_term = bonus_scaling_term
         self.num_frames = num_frames
-        self.adaptive_bonus_target = adaptive_bonus_target
         self.lam_scaling_term = lam_scaling_term
 
         # Normalization constants
@@ -123,23 +121,48 @@ class LatentCountExplorationBonus(ExplorationBonus):
     def _normalize_action_buffers(self, action_buffers):
         return [normalize(b, self.mean_state, self.std_state) for b in action_buffers]
 
+    def _get_adaptive_bonus_target(self, N):
+        """
+        This is SUPER unjustified, but I want average bonus to fall over time gently,
+        so I'm gonna make it go down with ln(num_states). And I'll make it so that
+        at 1000, it's at 0.1.
+        """
+        bonus_target = 0.76 / np.log(N)
+        return bonus_target
+
     def _adapt_lam(self):
         """This happens here because all the methods needed for it to work are here.
-        We're just gonna do this sqrt style, good for a first pass at least."""
+        We're just gonna do this sqrt style, good for a first pass at least.
+        
+        This NEEDS to be more memory-efficient...
+        """
         assert self.lam_scaling_term == "fit-adaptive", f"why are you calling _adapt_lam with lam_scaling_term={self.lam_scaling_term}"
         # Annoyingly, we need to get all the chunked bonuses -- that's a pretty slow operation...
         states = self.get_sns_buffer(normalized=self.normalize_states)
         states = [s[0] for s in states]
         states = np.array(states)
-        all_bonuses = self.get_batched_exploration_bonus(states, bonus_form="sqrt")
-        average_bonus = all_bonuses.mean()
-        bonus_multiplier = average_bonus / self.adaptive_bonus_target
+
+
+        adaptive_bonus_target = self._get_adaptive_bonus_target(len(states))
+
+        chunk_size = self.counting_space.approx_chunk_size
+        num_chunks = int(np.ceil(len(states) / chunk_size))
+        chunked = [states[chunk_size*c:chunk_size*(c+1)] for c in range(num_chunks)]
+        
+        total_bonus = 0
+        for chunk in chunked:
+            bonus = self.get_batched_exploration_bonus(chunk, bonus_form="sqrt")
+            total_bonus += bonus.sum()
+
+        average_bonus = total_bonus / len(states)
+
+        bonus_multiplier = average_bonus / adaptive_bonus_target
         # Regress it towards 1 a bit... 
         # How about we just do like a sqrt or something? That keeps 1 the same, makes small bigger, and big smaller.
         bonus_multiplier = bonus_multiplier ** 0.5
         old_lam = self.counting_space.lam
         self.counting_space.lam = self.counting_space.lam * bonus_multiplier
-        print(f"Average bonus: {average_bonus}\tDesired Average bonus: {self.adaptive_bonus_target}")
+        print(f"Average bonus: {average_bonus}\tDesired Average bonus: {adaptive_bonus_target}")
         print(f"Adapted lam by {bonus_multiplier}, from {old_lam} to {self.counting_space.lam}")
 
 
