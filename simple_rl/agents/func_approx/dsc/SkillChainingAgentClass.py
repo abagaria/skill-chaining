@@ -495,6 +495,8 @@ class SkillChaining(object):
 		last_10_durations = deque(maxlen=10)
 
 		for episode in range(num_episodes):
+			# KIRAN TRACE
+			pdb.set_trace()
 
 			self.mdp.reset()
 			score = 0.
@@ -510,7 +512,8 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				#pdb.set_trace()
+				# KIRAN TRACE
+				pdb.set_trace()
 				experiences, reward, state, steps = self.take_action(state, episode, step_number)
 				score += reward
 				step_number += steps
@@ -526,7 +529,8 @@ class SkillChaining(object):
 				# We must iterate through all such options and check if the current transition
 				# triggered the termination condition of any such option
 				for untrained_option in self.untrained_options:
-
+					# KIRAN TRACE
+					pdb.set_trace()
 					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
 							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
 							untrained_option.is_valid_init_data(state_buffer) and not untrained_option.initialize_everywhere:
@@ -585,7 +589,6 @@ class SkillChaining(object):
 					self.untrained_options.append(new_option)
 
 				if state.is_terminal():
-					print("TERMINAL STATE")
 					break
 
 			last_10_scores.append(score)
