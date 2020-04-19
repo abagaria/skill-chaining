@@ -510,7 +510,7 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				# pdb.set_trace()
+				pdb.set_trace()
 				experiences, reward, state, steps = self.take_action(state, episode, step_number)
 				score += reward
 				step_number += steps
