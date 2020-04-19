@@ -795,7 +795,7 @@ if __name__ == '__main__':
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
 		episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 	except:
-		#pdb.set_trace()
+		pdb.set_trace()
 
 	# Log performance metrics
 	# chainer.save_all_models()
