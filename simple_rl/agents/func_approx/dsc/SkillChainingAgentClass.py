@@ -380,8 +380,8 @@ class SkillChaining(object):
 			reward (float): sum of all rewards accumulated while executing chosen action
 			next_state (State): state we landed in after executing chosen action
 		"""
-		# KIRAN TRACE
-		pdb.set_trace()
+		# KIRAN TRACE X
+		#pdb.set_trace()
 		selected_option = self.act(state)
 
 		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
@@ -497,8 +497,8 @@ class SkillChaining(object):
 		last_10_durations = deque(maxlen=10)
 
 		for episode in range(num_episodes):
-			# KIRAN TRACE
-			pdb.set_trace()
+			# KIRAN TRACE X
+			#pdb.set_trace()
 
 			self.mdp.reset()
 			score = 0.
@@ -515,8 +515,8 @@ class SkillChaining(object):
 
 			while step_number < num_steps:
 				experiences, reward, state, steps = self.take_action(state, episode, step_number)
-				# KIRAN TRACE
-				pdb.set_trace()
+				# KIRAN TRACE #
+				#pdb.set_trace()
 				score += reward
 				step_number += steps
 				for experience in experiences:
@@ -531,8 +531,8 @@ class SkillChaining(object):
 				# We must iterate through all such options and check if the current transition
 				# triggered the termination condition of any such option
 				for untrained_option in self.untrained_options:
-					# KIRAN TRACE
-					pdb.set_trace()
+					# KIRAN TRACE X
+					#pdb.set_trace()
 
 					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
 							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
@@ -794,15 +794,13 @@ if __name__ == '__main__':
 	q0 = 0. if args.init_q == "zero" else None
 
 
-	try:
-		chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
-							seed=args.seed, subgoal_reward=args.subgoal_reward,
-							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
-							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
-		episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
-	except:
-		pdb.set_trace()
+	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
+						seed=args.seed, subgoal_reward=args.subgoal_reward,
+						log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
+						enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
+						generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)		
+	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+
 
 	# Log performance metrics
 	# chainer.save_all_models()
