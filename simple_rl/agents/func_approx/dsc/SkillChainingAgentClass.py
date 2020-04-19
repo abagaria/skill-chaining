@@ -495,7 +495,6 @@ class SkillChaining(object):
 		last_10_durations = deque(maxlen=10)
 
 		for episode in range(num_episodes):
-			print(episode)
 
 			self.mdp.reset()
 			score = 0.
@@ -586,6 +585,7 @@ class SkillChaining(object):
 					self.untrained_options.append(new_option)
 
 				if state.is_terminal():
+					print("TERMINAL STATE")
 					break
 
 			last_10_scores.append(score)
