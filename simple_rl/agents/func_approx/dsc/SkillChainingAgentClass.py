@@ -510,7 +510,7 @@ class SkillChaining(object):
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				pdb.set_trace()
+				#pdb.set_trace()
 				experiences, reward, state, steps = self.take_action(state, episode, step_number)
 				score += reward
 				step_number += steps
@@ -590,6 +590,7 @@ class SkillChaining(object):
 			last_10_scores.append(score)
 			last_10_durations.append(step_number)
 			per_episode_scores.append(score)
+			print(per_episode_scores)
 			per_episode_durations.append(step_number)
 
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
@@ -794,7 +795,7 @@ if __name__ == '__main__':
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device)
 		episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 	except:
-		pdb.set_trace()
+		#pdb.set_trace()
 
 	# Log performance metrics
 	# chainer.save_all_models()
