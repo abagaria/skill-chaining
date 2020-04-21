@@ -365,6 +365,7 @@ class Option(object):
 		positive_labels = [1] * positive_feature_matrix.shape[0]
 		negative_labels = [0] * negative_feature_matrix.shape[0]
 
+		pdb.set_trace()
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
