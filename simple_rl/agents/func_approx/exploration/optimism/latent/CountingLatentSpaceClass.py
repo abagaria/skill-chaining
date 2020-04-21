@@ -2,10 +2,12 @@
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
+import scipy.spatial.distance as distance
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
 import ipdb
 import shutil, os
+
 
 # Other imports.
 from . import naive_spread_counter
@@ -59,7 +61,7 @@ class CountingLatentSpace(object):
         self.buffers = [None for _ in range(self.action_dim)]
 
         assert phi_type in ("raw", "function"), phi_type
-        assert optimization_quantity in ("count", "bonus", "count-tc", "chunked-count", "chunked-bonus", "chunked-log"), optimization_quantity
+        assert optimization_quantity in ("count", "bonus", "count-tc", "chunked-count", "chunked-bonus", "chunked-log", "filtered-log"), optimization_quantity
 
         self.optimization_quantity = optimization_quantity
         self.bonus_scaling_term = bonus_scaling_term
@@ -145,6 +147,8 @@ class CountingLatentSpace(object):
             return self._train_chunked_attractive_and_repulsive_function_counts(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
         elif self.optimization_quantity == "chunked-bonus" or self.optimization_quantity == "chunked-log":
             return self._train_chunked_attractive_and_repulsive_function_representations(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs, verbose=verbose)
+        elif self.optimization_quantity == "filtered-log":
+            return self._train_attractive_and_filtered_repulsive_function_representations(buffers=action_buffers, state_next_state_buffer=state_next_state_buffer, epochs=epochs)
         raise NotImplementedError(f"Optimization quantity {self.optimization_quantity} not implemented yet.")
 
     def extract_features(self, states):
@@ -438,6 +442,131 @@ class CountingLatentSpace(object):
 
         self.buffers = buffers
 
+    def _train_attractive_and_filtered_repulsive_function_representations(self, *, buffers, state_next_state_buffer, epochs):
+        """ 
+        For computing repulsive forces, we will use a filtered version of the action buffer.
+        Args:
+            buffers (list): List of full action buffers
+            state_next_state_buffer (list)
+            epochs (int)
+        
+        """ 
+        self.model.train()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-4, weight_decay=1e-2)
+
+        data_set = StateNextStateDataset(state_next_state_buffer)
+        loader = DataLoader(data_set, batch_size=64, shuffle=True)
+        buffer_size = len(state_next_state_buffer)
+
+        filtered_action_buffers = [self._filter_action_buffer(buffer, verbose=True) for buffer in buffers]
+
+        for epoch in range(epochs):
+            for batch_idx, (state_batch, next_state_batch) in tqdm(enumerate(loader)):
+                state_batch = state_batch.to(self.device)
+                next_state_batch = next_state_batch.to(self.device)
+
+                state_transformed = self.model(state_batch)
+                next_state_transformed = self.model(next_state_batch)
+
+                attractive_loss = self._counting_loss(state_transformed, next_state_transformed,
+                                                      loss_type=self.attractive_loss_type)
+                self.lam = self._get_scaled_lam(buffer_size)
+                attractive_loss = self.lam * attractive_loss
+
+                repulsive_loss = self._log_loss(phi_s=state_transformed, buffers=filtered_action_buffers)
+                repulsive_loss = self._get_bonus_scaling_term(buffer_size) * repulsive_loss
+
+                total_loss = repulsive_loss - attractive_loss
+
+                optimizer.zero_grad()
+                total_loss.backward()
+                optimizer.step()
+
+                self.writer.add_scalar("AttractiveLoss", attractive_loss.item(), self._n_iterations)
+                self.writer.add_scalar("RepulsiveLoss", repulsive_loss.item(), self._n_iterations)
+                self.writer.add_scalar("TotalLoss", total_loss.item(), self._n_iterations)
+
+                self._n_iterations += 1
+
+        self.buffers = buffers
+
+
+    def _filter_action_buffer(self, action_buffer, chunk_size=1000, shuffle=True, verbose=False):
+        """ 
+        Filter the action buffer to approximate counting.
+        Args:
+            action_buffer (np.ndarray)
+            chunk_size (int): We are going to have to chunk up the action buffer
+                              to project it into our latent space. 
+        
+        Returns:
+            filtered_action_buffer (np.ndarray)
+
+        TODO: This actually needs to take in the states, project them, filter them,
+              and then return filtered states (not projections!)
+
+        """
+        if action_buffer is None:
+            return None
+        
+        if shuffle:
+            shuffled_indices = np.random.permutation(len(action_buffer))
+            action_buffer = action_buffer[shuffled_indices, ...]
+
+        projected_action_buffer = self._project_action_buffer(action_buffer, chunk_size)
+        filtered_action_buffer = self._filter_action_buffer_helper(action_buffer, projected_action_buffer)
+
+        if verbose:
+            print(f"Filtered action buffer from size {len(action_buffer)} to {len(filtered_action_buffer)}")
+
+        return filtered_action_buffer
+
+    def _project_action_buffer(self, action_buffer, chunk_size=1000):
+        self.model.eval()
+
+        num_chunks = int(np.ceil(action_buffer.shape[0] / chunk_size))
+        action_buffer_chunks = np.array_split(action_buffer, num_chunks, axis=0)
+        projected_buffer_chunks = []
+
+        # Chunk up the action buffer to project into our latent space
+        for buffer_chunk in action_buffer_chunks:  # type: np.ndarray
+            with torch.no_grad():
+                projected_buffer_chunk = self.model(buffer_chunk)
+            projected_buffer_chunks.append(projected_buffer_chunk.cpu().numpy())
+        
+        # Combine the projection into a single numpy array
+        projected_action_buffer = np.concatenate(projected_buffer_chunks, axis=0)
+
+        assert projected_action_buffer.shape == (len(action_buffer), self.latent_dim)
+
+        return projected_action_buffer
+
+    def _filter_action_buffer_helper(self, action_buffer, projected_action_buffer):
+        """
+        Args:
+            action_buffer (np.ndarray)
+            projected_action_buffer (np.ndarray)
+        
+        Returns:
+            filtered_action_buffer (np.ndarray)
+        """
+        filtered_action_buffer = []
+        starting_action_buffer = action_buffer
+        starting_projected_action_buffer = projected_action_buffer
+        while len(starting_action_buffer) != 0:
+            first_state = starting_action_buffer[0]
+            projected_first_state = starting_projected_action_buffer[0]
+            filtered_action_buffer.append(first_state)
+            distances = distance.cdist(projected_first_state[None, ...], starting_projected_action_buffer)
+            out_of_ball_indices = [i for i, d in enumerate(distances) if d > self.epsilon]
+
+            starting_action_buffer = np.take(starting_action_buffer, indices=out_of_ball_indices, axis=0)
+            starting_projected_action_buffer = np.take(starting_projected_action_buffer, indices=out_of_ball_indices, axis=0)
+
+        filtered_action_buffer = np.array(filtered_action_buffer)
+        return filtered_action_buffer
+
+
     def _typecheck_transition_consistency_buffers(self, buffers):
         """
         This function checks the buffers to make sure a bunch of things are true about their shapes and sizes.
@@ -681,6 +810,45 @@ class CountingLatentSpace(object):
         chunked_loss = (f * counts_per_action_per_phi_s).sum()
         return chunked_loss
 
+    def _log_loss(self, *, phi_s, buffers):
+        """
+        Args:
+            phi_s (torch.tensor): projection of a mini-batch of states
+            buffers (list): where each buffer is a filtered action buffer np.ndarray
+        
+        Returns:
+            loss (torch.tensor): scalar tensor representing the loss to be minimized
+        """
+        batch_size = phi_s.shape[0]
+        total_loss = torch.zeros(batch_size, device=self.device)
+
+        for buffer_idx in range(len(buffers)):
+            action_buffer = buffers[buffer_idx]  # type: np.ndarray # of shape (N, latent_size)
+
+            if action_buffer is not None:
+                action_buffer = torch.from_numpy(action_buffer).float().to(self.device)
+                phi_s_prime = self.model(action_buffer)
+
+                # (M, N) matrix of pairwise distances between phi(s) and phi(s')
+                squared_distance = naive_spread_counter.torch_get_square_distances_to_buffer(phi_s, phi_s_prime)
+
+                # Apply exponential filter around the pairwise distances to zero out the effect of far-away states
+                distance = (squared_distance + 1e-6).sqrt()
+                for_exp = -distance / self.epsilon
+                filtered_pairwise_distances = torch.exp(for_exp)
+
+                # Compute the counts and then the loss for all the M states
+                state_counts = filtered_pairwise_distances.sum(dim=1)
+                state_losses = torch.log(state_counts)
+
+                total_loss += state_losses
+
+        # Sum the loss for each state to represent the loss of the current mini-batch
+        batch_loss = total_loss.sum()
+
+        return batch_loss
+
+
     def _compute_chunked_scaling_term(self, phi_s, buffers, chunk_size, count_type="exponential"):
         """
 
@@ -742,10 +910,7 @@ class CountingLatentSpace(object):
             Counts for all elements in X, when compared against all elements in the specified buffer
         TODO: This should return shape (batch_size, 1). Right now it returns (batch_size,)
         """
-
-        chunked = self.optimization_quantity in ("chunked-count", "chunked-bonus")
-        chunked = "chunked" in self.optimization_quantity
-        chunk_size = self.approx_chunk_size if chunked else None
+        chunk_size = self.approx_chunk_size
 
         if self.phi_type == "raw":
             return self._get_raw_counts(X, buffer_idx, chunk_size=chunk_size)

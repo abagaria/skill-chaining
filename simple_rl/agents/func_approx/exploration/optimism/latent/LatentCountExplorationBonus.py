@@ -127,7 +127,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
         so I'm gonna make it go down with ln(num_states). And I'll make it so that
         at 1000, it's at 0.1.
         """
-        bonus_target = 0.76 / np.log(N)
+        # bonus_target = 0.76 / np.log(N)
+        bonus_target = 0.1
         return bonus_target
 
     def _adapt_lam(self):
