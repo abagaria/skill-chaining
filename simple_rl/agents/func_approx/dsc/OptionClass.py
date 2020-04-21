@@ -367,7 +367,7 @@ class Option(object):
 
 		# TODO: The error is here, the dims of the entries in the positive and
 		# negative features matrices are different
-		#pdb.set_trace()
+		pdb.set_trace()
 		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		Y = np.concatenate((positive_labels, negative_labels))
 
