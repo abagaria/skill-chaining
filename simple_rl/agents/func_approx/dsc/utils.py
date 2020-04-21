@@ -303,11 +303,14 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
 	ax.scatter(x=np.asarray(nxs), y=np.asarray(nys), c=np.asarray(colors))
 
 	goal_states = [s for s in states if option.is_init_true(s)]
+	goal_values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in goal_states]
+	best_goal_state = goal_states[np.argmax(goal_values)]
 
 	gxs = [s.data[0] for s in goal_states]
 	gys = [s.data[1] for s in goal_states]
 
 	ax.scatter(x=gxs, y=gys, c="red")
+	ax.scatter(x=[best_goal_state.data[0]], y=[best_goal_state.data[1]], c="green")
 
 	low_bound_x, up_bound_x = -3, 11
 	low_bound_y, up_bound_y = -3, 11
