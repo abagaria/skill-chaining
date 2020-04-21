@@ -24,7 +24,7 @@ class CountingLatentSpace(object):
     def __init__(self, state_dim, action_dim, latent_dim=2, epsilon=1.0, phi_type="raw", device=torch.device("cuda"), experiment_name="",
                  pixel_observations=False, lam=.1, attractive_loss_type="quadratic", repulsive_loss_type="exponential",
                  optimization_quantity="count", bonus_scaling_term="sqrt", lam_scaling_term="none", writer=None, approx_chunk_size=1000,
-                 lam_c1=None, lam_c2=None):
+                 lam_c1=None, lam_c2=None, use_filtered_buffers_for_inference=False):
         """
         Latent space useful for generating pseudo-counts for states.
         Args:
@@ -59,6 +59,7 @@ class CountingLatentSpace(object):
         self.approx_chunk_size = approx_chunk_size
 
         self.buffers = [None for _ in range(self.action_dim)]
+        self.filtered_buffers = [None for _ in range(self.action_dim)]  # Used for filtered-log optimization_quantity
 
         assert phi_type in ("raw", "function"), phi_type
         assert optimization_quantity in ("count", "bonus", "count-tc", "chunked-count", "chunked-bonus", "chunked-log", "filtered-log"), optimization_quantity
@@ -104,6 +105,11 @@ class CountingLatentSpace(object):
             self.buffers[action] = expanded_state
         else:
             self.buffers[action] = np.concatenate((self.buffers[action], expanded_state), axis=0)
+
+        if self.filtered_buffers[action] is None:
+            self.filtered_buffers[action] = expanded_state
+        else:
+            self.filtered_buffers[action] = np.concatenate((self.filtered_buffers[action], expanded_state), axis=0)
 
     def _create_tensor_board_logger(self, writer):
         log_dir = "runs/{}".format(self.experiment_name)
@@ -460,8 +466,11 @@ class CountingLatentSpace(object):
 
         filtered_action_buffers = [self._filter_action_buffer(buffer, verbose=True) for buffer in buffers]
 
-        for epoch in range(epochs):
-            for batch_idx, (state_batch, next_state_batch) in tqdm(enumerate(loader)):
+        if epochs <= 0:
+            epochs = self._get_scaled_num_epochs(buffer_size)
+
+        for epoch in tqdm(range(epochs)):
+            for batch_idx, (state_batch, next_state_batch) in enumerate(loader):
                 state_batch = state_batch.to(self.device)
                 next_state_batch = next_state_batch.to(self.device)
 
@@ -472,8 +481,8 @@ class CountingLatentSpace(object):
                                                       loss_type=self.attractive_loss_type)
                 self.lam = self._get_scaled_lam(buffer_size)
                 attractive_loss = self.lam * attractive_loss
-
                 repulsive_loss = self._log_loss(phi_s=state_transformed, buffers=filtered_action_buffers)
+
                 repulsive_loss = self._get_bonus_scaling_term(buffer_size) * repulsive_loss
 
                 total_loss = repulsive_loss - attractive_loss
@@ -489,6 +498,7 @@ class CountingLatentSpace(object):
                 self._n_iterations += 1
 
         self.buffers = buffers
+        self.filtered_buffers = filtered_action_buffers
 
 
     def _filter_action_buffer(self, action_buffer, chunk_size=1000, shuffle=True, verbose=False):
@@ -530,7 +540,8 @@ class CountingLatentSpace(object):
 
         # Chunk up the action buffer to project into our latent space
         for buffer_chunk in action_buffer_chunks:  # type: np.ndarray
-            with torch.no_grad():
+            buffer_chunk = torch.from_numpy(buffer_chunk).float().to(self.device)
+            with torch.no_grad():               
                 projected_buffer_chunk = self.model(buffer_chunk)
             projected_buffer_chunks.append(projected_buffer_chunk.cpu().numpy())
         
@@ -550,6 +561,11 @@ class CountingLatentSpace(object):
         Returns:
             filtered_action_buffer (np.ndarray)
         """
+        if len(action_buffer) <= 200:
+            return action_buffer
+
+        filtering_threshold = self.epsilon / 4.
+
         filtered_action_buffer = []
         starting_action_buffer = action_buffer
         starting_projected_action_buffer = projected_action_buffer
@@ -557,8 +573,8 @@ class CountingLatentSpace(object):
             first_state = starting_action_buffer[0]
             projected_first_state = starting_projected_action_buffer[0]
             filtered_action_buffer.append(first_state)
-            distances = distance.cdist(projected_first_state[None, ...], starting_projected_action_buffer)
-            out_of_ball_indices = [i for i, d in enumerate(distances) if d > self.epsilon]
+            distances = np.linalg.norm(projected_first_state[None, ...] - starting_projected_action_buffer, axis=1)
+            out_of_ball_indices = [i for i, d in enumerate(distances) if d > filtering_threshold]
 
             starting_action_buffer = np.take(starting_action_buffer, indices=out_of_ball_indices, axis=0)
             starting_projected_action_buffer = np.take(starting_projected_action_buffer, indices=out_of_ball_indices, axis=0)
@@ -839,7 +855,7 @@ class CountingLatentSpace(object):
 
                 # Compute the counts and then the loss for all the M states
                 state_counts = filtered_pairwise_distances.sum(dim=1)
-                state_losses = torch.log(state_counts)
+                state_losses = torch.log(state_counts + 1e-6)
 
                 total_loss += state_losses
 
@@ -899,7 +915,7 @@ class CountingLatentSpace(object):
 
         return scaling_term
 
-    def get_counts(self, X, buffer_idx):
+    def get_counts(self, X, buffer_idx, use_filtered_buffers_for_inference=False):
         """
 
         Args:
@@ -915,7 +931,10 @@ class CountingLatentSpace(object):
         if self.phi_type == "raw":
             return self._get_raw_counts(X, buffer_idx, chunk_size=chunk_size)
 
-        return self._get_function_counts(X, buffer_idx, chunk_size=chunk_size)
+        return self._get_function_counts(X,
+                                         buffer_idx,
+                                         chunk_size=chunk_size,
+                                         use_filtered_buffers_for_inference=use_filtered_buffers_for_inference)
 
     def _get_raw_count_from_distances(self, distances):
         """
@@ -956,9 +975,9 @@ class CountingLatentSpace(object):
         counts = self._get_raw_count_from_distances(distances)
         return counts
 
-    def _get_function_counts(self, X, buffer_idx, chunk_size=None):
-        buffer = self.buffers[buffer_idx]  # type: np.ndarray
-
+    def _get_function_counts(self, X, buffer_idx, chunk_size=None, use_filtered_buffers_for_inference=False):
+        buffer = self.filtered_buffers[buffer_idx] if use_filtered_buffers_for_inference else self.buffers[buffer_idx]  # type: np.ndarray
+        
         # If we have never taken this action before, return max counts
         if buffer is None:
             max_counts = np.zeros((X.shape[0],))

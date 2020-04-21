@@ -149,11 +149,18 @@ class LatentCountExplorationBonus(ExplorationBonus):
         chunk_size = self.counting_space.approx_chunk_size
         num_chunks = int(np.ceil(len(states) / chunk_size))
         chunked = [states[chunk_size*c:chunk_size*(c+1)] for c in range(num_chunks)]
-        
+
+        if self.counting_space.optimization_quantity == "filtered-log":
+            use_filtered_buffers_for_inference = True
+        else:
+            use_filtered_buffers_for_inference = False
+
         total_bonus = 0
         for chunk in chunked:
-            bonus = self.get_batched_exploration_bonus(chunk, bonus_form="sqrt")
-            total_bonus += bonus.sum()
+            bonus = self.get_batched_exploration_bonus(chunk, bonus_form="sqrt",
+                use_filtered_buffers_for_inference=use_filtered_buffers_for_inference)
+            print(f"What's the shape of the bonus? {bonus.shape}")
+            total_bonus += bonus.sum(axis=0).mean() # Mean because it's the mean over actions!!!
 
         average_bonus = total_bonus / len(states)
 
@@ -216,12 +223,13 @@ class LatentCountExplorationBonus(ExplorationBonus):
         #     return self._normalize_sns_buffer(self.un_normalized_sns_buffer)
         # raise Warning("Asking for normalized buffer when self.normalize_states is False")
 
-    def get_exploration_bonus(self, state, action=None, bonus_form="sqrt", add_one=False, power=None, mult=1.0):
+    def get_exploration_bonus(self, state, action=None, bonus_form="sqrt", add_one=False, power=None, mult=1.0, use_filtered_buffers_for_inference=False):
         """
 
         Args:
             state (np.ndarray): a numpy array representing a single state.
             action (None or int): Either the action idx, or None if you want all action-bonuses for state.
+            use_filtered_buffers_for_inference (bool): Whether to use the filtered action buffers for inference in CLS
 
         Returns:
             bonus (np.ndarray): represents count-bonuses for an action, or for all actions.
@@ -240,7 +248,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
             state = normalize(state, self.mean_state, self.std_state)
 
         if action is not None:
-            count = self.counting_space.get_counts(np.expand_dims(state, 0), action)
+            count = self.counting_space.get_counts(np.expand_dims(state, 0), action, use_filtered_buffers_for_inference)
             bonus = self._counts_to_bonus(count, bonus_form=bonus_form, add_one=add_one, power=power, mult=mult)
             assert bonus.shape == (1,), bonus.shape
             return bonus
@@ -249,7 +257,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
         # corresponding to all the actions in the MDP
         bonuses = []
         for action in self.actions:
-            count = self.counting_space.get_counts(np.expand_dims(state, 0), action)[0]
+            count = self.counting_space.get_counts(np.expand_dims(state, 0), action, use_filtered_buffers_for_inference)[0]
             bonus = self._counts_to_bonus(count, bonus_form=bonus_form, add_one=add_one, power=power, mult=mult)
             bonuses.append(bonus)
         bonuses = np.array(bonuses)
@@ -258,7 +266,8 @@ class LatentCountExplorationBonus(ExplorationBonus):
         assert bonuses.shape == (1, len(self.actions)), bonuses
         return bonuses
 
-    def get_batched_exploration_bonus(self, states, actions=None, bonus_form="sqrt", add_one=False, power=None, mult=1.0):
+    def get_batched_exploration_bonus(self, states, actions=None, bonus_form="sqrt", add_one=False, power=None,
+                                      mult=1.0, use_filtered_buffers_for_inference=False):
         assert isinstance(states, np.ndarray), type(states)
 
         if self.pixel_observation:
@@ -269,7 +278,7 @@ class LatentCountExplorationBonus(ExplorationBonus):
 
         counts = []
         for action in self.actions:
-            action_counts = self.counting_space.get_counts(states, action)
+            action_counts = self.counting_space.get_counts(states, action, use_filtered_buffers_for_inference)
             counts.append(action_counts)
 
         count_array = np.array(counts).T # type: np.ndarray
@@ -302,13 +311,14 @@ class LatentCountExplorationBonus(ExplorationBonus):
             return mult * (counts ** power)
         raise NotImplementedError(bonus_form)
 
-    def get_counts(self, X, buffer_idx):
+    def get_counts(self, X, buffer_idx, use_filtered_buffers_for_inference=False):
         """
         We're doing it here too so we don't feel tempted to go down in to novelty_tracker when we want counts.
         Because that caused a headache with normalization.
         Args:
             X (np.ndarray): states
             buffer_idx (int): action
+            use_filtered_buffers_for_inference (bool)
 
         Returns:
             counts
@@ -316,4 +326,4 @@ class LatentCountExplorationBonus(ExplorationBonus):
         """
         if self.normalize_states:
             X = normalize(X, self.mean_state, self.std_state)
-        return self.counting_space.get_counts(X, buffer_idx)
+        return self.counting_space.get_counts(X, buffer_idx, use_filtered_buffers_for_inference=use_filtered_buffers_for_inference)

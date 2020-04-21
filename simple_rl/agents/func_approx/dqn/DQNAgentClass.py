@@ -58,6 +58,7 @@ class DQNAgent(Agent):
                  opiq_regression_exponent=-0.5, # This is applied on N(s,a) not N(s',a'). -0.5 in theory, but maybe not in practice.
                  beta_regression=1.,
                  cls_num_frames=1,
+                 use_filtered_buffers_for_inference=False,
                  ):
 
         assert bonus_form in ("sqrt", "linear", "exp"), bonus_form # Because "power" is handled by use_opiq...
@@ -95,6 +96,11 @@ class DQNAgent(Agent):
         self.c_bootstrap = c_bootstrap
         self.opiq_regression_exponent = opiq_regression_exponent
         self.beta_regression = beta_regression
+
+        if use_filtered_buffers_for_inference and optimization_quantity != "filtered-log":
+            raise Exception("You only can do use_filtered_buffers_for_inference if you're using filtered buffers.")
+
+        self.use_filtered_buffers_for_inference = use_filtered_buffers_for_inference
 
 
         # Q-Network
@@ -209,9 +215,11 @@ class DQNAgent(Agent):
                 if self.use_opiq:
                     bonus = self.novelty_tracker.get_exploration_bonus(
                         bonus_input, bonus_form="power", power=self.action_selection_exponent,
-                        add_one=True, mult=self.c_action)
+                        add_one=True, mult=self.c_action, use_filtered_buffers_for_inference=self.use_filtered_buffers_for_inference)
                 else:
-                    bonus = self.novelty_tracker.get_exploration_bonus(bonus_input, bonus_form=self.bonus_form, mult=self.c_action)
+                    bonus = self.novelty_tracker.get_exploration_bonus(
+                        bonus_input, bonus_form=self.bonus_form, mult=self.c_action,
+                        use_filtered_buffers_for_inference=self.use_filtered_buffers_for_inference)
 
                 # bonus = self.novelty_tracker.get_exploration_bonus(bonus_input)
                 assert bonus.shape == action_values.shape
@@ -337,9 +345,12 @@ class DQNAgent(Agent):
             if self.use_opiq:
                 bonus_array = self.novelty_tracker.get_batched_exploration_bonus(
                     next_bonus_input, bonus_form="power", add_one=True, mult=self.c_bootstrap,
-                    power=self.action_selection_exponent)
+                    power=self.action_selection_exponent,
+                    use_filtered_buffers_for_inference=self.use_filtered_buffers_for_inference)
             else:
-                bonus_array = self.novelty_tracker.get_batched_exploration_bonus(next_bonus_input, bonus_form=self.bonus_form, mult=self.beta_regression)
+                bonus_array = self.novelty_tracker.get_batched_exploration_bonus(
+                    next_bonus_input, bonus_form=self.bonus_form, mult=self.beta_regression,
+                    use_filtered_buffers_for_inference=self.use_filtered_buffers_for_inference)
             bonus_tensor = torch.from_numpy(bonus_array).float().to(self.device)
             assert Q_targets_next.shape == bonus_tensor.shape
             return Q_targets_next + bonus_tensor
@@ -491,7 +502,7 @@ class DQNAgent(Agent):
                     X = visited_states[:, :2]
                     self.one_class_classifiers[action].fit(X)
         else:
-            epochs = -1 if self.novelty_tracker.counting_space.optimization_quantity in ("chunked-bonus", "chunked-log") else 50
+            epochs = -1 if self.novelty_tracker.counting_space.optimization_quantity in ("chunked-bonus", "chunked-log", "filtered-log") else 50
             self.novelty_tracker.train(epochs=epochs, mode=mode)
 
 def train(agent, mdp, episodes, steps):

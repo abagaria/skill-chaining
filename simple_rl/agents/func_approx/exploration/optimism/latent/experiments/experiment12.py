@@ -34,7 +34,7 @@ class Experiment12:
                  phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form,
                  prioritize_positive_terminal_transitions,
                  use_opiq, opiq_regression_exponent, action_selection_exponent, cls_latent_dim,
-                 cls_num_frames, starting_lam):
+                 cls_num_frames, starting_lam, use_filtered_buffers_for_inference):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -59,7 +59,8 @@ class Experiment12:
                               use_opiq=use_opiq, opiq_regression_exponent=opiq_regression_exponent,
                               action_selection_exponent=action_selection_exponent,
                               cls_latent_dim=cls_latent_dim, cls_num_frames=cls_num_frames,
-                              starting_lam=starting_lam)
+                              starting_lam=starting_lam,
+                              use_filtered_buffers_for_inference=use_filtered_buffers_for_inference)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -69,6 +70,7 @@ class Experiment12:
         self.max_to_plot = max_to_plot
         self.mcar_win_reward = mcar_win_reward
         self.prioritize_positive_terminal_transitions = prioritize_positive_terminal_transitions
+        self.optimization_quantity = optimization_quantity
 
     def run_experiment(self):
         training_scores, training_durations = self.train_dqn_agent(self.agent, self.mdp, self.episodes, self.num_steps)
@@ -139,12 +141,10 @@ class Experiment12:
         current_idx = 0
 
         for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making bonus plot"):  # type: (int, np.ndarray)
-            chunk_bonuses = agent.novelty_tracker.get_batched_exploration_bonus(input_chunk)
+            chunk_bonuses = agent.novelty_tracker.get_batched_exploration_bonus(input_chunk, use_filtered_buffers_for_inference=False)
             current_chunk_size = len(chunk_bonuses)
             bonuses[current_idx:current_idx+current_chunk_size] = chunk_bonuses
             current_idx += current_chunk_size
-
-        # bonuses = agent.novelty_tracker.get_batched_exploration_bonus(bonus_inputs)
 
         plt.figure(figsize=(14, 10))
         for i, action in enumerate(self.mdp.actions):
@@ -155,6 +155,43 @@ class Experiment12:
 
         plt.suptitle("Exploration Bonuses after Episode {}".format(episode))
         plt.savefig(f"{self.experiment_name}/bonus_plots/bonuses_{episode}_seed_{self.seed}.png")
+        plt.close()
+
+    def make_bonus_plot_with_filtering(self, agent, episode, chunk_size=1000, max_to_plot=10000):
+
+        states = np.array([transition.state for transition in agent.replay_buffer])
+        positions = np.array([transition.position for transition in agent.replay_buffer])
+
+        bonus_inputs = positions if self.bonus_from_position else states
+
+        max_to_plot = min(max_to_plot, len(states))
+        shuffler = np.random.permutation(len(states))[:max_to_plot]
+
+        states = states[shuffler]
+        positions = positions[shuffler]
+        bonus_inputs = bonus_inputs[shuffler]
+
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(bonus_inputs.shape[0] / chunk_size))
+        input_chunks = np.array_split(bonus_inputs, num_chunks, axis=0)
+        bonuses = np.zeros((bonus_inputs.shape[0], len(agent.actions)))
+        current_idx = 0
+
+        for chunk_number, input_chunk in tqdm(enumerate(input_chunks), desc="Making filtered bonus plot"):  # type: (int, np.ndarray)
+            chunk_bonuses = agent.novelty_tracker.get_batched_exploration_bonus(input_chunk, use_filtered_buffers_for_inference=True)
+            current_chunk_size = len(chunk_bonuses)
+            bonuses[current_idx:current_idx+current_chunk_size] = chunk_bonuses
+            current_idx += current_chunk_size
+
+        plt.figure(figsize=(14, 10))
+        for i, action in enumerate(self.mdp.actions):
+            plt.subplot(1, len(self.mdp.actions), i + 1)
+            plt.scatter(positions[:, 0], positions[:, 1], c=bonuses[:, action], norm=matplotlib.colors.LogNorm())
+            plt.colorbar()
+            plt.yticks([])
+
+        plt.suptitle("Exploration Bonuses after Episode {}".format(episode))
+        plt.savefig(f"{self.experiment_name}/filtered_bonus_plots/filtered_bonuses_{episode}_seed_{self.seed}.png")
         plt.close()
 
     def make_value_plot(self, agent, episode, chunk_size=1000, max_to_plot=10000):
@@ -295,6 +332,8 @@ class Experiment12:
                     self.make_value_plot(agent, episode, max_to_plot=self.max_to_plot)
                     # self.make_advantage_plot(agent, episode)
                     self.make_which_actions_plot(agent, episode, max_to_plot=self.max_to_plot, allow_novelty=False)
+                    if self.optimization_quantity == "filtered-log":
+                        self.make_bonus_plot_with_filtering(agent, episode, max_to_plot=self.max_to_plot)
 
             last_10_scores.append(score)
             last_10_durations.append(step + 1)
@@ -359,6 +398,8 @@ if __name__ == "__main__":
     parser.add_argument("--lam_c2", type=float, default=None)
     parser.add_argument("--cls_num_frames", type=int, default=1)
     parser.add_argument("--starting_lam", type=float, default=.1)
+    parser.add_argument("--use_filtered_buffers_for_inference", action="store_true", default=False)
+    
 
     args = parser.parse_args()
 
@@ -367,6 +408,7 @@ if __name__ == "__main__":
     create_log_dir(args.experiment_name)
     create_log_dir(full_experiment_name)
     create_log_dir(f"{full_experiment_name}/bonus_plots")
+    create_log_dir(f"{full_experiment_name}/filtered_bonus_plots")
     create_log_dir(f"{full_experiment_name}/latent_plots")
     create_log_dir(f"{full_experiment_name}/qf_plots")
     create_log_dir(f"{full_experiment_name}/q_advantage_plots")
@@ -388,6 +430,7 @@ if __name__ == "__main__":
                       use_opiq=args.use_opiq, opiq_regression_exponent=args.opiq_regression_exponent,
                       action_selection_exponent=args.action_selection_exponent, cls_latent_dim=args.cls_latent_dim,
                       cls_num_frames=args.cls_num_frames, starting_lam=args.starting_lam,
+                      use_filtered_buffers_for_inference=args.use_filtered_buffers_for_inference,
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()
