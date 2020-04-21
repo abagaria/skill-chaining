@@ -15,6 +15,8 @@ from PIL import Image
 from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
 
+from mpl_toolkits.mplot3d import Axes3D
+
 class Experience(object):
 	def __init__(self, s, a, r, s_prime):
 		self.state = s
@@ -283,14 +285,17 @@ def replay_trajectory(trajectory, dir_name):
 
 
 def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name=""):
-	plt.figure(figsize=(8.0, 5.0))
-	ax = plt.gca()
+	fig = plt.figure(figsize=(8.0, 5.0))
+	#ax = plt.gca()
+	ax = fig.add_subplot(1, 1, 1, projection='3d')
 
 	states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
 
 	non_goal_states = [s for s in states if not option.is_init_true(s)]
+	
 	nxs = [s.data[0] for s in non_goal_states]
 	nys = [s.data[1] for s in non_goal_states]
+	nzs = [np.linalg.norm(s.data[3:5]) for s in non_goal_states]
 
 	cmap = matplotlib.cm.get_cmap('Blues')
 	values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in non_goal_states]
@@ -300,23 +305,24 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
 	# print('nxs=', nxs)
 	# print('nys=', nys)
 	# print('colors=', colors)
-	ax.scatter(x=np.asarray(nxs), y=np.asarray(nys), c=np.asarray(colors))
+	ax.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
 
 	goal_states = [s for s in states if option.is_init_true(s)]
 	goal_values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in goal_states]
-	best_goal_state = goal_states[np.argmax(goal_values)]
-
+	best_goal_state = goal_states.pop(np.argmax(goal_values))
+	
 	gxs = [s.data[0] for s in goal_states]
 	gys = [s.data[1] for s in goal_states]
+	gzs = [np.linalg.norm(s.data[3:5]) for s in goal_states]
 
-	ax.scatter(x=gxs, y=gys, c="red")
-	ax.scatter(x=[best_goal_state.data[0]], y=[best_goal_state.data[1]], c="green")
+	ax.scatter(gxs, gys, gzs, c="red")
+	ax.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [np.linalg.norm(best_goal_state.data[3:5])],c="green", s = [400])
 
 	low_bound_x, up_bound_x = -3, 11
 	low_bound_y, up_bound_y = -3, 11
 
 	plt.xlim((low_bound_x, up_bound_x))
-	plt.ylim((low_bound_y, up_bound_y))
+	#plt.ylim((low_bound_y, up_bound_y))
 
 	plt.xlabel("x")
 	plt.ylabel("y")
