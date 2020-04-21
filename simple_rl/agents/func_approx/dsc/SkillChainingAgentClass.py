@@ -266,7 +266,8 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing the option
 			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
 		"""
-		assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
+		# Akhil says we can take out this assert -Kiran
+		# assert self.subgoal_reward == 0, "This kind of SMDP update only makes sense when subgoal reward is 0"
 
 		def get_reward(transitions):
 			gamma = self.global_option.solver.gamma
