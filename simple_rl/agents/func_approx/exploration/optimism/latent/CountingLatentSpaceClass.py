@@ -60,6 +60,7 @@ class CountingLatentSpace(object):
 
         self.buffers = [None for _ in range(self.action_dim)]
         self.filtered_buffers = [None for _ in range(self.action_dim)]  # Used for filtered-log optimization_quantity
+        self.num_points_collapsed = [None for _ in range(self.action_dim)]  # Used for filtered-log optimization_quantity
 
         assert phi_type in ("raw", "function"), phi_type
         assert optimization_quantity in ("count", "bonus", "count-tc", "chunked-count", "chunked-bonus", "chunked-log", "filtered-log"), optimization_quantity
@@ -110,6 +111,14 @@ class CountingLatentSpace(object):
             self.filtered_buffers[action] = expanded_state
         else:
             self.filtered_buffers[action] = np.concatenate((self.filtered_buffers[action], expanded_state), axis=0)
+
+        if self.num_points_collapsed is not None:
+            if self.num_points_collapsed[action] is None:
+                self.num_points_collapsed[action] = np.array([1])
+            else:
+                self.num_points_collapsed[action] = np.concatenate((self.num_points_collapsed[action], np.array([1])), axis=0)
+        
+            print("[AddTransition] numPointsCollapsedShape=", self.num_points_collapsed[action].shape)
 
     def _create_tensor_board_logger(self, writer):
         log_dir = "runs/{}".format(self.experiment_name)
@@ -448,7 +457,7 @@ class CountingLatentSpace(object):
 
         self.buffers = buffers
 
-    def _train_attractive_and_filtered_repulsive_function_representations(self, *, buffers, state_next_state_buffer, epochs):
+    def _train_attractive_and_filtered_repulsive_function_representations(self, *, buffers, state_next_state_buffer, epochs, scale_by_num_points=False):
         """ 
         For computing repulsive forces, we will use a filtered version of the action buffer.
         Args:
@@ -464,7 +473,9 @@ class CountingLatentSpace(object):
         loader = DataLoader(data_set, batch_size=64, shuffle=True)
         buffer_size = len(state_next_state_buffer)
 
-        filtered_action_buffers = [self._filter_action_buffer(buffer, verbose=True) for buffer in buffers]
+        filtered_action_buffers_and_num_points = [self._filter_action_buffer(buffer, verbose=True) for buffer in buffers]
+        filtered_action_buffers = [elem[0] for elem in filtered_action_buffers_and_num_points]
+        num_points_collapsed = [elem[1] for elem in filtered_action_buffers_and_num_points]
 
         if epochs <= 0:
             epochs = self._get_scaled_num_epochs(buffer_size)
@@ -481,7 +492,7 @@ class CountingLatentSpace(object):
                                                       loss_type=self.attractive_loss_type)
                 self.lam = self._get_scaled_lam(buffer_size)
                 attractive_loss = self.lam * attractive_loss
-                repulsive_loss = self._log_loss(phi_s=state_transformed, buffers=filtered_action_buffers)
+                repulsive_loss = self._log_loss(phi_s=state_transformed, buffers=filtered_action_buffers, num_points_collapsed=num_points_collapsed)
 
                 repulsive_loss = self._get_bonus_scaling_term(buffer_size) * repulsive_loss
 
@@ -499,6 +510,7 @@ class CountingLatentSpace(object):
 
         self.buffers = buffers
         self.filtered_buffers = filtered_action_buffers
+        self.num_points_collapsed = num_points_collapsed
 
 
     def _filter_action_buffer(self, action_buffer, chunk_size=1000, shuffle=True, verbose=False):
@@ -512,24 +524,23 @@ class CountingLatentSpace(object):
         Returns:
             filtered_action_buffer (np.ndarray)
 
-        TODO: This actually needs to take in the states, project them, filter them,
-              and then return filtered states (not projections!)
+        TODO: This needs to return the number of points each represents, too
 
         """
         if action_buffer is None:
-            return None
+            return None, None
         
         if shuffle:
             shuffled_indices = np.random.permutation(len(action_buffer))
             action_buffer = action_buffer[shuffled_indices, ...]
 
         projected_action_buffer = self._project_action_buffer(action_buffer, chunk_size)
-        filtered_action_buffer = self._filter_action_buffer_helper(action_buffer, projected_action_buffer)
+        filtered_action_buffer, num_points_collapsed = self._filter_action_buffer_helper(action_buffer, projected_action_buffer)
 
         if verbose:
             print(f"Filtered action buffer from size {len(action_buffer)} to {len(filtered_action_buffer)}")
 
-        return filtered_action_buffer
+        return filtered_action_buffer, num_points_collapsed
 
     def _project_action_buffer(self, action_buffer, chunk_size=1000):
         self.model.eval()
@@ -560,27 +571,39 @@ class CountingLatentSpace(object):
         
         Returns:
             filtered_action_buffer (np.ndarray)
+            num_points_collapsed (np.ndarray): for each of the points in the `filtered_action_buffer`,
+                                               how many points did you collapse from the original 
+                                               action buffer.
         """
         if len(action_buffer) <= 200:
-            return action_buffer
+            return action_buffer, np.ones((action_buffer.shape[0],))
 
         filtering_threshold = self.epsilon / 4.
 
         filtered_action_buffer = []
+        filtered_buffer_num_collapsed = []
+
         starting_action_buffer = action_buffer
         starting_projected_action_buffer = projected_action_buffer
         while len(starting_action_buffer) != 0:
             first_state = starting_action_buffer[0]
             projected_first_state = starting_projected_action_buffer[0]
-            filtered_action_buffer.append(first_state)
+            
             distances = np.linalg.norm(projected_first_state[None, ...] - starting_projected_action_buffer, axis=1)
             out_of_ball_indices = [i for i, d in enumerate(distances) if d > filtering_threshold]
+
+            filtered_action_buffer.append(first_state)
+            num_points_collapsed = len(starting_projected_action_buffer) - len(out_of_ball_indices)
+            filtered_buffer_num_collapsed.append(num_points_collapsed)
 
             starting_action_buffer = np.take(starting_action_buffer, indices=out_of_ball_indices, axis=0)
             starting_projected_action_buffer = np.take(starting_projected_action_buffer, indices=out_of_ball_indices, axis=0)
 
         filtered_action_buffer = np.array(filtered_action_buffer)
-        return filtered_action_buffer
+        num_points_collapsed = np.array(num_points_collapsed)
+        print(f"numPointsCollapsedShape = ", num_points_collapsed.shape)
+
+        return filtered_action_buffer, num_points_collapsed
 
 
     def _typecheck_transition_consistency_buffers(self, buffers):
@@ -826,11 +849,13 @@ class CountingLatentSpace(object):
         chunked_loss = (f * counts_per_action_per_phi_s).sum()
         return chunked_loss
 
-    def _log_loss(self, *, phi_s, buffers):
+    def _log_loss(self, *, phi_s, buffers, num_points_collapsed=None):
         """
         Args:
             phi_s (torch.tensor): projection of a mini-batch of states
             buffers (list): where each buffer is a filtered action buffer np.ndarray
+            num_points_collapsed (list, None): where each element is a np.ndarray of scalar values,
+                                               or None if we don't want to use it.
         
         Returns:
             loss (torch.tensor): scalar tensor representing the loss to be minimized
@@ -841,8 +866,20 @@ class CountingLatentSpace(object):
         for buffer_idx in range(len(buffers)):
             action_buffer = buffers[buffer_idx]  # type: np.ndarray # of shape (N, latent_size)
 
+            if num_points_collapsed is not None:
+                scaling_vector = num_points_collapsed[buffer_idx]
+            else:
+                scaling_vector = None
+
             if action_buffer is not None:
                 action_buffer = torch.from_numpy(action_buffer).float().to(self.device)
+
+                if scaling_vector is not None:
+                    try:
+                        scaling_vector = torch.from_numpy(scaling_vector).unsqueeze(1).float().to(self.device)
+                    except:
+                        ipdb.set_trace()
+
                 phi_s_prime = self.model(action_buffer)
 
                 # (M, N) matrix of pairwise distances between phi(s) and phi(s')
@@ -851,10 +888,17 @@ class CountingLatentSpace(object):
                 # Apply exponential filter around the pairwise distances to zero out the effect of far-away states
                 distance = (squared_distance + 1e-6).sqrt()
                 for_exp = -distance / self.epsilon
-                filtered_pairwise_distances = torch.exp(for_exp)
+                filtered_pairwise_counts = torch.exp(for_exp)
 
-                # Compute the counts and then the loss for all the M states
-                state_counts = filtered_pairwise_distances.sum(dim=1)
+                # IF we're using the scale_by_coreset_counts, we need to scale the above correctly.
+                # If we matrix multiply (MxN) @ (Nx1), we will get (Mx1), which will correpond to the state_counts for those M states
+                if scaling_vector is not None:
+                    state_counts = filtered_pairwise_counts @ scaling_vector
+                    state_counts = state_counts.squeeze(1)
+                else:
+                    # Compute the counts and then the loss for all the M states
+                    state_counts = filtered_pairwise_counts.sum(dim=1)
+
                 state_losses = torch.log(state_counts + 1e-6)
 
                 total_loss += state_losses
@@ -936,7 +980,7 @@ class CountingLatentSpace(object):
                                          chunk_size=chunk_size,
                                          use_filtered_buffers_for_inference=use_filtered_buffers_for_inference)
 
-    def _get_raw_count_from_distances(self, distances):
+    def _get_raw_count_from_distances(self, distances, num_collapsed_vector=None):
         """
         These are numpy arrays! Not so sure why we want it that way, but it is how it is.
         """
@@ -945,13 +989,23 @@ class CountingLatentSpace(object):
         if self.repulsive_loss_type == "normal":
             for_exp = -(distances / self.epsilon) ** 2
             counts_per = np.exp(for_exp)
-            counts = counts_per.sum(axis=1)
-            return counts
+            # counts = counts_per.sum(axis=1)
+            # return counts
         else:
             for_exp = -distances / self.epsilon
             counts_per = np.exp(for_exp)
+            # counts = counts_per.sum(axis=1)
+            # return counts
+
+        if num_collapsed_vector is not None:
+            assert len(num_collapsed_vector.shape) == 1, f"Assumed num_collapsed_vector shape (N,), but got {num_collapsed_vector.shape}"
+            counts = (counts_per @ num_collapsed_vector[..., None])
+            counts = counts.squeeze(1)  # Result of matrix multiply is (M, 1), returning (M,)
+        else:
             counts = counts_per.sum(axis=1)
-            return counts
+
+        return counts
+
 
     def _get_raw_counts(self, X, buffer_idx, chunk_size=None):
         buffer = self.buffers[buffer_idx] # type: np.ndarray
@@ -977,6 +1031,7 @@ class CountingLatentSpace(object):
 
     def _get_function_counts(self, X, buffer_idx, chunk_size=None, use_filtered_buffers_for_inference=False):
         buffer = self.filtered_buffers[buffer_idx] if use_filtered_buffers_for_inference else self.buffers[buffer_idx]  # type: np.ndarray
+        num_collapsed_vector = self.num_points_collapsed[buffer_idx] if use_filtered_buffers_for_inference else None    # type: np.ndarray
         
         # If we have never taken this action before, return max counts
         if buffer is None:
@@ -992,12 +1047,12 @@ class CountingLatentSpace(object):
 
             # Sum up the counts across all the chunks of the action buffer
             for buffer_chunk in action_buffer_chunks:  # type: np.ndarray
-                chunk_counts = self._get_function_counts_for_chunk(X, buffer_chunk)
+                chunk_counts = self._get_function_counts_for_chunk(X, buffer_chunk, num_collapsed_vector=num_collapsed_vector)
                 counts = counts + chunk_counts
             return counts
-        return self._get_function_counts_for_chunk(X, buffer)
+        return self._get_function_counts_for_chunk(X, buffer, num_collapsed_vector=num_collapsed_vector)
 
-    def _get_function_counts_for_chunk(self, X, buffer):
+    def _get_function_counts_for_chunk(self, X, buffer, num_collapsed_vector=None):
         self.model.eval()
         with torch.no_grad():
             X = torch.from_numpy(X).float().to(self.device)
@@ -1009,5 +1064,5 @@ class CountingLatentSpace(object):
         Y_transformed = Y_transformed.detach().cpu().numpy()
 
         distances = naive_spread_counter.get_all_distances_to_buffer(X_transformed, Y_transformed)
-        counts = self._get_raw_count_from_distances(distances)
+        counts = self._get_raw_count_from_distances(distances, num_collapsed_vector=num_collapsed_vector)
         return counts
