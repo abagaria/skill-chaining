@@ -194,6 +194,53 @@ class Experiment12:
         plt.savefig(f"{self.experiment_name}/filtered_bonus_plots/filtered_bonuses_{episode}_seed_{self.seed}.png")
         plt.close()
 
+    def make_num_colappsed_plot_in_latent_space(self, agent, episode):
+        # original_action_buffers = agent.novelty_tracker.counting_space.buffers
+        # filtered_action_buffers = agent.novelty_tracker.counting_space.filtered_buffers
+
+        # for action in agent.actions:
+        #     original_buffer = original_action_buffers[action]  # type: np.ndarray
+        #     filtered_buffer = filtered_action_buffers[action]  # type: np.ndarray
+
+            
+        ### SAM START ###
+        # We're going to be just accessing the CLS's values for all of these.
+        # Normalize the data before asking for its embeddings
+        # filtered_core_set_points = np.concatenate(agent.novelty_tracker.counting_space.filtered_buffers, axis=0)
+        # num_points_each_represents = np.concatenate(agent.novelty_tracker.counting_space.num_points_collapsed, axis=0)
+
+        filtered_core_set_points = agent.novelty_tracker.counting_space.filtered_buffers[0]
+        num_points_each_represents = agent.novelty_tracker.counting_space.num_points_collapsed[0]
+
+
+        assert len(filtered_core_set_points) == len(num_points_each_represents)
+        assert len(num_points_each_represents.shape) == 1, num_points_each_represents.shape
+
+        states_repr = self.agent.novelty_tracker.counting_space.extract_features(filtered_core_set_points)
+        assert states_repr.shape[1] == self.cls_latent_dim, states_repr.shape
+
+        # Create all pair-wise combinations of the possible indices in the latent space
+        latent_dimensions = list(range(self.cls_latent_dim))
+        pairwise_combinations = list(itertools.combinations(latent_dimensions, 2))
+
+        plt.figure(figsize=(16, 12))
+        n_rows = ceil(len(pairwise_combinations) / 3)
+        n_cols = 3
+
+        for i, (latent_dim_1, latent_dim_2) in enumerate(pairwise_combinations):
+            plt.subplot(n_rows, n_cols, i + 1)
+            plt.scatter(states_repr[:, latent_dim_1], states_repr[:, latent_dim_2], alpha=0.8, c=num_points_each_represents)
+            plt.xlabel(f"Latent dimension {latent_dim_1}")
+            plt.ylabel(f"Latent dimension {latent_dim_2}")
+            plt.colorbar()
+
+        plt.suptitle("Latent Space after Episode {}".format(episode))
+        plt.savefig(f"{self.experiment_name}/latent_core_set/core_sets_{episode}_seed_{self.seed}.png")
+        plt.close()
+
+
+
+
     def make_value_plot(self, agent, episode, chunk_size=1000, max_to_plot=10000):
         states = np.array([transition.state for transition in agent.replay_buffer])
         positions = np.array([transition.position for transition in agent.replay_buffer])
@@ -334,6 +381,7 @@ class Experiment12:
                     self.make_which_actions_plot(agent, episode, max_to_plot=self.max_to_plot, allow_novelty=False)
                     if self.optimization_quantity == "filtered-log":
                         self.make_bonus_plot_with_filtering(agent, episode, max_to_plot=self.max_to_plot)
+                        self.make_num_colappsed_plot_in_latent_space(agent, episode)
 
             last_10_scores.append(score)
             last_10_durations.append(step + 1)
@@ -409,6 +457,7 @@ if __name__ == "__main__":
     create_log_dir(full_experiment_name)
     create_log_dir(f"{full_experiment_name}/bonus_plots")
     create_log_dir(f"{full_experiment_name}/filtered_bonus_plots")
+    create_log_dir(f"{full_experiment_name}/latent_core_set")
     create_log_dir(f"{full_experiment_name}/latent_plots")
     create_log_dir(f"{full_experiment_name}/qf_plots")
     create_log_dir(f"{full_experiment_name}/q_advantage_plots")

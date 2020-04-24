@@ -430,7 +430,8 @@ class DQNAgent(Agent):
             novelty_bonus = self.novelty_tracker.get_batched_exploration_bonus(
                 bonus_inputs.cpu().numpy(), actions=actions.cpu().numpy(),
                 bonus_form="power", add_one=False, #no add one because we know we have one (s,a) in here.
-                power=self.opiq_regression_exponent, mult=self.beta_regression,                
+                power=self.opiq_regression_exponent, mult=self.beta_regression,
+                use_filtered_buffers_for_inference=self.use_filtered_buffers_for_inference,
             )
             novelty_bonus = torch.from_numpy(novelty_bonus).float().to(self.device).unsqueeze(1)
             assert Q_targets.shape == novelty_bonus.shape
@@ -464,13 +465,14 @@ class DQNAgent(Agent):
             self.writer.add_scalar("DQN-AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
             self.writer.add_scalar("DQN-AverageQValue", Q_expected.mean().item(), self.num_updates)
             self.writer.add_scalar("DQN-GradientNorm", compute_gradient_norm(self.policy_network), self.num_updates)
-
+            
             if self.exploration_method == "count-phi":
                 bonus_inputs = positions if self.bonus_from_position else states
-                self.writer.add_scalar(
-                    "DQN-AverageBonus",
-                    self.novelty_tracker.get_batched_exploration_bonus(bonus_inputs.cpu().numpy(), bonus_form=self.bonus_form).mean().item(),
-                    self.num_updates)
+                assigned_bonuses =  self.novelty_tracker.get_batched_exploration_bonus(
+                        bonus_inputs.cpu().numpy(),
+                        bonus_form=self.bonus_form,
+                        use_filtered_buffers_for_inference=self.use_filtered_buffers_for_inference)
+                self.writer.add_scalar("DQN-AverageBonus", assigned_bonuses.mean().item(), self.num_updates)
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)

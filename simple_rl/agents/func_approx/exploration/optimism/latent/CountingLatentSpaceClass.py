@@ -117,8 +117,6 @@ class CountingLatentSpace(object):
                 self.num_points_collapsed[action] = np.array([1])
             else:
                 self.num_points_collapsed[action] = np.concatenate((self.num_points_collapsed[action], np.array([1])), axis=0)
-        
-            print("[AddTransition] numPointsCollapsedShape=", self.num_points_collapsed[action].shape)
 
     def _create_tensor_board_logger(self, writer):
         log_dir = "runs/{}".format(self.experiment_name)
@@ -508,6 +506,10 @@ class CountingLatentSpace(object):
 
                 self._n_iterations += 1
 
+        filtered_action_buffers_and_num_points = [self._filter_action_buffer(buffer, verbose=True) for buffer in buffers]
+        filtered_action_buffers = [elem[0] for elem in filtered_action_buffers_and_num_points]
+        num_points_collapsed = [elem[1] for elem in filtered_action_buffers_and_num_points]
+
         self.buffers = buffers
         self.filtered_buffers = filtered_action_buffers
         self.num_points_collapsed = num_points_collapsed
@@ -600,10 +602,9 @@ class CountingLatentSpace(object):
             starting_projected_action_buffer = np.take(starting_projected_action_buffer, indices=out_of_ball_indices, axis=0)
 
         filtered_action_buffer = np.array(filtered_action_buffer)
-        num_points_collapsed = np.array(num_points_collapsed)
-        print(f"numPointsCollapsedShape = ", num_points_collapsed.shape)
+        filtered_buffer_num_collapsed = np.array(filtered_buffer_num_collapsed)
 
-        return filtered_action_buffer, num_points_collapsed
+        return filtered_action_buffer, filtered_buffer_num_collapsed
 
 
     def _typecheck_transition_consistency_buffers(self, buffers):
