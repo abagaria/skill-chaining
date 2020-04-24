@@ -52,7 +52,7 @@ class DQNAgent(Agent):
                  lam_scaling_term="fit", lam_c1=None, lam_c2=None, starting_lam=0.1,
                  novelty_during_regression=True, normalize_states=False, optimization_quantity="",
                  phi_type="function", counting_epsilon=0.1, bonus_from_position=False, bonus_form="sqrt",
-                 prioritize_positive_terminal_transitions=False, cls_latent_dim=2,
+                 prioritize_positive_terminal_transitions=False, cls_latent_dim=2, target_avg_bonus=0.1,
                  # OPIQ params...
                  use_opiq=False, action_selection_exponent=-2., c_action=1., c_bootstrap=1.,
                  opiq_regression_exponent=-0.5, # This is applied on N(s,a) not N(s',a'). -0.5 in theory, but maybe not in practice.
@@ -88,6 +88,7 @@ class DQNAgent(Agent):
         self.bonus_form = bonus_form
         self.prioritize_positive_terminal_transitions = prioritize_positive_terminal_transitions
         self.cls_latent_dim = cls_latent_dim
+        self.target_avg_bonus = target_avg_bonus
 
         self.use_opiq = use_opiq
         self.action_selection_exponent = action_selection_exponent
@@ -163,7 +164,8 @@ class DQNAgent(Agent):
                                                                device=device,
                                                                phi_type=phi_type,
                                                                epsilon=counting_epsilon,
-                                                               latent_dim=cls_latent_dim)
+                                                               latent_dim=cls_latent_dim,
+                                                               target_avg_bonus=target_avg_bonus)
 
         elif exploration_method == "oc-svm":
             self.visited_state_action_pairs = defaultdict(lambda : [])

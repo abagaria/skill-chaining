@@ -34,7 +34,7 @@ class Experiment12:
                  phi_type, bonus_from_position, max_to_plot, mcar_win_reward, bonus_form,
                  prioritize_positive_terminal_transitions,
                  use_opiq, opiq_regression_exponent, action_selection_exponent, cls_latent_dim,
-                 cls_num_frames, starting_lam, use_filtered_buffers_for_inference):
+                 cls_num_frames, starting_lam, use_filtered_buffers_for_inference, target_avg_bonus):
         self.mdp = GymMDP("MountainCar-v0", pixel_observation=pixel_observation,
                           seed=seed, control_problem=True)
         state_dim = self.mdp.state_dim
@@ -60,7 +60,8 @@ class Experiment12:
                               action_selection_exponent=action_selection_exponent,
                               cls_latent_dim=cls_latent_dim, cls_num_frames=cls_num_frames,
                               starting_lam=starting_lam,
-                              use_filtered_buffers_for_inference=use_filtered_buffers_for_inference)
+                              use_filtered_buffers_for_inference=use_filtered_buffers_for_inference,
+                              target_avg_bonus=target_avg_bonus)
         self.exploration_method = exploration_method
         self.episodes = num_episodes
         self.num_steps = num_steps
@@ -447,6 +448,7 @@ if __name__ == "__main__":
     parser.add_argument("--cls_num_frames", type=int, default=1)
     parser.add_argument("--starting_lam", type=float, default=.1)
     parser.add_argument("--use_filtered_buffers_for_inference", action="store_true", default=False)
+    parser.add_argument("--target_avg_bonus", type=float, default=0.1)
     
 
     args = parser.parse_args()
@@ -480,6 +482,7 @@ if __name__ == "__main__":
                       action_selection_exponent=args.action_selection_exponent, cls_latent_dim=args.cls_latent_dim,
                       cls_num_frames=args.cls_num_frames, starting_lam=args.starting_lam,
                       use_filtered_buffers_for_inference=args.use_filtered_buffers_for_inference,
+                      target_avg_bonus=args.target_avg_bonus
                     )
 
     episodic_scores, episodic_durations = exp.run_experiment()
