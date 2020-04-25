@@ -146,7 +146,7 @@ class DQNAgent(Agent):
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
-                 gradient_clip=None, evaluation_epsilon=0.05, writer=None):
+                 gradient_clip=None, evaluation_epsilon=0.05, writer=None, for_option=False, batch_size=BATCH_SIZE):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -159,6 +159,10 @@ class DQNAgent(Agent):
         self.seed = random.seed(seed)
         self.tensor_log = tensor_log
         self.device = device
+        self.batch_size = batch_size
+
+        # TODO: if DQN agent is for a single option
+        self.for_option = for_option
 
         # Q-Network
         self.policy_network = QNetwork(state_size, action_size, seed).to(self.device)
@@ -167,7 +171,7 @@ class DQNAgent(Agent):
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
         # Replay memory
-        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.device)
+        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, self.batch_size, seed, self.device)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
@@ -181,19 +185,19 @@ class DQNAgent(Agent):
         self.num_epsilon_updates = 0
 
         # TODO: step seed from main loop (int)
-        self.step_seed = None
+        # self.step_seed = None
 
         if self.tensor_log:
             self.writer = SummaryWriter() if writer is None else writer
 
-        print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
+        print("Creating {} with lr={}, ddqn={}, and buffer_sz={}".format(name, self.learning_rate,
                                                                                self.use_ddqn, BUFFER_SIZE))
 
         Agent.__init__(self, name, range(action_size), GAMMA)
 
     # TODO: set step seed from main loop
-    def set_step_seed(self, seed):
-        self.step_seed = seed
+    # def set_step_seed(self, seed):
+        # self.step_seed = seed
 
     def set_new_learning_rate(self, learning_rate):
         self.learning_rate = learning_rate
@@ -217,7 +221,7 @@ class DQNAgent(Agent):
             np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
 
             # TODO: set option's step seed
-            option.set_step_seed(self.step_seed)
+            # option.set_step_seed(self.step_seed)
 
             if option.parent is None:
                 # assert option.name == "overall_goal_policy" or option.name == "global_option"
@@ -243,27 +247,38 @@ class DQNAgent(Agent):
         self.num_executions += 1
         epsilon = self.epsilon if train_mode else self.evaluation_epsilon
 
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        # TODO: need to pass gym state to is_term_true() since torch uses different rounding percision
+        torch_state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        
         self.policy_network.eval()
         with torch.no_grad():
-            action_values = self.policy_network(state)
+            action_values = self.policy_network(torch_state)
         self.policy_network.train()
 
-        impossible_option_idx = self.get_impossible_option_idx(state)
+        # TODO: if DQN is used for an individual option
+        if self.for_option:
+            action_values = action_values.cpu().data.numpy()
+            # Epsilon-greedy action selection
+            if random.random() > epsilon:
+                return np.argmax(action_values)
+            else:
+                return random.choice(list(range(self.action_size)))
+        else:
+            impossible_option_idx = self.get_impossible_option_idx(state)
+            
+            for impossible_idx in impossible_option_idx:
+                action_values[0][impossible_idx] = torch.min(action_values, dim=1)[0] - 1.
 
-        for impossible_idx in impossible_option_idx:
-            action_values[0][impossible_idx] = torch.min(action_values, dim=1)[0] - 1.
+            action_values = action_values.cpu().data.numpy()
+            # Epsilon-greedy action selection
+            if random.random() > epsilon:
+                return np.argmax(action_values)
 
-        action_values = action_values.cpu().data.numpy()
-        # Epsilon-greedy action selection
-        if random.random() > epsilon:
-            return np.argmax(action_values)
+            all_option_idx = list(range(len(self.trained_options)))
+            possible_option_idx = list(set(all_option_idx).difference(impossible_option_idx))
+            randomly_chosen_option = random.choice(possible_option_idx)
 
-        all_option_idx = list(range(len(self.trained_options)))
-        possible_option_idx = list(set(all_option_idx).difference(impossible_option_idx))
-        randomly_chosen_option = random.choice(possible_option_idx)
-
-        return randomly_chosen_option
+            return randomly_chosen_option
 
     def get_best_actions_batched(self, states):
         q_values = self.get_batched_qvalues(states)
@@ -280,7 +295,8 @@ class DQNAgent(Agent):
         return np.max(action_values.cpu().data.numpy())
 
     def get_qvalue(self, state, action_idx):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        if not torch.is_tensor(state):
+            state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
             action_values = self.policy_network(state)
@@ -288,7 +304,8 @@ class DQNAgent(Agent):
         return action_values[0][action_idx]
 
     def get_qvalues(self, state):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        if not torch.is_tensor(state):
+            state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
             action_values = self.policy_network(state)
@@ -348,7 +365,7 @@ class DQNAgent(Agent):
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
-            if len(self.replay_buffer) > BATCH_SIZE:
+            if len(self.replay_buffer) > self.batch_size:
                 experiences = self.replay_buffer.sample()
                 self._learn(experiences, GAMMA)
                 if self.tensor_log:
