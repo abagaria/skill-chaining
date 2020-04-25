@@ -160,7 +160,6 @@ class LatentCountExplorationBonus(ExplorationBonus):
         for chunk in chunked:
             bonus = self.get_batched_exploration_bonus(chunk, bonus_form="sqrt",
                 use_filtered_buffers_for_inference=use_filtered_buffers_for_inference)
-            print(f"What's the shape of the bonus? {bonus.shape}")
             total_bonus += bonus.sum(axis=0).mean() # Mean because it's the mean over actions!!!
 
         average_bonus = total_bonus / len(states)

@@ -1000,7 +1000,7 @@ class CountingLatentSpace(object):
 
         if num_collapsed_vector is not None:
             assert len(num_collapsed_vector.shape) == 1, f"Assumed num_collapsed_vector shape (N,), but got {num_collapsed_vector.shape}"
-            counts = (counts_per @ num_collapsed_vector[..., None])
+            counts = counts_per @ num_collapsed_vector[..., None]
             counts = counts.squeeze(1)  # Result of matrix multiply is (M, 1), returning (M,)
         else:
             counts = counts_per.sum(axis=1)
@@ -1041,14 +1041,23 @@ class CountingLatentSpace(object):
 
         # Chunk up the action buffer. No need to chunk up X because that is
         # usually small, whereas the action buffer can be very large
+        # Additionally, now that we are using filtering of action buffers, 
+        # chunk up num_collapsed_vector too
         if chunk_size is not None:
             num_chunks = int(np.ceil(buffer.shape[0] / chunk_size))
             action_buffer_chunks = np.array_split(buffer, num_chunks, axis=0)
+            if use_filtered_buffers_for_inference:
+                num_collapsed_chunks = np.array_split(num_collapsed_vector, num_chunks, axis=0)
+            else:
+                num_collapsed_chunks = [None for _ in range(num_chunks)]
+
+            assert len(action_buffer_chunks) == len(num_collapsed_chunks), f"{len(action_buffer_chunks), len(num_collapsed_chunks)}" 
+
             counts = np.zeros((X.shape[0],))
 
             # Sum up the counts across all the chunks of the action buffer
-            for buffer_chunk in action_buffer_chunks:  # type: np.ndarray
-                chunk_counts = self._get_function_counts_for_chunk(X, buffer_chunk, num_collapsed_vector=num_collapsed_vector)
+            for buffer_chunk, num_chunk in zip(action_buffer_chunks, num_collapsed_chunks):  # type: np.ndarray
+                chunk_counts = self._get_function_counts_for_chunk(X, buffer_chunk, num_collapsed_vector=num_chunk)
                 counts = counts + chunk_counts
             return counts
         return self._get_function_counts_for_chunk(X, buffer, num_collapsed_vector=num_collapsed_vector)
