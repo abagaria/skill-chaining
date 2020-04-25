@@ -113,10 +113,10 @@ def main(args):
 	Path(path).mkdir(exist_ok=True)
 
 	# Old comparative data
-	all_old_data = get_all_old_data(args.old_run_dir, 1, 20)
+	all_old_data = get_all_old_data(args.old_run_dir, 1, 5)
 
 	# Multi hyperparameter data
-	multi_cur_data = get_multi_cur_data(args.run_dirs, 1, 20)
+	multi_cur_data = get_multi_cur_data(args.run_dirs, 1, 5)
 
 	# Plot old runs
 	# all_data = {'all_old_data' : all_old_data}
@@ -130,15 +130,16 @@ def main(args):
 	# plot_multi_avg_learning_curves(plot_dir=path,
 	# 							   all_data=all_data,
 	# 							   mdp_env_name=args.mdp_env_name,
-	# 							   file_name='single_learning_curve_nu=0.6')
+	# 							   file_name='single_learning_curve_chain_break_nu=0.6',
+	# 							   ci='sd')
 
-	# Plot multiple hyperparameter runs
-	all_data = {'multi_cur_data' : multi_cur_data}
-	plot_multi_avg_learning_curves(plot_dir=path,
-								   all_data=all_data,
-								   mdp_env_name=args.mdp_env_name,
-								   ci=None,
-								   file_name='multi_learning_curves')
+	# # Plot multiple hyperparameter runs
+	# all_data = {'multi_cur_data' : multi_cur_data}
+	# plot_multi_avg_learning_curves(plot_dir=path,
+	# 							   all_data=all_data,
+	# 							   mdp_env_name=args.mdp_env_name,
+	# 							   ci=None,
+	# 							   file_name='multi_learning_curves')
 
 	# Plot 1v1 methods
 	# best_cur_data = get_multi_cur_data([args.run_dirs[1]], 1, 5)
@@ -152,7 +153,7 @@ def main(args):
 	# 								 best_color_idx=1)
 
 	# For each single, plot single vs old
-	nus = [0.5, 0.6, 0.7, 0.8]
+	nus = [0.6]
 	for idx, nu in enumerate(nus):
 		name = 'all_cur_data_nu_{}'.format(nu)
 		single_cur_data = {name : multi_cur_data[name]}
@@ -161,8 +162,8 @@ def main(args):
 		plot_multi_avg_learning_curves(plot_dir=path,
 									all_data=all_data,
 									mdp_env_name=args.mdp_env_name,
-									file_name='nu_{}_v_old_learning_curves'.format(nu),
-									ci=None,
+									file_name='chain_break_nu_{}_v_old_learning_curves'.format(nu),
+									ci='sd',
 									one_v_one=True,
 									single_color_idx=idx)
 

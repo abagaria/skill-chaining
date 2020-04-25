@@ -16,10 +16,14 @@ def load_data(file_name):
 		data = pickle.load(f)
 	return data
 
-def plot_boundary(x_mesh, y_mesh, X_pos, clfs, colors, option_name, episode, experiment_name, alpha):
+def plot_boundary(x_mesh, y_mesh, clfs, colors, option_name, episode, experiment_name, alpha, img_name=None):
 	# Create plotting dir (if not created)
 	path = '{}/plots/clf_plots'.format(experiment_name)
 	Path(path).mkdir(exist_ok=True)
+
+	if img_name:
+		back_img = plt.imread(img_name)
+		plt.imshow(back_img, extent=[x_mesh.min(), x_mesh.max(), y_mesh.min(), y_mesh.max()], alpha=0.3)
 
 	patches = []
 
@@ -201,20 +205,13 @@ def plot_avg_learning_curves(experiment_name, all_data, mdp_env_name, args):
 	# TODO: remove
 	print("Plot {}/average_learning_curves.png saved!".format(path))
 
-def generate_all_plots(run_dir, all_clf_probs, option_data, per_episode_scores, x_mesh, y_mesh, mdp_env_name, num_run, args, all_cur_data=None, all_old_data=None, multi_cur_data=None):
+def generate_all_plots(run_dir, option_data, per_episode_scores, x_mesh, y_mesh, mdp_env_name, num_run, args, all_cur_data=None, all_old_data=None, multi_cur_data=None, img_dir=None):
 	sns.set_style("white")
 	num_colors = 100
 	colors = ['blue', 'green']
 	cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
 
-	# TODO: debug
-	# option_names = []
-
 	for option_name, option in option_data.items():
-		
-		# TODO: debug
-		# if option_name not in option_names:
-			# option_names.append(option_name) 
 			
 		# dont_plot = ['overall_goal_policy_option', 'option_1']
 		dont_plot = []
@@ -222,37 +219,19 @@ def generate_all_plots(run_dir, all_clf_probs, option_data, per_episode_scores, 
 		if option_name not in dont_plot:
 			for episode, episode_data in option.items():
 				clfs_bounds = episode_data['clfs_bounds']
-				clfs_probs = episode_data['clfs_probs']
-				X_pos = episode_data['X_pos']
 
 				# plot boundaries of classifiers
-				if (episode % 10 == 0):
+				if (episode % 299 == 0):
 					plot_boundary(x_mesh=x_mesh,
 								y_mesh=y_mesh,
-								X_pos=X_pos,
 								clfs=clfs_bounds,
 								colors=colors,
 								option_name=option_name,
 								episode=episode,
 								experiment_name=run_dir,
-								alpha=0.5)
+								alpha=0.5,
+								img_name=img_dir)
 
-				# plot state probability estimates
-				# plot_state_probs(x_mesh=x_mesh,
-				# 				 y_mesh=y_mesh,
-				# 				 clfs=clfs_probs,
-				# 				 option_name=option_name,
-				# 				 cmaps=cmaps,
-				# 				 episode=episode,
-				# 				 experiment_name=run_dir)
-		# print()
-	
-	# TODO: debug
-	# print(option_names)
-
-	# plot average probabilities
-	# plot_prob(all_clf_probs=all_clf_probs,
-	# 		  experiment_name=run_dir)
 
 	# plot single learning curve
 	# plot_learning_curve(experiment_name=run_dir,
@@ -271,11 +250,11 @@ def generate_all_plots(run_dir, all_clf_probs, option_data, per_episode_scores, 
 def main(args):
 	run_dir = args.run_dir
 	data_dir = args.data_dir
+	img_dir = args.img_dir
 	# old_run_dir = args.old_run_dir
 	
 	# Load variables
 	# experiment_name = load_data(run_dir + '/' + data_dir + '/experiment_name.pkl')
-	all_clf_probs = load_data(run_dir + '/' + data_dir + '/all_clf_probs.pkl')
 	option_data = load_data(run_dir + '/' + data_dir + '/option_data.pkl')
 	per_episode_scores = load_data(run_dir + '/' + data_dir + '/per_episode_scores.pkl')
 	x_mesh = load_data(run_dir + '/' + data_dir + '/x_mesh.pkl')
@@ -292,20 +271,21 @@ def main(args):
 
 	# Generate plots
 	generate_all_plots(run_dir=run_dir,
-					   all_clf_probs=all_clf_probs,
 					   option_data=option_data,
 					   per_episode_scores=per_episode_scores,
 					   x_mesh=x_mesh,
 					   y_mesh=y_mesh,
 					   mdp_env_name=mdp_env_name,
 					   num_run=args.num_run,
-					   args=args)
+					   args=args,
+					   img_dir=img_dir)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--run_dir', type=str, default="None")
+	parser.add_argument('--run_dir', type=str, default="")
 	# parser.add_argument('--old_run_dir', type=str, default="None")
-	parser.add_argument('--data_dir', type=str, default="None")
+	parser.add_argument('--data_dir', type=str, default="")
+	parser.add_argument('--img_dir', type=str, default="")
 	args = parser.parse_args()
 
 	main(args)
