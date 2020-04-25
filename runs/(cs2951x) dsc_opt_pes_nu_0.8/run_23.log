@@ -1,0 +1,706 @@
+Goal position:  [0. 8.]
+Training skill chaining agent from scratch with a subgoal reward 300.0
+MDP InitState =  x: -0.05015524885666389	y: 0.04208558336769602	theta: 0.08240177291437953	xdot: -0.028228927720349968	ydot: 0.03398450900964998	thetadot: 0.11778158603837202	terminal: False
+
+Initializing skill chaining with option_timeout=True, seed=34
+Creating global_option with enable_timeout=True
+Creating overall_goal_policy_option with enable_timeout=True
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+|-> (SkillChaining::skill_chaining): call
+|-> episode: 0
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+Episode 0	Average Score: -840.00	Duration: 841.00 steps	GO Eps: 0.99
+Episode 0	Average Score: -840.00	Duration: 841.00 steps	GO Eps: 0.99
+|-> episode: 1
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 1	Average Score: -920.00	Duration: 920.50 steps	GO Eps: 0.98
+|-> episode: 2
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 2	Average Score: -946.67	Duration: 947.00 steps	GO Eps: 0.97
+|-> episode: 3
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 3	Average Score: -960.00	Duration: 960.25 steps	GO Eps: 0.96
+|-> episode: 4
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 4	Average Score: -968.00	Duration: 968.20 steps	GO Eps: 0.95
+|-> episode: 5
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 5	Average Score: -973.33	Duration: 973.50 steps	GO Eps: 0.94
+|-> episode: 6
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+Episode 6	Average Score: -925.14	Duration: 925.43 steps	GO Eps: 0.94
+|-> episode: 7
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 7	Average Score: -934.50	Duration: 934.75 steps	GO Eps: 0.93
+|-> episode: 8
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 8	Average Score: -941.78	Duration: 942.00 steps	GO Eps: 0.92
+|-> episode: 9
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 9	Average Score: -947.60	Duration: 947.80 steps	GO Eps: 0.91
+|-> episode: 10
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 10	Average Score: -963.60	Duration: 963.70 steps	GO Eps: 0.90
+Episode 10	Average Score: -963.60	Duration: 963.70 steps	GO Eps: 0.90
+|-> episode: 11
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 11	Average Score: -963.60	Duration: 963.70 steps	GO Eps: 0.89
+|-> episode: 12
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 12	Average Score: -963.60	Duration: 963.70 steps	GO Eps: 0.88
+|-> episode: 13
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 13	Average Score: -963.60	Duration: 963.70 steps	GO Eps: 0.87
+|-> episode: 14
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 14	Average Score: -963.60	Duration: 963.70 steps	GO Eps: 0.86
+|-> episode: 15
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 15	Average Score: -963.60	Duration: 963.70 steps	GO Eps: 0.85
+|-> episode: 16
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 16	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.84
+|-> episode: 17
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 17	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.83
+|-> episode: 18
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 18	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.82
+|-> episode: 19
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 19	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.81
+|-> episode: 20
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 20	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.80
+Episode 20	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.80
+|-> episode: 21
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+Episode 21	Average Score: -929.60	Duration: 929.70 steps	GO Eps: 0.79
+|-> episode: 22
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 22	Average Score: -929.60	Duration: 929.70 steps	GO Eps: 0.78
+|-> episode: 23
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 23	Average Score: -929.60	Duration: 929.70 steps	GO Eps: 0.77
+|-> episode: 24
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 24	Average Score: -929.60	Duration: 929.70 steps	GO Eps: 0.76
+|-> episode: 25
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+Episode 25	Average Score: -922.00	Duration: 922.20 steps	GO Eps: 0.75
+|-> episode: 26
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 26	Average Score: -922.00	Duration: 922.20 steps	GO Eps: 0.74
+|-> episode: 27
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 27	Average Score: -922.00	Duration: 922.20 steps	GO Eps: 0.73
+|-> episode: 28
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 28	Average Score: -922.00	Duration: 922.20 steps	GO Eps: 0.72
+|-> episode: 29
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 29	Average Score: -922.00	Duration: 922.20 steps	GO Eps: 0.71
+|-> episode: 30
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Creating option_1
+Creating option_1 with enable_timeout=True
+Episode 30	Average Score: -889.10	Duration: 889.40 steps	GO Eps: 0.71
+Episode 30	Average Score: -889.10	Duration: 889.40 steps	GO Eps: 0.71
+|-> episode: 31
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 31	Average Score: -959.50	Duration: 959.70 steps	GO Eps: 0.70
+|-> episode: 32
+  |-> step_number: 0
+  |-> step_number: 100
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+overall_goal_policy_option execution successful
+Episode 32	Average Score: -886.90	Duration: 887.20 steps	GO Eps: 0.69
+|-> episode: 33
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+overall_goal_policy_option execution successful
+Episode 33	Average Score: -817.80	Duration: 818.20 steps	GO Eps: 0.69
+|-> episode: 34
+  |-> step_number: 0
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+  |-> step_number: 100
+global_option execution successful
+Episode 34	Average Score: -776.00	Duration: 776.50 steps	GO Eps: 0.68
+|-> episode: 35
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+overall_goal_policy_option execution successful
+Episode 35	Average Score: -727.00	Duration: 727.50 steps	GO Eps: 0.68
+|-> episode: 36
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Creating option_2
+Creating option_2 with enable_timeout=True
+overall_goal_policy_option execution successful
+Episode 36	Average Score: -676.80	Duration: 677.40 steps	GO Eps: 0.68
+|-> episode: 37
+  |-> step_number: 0
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 37	Average Score: -654.30	Duration: 655.00 steps	GO Eps: 0.67
+|-> episode: 38
+  |-> step_number: 0
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+  |-> step_number: 300
+  |-> step_number: 500
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+Episode 38	Average Score: -654.30	Duration: 655.00 steps	GO Eps: 0.66
+|-> episode: 39
+  |-> step_number: 0
+  |-> step_number: 100
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 300
+  |-> step_number: 500
+  |-> step_number: 700
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 0.37242464574141754	y: 7.456224549104942	theta: -22.221914343848432	xdot: -4.891040244547237	ydot: 0.18352512025595466	thetadot: -5.183126762059405	terminal: False
+ is_terminal() but not term_true()
+Episode 39	Average Score: -642.00	Duration: 642.80 steps	GO Eps: 0.65
+|-> episode: 40
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 40	Average Score: -640.00	Duration: 640.80 steps	GO Eps: 0.64
+Episode 40	Average Score: -640.00	Duration: 640.80 steps	GO Eps: 0.64
+|-> episode: 41
+  |-> step_number: 0
+  |-> step_number: 100
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Creating option_3
+Creating option_3 with enable_timeout=True
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_1 execution successful
+option_1 execution successful
+Episode 41	Average Score: -640.00	Duration: 640.80 steps	GO Eps: 0.63
+|-> episode: 42
+  |-> step_number: 0
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+  |-> step_number: 900
+Episode 42	Average Score: -712.60	Duration: 713.30 steps	GO Eps: 0.62
+|-> episode: 43
+  |-> step_number: 0
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 43	Average Score: -781.70	Duration: 782.30 steps	GO Eps: 0.61
+|-> episode: 44
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+option_1 execution successful
+Episode 44	Average Score: -823.50	Duration: 824.00 steps	GO Eps: 0.60
+|-> episode: 45
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 45	Average Score: -880.10	Duration: 880.50 steps	GO Eps: 0.59
+|-> episode: 46
+  |-> step_number: 0
+  |-> step_number: 100
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 900
+overall_goal_policy_option execution successful
+Episode 46	Average Score: -927.60	Duration: 928.00 steps	GO Eps: 0.58
+|-> episode: 47
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 47	Average Score: -950.10	Duration: 950.40 steps	GO Eps: 0.57
+|-> episode: 48
+  |-> step_number: 0
+  |-> step_number: 100
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Init state is in option_3's initiation set classifier
+option_3 execution successful
+option_3 execution successful
+OptionClass::execute_option_in_mdp: option_transition is empty!
+Traceback (most recent call last):
+  File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 903, in <module>
+    episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+  File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 665, in skill_chaining
+    state, step_number, episode_option_executions, episode)
+  File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 292, in take_action
+    next_state = self.get_next_state_from_experiences(option_transitions)
+  File "simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py", line 324, in get_next_state_from_experiences
+    return experiences[-1][-1]
+IndexError: list index out of range

@@ -1,0 +1,3768 @@
+Goal position:  [0. 8.]
+Training skill chaining agent from scratch with a subgoal reward 300.0
+MDP InitState =  x: 0.09986383518611072	y: -0.00901547662020405	theta: 0.030001981403017713	xdot: 0.011323665837271908	ydot: -0.03966357312772711	thetadot: -0.06445306349875868	terminal: False
+
+Initializing skill chaining with option_timeout=True, seed=7
+Creating global_option with enable_timeout=True
+Creating overall_goal_policy_option with enable_timeout=True
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+|-> (SkillChaining::skill_chaining): call
+|-> episode: 0
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 0	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.99
+Episode 0	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.99
+|-> episode: 1
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 1	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.98
+|-> episode: 2
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+Episode 2	Average Score: -737.33	Duration: 737.67 steps	GO Eps: 0.98
+|-> episode: 3
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+Episode 3	Average Score: -725.75	Duration: 726.25 steps	GO Eps: 0.97
+|-> episode: 4
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+Episode 4	Average Score: -753.80	Duration: 754.40 steps	GO Eps: 0.96
+|-> episode: 5
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 5	Average Score: -794.83	Duration: 795.33 steps	GO Eps: 0.95
+|-> episode: 6
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 6	Average Score: -824.14	Duration: 824.57 steps	GO Eps: 0.94
+|-> episode: 7
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+Episode 7	Average Score: -801.00	Duration: 801.50 steps	GO Eps: 0.94
+|-> episode: 8
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+global_option execution successful
+    |-> (Option::train): call (train overall_goal_policy_option)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+overall_goal_policy_option execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Creating option_1
+Creating option_1 with enable_timeout=True
+Episode 8	Average Score: -793.56	Duration: 794.11 steps	GO Eps: 0.93
+|-> episode: 9
+  |-> step_number: 0
+  |-> step_number: 100
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 800
+Episode 9	Average Score: -814.20	Duration: 814.70 steps	GO Eps: 0.92
+|-> episode: 10
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 10	Average Score: -814.20	Duration: 814.70 steps	GO Eps: 0.91
+Episode 10	Average Score: -814.20	Duration: 814.70 steps	GO Eps: 0.91
+|-> episode: 11
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 11	Average Score: -814.20	Duration: 814.70 steps	GO Eps: 0.90
+|-> episode: 12
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 12	Average Score: -893.00	Duration: 893.40 steps	GO Eps: 0.89
+|-> episode: 13
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+overall_goal_policy_option execution successful
+Episode 13	Average Score: -877.80	Duration: 878.20 steps	GO Eps: 0.88
+|-> episode: 14
+  |-> step_number: 0
+  |-> step_number: 100
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+  |-> step_number: 400
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 14	Average Score: -891.20	Duration: 891.50 steps	GO Eps: 0.87
+|-> episode: 15
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 15	Average Score: -891.20	Duration: 891.50 steps	GO Eps: 0.86
+|-> episode: 16
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 16	Average Score: -891.20	Duration: 891.50 steps	GO Eps: 0.85
+|-> episode: 17
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 17	Average Score: -927.30	Duration: 927.50 steps	GO Eps: 0.84
+|-> episode: 18
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+Episode 18	Average Score: -953.90	Duration: 954.00 steps	GO Eps: 0.83
+|-> episode: 19
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+    |-> (Option::train): call (train option_1)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Creating option_2
+Creating option_2 with enable_timeout=True
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 19	Average Score: -953.90	Duration: 954.00 steps	GO Eps: 0.82
+|-> episode: 20
+  |-> step_number: 0
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 300
+  |-> step_number: 500
+  |-> step_number: 600
+option_1 execution successful
+Episode 20	Average Score: -953.90	Duration: 954.00 steps	GO Eps: 0.81
+Episode 20	Average Score: -953.90	Duration: 954.00 steps	GO Eps: 0.81
+|-> episode: 21
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+Episode 21	Average Score: -953.90	Duration: 954.00 steps	GO Eps: 0.80
+|-> episode: 22
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+  |-> step_number: 500
+option_1 execution successful
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 22	Average Score: -953.90	Duration: 954.00 steps	GO Eps: 0.79
+|-> episode: 23
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+  |-> step_number: 900
+option_1 execution successful
+option_1 execution successful
+Episode 23	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.78
+|-> episode: 24
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 24	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.77
+|-> episode: 25
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+    |-> (Option::train): call (train option_2)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Creating option_3
+Creating option_3 with enable_timeout=True
+option_1 execution successful
+  |-> step_number: 800
+option_2 execution successful
+  |-> step_number: 900
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 25	Average Score: -1000.00	Duration: 1000.00 steps	GO Eps: 0.76
+|-> episode: 26
+  |-> step_number: 0
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 500
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 26	Average Score: -993.60	Duration: 993.70 steps	GO Eps: 0.75
+|-> episode: 27
+  |-> step_number: 0
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+[option_1]: x: 1.088146543518891	y: 7.0652073762844925	theta: 53.62679368334584	xdot: -1.812107113713069	ydot: -0.9688275285449921	thetadot: -2.9185756375487255	terminal: False
+ is_terminal() but not term_true()
+Episode 27	Average Score: -988.60	Duration: 988.80 steps	GO Eps: 0.74
+|-> episode: 28
+  |-> step_number: 0
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 900
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 28	Average Score: -988.60	Duration: 988.80 steps	GO Eps: 0.73
+|-> episode: 29
+  |-> step_number: 0
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 29	Average Score: -976.50	Duration: 976.80 steps	GO Eps: 0.73
+|-> episode: 30
+  |-> step_number: 0
+    |-> (Option::train): call (train option_3)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 5 now!
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+
+Creating GlobalDQN with lr=0.0001 and ddqn=True and buffer_sz=1000000
+
+Initializing new option node with q value 0.0
+Init state is in option_3's initiation set classifier
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 700
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Episode 30	Average Score: -976.50	Duration: 976.80 steps	GO Eps: 0.72
+Episode 30	Average Score: -976.50	Duration: 976.80 steps	GO Eps: 0.72
+|-> episode: 31
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+  |-> step_number: 500
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 31	Average Score: -976.50	Duration: 976.80 steps	GO Eps: 0.71
+|-> episode: 32
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_1 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 32	Average Score: -976.50	Duration: 976.80 steps	GO Eps: 0.70
+|-> episode: 33
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 33	Average Score: -976.50	Duration: 976.80 steps	GO Eps: 0.69
+|-> episode: 34
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 34	Average Score: -968.30	Duration: 968.70 steps	GO Eps: 0.68
+|-> episode: 35
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 900
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 35	Average Score: -968.30	Duration: 968.70 steps	GO Eps: 0.67
+|-> episode: 36
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 700
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 36	Average Score: -974.70	Duration: 975.00 steps	GO Eps: 0.66
+|-> episode: 37
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 300
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+  |-> step_number: 900
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 37	Average Score: -979.70	Duration: 979.90 steps	GO Eps: 0.65
+|-> episode: 38
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 38	Average Score: -978.80	Duration: 979.10 steps	GO Eps: 0.64
+|-> episode: 39
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 300
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 39	Average Score: -990.90	Duration: 991.10 steps	GO Eps: 0.63
+|-> episode: 40
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 500
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 40	Average Score: -961.90	Duration: 962.20 steps	GO Eps: 0.62
+Episode 40	Average Score: -961.90	Duration: 962.20 steps	GO Eps: 0.62
+|-> episode: 41
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+option_1 execution successful
+option_2 execution successful
+Episode 41	Average Score: -961.90	Duration: 962.20 steps	GO Eps: 0.61
+|-> episode: 42
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 42	Average Score: -961.90	Duration: 962.20 steps	GO Eps: 0.60
+|-> episode: 43
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 43	Average Score: -961.90	Duration: 962.20 steps	GO Eps: 0.59
+|-> episode: 44
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 800
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+Episode 44	Average Score: -970.10	Duration: 970.30 steps	GO Eps: 0.58
+|-> episode: 45
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 45	Average Score: -970.10	Duration: 970.30 steps	GO Eps: 0.57
+|-> episode: 46
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 0.4565084923144952	y: 8.412822366420635	theta: 54.357065544146124	xdot: 0.48759505648791557	ydot: -2.706812144001297	thetadot: 2.0995522208966797	terminal: False
+ is_terminal() but not term_true()
+Episode 46	Average Score: -900.70	Duration: 901.00 steps	GO Eps: 0.57
+|-> episode: 47
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 400
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+Episode 47	Average Score: -900.70	Duration: 901.00 steps	GO Eps: 0.56
+|-> episode: 48
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+Episode 48	Average Score: -901.60	Duration: 901.80 steps	GO Eps: 0.55
+|-> episode: 49
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+  |-> step_number: 400
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+[option_1]: x: 0.6919206152340566	y: 7.202794152840918	theta: -59.633753103571266	xdot: 2.990664675483724	ydot: -4.8787795996436945	thetadot: 10.957129461191473	terminal: False
+ is_terminal() but not term_true()
+Episode 49	Average Score: -848.90	Duration: 849.20 steps	GO Eps: 0.54
+|-> episode: 50
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 500
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+overall_goal_policy_option execution successful
+Episode 50	Average Score: -843.30	Duration: 843.60 steps	GO Eps: 0.53
+Episode 50	Average Score: -843.30	Duration: 843.60 steps	GO Eps: 0.53
+|-> episode: 51
+  |-> step_number: 0
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 0.7730360720129859	y: 8.824552358791196	theta: 167.82745464096752	xdot: 0.1634852224252643	ydot: -2.034828423910973	thetadot: 0.4884947275225881	terminal: False
+ is_terminal() but not term_true()
+Episode 51	Average Score: -793.40	Duration: 793.80 steps	GO Eps: 0.53
+|-> episode: 52
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 800
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 900
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 52	Average Score: -793.40	Duration: 793.80 steps	GO Eps: 0.52
+|-> episode: 53
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+  |-> step_number: 400
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 53	Average Score: -747.90	Duration: 748.40 steps	GO Eps: 0.51
+|-> episode: 54
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 1.1998739321853527	y: 8.59660476554141	theta: -14.440906432426244	xdot: 0.408190828237576	ydot: -1.7495709934388257	thetadot: 1.0778125171628687	terminal: False
+ is_terminal() but not term_true()
+Episode 54	Average Score: -722.80	Duration: 723.40 steps	GO Eps: 0.51
+|-> episode: 55
+  |-> step_number: 0
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 400
+  |-> step_number: 500
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 600
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 55	Average Score: -722.80	Duration: 723.40 steps	GO Eps: 0.50
+|-> episode: 56
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 500
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+overall_goal_policy_option execution successful
+Episode 56	Average Score: -786.60	Duration: 787.20 steps	GO Eps: 0.49
+|-> episode: 57
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 57	Average Score: -711.90	Duration: 712.60 steps	GO Eps: 0.48
+|-> episode: 58
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+overall_goal_policy_option execution successful
+Episode 58	Average Score: -677.70	Duration: 678.50 steps	GO Eps: 0.48
+|-> episode: 59
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 59	Average Score: -657.00	Duration: 657.80 steps	GO Eps: 0.48
+|-> episode: 60
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 60	Average Score: -637.50	Duration: 638.30 steps	GO Eps: 0.47
+Episode 60	Average Score: -637.50	Duration: 638.30 steps	GO Eps: 0.47
+|-> episode: 61
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 400
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 500
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+option_1 execution successful
+Episode 61	Average Score: -687.40	Duration: 688.10 steps	GO Eps: 0.46
+|-> episode: 62
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 62	Average Score: -621.20	Duration: 622.00 steps	GO Eps: 0.46
+|-> episode: 63
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 900
+Episode 63	Average Score: -666.70	Duration: 667.40 steps	GO Eps: 0.45
+|-> episode: 64
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 400
+overall_goal_policy_option execution successful
+Episode 64	Average Score: -632.20	Duration: 632.90 steps	GO Eps: 0.44
+|-> episode: 65
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 65	Average Score: -568.40	Duration: 569.20 steps	GO Eps: 0.44
+|-> episode: 66
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 300
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 66	Average Score: -556.50	Duration: 557.30 steps	GO Eps: 0.43
+|-> episode: 67
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 500
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 700
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 900
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+Episode 67	Average Score: -631.20	Duration: 631.90 steps	GO Eps: 0.42
+|-> episode: 68
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+overall_goal_policy_option execution successful
+Episode 68	Average Score: -573.10	Duration: 573.80 steps	GO Eps: 0.42
+|-> episode: 69
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_1 execution successful
+  |-> step_number: 500
+overall_goal_policy_option execution successful
+Episode 69	Average Score: -599.90	Duration: 600.60 steps	GO Eps: 0.42
+|-> episode: 70
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 600
+option_3 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 70	Average Score: -654.00	Duration: 654.60 steps	GO Eps: 0.41
+Episode 70	Average Score: -654.00	Duration: 654.60 steps	GO Eps: 0.41
+|-> episode: 71
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+overall_goal_policy_option execution successful
+Episode 71	Average Score: -596.40	Duration: 597.10 steps	GO Eps: 0.40
+|-> episode: 72
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 72	Average Score: -580.50	Duration: 581.20 steps	GO Eps: 0.40
+|-> episode: 73
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_1 execution successful
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+option_3 execution successful
+Episode 73	Average Score: -580.50	Duration: 581.20 steps	GO Eps: 0.39
+|-> episode: 74
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 1.1484005463788982	y: 8.253503425036111	theta: 47.85808531567361	xdot: -0.5908441177244744	ydot: -2.1288414649090814	thetadot: -2.2303972805089476	terminal: False
+ is_terminal() but not term_true()
+Episode 74	Average Score: -577.50	Duration: 578.20 steps	GO Eps: 0.39
+|-> episode: 75
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+  |-> step_number: 600
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 800
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+Episode 75	Average Score: -641.30	Duration: 641.90 steps	GO Eps: 0.38
+|-> episode: 76
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+global_option execution successful
+Episode 76	Average Score: -589.00	Duration: 589.60 steps	GO Eps: 0.37
+|-> episode: 77
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 600
+overall_goal_policy_option execution successful
+Episode 77	Average Score: -566.00	Duration: 566.70 steps	GO Eps: 0.37
+|-> episode: 78
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+  |-> step_number: 500
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 78	Average Score: -626.20	Duration: 626.90 steps	GO Eps: 0.36
+|-> episode: 79
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+global_option execution successful
+Episode 79	Average Score: -589.70	Duration: 590.40 steps	GO Eps: 0.36
+|-> episode: 80
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 80	Average Score: -562.80	Duration: 563.60 steps	GO Eps: 0.35
+Episode 80	Average Score: -562.80	Duration: 563.60 steps	GO Eps: 0.35
+|-> episode: 81
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 81	Average Score: -558.80	Duration: 559.60 steps	GO Eps: 0.35
+|-> episode: 82
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 82	Average Score: -582.80	Duration: 583.60 steps	GO Eps: 0.34
+|-> episode: 83
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 83	Average Score: -512.30	Duration: 513.20 steps	GO Eps: 0.34
+|-> episode: 84
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 84	Average Score: -505.90	Duration: 506.80 steps	GO Eps: 0.34
+|-> episode: 85
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 85	Average Score: -428.30	Duration: 429.30 steps	GO Eps: 0.33
+|-> episode: 86
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 86	Average Score: -425.60	Duration: 426.60 steps	GO Eps: 0.33
+|-> episode: 87
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 87	Average Score: -374.40	Duration: 375.40 steps	GO Eps: 0.33
+|-> episode: 88
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 88	Average Score: -337.70	Duration: 338.70 steps	GO Eps: 0.32
+|-> episode: 89
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 300
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 700
+  |-> step_number: 800
+  |-> step_number: 900
+Episode 89	Average Score: -420.80	Duration: 421.70 steps	GO Eps: 0.31
+|-> episode: 90
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 90	Average Score: -375.50	Duration: 376.40 steps	GO Eps: 0.31
+Episode 90	Average Score: -375.50	Duration: 376.40 steps	GO Eps: 0.31
+|-> episode: 91
+  |-> step_number: 0
+option_3 execution successful
+overall_goal_policy_option execution successful
+Episode 91	Average Score: -347.70	Duration: 348.60 steps	GO Eps: 0.31
+|-> episode: 92
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 92	Average Score: -332.70	Duration: 333.60 steps	GO Eps: 0.31
+|-> episode: 93
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 500
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+overall_goal_policy_option execution successful
+Episode 93	Average Score: -386.00	Duration: 386.90 steps	GO Eps: 0.30
+|-> episode: 94
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 94	Average Score: -366.80	Duration: 367.70 steps	GO Eps: 0.30
+|-> episode: 95
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 95	Average Score: -357.40	Duration: 358.30 steps	GO Eps: 0.30
+|-> episode: 96
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+[option_1]: x: 0.9238409744282077	y: 8.039710901774624	theta: -8.699124601542488	xdot: 0.2766894609793233	ydot: -4.163758150408979	thetadot: 0.7615554773158003	terminal: False
+ is_terminal() but not term_true()
+Episode 96	Average Score: -374.00	Duration: 374.90 steps	GO Eps: 0.29
+|-> episode: 97
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+overall_goal_policy_option execution successful
+Episode 97	Average Score: -393.50	Duration: 394.40 steps	GO Eps: 0.29
+|-> episode: 98
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 98	Average Score: -387.80	Duration: 388.70 steps	GO Eps: 0.29
+|-> episode: 99
+  |-> step_number: 0
+option_2 execution successful
+overall_goal_policy_option execution successful
+Episode 99	Average Score: -308.10	Duration: 309.10 steps	GO Eps: 0.28
+|-> episode: 100
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 100	Average Score: -324.20	Duration: 325.20 steps	GO Eps: 0.28
+Episode 100	Average Score: -324.20	Duration: 325.20 steps	GO Eps: 0.28
+|-> episode: 101
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+overall_goal_policy_option execution successful
+Episode 101	Average Score: -345.90	Duration: 346.90 steps	GO Eps: 0.28
+|-> episode: 102
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 0.1786062272910511	y: 7.205331418083851	theta: -3.180889688881317	xdot: -0.6341576468592036	ydot: -7.032224191027507	thetadot: 10.227635518413356	terminal: False
+ is_terminal() but not term_true()
+Episode 102	Average Score: -372.20	Duration: 373.20 steps	GO Eps: 0.27
+|-> episode: 103
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 1.0014257680157055	y: 8.975056583951005	theta: 105.05665669477787	xdot: 0.006476470137516365	ydot: -3.9803468308051393	thetadot: 0.15531682711998798	terminal: False
+ is_terminal() but not term_true()
+Episode 103	Average Score: -339.70	Duration: 340.70 steps	GO Eps: 0.27
+|-> episode: 104
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+[option_1]: x: 0.8649248839260324	y: 7.770712585467736	theta: -2.1829317146634226	xdot: 0.6048513239852373	ydot: -2.431551292117121	thetadot: 2.019661954173032	terminal: False
+ is_terminal() but not term_true()
+Episode 104	Average Score: -364.80	Duration: 365.80 steps	GO Eps: 0.26
+|-> episode: 105
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 105	Average Score: -421.10	Duration: 422.10 steps	GO Eps: 0.25
+|-> episode: 106
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 106	Average Score: -405.80	Duration: 406.80 steps	GO Eps: 0.25
+|-> episode: 107
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 107	Average Score: -398.50	Duration: 399.50 steps	GO Eps: 0.25
+|-> episode: 108
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+global_option execution successful
+Episode 108	Average Score: -396.50	Duration: 397.50 steps	GO Eps: 0.25
+|-> episode: 109
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 109	Average Score: -405.90	Duration: 406.90 steps	GO Eps: 0.24
+|-> episode: 110
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 110	Average Score: -372.90	Duration: 373.90 steps	GO Eps: 0.24
+Episode 110	Average Score: -372.90	Duration: 373.90 steps	GO Eps: 0.24
+|-> episode: 111
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+  |-> step_number: 400
+option_2 execution successful
+option_3 execution successful
+  |-> step_number: 600
+  |-> step_number: 700
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+global_option execution successful
+Episode 111	Average Score: -421.80	Duration: 422.80 steps	GO Eps: 0.23
+|-> episode: 112
+  |-> step_number: 0
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 112	Average Score: -385.60	Duration: 386.60 steps	GO Eps: 0.23
+|-> episode: 113
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+option_1 execution successful
+global_option execution successful
+Episode 113	Average Score: -406.60	Duration: 407.60 steps	GO Eps: 0.22
+|-> episode: 114
+  |-> step_number: 0
+  |-> step_number: 200
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+overall_goal_policy_option execution successful
+Episode 114	Average Score: -441.20	Duration: 442.20 steps	GO Eps: 0.22
+|-> episode: 115
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 115	Average Score: -406.30	Duration: 407.30 steps	GO Eps: 0.21
+|-> episode: 116
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 116	Average Score: -397.30	Duration: 398.30 steps	GO Eps: 0.21
+|-> episode: 117
+  |-> step_number: 0
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 117	Average Score: -394.80	Duration: 395.80 steps	GO Eps: 0.21
+|-> episode: 118
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 118	Average Score: -397.40	Duration: 398.40 steps	GO Eps: 0.21
+|-> episode: 119
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 0.9193879483330305	y: 7.2914328746674295	theta: -15.284531333271195	xdot: -0.04726895331717005	ydot: -2.7370052025654585	thetadot: 0.014029202276099275	terminal: False
+ is_terminal() but not term_true()
+Episode 119	Average Score: -386.80	Duration: 387.80 steps	GO Eps: 0.20
+|-> episode: 120
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+overall_goal_policy_option execution successful
+Episode 120	Average Score: -416.40	Duration: 417.40 steps	GO Eps: 0.20
+Episode 120	Average Score: -416.40	Duration: 417.40 steps	GO Eps: 0.20
+|-> episode: 121
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+overall_goal_policy_option execution successful
+Episode 121	Average Score: -351.80	Duration: 352.80 steps	GO Eps: 0.20
+|-> episode: 122
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_3 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 122	Average Score: -369.50	Duration: 370.50 steps	GO Eps: 0.19
+|-> episode: 123
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+  |-> step_number: 700
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+Episode 123	Average Score: -398.20	Duration: 399.10 steps	GO Eps: 0.18
+|-> episode: 124
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_3 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 124	Average Score: -358.80	Duration: 359.70 steps	GO Eps: 0.18
+|-> episode: 125
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 125	Average Score: -343.10	Duration: 344.00 steps	GO Eps: 0.18
+|-> episode: 126
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 126	Average Score: -344.80	Duration: 345.70 steps	GO Eps: 0.18
+|-> episode: 127
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+[option_1]: x: 0.601851331933919	y: 7.187648117129121	theta: 15.675862717021566	xdot: -0.061117566814801266	ydot: -1.9247989612533423	thetadot: -0.17032747821354347	terminal: False
+ is_terminal() but not term_true()
+Episode 127	Average Score: -322.50	Duration: 323.40 steps	GO Eps: 0.18
+|-> episode: 128
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 128	Average Score: -312.50	Duration: 313.40 steps	GO Eps: 0.17
+|-> episode: 129
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 129	Average Score: -322.90	Duration: 323.80 steps	GO Eps: 0.17
+|-> episode: 130
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_3 execution successful
+  |-> step_number: 300
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 800
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 900
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Episode 130	Average Score: -382.40	Duration: 383.20 steps	GO Eps: 0.16
+Episode 130	Average Score: -382.40	Duration: 383.20 steps	GO Eps: 0.16
+|-> episode: 131
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 131	Average Score: -385.70	Duration: 386.50 steps	GO Eps: 0.16
+|-> episode: 132
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 132	Average Score: -360.90	Duration: 361.70 steps	GO Eps: 0.16
+|-> episode: 133
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+global_option execution successful
+Episode 133	Average Score: -283.00	Duration: 283.90 steps	GO Eps: 0.16
+|-> episode: 134
+  |-> step_number: 0
+  |-> step_number: 200
+option_1 execution successful
+  |-> step_number: 400
+option_1 execution successful
+  |-> step_number: 500
+[option_1]: x: 0.6128807884690051	y: 7.739790402558535	theta: 34.67598109335816	xdot: -0.3510126265027086	ydot: -1.6163782173800874	thetadot: -2.249887775331973	terminal: False
+ is_terminal() but not term_true()
+Episode 134	Average Score: -303.20	Duration: 304.10 steps	GO Eps: 0.15
+|-> episode: 135
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 300
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 135	Average Score: -349.10	Duration: 350.00 steps	GO Eps: 0.14
+|-> episode: 136
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 136	Average Score: -374.20	Duration: 375.10 steps	GO Eps: 0.14
+|-> episode: 137
+  |-> step_number: 0
+  |-> step_number: 100
+option_2 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+  |-> step_number: 600
+option_1 execution successful
+  |-> step_number: 700
+overall_goal_policy_option execution successful
+Episode 137	Average Score: -437.00	Duration: 437.90 steps	GO Eps: 0.13
+|-> episode: 138
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+[option_1]: x: 0.9685684024905353	y: 7.624934034379205	theta: 37.409698661666	xdot: -2.0574560013197014	ydot: 8.195829392329625	thetadot: -4.5697164071130585	terminal: False
+ is_terminal() but not term_true()
+Episode 138	Average Score: -449.70	Duration: 450.60 steps	GO Eps: 0.13
+|-> episode: 139
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 139	Average Score: -447.30	Duration: 448.20 steps	GO Eps: 0.13
+|-> episode: 140
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 140	Average Score: -390.40	Duration: 391.40 steps	GO Eps: 0.12
+Episode 140	Average Score: -390.40	Duration: 391.40 steps	GO Eps: 0.12
+|-> episode: 141
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 141	Average Score: -385.20	Duration: 386.20 steps	GO Eps: 0.12
+|-> episode: 142
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+option_1 execution successful
+[option_1]: x: 1.424808342328758	y: 8.39488034442979	theta: 111.25617934137514	xdot: -1.0389995782923889	ydot: -6.753023911246592	thetadot: 12.791002556742136	terminal: False
+ is_terminal() but not term_true()
+Episode 142	Average Score: -441.80	Duration: 442.80 steps	GO Eps: 0.11
+|-> episode: 143
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 143	Average Score: -438.60	Duration: 439.60 steps	GO Eps: 0.11
+|-> episode: 144
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+[option_1]: x: 0.1430693281708163	y: 7.186197852210915	theta: 22.108914259121946	xdot: 1.2735250982307786	ydot: -6.963313034596813	thetadot: 6.491939711236742	terminal: False
+ is_terminal() but not term_true()
+Episode 144	Average Score: -413.60	Duration: 414.60 steps	GO Eps: 0.11
+|-> episode: 145
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+global_option execution successful
+Episode 145	Average Score: -390.10	Duration: 391.10 steps	GO Eps: 0.11
+|-> episode: 146
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+  |-> step_number: 300
+overall_goal_policy_option execution successful
+Episode 146	Average Score: -394.40	Duration: 395.40 steps	GO Eps: 0.10
+|-> episode: 147
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 300
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 400
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 147	Average Score: -372.50	Duration: 373.50 steps	GO Eps: 0.10
+|-> episode: 148
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_3 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 148	Average Score: -382.40	Duration: 383.40 steps	GO Eps: 0.09
+|-> episode: 149
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+global_option execution successful
+Episode 149	Average Score: -394.50	Duration: 395.50 steps	GO Eps: 0.09
+|-> episode: 150
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 150	Average Score: -385.20	Duration: 386.20 steps	GO Eps: 0.08
+Episode 150	Average Score: -385.20	Duration: 386.20 steps	GO Eps: 0.08
+|-> episode: 151
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 151	Average Score: -407.60	Duration: 408.60 steps	GO Eps: 0.08
+|-> episode: 152
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 152	Average Score: -377.70	Duration: 378.70 steps	GO Eps: 0.08
+|-> episode: 153
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 153	Average Score: -398.30	Duration: 399.30 steps	GO Eps: 0.07
+|-> episode: 154
+  |-> step_number: 0
+  |-> step_number: 100
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 154	Average Score: -409.00	Duration: 410.00 steps	GO Eps: 0.07
+|-> episode: 155
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+overall_goal_policy_option execution successful
+Episode 155	Average Score: -419.80	Duration: 420.80 steps	GO Eps: 0.06
+|-> episode: 156
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 156	Average Score: -381.40	Duration: 382.40 steps	GO Eps: 0.06
+|-> episode: 157
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 157	Average Score: -345.10	Duration: 346.10 steps	GO Eps: 0.06
+|-> episode: 158
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 158	Average Score: -372.40	Duration: 373.40 steps	GO Eps: 0.05
+|-> episode: 159
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 159	Average Score: -369.80	Duration: 370.80 steps	GO Eps: 0.05
+|-> episode: 160
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 160	Average Score: -361.50	Duration: 362.50 steps	GO Eps: 0.05
+Episode 160	Average Score: -361.50	Duration: 362.50 steps	GO Eps: 0.05
+|-> episode: 161
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 100
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 400
+option_1 execution successful
+  |-> step_number: 500
+overall_goal_policy_option execution successful
+Episode 161	Average Score: -375.90	Duration: 376.90 steps	GO Eps: 0.04
+|-> episode: 162
+  |-> step_number: 0
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 162	Average Score: -364.60	Duration: 365.60 steps	GO Eps: 0.04
+|-> episode: 163
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 163	Average Score: -332.60	Duration: 333.60 steps	GO Eps: 0.04
+|-> episode: 164
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+global_option execution successful
+Episode 164	Average Score: -313.30	Duration: 314.30 steps	GO Eps: 0.04
+|-> episode: 165
+  |-> step_number: 0
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 500
+overall_goal_policy_option execution successful
+Episode 165	Average Score: -316.70	Duration: 317.70 steps	GO Eps: 0.03
+|-> episode: 166
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 166	Average Score: -331.80	Duration: 332.80 steps	GO Eps: 0.03
+|-> episode: 167
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 167	Average Score: -324.60	Duration: 325.60 steps	GO Eps: 0.03
+|-> episode: 168
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+[option_1]: x: 0.9812091375189421	y: 7.898121559725171	theta: 16.04960072178057	xdot: -0.6865539142148237	ydot: -3.193835918570802	thetadot: -2.4418317640962046	terminal: False
+ is_terminal() but not term_true()
+Episode 168	Average Score: -293.10	Duration: 294.10 steps	GO Eps: 0.02
+|-> episode: 169
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 300
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 500
+overall_goal_policy_option execution successful
+Episode 169	Average Score: -309.90	Duration: 310.90 steps	GO Eps: 0.02
+|-> episode: 170
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 170	Average Score: -297.80	Duration: 298.80 steps	GO Eps: 0.02
+Episode 170	Average Score: -297.80	Duration: 298.80 steps	GO Eps: 0.02
+|-> episode: 171
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+  |-> step_number: 500
+  |-> step_number: 600
+overall_goal_policy_option execution successful
+Episode 171	Average Score: -316.60	Duration: 317.60 steps	GO Eps: 0.01
+|-> episode: 172
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 172	Average Score: -313.00	Duration: 314.00 steps	GO Eps: 0.01
+|-> episode: 173
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 173	Average Score: -337.00	Duration: 338.00 steps	GO Eps: 0.01
+|-> episode: 174
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 300
+  |-> step_number: 400
+overall_goal_policy_option execution successful
+Episode 174	Average Score: -393.70	Duration: 394.70 steps	GO Eps: 0.00
+|-> episode: 175
+  |-> step_number: 0
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 175	Average Score: -388.40	Duration: 389.40 steps	GO Eps: 0.00
+|-> episode: 176
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 176	Average Score: -365.70	Duration: 366.70 steps	GO Eps: 0.00
+|-> episode: 177
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 177	Average Score: -368.30	Duration: 369.30 steps	GO Eps: 0.00
+|-> episode: 178
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 178	Average Score: -346.80	Duration: 347.80 steps	GO Eps: 0.00
+|-> episode: 179
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 179	Average Score: -306.40	Duration: 307.40 steps	GO Eps: 0.00
+|-> episode: 180
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 180	Average Score: -305.00	Duration: 306.00 steps	GO Eps: 0.00
+Episode 180	Average Score: -305.00	Duration: 306.00 steps	GO Eps: 0.00
+|-> episode: 181
+  |-> step_number: 0
+option_2 execution successful
+overall_goal_policy_option execution successful
+Episode 181	Average Score: -263.80	Duration: 264.80 steps	GO Eps: 0.00
+|-> episode: 182
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 182	Average Score: -254.20	Duration: 255.20 steps	GO Eps: 0.00
+|-> episode: 183
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 183	Average Score: -239.30	Duration: 240.30 steps	GO Eps: 0.00
+|-> episode: 184
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 184	Average Score: -188.50	Duration: 189.50 steps	GO Eps: 0.00
+|-> episode: 185
+  |-> step_number: 0
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 185	Average Score: -173.40	Duration: 174.40 steps	GO Eps: 0.00
+|-> episode: 186
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+  |-> step_number: 400
+  |-> step_number: 600
+option_1 execution successful
+option_1 execution successful
+global_option execution successful
+Episode 186	Average Score: -234.60	Duration: 235.60 steps	GO Eps: 0.00
+|-> episode: 187
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 187	Average Score: -242.10	Duration: 243.10 steps	GO Eps: 0.00
+|-> episode: 188
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 188	Average Score: -240.80	Duration: 241.80 steps	GO Eps: 0.00
+|-> episode: 189
+  |-> step_number: 0
+option_3 execution successful
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 189	Average Score: -240.90	Duration: 241.90 steps	GO Eps: 0.00
+|-> episode: 190
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 190	Average Score: -258.50	Duration: 259.50 steps	GO Eps: 0.00
+Episode 190	Average Score: -258.50	Duration: 259.50 steps	GO Eps: 0.00
+|-> episode: 191
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 191	Average Score: -252.10	Duration: 253.10 steps	GO Eps: 0.00
+|-> episode: 192
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 192	Average Score: -271.90	Duration: 272.90 steps	GO Eps: 0.00
+|-> episode: 193
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 600
+overall_goal_policy_option execution successful
+Episode 193	Average Score: -318.20	Duration: 319.20 steps	GO Eps: 0.00
+|-> episode: 194
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 194	Average Score: -308.30	Duration: 309.30 steps	GO Eps: 0.00
+|-> episode: 195
+  |-> step_number: 0
+option_1 execution successful
+global_option execution successful
+Episode 195	Average Score: -288.00	Duration: 289.00 steps	GO Eps: 0.00
+|-> episode: 196
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 196	Average Score: -238.10	Duration: 239.10 steps	GO Eps: 0.00
+|-> episode: 197
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 197	Average Score: -225.90	Duration: 226.90 steps	GO Eps: 0.00
+|-> episode: 198
+  |-> step_number: 0
+option_3 execution successful
+overall_goal_policy_option execution successful
+Episode 198	Average Score: -223.70	Duration: 224.70 steps	GO Eps: 0.00
+|-> episode: 199
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 199	Average Score: -219.70	Duration: 220.70 steps	GO Eps: 0.00
+|-> episode: 200
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 200	Average Score: -201.90	Duration: 202.90 steps	GO Eps: 0.00
+Episode 200	Average Score: -201.90	Duration: 202.90 steps	GO Eps: 0.00
+|-> episode: 201
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 201	Average Score: -197.60	Duration: 198.60 steps	GO Eps: 0.00
+|-> episode: 202
+  |-> step_number: 0
+option_3 execution successful
+overall_goal_policy_option execution successful
+Episode 202	Average Score: -185.50	Duration: 186.50 steps	GO Eps: 0.00
+|-> episode: 203
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+global_option execution successful
+Episode 203	Average Score: -134.80	Duration: 135.80 steps	GO Eps: 0.00
+|-> episode: 204
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 204	Average Score: -130.30	Duration: 131.30 steps	GO Eps: 0.00
+|-> episode: 205
+  |-> step_number: 0
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 205	Average Score: -140.90	Duration: 141.90 steps	GO Eps: 0.00
+|-> episode: 206
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 206	Average Score: -134.20	Duration: 135.20 steps	GO Eps: 0.00
+|-> episode: 207
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 207	Average Score: -138.70	Duration: 139.70 steps	GO Eps: 0.00
+|-> episode: 208
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 208	Average Score: -144.00	Duration: 145.00 steps	GO Eps: 0.00
+|-> episode: 209
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 209	Average Score: -147.50	Duration: 148.50 steps	GO Eps: 0.00
+|-> episode: 210
+  |-> step_number: 0
+  |-> step_number: 100
+global_option execution successful
+Episode 210	Average Score: -153.30	Duration: 154.30 steps	GO Eps: 0.00
+Episode 210	Average Score: -153.30	Duration: 154.30 steps	GO Eps: 0.00
+|-> episode: 211
+  |-> step_number: 0
+option_2 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 211	Average Score: -153.80	Duration: 154.80 steps	GO Eps: 0.00
+|-> episode: 212
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 212	Average Score: -148.50	Duration: 149.50 steps	GO Eps: 0.00
+|-> episode: 213
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 213	Average Score: -145.10	Duration: 146.10 steps	GO Eps: 0.00
+|-> episode: 214
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 214	Average Score: -147.10	Duration: 148.10 steps	GO Eps: 0.00
+|-> episode: 215
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 215	Average Score: -137.30	Duration: 138.30 steps	GO Eps: 0.00
+|-> episode: 216
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 216	Average Score: -142.00	Duration: 143.00 steps	GO Eps: 0.00
+|-> episode: 217
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 217	Average Score: -153.10	Duration: 154.10 steps	GO Eps: 0.00
+|-> episode: 218
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 218	Average Score: -163.60	Duration: 164.60 steps	GO Eps: 0.00
+|-> episode: 219
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 219	Average Score: -175.60	Duration: 176.60 steps	GO Eps: 0.00
+|-> episode: 220
+  |-> step_number: 0
+  |-> step_number: 200
+  |-> step_number: 300
+option_1 execution successful
+  |-> step_number: 500
+  |-> step_number: 600
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 220	Average Score: -225.40	Duration: 226.40 steps	GO Eps: 0.00
+Episode 220	Average Score: -225.40	Duration: 226.40 steps	GO Eps: 0.00
+|-> episode: 221
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 221	Average Score: -242.60	Duration: 243.60 steps	GO Eps: 0.00
+|-> episode: 222
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 222	Average Score: -244.80	Duration: 245.80 steps	GO Eps: 0.00
+|-> episode: 223
+  |-> step_number: 0
+option_2 execution successful
+Global Epsilon schedule switching to exponential decay
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 223	Average Score: -254.90	Duration: 255.90 steps	GO Eps: 0.00
+|-> episode: 224
+  |-> step_number: 0
+global_option execution successful
+Episode 224	Average Score: -251.20	Duration: 252.20 steps	GO Eps: 0.00
+|-> episode: 225
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 225	Average Score: -246.70	Duration: 247.70 steps	GO Eps: 0.00
+|-> episode: 226
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 226	Average Score: -248.40	Duration: 249.40 steps	GO Eps: 0.00
+|-> episode: 227
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 227	Average Score: -235.70	Duration: 236.70 steps	GO Eps: 0.00
+|-> episode: 228
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 228	Average Score: -227.00	Duration: 228.00 steps	GO Eps: 0.00
+|-> episode: 229
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 229	Average Score: -225.80	Duration: 226.80 steps	GO Eps: 0.00
+|-> episode: 230
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 200
+option_1 execution successful
+  |-> step_number: 300
+[option_1]: x: 0.4124665808186083	y: 7.28419844613895	theta: 33.76691883961475	xdot: -0.6886633341834797	ydot: -3.510336004535178	thetadot: -1.3953326168782922	terminal: False
+ is_terminal() but not term_true()
+Episode 230	Average Score: -194.10	Duration: 195.10 steps	GO Eps: 0.00
+Episode 230	Average Score: -194.10	Duration: 195.10 steps	GO Eps: 0.00
+|-> episode: 231
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 231	Average Score: -172.30	Duration: 173.30 steps	GO Eps: 0.00
+|-> episode: 232
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 232	Average Score: -167.70	Duration: 168.70 steps	GO Eps: 0.00
+|-> episode: 233
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 233	Average Score: -160.50	Duration: 161.50 steps	GO Eps: 0.00
+|-> episode: 234
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 234	Average Score: -176.30	Duration: 177.30 steps	GO Eps: 0.00
+|-> episode: 235
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 235	Average Score: -195.70	Duration: 196.70 steps	GO Eps: 0.00
+|-> episode: 236
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 236	Average Score: -189.30	Duration: 190.30 steps	GO Eps: 0.00
+|-> episode: 237
+  |-> step_number: 0
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 237	Average Score: -186.20	Duration: 187.20 steps	GO Eps: 0.00
+|-> episode: 238
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+  |-> step_number: 300
+  |-> step_number: 400
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 238	Average Score: -225.30	Duration: 226.30 steps	GO Eps: 0.00
+|-> episode: 239
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 239	Average Score: -219.20	Duration: 220.20 steps	GO Eps: 0.00
+|-> episode: 240
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 240	Average Score: -205.30	Duration: 206.30 steps	GO Eps: 0.00
+Episode 240	Average Score: -205.30	Duration: 206.30 steps	GO Eps: 0.00
+|-> episode: 241
+  |-> step_number: 0
+option_2 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 241	Average Score: -219.30	Duration: 220.30 steps	GO Eps: 0.00
+|-> episode: 242
+  |-> step_number: 0
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 242	Average Score: -217.10	Duration: 218.10 steps	GO Eps: 0.00
+|-> episode: 243
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 243	Average Score: -220.20	Duration: 221.20 steps	GO Eps: 0.00
+|-> episode: 244
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 244	Average Score: -220.20	Duration: 221.20 steps	GO Eps: 0.00
+|-> episode: 245
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 245	Average Score: -210.50	Duration: 211.50 steps	GO Eps: 0.00
+|-> episode: 246
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 246	Average Score: -212.10	Duration: 213.10 steps	GO Eps: 0.00
+|-> episode: 247
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 247	Average Score: -212.80	Duration: 213.80 steps	GO Eps: 0.00
+|-> episode: 248
+  |-> step_number: 0
+option_3 execution successful
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 248	Average Score: -187.90	Duration: 188.90 steps	GO Eps: 0.00
+|-> episode: 249
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 249	Average Score: -177.50	Duration: 178.50 steps	GO Eps: 0.00
+|-> episode: 250
+  |-> step_number: 0
+  |-> step_number: 100
+option_3 execution successful
+  |-> step_number: 200
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 250	Average Score: -185.60	Duration: 186.60 steps	GO Eps: 0.00
+Episode 250	Average Score: -185.60	Duration: 186.60 steps	GO Eps: 0.00
+|-> episode: 251
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 251	Average Score: -180.80	Duration: 181.80 steps	GO Eps: 0.00
+|-> episode: 252
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 252	Average Score: -181.90	Duration: 182.90 steps	GO Eps: 0.00
+|-> episode: 253
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 253	Average Score: -183.30	Duration: 184.30 steps	GO Eps: 0.00
+|-> episode: 254
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 254	Average Score: -208.00	Duration: 209.00 steps	GO Eps: 0.00
+|-> episode: 255
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 255	Average Score: -214.50	Duration: 215.50 steps	GO Eps: 0.00
+|-> episode: 256
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 256	Average Score: -219.60	Duration: 220.60 steps	GO Eps: 0.00
+|-> episode: 257
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 257	Average Score: -227.00	Duration: 228.00 steps	GO Eps: 0.00
+|-> episode: 258
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 258	Average Score: -211.50	Duration: 212.50 steps	GO Eps: 0.00
+|-> episode: 259
+  |-> step_number: 0
+global_option execution successful
+Episode 259	Average Score: -220.20	Duration: 221.20 steps	GO Eps: 0.00
+|-> episode: 260
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 260	Average Score: -202.70	Duration: 203.70 steps	GO Eps: 0.00
+Episode 260	Average Score: -202.70	Duration: 203.70 steps	GO Eps: 0.00
+|-> episode: 261
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 261	Average Score: -206.40	Duration: 207.40 steps	GO Eps: 0.00
+|-> episode: 262
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 262	Average Score: -208.70	Duration: 209.70 steps	GO Eps: 0.00
+|-> episode: 263
+  |-> step_number: 0
+  |-> step_number: 100
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 263	Average Score: -219.00	Duration: 220.00 steps	GO Eps: 0.00
+|-> episode: 264
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 300
+overall_goal_policy_option execution successful
+Episode 264	Average Score: -210.80	Duration: 211.80 steps	GO Eps: 0.00
+|-> episode: 265
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 265	Average Score: -193.90	Duration: 194.90 steps	GO Eps: 0.00
+|-> episode: 266
+  |-> step_number: 0
+[option_1]: x: 0.9742647753982084	y: 8.233047624863039	theta: 35.15563372420416	xdot: -1.220101154299736	ydot: -6.744118193630225	thetadot: 12.83056641438552	terminal: False
+ is_terminal() but not term_true()
+Episode 266	Average Score: -188.10	Duration: 189.10 steps	GO Eps: 0.00
+|-> episode: 267
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 267	Average Score: -181.40	Duration: 182.40 steps	GO Eps: 0.00
+|-> episode: 268
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 268	Average Score: -176.20	Duration: 177.20 steps	GO Eps: 0.00
+|-> episode: 269
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 269	Average Score: -184.90	Duration: 185.90 steps	GO Eps: 0.00
+|-> episode: 270
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 270	Average Score: -180.40	Duration: 181.40 steps	GO Eps: 0.00
+Episode 270	Average Score: -180.40	Duration: 181.40 steps	GO Eps: 0.00
+|-> episode: 271
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 271	Average Score: -162.40	Duration: 163.40 steps	GO Eps: 0.00
+|-> episode: 272
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 272	Average Score: -158.80	Duration: 159.80 steps	GO Eps: 0.00
+|-> episode: 273
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 273	Average Score: -144.20	Duration: 145.20 steps	GO Eps: 0.00
+|-> episode: 274
+  |-> step_number: 0
+option_1 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 274	Average Score: -141.50	Duration: 142.50 steps	GO Eps: 0.00
+|-> episode: 275
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 275	Average Score: -147.90	Duration: 148.90 steps	GO Eps: 0.00
+|-> episode: 276
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 276	Average Score: -148.10	Duration: 149.10 steps	GO Eps: 0.00
+|-> episode: 277
+  |-> step_number: 0
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 277	Average Score: -144.00	Duration: 145.00 steps	GO Eps: 0.00
+|-> episode: 278
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 278	Average Score: -140.30	Duration: 141.30 steps	GO Eps: 0.00
+|-> episode: 279
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 279	Average Score: -135.00	Duration: 136.00 steps	GO Eps: 0.00
+|-> episode: 280
+  |-> step_number: 0
+option_2 execution successful
+overall_goal_policy_option execution successful
+Episode 280	Average Score: -146.90	Duration: 147.90 steps	GO Eps: 0.00
+Episode 280	Average Score: -146.90	Duration: 147.90 steps	GO Eps: 0.00
+|-> episode: 281
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 281	Average Score: -146.30	Duration: 147.30 steps	GO Eps: 0.00
+|-> episode: 282
+  |-> step_number: 0
+option_2 execution successful
+option_1 execution successful
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 282	Average Score: -147.60	Duration: 148.60 steps	GO Eps: 0.00
+|-> episode: 283
+  |-> step_number: 0
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 283	Average Score: -154.10	Duration: 155.10 steps	GO Eps: 0.00
+|-> episode: 284
+  |-> step_number: 0
+option_1 execution successful
+overall_goal_policy_option execution successful
+Episode 284	Average Score: -128.20	Duration: 129.20 steps	GO Eps: 0.00
+|-> episode: 285
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 285	Average Score: -124.80	Duration: 125.80 steps	GO Eps: 0.00
+|-> episode: 286
+  |-> step_number: 0
+option_1 execution successful
+  |-> step_number: 100
+global_option execution successful
+Episode 286	Average Score: -131.10	Duration: 132.10 steps	GO Eps: 0.00
+|-> episode: 287
+  |-> step_number: 0
+  |-> step_number: 100
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 287	Average Score: -150.70	Duration: 151.70 steps	GO Eps: 0.00
+|-> episode: 288
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 288	Average Score: -155.40	Duration: 156.40 steps	GO Eps: 0.00
+|-> episode: 289
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+overall_goal_policy_option execution successful
+Episode 289	Average Score: -145.50	Duration: 146.50 steps	GO Eps: 0.00
+|-> episode: 290
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 290	Average Score: -134.40	Duration: 135.40 steps	GO Eps: 0.00
+Episode 290	Average Score: -134.40	Duration: 135.40 steps	GO Eps: 0.00
+|-> episode: 291
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 291	Average Score: -133.90	Duration: 134.90 steps	GO Eps: 0.00
+|-> episode: 292
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 292	Average Score: -130.40	Duration: 131.40 steps	GO Eps: 0.00
+|-> episode: 293
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 293	Average Score: -124.50	Duration: 125.50 steps	GO Eps: 0.00
+|-> episode: 294
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 294	Average Score: -129.00	Duration: 130.00 steps	GO Eps: 0.00
+|-> episode: 295
+  |-> step_number: 0
+option_3 execution successful
+overall_goal_policy_option execution successful
+Episode 295	Average Score: -124.60	Duration: 125.60 steps	GO Eps: 0.00
+|-> episode: 296
+  |-> step_number: 0
+  |-> step_number: 100
+overall_goal_policy_option execution successful
+Episode 296	Average Score: -129.20	Duration: 130.20 steps	GO Eps: 0.00
+|-> episode: 297
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 297	Average Score: -112.80	Duration: 113.80 steps	GO Eps: 0.00
+|-> episode: 298
+  |-> step_number: 0
+  |-> step_number: 200
+overall_goal_policy_option execution successful
+Episode 298	Average Score: -124.70	Duration: 125.70 steps	GO Eps: 0.00
+|-> episode: 299
+  |-> step_number: 0
+overall_goal_policy_option execution successful
+Episode 299	Average Score: -125.50	Duration: 126.50 steps	GO Eps: 0.00
+Scores: [-1000.0, -1000.0, -212.0, -691.0, -866.0, -1000.0, -1000.0, -639.0, -734.0, -1000.0, -1000.0, -1000.0, -1000.0, -539.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -936.0, -950.0, -1000.0, -879.0, -1000.0, -1000.0, -1000.0, -1000.0, -918.0, -1000.0, -1000.0, -1000.0, -991.0, -1000.0, -710.0, -1000.0, -1000.0, -1000.0, -1000.0, -1000.0, -306.0, -1000.0, -1000.0, -473.0, -654.0, -501.0, -1000.0, -545.0, -749.0, -1000.0, -944.0, -253.0, -658.0, -266.0, -459.0, -1000.0, -338.0, -1000.0, -404.0, -362.0, -825.0, -1000.0, -77.0, -534.0, -1000.0, -424.0, -179.0, -1000.0, -374.0, -1000.0, -302.0, -770.0, -679.0, -169.0, -731.0, -384.0, -419.0, -295.0, -310.0, -224.0, -275.0, -258.0, -312.0, -1000.0, -278.0, -106.0, -269.0, -828.0, -118.0, -130.0, -441.0, -453.0, -255.0, -203.0, -439.0, -323.0, -532.0, -503.0, -369.0, -693.0, -288.0, -380.0, -235.0, -297.0, -109.0, -812.0, -170.0, -713.0, -715.0, -344.0, -198.0, -355.0, -261.0, -191.0, -405.0, -166.0, -347.0, -1000.0, -321.0, -187.0, -215.0, -132.0, -161.0, -295.0, -1000.0, -199.0, -99.0, -221.0, -523.0, -646.0, -466.0, -760.0, -288.0, -271.0, -431.0, -147.0, -665.0, -189.0, -273.0, -411.0, -509.0, -541.0, -387.0, -392.0, -338.0, -371.0, -366.0, -395.0, -380.0, -519.0, -125.0, -178.0, -660.0, -366.0, -255.0, -515.0, -253.0, -75.0, -187.0, -553.0, -276.0, -106.0, -345.0, -534.0, -134.0, -703.0, -217.0, -315.0, -754.0, -500.0, -49.0, -132.0, -130.0, -130.0, -120.0, -291.0, -121.0, -166.0, -246.0, -349.0, -661.0, -207.0, -117.0, -131.0, -296.0, -227.0, -319.0, -629.0, -147.0, -146.0, -162.0, -85.0, -95.0, -91.0, -118.0, -184.0, -198.0, -122.0, -102.0, -252.0, -95.0, -130.0, -148.0, -126.0, -176.0, -189.0, -145.0, -88.0, -122.0, -154.0, -142.0, -241.0, -253.0, -246.0, -674.0, -361.0, -167.0, -189.0, -85.0, -109.0, -159.0, -114.0, -166.0, -234.0, -357.0, -143.0, -121.0, -117.0, -243.0, -303.0, -95.0, -83.0, -557.0, -173.0, -218.0, -283.0, -99.0, -148.0, -243.0, -206.0, -111.0, -90.0, -308.0, -69.0, -299.0, -235.0, -110.0, -162.0, -490.0, -271.0, -162.0, -164.0, -153.0, -156.0, -124.0, -272.0, -133.0, -265.0, -408.0, -102.0, -104.0, -97.0, -101.0, -243.0, -79.0, -92.0, -97.0, -119.0, -381.0, -166.0, -106.0, -56.0, -64.0, -190.0, -198.0, -86.0, -110.0, -184.0, -122.0, -132.0, -169.0, -252.0, -111.0, -91.0, -87.0, -81.0, -75.0, -125.0, -167.0, -88.0, -215.0, -88.0, -230.0, -99.0]
+Saving all data..
