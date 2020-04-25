@@ -29,7 +29,15 @@ Run
 
 Bugs
 ====
-	[ ] Test failed unexpectedly due to option_transitions list being empty
+	[ ] Treasure Game:
+		- seed=0, steps=8000:
+			* 3400 steps: reaches gold coin
+			* 7700 steps: reaches goal
+
+		- Q: how does first option made include init state?
+		
+	
+	[x] Test failed unexpectedly due to option_transitions list being empty
 		- Command:
 			
 			python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name='(cs2951x) dsc_opt_pes_nu_0.5' --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 --num_run=4 --seed=4
@@ -52,9 +60,27 @@ Bugs
 
 		- seems to happen more with the higher nu is
 		-> a lot of FAILED tests when nu=0.8, some with nu=0.7, a couple with nu=0.6
-	[	
 
-	[ ] 1st option has init state and never learns more options.
+		- is_term_true(state) is returning different answers for almost the same state. maybe a rounding issue?
+
+		e.g
+			state (np.array) = [0.32291666 -0.00160256], is_term_true(state) = False
+			state (list) = [0.3229166666666667, -0.0016025641025641025], is_term_true(state) = True
+
+		- FIX:
+			- torch and numpy use different rounding schemes
+			
+			i.e. for a given state,
+				
+				torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+
+				is not equivalent to
+
+				np.array(state)
+			
+			- use make sure anything passed to is_term_true(state) is a np.array 
+
+	[ ] 1st option has init state and never learns more options using probabilistc methods
 		- Q: maybe the init set of the goal policy option is too large at first but then is refined 
 		down but if an option is created early then this will break?
 		
@@ -159,7 +185,7 @@ Hyperparameter search
 
 	Run
 	---
-	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(dsc) baseline" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=100 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 
+	python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(test) baseline" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=5 --nu=0.5 
 
 	Hyperparameters
 	---------------
@@ -218,8 +244,10 @@ Writeup
 			- Continous learning of initiation and terminatino set
 			- No worse than old DSC
 			- Optimistic initiation and pessimistic termination should lead to more robust learning
+			-> opt should shrink and pess should grow which will tighten overlap of sets that makes up the chain 
 			- (BACKUP) Choose non-robost domain and show new method can learn
 			-> Treasure Domain?
+			- Hierarchical RL NEEDS robustness for optimal learning
 
 		- Title: Robust Initation Set Confidence
 		- Abstract
@@ -275,3 +303,7 @@ ToDo
 
 	[ ] ScM Writeup
 	[ ] CS2951X Writeup
+
+
+==================================
+
