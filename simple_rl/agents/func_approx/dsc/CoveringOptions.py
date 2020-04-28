@@ -6,7 +6,8 @@ import os
 from numpy.linalg import norm
 
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
-
+from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
+from simple_rl.mdp.StateClass import State
 
 class CoveringOptions(Option):
     # This class identifies a subgoal by Laplacian method.
@@ -43,6 +44,9 @@ class CoveringOptions(Option):
                                                      n_units=self.num_units, conv=False, name=self.name + "-spectrum")
 
         self.initiation_classifier.initialize()
+        
+        replay_buffer = self.convert_states(replay_buffer)
+
         self.train(replay_buffer)
 
         self.threshold_value = self.sample_f_val(replay_buffer)
@@ -71,6 +75,18 @@ class CoveringOptions(Option):
             obs.append(o)
         return obs
 
+    def convert_states(self, replay_buffer):
+        # This function converts all the states recorded in the replay buffer's memory to only have x and y
+        new_rb = ReplayBuffer(replay_buffer.buffer_size, replay_buffer.name, replay_buffer.seed)
+        for old_exp in replay_buffer.memory:
+            state, action, reward, next_state, terminal = old_exp
+            new_state = np.copy(state)
+            new_state[2:] = 0
+            new_next_state = np.copy(next_state)
+            new_next_state[2:] = 0
+            new_rb.add(new_state, action, reward, new_next_state, terminal)
+        return new_rb
+    
     def train(self, replay_buffer):
         for _ in range(self.num_training_steps):
             s, a, r, s2, t = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))

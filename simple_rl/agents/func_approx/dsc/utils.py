@@ -285,9 +285,10 @@ def replay_trajectory(trajectory, dir_name):
 
 
 def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name=""):
-	fig = plt.figure(figsize=(8.0, 5.0))
+	fig = plt.figure(figsize=(8.0, 10.0))
 	#ax = plt.gca()
-	ax = fig.add_subplot(1, 1, 1, projection='3d')
+	ax2d = fig.add_subplot(2, 1, 1)
+	ax3d = fig.add_subplot(2, 1, 2, projection='3d')
 
 	states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
 
@@ -305,7 +306,8 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
 	# print('nxs=', nxs)
 	# print('nys=', nys)
 	# print('colors=', colors)
-	ax.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
+	ax2d.scatter(np.asarray(nxs), np.asarray(nys), c=np.asarray(colors))
+	ax3d.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
 
 	goal_states = [s for s in states if option.is_init_true(s)]
 	goal_values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in goal_states]
@@ -315,19 +317,30 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
 	gys = [s.data[1] for s in goal_states]
 	gzs = [np.linalg.norm(s.data[3:5]) for s in goal_states]
 
-	ax.scatter(gxs, gys, gzs, c="red")
-	ax.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [np.linalg.norm(best_goal_state.data[3:5])],c="green", s = [400])
+	ax2d.scatter(gxs, gys, c="red")
+	ax2d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], c="green", s = [300])
+	ax3d.scatter(gxs, gys, gzs, c="red")
+	ax3d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [np.linalg.norm(best_goal_state.data[3:5])],c="green", s = [400])
 
 	low_bound_x, up_bound_x = -3, 11
 	low_bound_y, up_bound_y = -3, 11
 
-	plt.xlim((low_bound_x, up_bound_x))
+	ax2d.set_xlim((low_bound_x, up_bound_x))
+	ax3d.set_xlim((low_bound_x, up_bound_x))
+	ax2d.set_ylim((low_bound_y, up_bound_y))
+	ax3d.set_ylim((low_bound_y, up_bound_y))
+	#plt.xlim((low_bound_x, up_bound_x))
 	#plt.ylim((low_bound_y, up_bound_y))
 
-	plt.xlabel("x")
-	plt.ylabel("y")
+	ax2d.set_xlabel("x")
+	ax2d.set_ylabel("y")
+	ax3d.set_xlabel("x")
+	ax3d.set_ylabel("y")
+	#plt.xlabel("x")
+	#plt.ylabel("y")
+	
 	name = option.name
 	threshold = option.threshold
-	plt.title("Covering Options with threshold {} and buffer size {}".format(threshold, len(replay_buffer)))
+	fig.suptitle("Covering Options with threshold {} and buffer size {}".format(threshold, len(replay_buffer)))
 	plt.savefig("initiation_set_plots/{}/{}_covering-options-{}_threshold.png".format(experiment_name, name, threshold))
 	plt.close()
