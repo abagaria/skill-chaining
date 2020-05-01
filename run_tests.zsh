@@ -7,24 +7,26 @@
 env="maze"
 episodes=300
 steps=2000
-declare -a nus=(0.5 0.6 0.7 0.8)
-declare -a starts=(1 6 1 1)
-declare -a ends=(10 10 10 10)
-num_runs=${#nus[@]}
+declare -a pes_nus=(0.1)
+declare -a starts=(4)
+declare -a ends=(10)
+num_runs=${#pes_nus[@]}
 hits=5
 
 # Add extra arguments for the treasure domain
 if [[ "${env}" = "treasure" ]]; then
-	extra_args="--discrete_actions=True --episodic_plots=True"
+	extra_args='--discrete_actions=True --episodic_plots=True'
 else
-	extra_args=""
+	# extra_args='--use_old=True'
+	extra_args=''
 fi
 
 # Main loop
 for i in {1..${num_runs}}; do
 	# Run variables
-	nu=${nus[i]}
-	experiment_name="(cs2951x) ${env}_chain_break_nu_${nu}"
+	pes_nu=${pes_nus[i]}
+	experiment_name="(cs2951x) ${env}_chain_fix_nu_${pes_nu}"
+	# experiment_name="(cs2951x) ${env}_old"
 	start=${starts[i]}
 	end=${ends[i]}
 
@@ -39,16 +41,16 @@ for i in {1..${num_runs}}; do
 		# Log header
 		echo "=====================================" |& tee -a ${log_file}
 		echo "START: $(date)" |& tee -a ${log_file}
-		echo "CMD: python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env=${env} --experiment_name=${experiment_name} --episodes=${episodes} --steps=${steps} --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=${hits} --nu=${nu} --num_run=${seed} --seed=${seed}" ${extra_args} |& tee -a ${log_file}
+		echo "CMD: python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env=${env} --experiment_name=${experiment_name} --episodes=${episodes} --steps=${steps} --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=${hits} --pes_nu=${pes_nu} --num_run=${seed} --seed=${seed} --episodic_saves=True" ${extra_args} |& tee -a ${log_file}
 		echo "- experiment_name: ${experiment_name}" |& tee -a ${log_file}
-		echo "- nu: ${nu}" |& tee -a ${log_file}
+		echo "- pes_nu: ${pes_nu}" |& tee -a ${log_file}
 		echo "- seed: ${seed}" |& tee -a ${log_file}
 		echo "=====================================" |& tee -a ${log_file}
 		echo "" |& tee -a ${log_file}
 
 		# Run script
 		start=`date +%s`
-		python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env=${env} --experiment_name=${experiment_name} --episodes=${episodes} --steps=${steps} --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=${hits} --nu=${nu} --num_run=${seed} --seed=${seed} ${extra_args} |& tee -a ${log_file}
+		python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env=${env} --experiment_name=${experiment_name} --episodes=${episodes} --steps=${steps} --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=${hits} --pes_nu=${pes_nu} --num_run=${seed} --seed=${seed} --episodic_saves=True ${extra_args} |& tee -a ${log_file}
 		end=`date +%s`
 		runtime=$((end-start))
 

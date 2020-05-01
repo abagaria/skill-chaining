@@ -70,6 +70,11 @@ class PointMazeMDP(MDP):
         position = state[:2]
         return self.env.is_in_goal_position(position)
 
+    # TODO: batch checking for goal state
+    def batched_is_goal_state(self, states):
+        batched_is_goal_states = [state.is_terminal() if isinstance(state, PointMazeState) else self.env.is_in_goal_position(state[:2]) for state in states]
+        return np.array(batched_is_goal_states)
+
     def distance_to_goal(self, position):
         return self.env.distance_to_goal_position(position)
 

@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from pathlib import Path
+import matplotlib.patheffects as pe
 
 sns.set(color_codes=True)
 sns.set_style("white")
@@ -16,7 +17,7 @@ def load_data(file_name):
 		data = pickle.load(f)
 	return data
 
-def plot_boundary(x_mesh, y_mesh, clfs, colors, option_name, episode, experiment_name, alpha, img_name=None):
+def plot_boundary(x_mesh, y_mesh, clfs, colors, option_name, episode, experiment_name, alpha, img_name=None, goal=None, start=None):
 	# Create plotting dir (if not created)
 	path = '{}/plots/clf_plots'.format(experiment_name)
 	Path(path).mkdir(exist_ok=True)
@@ -26,6 +27,13 @@ def plot_boundary(x_mesh, y_mesh, clfs, colors, option_name, episode, experiment
 		plt.imshow(back_img, extent=[x_mesh.min(), x_mesh.max(), y_mesh.min(), y_mesh.max()], alpha=0.3)
 
 	patches = []
+
+	g = plt.scatter(goal[0], goal[1], marker="*", color="y", s=80, path_effects=[pe.Stroke(linewidth=1, foreground='k'), pe.Normal()], label="Goal")
+	patches.append(g)
+		
+	s = plt.scatter(start[0], start[1], marker="X", color="k", label="Start")
+	patches.append(s)
+
 
 	# Plot classifier boundaries
 	for (clf_name, clf), color in zip(clfs.items(), colors):
@@ -39,20 +47,14 @@ def plot_boundary(x_mesh, y_mesh, clfs, colors, option_name, episode, experiment
 	cb = plt.colorbar()
 	cb.remove()
 
-	# Plot successful trajectories
-	# x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
-	# pos_color = 'black'
-	# p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='successful trajectories', alpha=alpha)
-	# patches.append(p)
-
 	plt.xticks(())
 	plt.yticks(())
-	plt.title("Classifier Boundaries - {}".format(option_name))
+	plt.title("{}".format(option_name))
 	plt.legend(handles=patches, 
 				bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 	
 	# Save plots
-	plt.savefig("{}/{}_{}.png".format(path, option_name, episode),bbox_inches='tight', edgecolor='black')
+	plt.savefig("{}/{}_{}.png".format(path, option_name, episode),bbox_inches='tight', edgecolor='black', format='png', quality=100)
 	plt.close()
 
 	# TODO: remove
@@ -207,19 +209,21 @@ def plot_avg_learning_curves(experiment_name, all_data, mdp_env_name, args):
 
 def generate_all_plots(run_dir, option_data, per_episode_scores, x_mesh, y_mesh, mdp_env_name, num_run, args, all_cur_data=None, all_old_data=None, multi_cur_data=None, img_dir=None):
 	sns.set_style("white")
-	num_colors = 100
-	colors = ['blue', 'green']
-	cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
+	# num_colors = 100
+	all_color_strs =['salmon', 'green', 'orange', 'cyan', 'khaki', 'slateblue', 'goldenrod', 'turquoise', 'red', 'blue', 'slategray', 'violet', 'magenta']
+	# cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
 
-	for option_name, option in option_data.items():
+	# print(option_data)
+
+	for i, (option_name, option) in enumerate(option_data.items()):
 			
 		# dont_plot = ['overall_goal_policy_option', 'option_1']
 		dont_plot = []
-		
+		# print(option)
 		if option_name not in dont_plot:
 			for episode, episode_data in option.items():
+				colors = [all_color_strs[i], 'dark' + all_color_strs[i]]
 				clfs_bounds = episode_data['clfs_bounds']
-
 				# plot boundaries of classifiers
 				if (episode % 299 == 0):
 					plot_boundary(x_mesh=x_mesh,
@@ -230,8 +234,9 @@ def generate_all_plots(run_dir, option_data, per_episode_scores, x_mesh, y_mesh,
 								episode=episode,
 								experiment_name=run_dir,
 								alpha=0.5,
-								img_name=img_dir)
-
+								img_name=img_dir,
+								goal=np.array([0.0, 8.0]),	# Fix hardcode
+								start=np.array([-0.08985623, -0.097918]))
 
 	# plot single learning curve
 	# plot_learning_curve(experiment_name=run_dir,
@@ -261,7 +266,6 @@ def main(args):
 	y_mesh = load_data(run_dir + '/' + data_dir + '/y_mesh.pkl')
 	mdp_env_name = load_data(run_dir + '/' + data_dir + '/mdp_env_name.pkl')
 	args = load_data(run_dir + '/' + data_dir + '/args.pkl')
-	
 	# Multiple score data
 	# all_old_data = get_all_old_data(old_run_dir, 1, 20)
 	# all_cur_data = get_all_cur_data(run_dir, 1, 10)
