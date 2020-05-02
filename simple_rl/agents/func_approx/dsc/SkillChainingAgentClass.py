@@ -269,7 +269,8 @@ class SkillChaining(object):
 									  initialize_everywhere=parent_option.initialize_everywhere,
 									  max_num_children=parent_option.max_num_children,
 									  is_backward_option=is_backward_option,
-									  init_salient_event=gestation_init_salient_event)
+									  init_salient_event=gestation_init_salient_event,
+									  initiation_period=parent_option.initiation_period)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -543,7 +544,7 @@ class SkillChaining(object):
 			self.augment_agent_with_new_option(new_option, 0.)
 			self.untrained_options.append(new_option)
 
-	def skill_chaining(self, num_episodes, num_steps):
+	def skill_chaining_run_loop(self, num_episodes, num_steps, starting_episode=0, interrupt_handle=lambda x: False):
 
 		# For logging purposes
 		per_episode_scores = []
@@ -551,7 +552,7 @@ class SkillChaining(object):
 		last_10_scores = deque(maxlen=10)
 		last_10_durations = deque(maxlen=10)
 
-		for episode in range(num_episodes):
+		for episode in range(starting_episode, starting_episode + num_episodes):
 
 			self.mdp.reset()
 			score = 0.
@@ -642,7 +643,7 @@ class SkillChaining(object):
 				# if not self.start_state_salience:
 				# 	self.manage_intersecting_skill_chains()
 
-				if state.is_terminal():
+				if state.is_terminal() or interrupt_handle(state):
 					break
 
 			last_10_scores.append(score)
@@ -680,7 +681,7 @@ class SkillChaining(object):
 			visualize_best_option_to_take(self.agent_over_options, episode, self.seed, args.experiment_name)
 
 			for option in self.trained_options:
-				visualize_ddpg_replay_buffer(option.solver, episode, self.seed, args.experiment_name)
+				make_chunked_value_function_plot(option.solver, episode, self.seed, args.experiment_name)
 				visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, args.experiment_name)
 				visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, args.experiment_name)
 
@@ -849,7 +850,7 @@ if __name__ == '__main__':
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,
 							start_state_salience=args.use_start_state_salience)
-	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
+	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(args.episodes, args.steps)
 
 	# Log performance metrics
 	# chainer.save_all_models()

@@ -78,7 +78,6 @@ class Option(object):
 		self.chain_id = chain_id
 		self.backward_option = is_backward_option
 		self.intersecting_options = intersecting_options
-		exploration = "shaping" if self.name == "global_option" else ""
 
 		print("Creating {} in chain {} with enable_timeout={}".format(name, chain_id, enable_timeout))
 
@@ -90,8 +89,8 @@ class Option(object):
 
 		solver_name = "{}_ddpg_agent".format(self.name)
 		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
-		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-								tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
+		self.solver = None
+		self.reset_ddpg_solver()
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -101,7 +100,7 @@ class Option(object):
 		self.initiation_classifier = None
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
-		self.last_episode_term_triggered = 0
+		self.last_episode_term_triggered = -1
 		self.nu = 0.01
 
 		self.overall_mdp = overall_mdp
@@ -133,6 +132,31 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	def reset_ddpg_solver(self):
+		state_size = self.overall_mdp.state_space_size()
+		action_size = self.overall_mdp.action_space_size()
+		seed = self.seed
+		device = self.global_solver.device
+		lr_actor = self.global_solver.actor_learning_rate
+		lr_critic = self.global_solver.critic_learning_rate
+		ddpg_batch_size = self.global_solver.batch_size
+		writer = self.writer
+		solver_name = "{}_ddpg_agent".format(self.name)
+		exploration = "shaping" if self.name == "global_option" else ""
+		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
+								tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
+
+	def sample_state(self):
+		""" Return a state from the option's initiation set. """
+		if self.get_training_phase() != "initiation_done":
+			return None
+
+		sampled_state = None
+		while sampled_state is None:
+			sampled_experience = random.choice(self.solver.replay_buffer.memory)
+			sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
+		return sampled_state
 
 	def get_sibling_options(self):
 		siblings = []
@@ -188,7 +212,7 @@ class Option(object):
 			return "initiation_done"
 		return "trained"
 
-	def initialize_with_global_ddpg(self):
+	def initialize_with_global_ddpg(self, reset_option_buffer=True):
 		"""" Initialize option policy - unrestricted support because not checking if I_o(s) is true. """
 		# Not using off_policy_update() because we have numpy arrays not state objects here
 		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer.memory, desc=f"Initializing {self.name} policy"):
@@ -199,6 +223,11 @@ class Option(object):
 			else:
 				subgoal_reward = self.get_subgoal_reward(next_state)
 				self.solver.step(state, action, subgoal_reward, next_state, done)
+
+		# To keep the support of the option policy restricted to the initiation region
+		# of the option, we can clear the option's replay buffer after we have pre-trained its policy
+		if reset_option_buffer:
+			self.solver.replay_buffer.clear()
 
 	def initialize_option_ddpg_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
 
@@ -555,7 +584,7 @@ class Option(object):
 			subgoal_reward = self.get_subgoal_reward(s_prime)
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
-	def execute_option_in_mdp(self, mdp, episode, step_number):
+	def execute_option_in_mdp(self, mdp, episode, step_number, eval_mode=False):
 		"""
 		Option main control loop.
 
@@ -563,6 +592,9 @@ class Option(object):
 			mdp (MDP): environment where actions are being taken
 			episode (int)
 			step_number (int): how many steps have already elapsed in the outer control loop.
+			eval_mode (bool): Added for the SkillGraphPlanning agent so that we can perform
+							  option policy rollouts with eval_epsilon but still keep training
+							  option policies based on new experiences seen during test time.
 
 		Returns:
 			option_transitions (list): list of (s, a, r, s') tuples
@@ -586,7 +618,7 @@ class Option(object):
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
-				action = self.solver.act(state.features(), evaluation_mode=False)
+				action = self.solver.act(state.features(), evaluation_mode=eval_mode)
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
 				self.update_option_solver(state, action, reward, next_state)

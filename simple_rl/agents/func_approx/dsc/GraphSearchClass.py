@@ -84,21 +84,36 @@ class GraphSearch(object):
         for key in labels:
             labels[key] = np.round(labels[key], 2)
 
+        plt.figure(figsize=(16, 10))
+
         nx.draw_networkx(self.plan_graph, pos)
         nx.draw_networkx_edge_labels(self.plan_graph, pos, edge_labels=labels)
 
         plt.savefig(file_name) if file_name is not None else plt.show()
         plt.close()
 
+    def does_path_exist_between_nodes(self, node1, node2):
+        return shortest_paths.has_path(self.plan_graph, node1, node2)
+
+    def does_path_exist_between_state_and_node(self, state, node):
+        start_options = self._get_options_node_for_state(state)
+        for start_node in start_options:
+            if self.does_path_exist_between_nodes(start_node, node):
+                return True
+        return False
+
+    def get_shortest_path_between_nodes(self, option1, option2):
+        if self.pre_compute_shortest_paths:
+            return self.shortest_paths[option1][option2], nx.dijkstra_path_length(self.plan_graph, option1, option2)
+        return nx.dijkstra_path(self.plan_graph, option1, option2), nx.dijkstra_path_length(self.plan_graph, option1, option2)
+
     def does_path_exist(self, start_state, goal_state):
-        def _does_path_exist(node1, node2):
-            return shortest_paths.has_path(self.plan_graph, node1, node2)
 
         start_options, goal_options = self._get_start_nodes_and_goal_nodes(start_state, goal_state)
 
         for start_option in start_options:  # type: Option or SalientEvent
             for goal_option in goal_options:  # type: Option or SalientEvent
-                if _does_path_exist(start_option, goal_option):
+                if self.does_path_exist_between_nodes(start_option, goal_option):
                     return True
         return False
 
@@ -116,11 +131,6 @@ class GraphSearch(object):
             path_lengths (list): the cost associated with each of the paths in `paths`
         """
 
-        def _get_shortest_path(option1, option2):
-            if self.pre_compute_shortest_paths:
-                return self.shortest_paths[option1][option2], nx.dijkstra_path_length(self.plan_graph, option1, option2)
-            return nx.dijkstra_path(self.plan_graph, option1, option2), nx.dijkstra_path_length(self.plan_graph, option1, option2)
-
         paths = []
         path_lengths = []
 
@@ -130,7 +140,7 @@ class GraphSearch(object):
         for start_option in start_options:  # type: Option or SalientEvent
             for goal_option in goal_options:  # type: Option or SalientEvent
                 if shortest_paths.has_path(self.plan_graph, start_option, goal_option):
-                    path, path_length = _get_shortest_path(start_option, goal_option)
+                    path, path_length = self.get_shortest_path_between_nodes(start_option, goal_option)
 
                     paths.append(path)
                     path_lengths.append(path_length)

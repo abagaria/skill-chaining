@@ -65,7 +65,7 @@ class SkillChain(object):
     def get_option_for_state(self, state):
         for option in self.options:  # type: Option
             if option.initiation_classifier is not None and \
-                    option.is_init_true(state) and not option.is_term_true(state):
+                    option.is_init_true(state):
                 return option
         return None
 

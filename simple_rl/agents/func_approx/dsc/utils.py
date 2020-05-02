@@ -9,10 +9,12 @@ import imageio
 import seaborn as sns
 sns.set()
 from PIL import Image
+from tqdm import tqdm
 
 # Other imports.
 from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
+from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -65,8 +67,8 @@ def get_grid_states():
     ss = []
     for x in np.arange(-11., 11., 1.):
         for y in np.arange(-11., 11., 0.5):
-            s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-                               theta=0., theta_dot=0., done=False, has_key=False)
+            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0., 0.]),
+                               theta=0., theta_dot=0., done=False)
             ss.append(s)
     return ss
 
@@ -74,8 +76,8 @@ def get_initiation_set_values(option, has_key):
     values = []
     for x in np.arange(-11., 11., 1.):
         for y in np.arange(-11., 11., 0.5):
-            s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
-                               theta=0, theta_dot=0, done=False, has_key=has_key)
+            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0, 0]),
+                               theta=0, theta_dot=0, done=False)
             values.append(option.is_init_true(s))
 
     return values
@@ -343,3 +345,30 @@ def visualize_buffer(option, episode, seed, experiment_name):
     file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}"
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
+
+def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000):
+    states = np.array([exp[0] for exp in solver.replay_buffer.memory])
+    actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
+
+    # Chunk up the inputs so as to conserve GPU memory
+    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+    state_chunks = np.array_split(states, num_chunks, axis=0)
+    action_chunks = np.array_split(actions, num_chunks, axis=0)
+    qvalues = np.zeros((states.shape[0],))
+    current_idx = 0
+
+    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        current_chunk_size = len(state_chunk)
+        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+        current_idx += current_chunk_size
+
+    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+    plt.colorbar()
+    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    plt.close()
+
+    return qvalues.max()
