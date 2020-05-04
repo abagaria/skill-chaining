@@ -35,8 +35,8 @@ class PointReacherMDP(MDP):
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.reset()
 
-        self.salient_positions = [np.array((-9, +9)), np.array((+9, +9)),
-                                  np.array((+9, -9)), np.array((-9, -9))]
+        self.salient_positions = [np.array((-9, +9)), np.array((+9, +9))]
+                                  # np.array((+9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
         self.current_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]

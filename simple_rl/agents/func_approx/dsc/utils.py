@@ -346,9 +346,10 @@ def visualize_buffer(option, episode, seed, experiment_name):
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
 
-def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000):
-    states = np.array([exp[0] for exp in solver.replay_buffer.memory])
-    actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
+def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    states = np.array([exp[0] for exp in replay_buffer.memory])
+    actions = np.array([exp[1] for exp in replay_buffer.memory])
 
     # Chunk up the inputs so as to conserve GPU memory
     num_chunks = int(np.ceil(states.shape[0] / chunk_size))

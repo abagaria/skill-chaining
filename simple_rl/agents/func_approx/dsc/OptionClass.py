@@ -67,6 +67,7 @@ class Option(object):
 		self.init_salient_event = init_salient_event
 		self.target_salient_event = target_salient_event
 		self.gestation_init_predicates = gestation_init_predicates
+		self.overall_mdp = overall_mdp
 
 		self.timeout = np.inf
 
@@ -103,7 +104,6 @@ class Option(object):
 		self.last_episode_term_triggered = -1
 		self.nu = 0.01
 
-		self.overall_mdp = overall_mdp
 		self.final_transitions = []
 		self.terminal_states = []
 		self.children = []
