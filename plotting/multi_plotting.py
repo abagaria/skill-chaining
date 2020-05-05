@@ -36,18 +36,82 @@ def get_multi_cur_data(run_dirs, start, end, is_old=False):
 		cur_scores = get_all_cur_runs(run_dir, start, end, 'per_episode_scores.pkl')
 		args = get_all_cur_runs(run_dir, start, end, 'args.pkl')
 		num_options_history = get_all_cur_runs(run_dir, start, end, 'num_options_history.pkl')
-		temporal_weak_chain_breaks = get_all_cur_runs(run_dir, start, end, 'temporal_weak_chain_breaks.pkl')
+		temporal_full_chain_breaks = get_all_cur_runs(run_dir, start, end, 'temporal_full_chain_breaks.pkl')
+		
 		if is_old:
-			multi_cur_data['all_cur_old_data'] = {'cur_scores' : cur_scores,
-																   'args' : args,
-																   'num_options_history' : num_options_history,
-																   'temporal_weak_chain_breaks' : temporal_weak_chain_breaks}
+			label = 'all_cur_old_data_{}'.format(i)
 		else:
-			multi_cur_data['all_cur_data_nu_{}'.format(args[0].pes_nu)] = {'cur_scores' : cur_scores,
-																   'args' : args,
-																   'num_options_history' : num_options_history,
-																   'temporal_weak_chain_breaks' : temporal_weak_chain_breaks}
+			label = 'all_cur_data_nu_{}'.format(args[0].pes_nu)
+		
+		multi_cur_data[label] = {'run_dir' : run_dir,
+							'cur_scores' : cur_scores,
+								'args' : args,
+								'num_options_history' : num_options_history,
+								'temporal_full_chain_breaks' : temporal_full_chain_breaks}
 	return multi_cur_data
+
+def plt_old_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, file_name, ci=95):
+	columns = ['time_steps', 'run_data']
+	colors = sns.color_palette("deep")
+	i=0
+	num_runs = 0
+
+	for data_name, data in all_data.items():
+		for cur_name, cur_dict in data.items():
+			# Export current data dict
+			args = cur_dict['args'][0]
+			run_dir = cur_dict['run_dir']
+			cur_scores = cur_dict['cur_scores']
+
+			# Set number of runs
+			if num_runs == 0:
+				num_runs, _ = cur_scores.shape
+			
+			# Plotting variables
+			num_eps = len(cur_scores[0])
+			time_steps = np.linspace(1, num_eps, num=num_eps)
+			if 'fixed' in run_dir:
+				label = 'Fixed learning'
+			else:
+				label = 'Continuous learning'
+
+			# Append all runs
+			df_data = pd.DataFrame(columns=columns)
+			for run in cur_scores:
+				df = pd.DataFrame(np.column_stack((time_steps, run)), columns=columns)
+				df_data = df_data.append(df)
+
+			sns.lineplot(x=columns[0], y=columns[1], data=df_data, label=label, ci=ci, color=colors[i])
+			i+=1
+
+		# else:	# Old tests w/ Akhil's format
+		# 	# Plotting variables
+		# 	num_eps = len(data[0])
+		# 	time_steps = np.linspace(1, num_eps, num=num_eps)
+		# 	label = 'Old DSC'
+
+		# 	# Set number of runs
+		# 	if num_runs == 0:
+		# 		num_runs, _ = data.shape
+
+		# 	# Append all runs
+		# 	df_data = pd.DataFrame(columns=columns)
+		# 	for run in data:
+		# 		df = pd.DataFrame(np.column_stack((time_steps, run)), columns=columns)
+		# 		df_data = df_data.append(df)
+
+		# 	sns.lineplot(x=columns[0], y=columns[1], data=df_data, label=label, ci=ci, color=colors[-3])
+
+	# Plotting features
+	plt.title('Initiation Set Classifier (previous DSC): {} ({} runs)'.format(mdp_env_name, num_runs))
+	plt.ylabel('Reward')
+	plt.xlabel('Episodes')
+	plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+
+	# Save plots
+	plt.savefig("{}/{}.png".format(plot_dir, file_name), bbox_inches='tight')
+	plt.close()
+	print("Plot {}/{}.png saved!".format(plot_dir, file_name))
 
 def plot_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, file_name, ci=95, one_v_one=False, single_color_idx=None, with_breaks=False):
 	columns = ['time_steps', 'run_data']
@@ -57,12 +121,11 @@ def plot_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, file_name, 
 
 	for data_name, data in all_data.items():
 		if 'cur' in data_name:	# Multiple current tests
-			print(data_name)
 			for cur_name, cur_dict in data.items():
 				# Export current data dict
 				args = cur_dict['args'][0]
 				cur_scores = cur_dict['cur_scores']
-				temporal_weak_chain_breaks = cur_dict['temporal_weak_chain_breaks']
+				temporal_full_chain_breaks = cur_dict['temporal_full_chain_breaks']
 
 				# Set number of runs
 				if num_runs == 0:
@@ -91,7 +154,7 @@ def plot_multi_avg_learning_curves(plot_dir, all_data, mdp_env_name, file_name, 
 					i+=1
 
 				if with_breaks:
-					print(temporal_weak_chain_breaks)
+					print(temporal_full_chain_breaks)
 					exit()
 
 		else:	# Old tests w/ Akhil's format
@@ -208,30 +271,37 @@ def main(args):
 	# all_old_data = get_all_old_data(args.old_run_dir, 1, 10)
 
 	# Multi old data
-	all_old_data = get_multi_cur_data(args.old_cur_run_dirs, 1, 1, is_old=True)
+	all_old_data = get_multi_cur_data(args.old_cur_run_dirs, 1, 10, is_old=True)
 
 	# Multi hyperparameter data
-	multi_cur_data = get_multi_cur_data(args.run_dirs, 1, 1)
+	multi_cur_data = get_multi_cur_data(args.run_dirs, 1, 10)
 
-	# For each single, plot single vs old
-	nus = [0.1]
-	all_old_data = {'all_cur_old_data' : all_old_data['all_cur_old_data']} 	# TODO: use for cur old format
-	for idx, nu in enumerate(nus):
-		name = 'all_cur_data_nu_{}'.format(nu)
-		single_cur_data = {name : multi_cur_data[name]}
+	# nus = [0.1]
+	# all_old_data = {'all_cur_old_data' : all_old_data['all_cur_old_data']} 	# TODO: use for cur old format
+	# for idx, nu in enumerate(nus):
+	# 	name = 'all_cur_data_nu_{}'.format(nu)
+	# 	single_cur_data = {name : multi_cur_data[name]}
 
-		all_data = {'single_cur_data' : single_cur_data, 'all_cur_old_data' : all_old_data}
+	# 	# all_data = {'single_cur_data' : single_cur_data, 'all_cur_old_data' : all_old_data}
+	# 	# file_name = 'maze_chain_fix_nu_{}_v_old_learning_curves'.format(nu)
+		
+	# 	# all_data = {'single_cur_data' : single_cur_data}
+	# 	# file_name = 'maze_chain_fix_pes_nu_{}_learning_curves'.format(nu)
 
-		plot_multi_avg_learning_curves(plot_dir=path,
-									all_data=all_data,
-									mdp_env_name=args.mdp_env_name,
-									file_name='maze_chain_fix_nu_{}_v_old_learning_curves'.format(nu),
-									ci=95,
-									one_v_one=True,
-									single_color_idx=idx)
+	# 	all_data = {'all_cur_old_data' : all_old_data}
+	# 	file_name = 'maze_old_fixed_v_continous_learning_learning_curves'
 
-	# Plot weak chain breaks overlapped reward
-	# all_data = {'all_cur_old_data' : all_cur_old_data}
+	# 	plot_multi_avg_learning_curves(plot_dir=path,
+	# 								all_data=all_data,
+	# 								mdp_env_name=args.mdp_env_name,
+	# 								# file_name='maze_chain_fix_nu_{}_v_old_learning_curves'.format(nu),
+	# 								file_name=file_name,
+	# 								ci='sd',
+	# 								one_v_one=True,
+	# 								single_color_idx=idx)
+
+	# Plot full chain breaks overlapped reward
+	# all_data = {'all_cur_old_data' : all_old_data}
 	# plot_multi_avg_learning_curves(plot_dir=path,
 	# 							   all_data=all_data,
 	# 							   mdp_env_name=args.mdp_env_name,
@@ -257,7 +327,7 @@ def main(args):
 	# plot_average_number_of_options(plot_dir=path,
 	# 								all_data=all_data,
 	# 								mdp_env_name=args.mdp_env_name,
-	# 								file_name='maze_chain_fix_number_of_options',
+	# 								file_name='maze_old_fixed_v_continous_learning_learning_curves',
 	# 								ci='sd')
 
 	# Plot old runs
@@ -275,13 +345,14 @@ def main(args):
 	# 							   file_name='single_learning_curve_chain_break_nu=0.6',
 	# 							   ci='sd')
 
-	# Plot multiple hyperparameter runs
-	# all_data = {'multi_cur_data' : multi_cur_data}
-	# plot_multi_avg_learning_curves(plot_dir=path,
-	# 							   all_data=all_data,
-	# 							   mdp_env_name=args.mdp_env_name,
-	# 							   ci=None,
-	# 							   file_name='maze_chain_fix_multi_learning_curves')	
+	# Plot old multiple runs
+	all_data = {'multi_cur_old_data' : all_old_data}
+	plt_old_multi_avg_learning_curves(plot_dir=path,
+										all_data=all_data,
+										mdp_env_name=args.mdp_env_name,
+										file_name='maze_old_fixed_v_continous_learning_curves',
+										ci='sd')	
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()

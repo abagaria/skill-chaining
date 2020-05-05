@@ -149,8 +149,9 @@ class DDPGAgent(Agent):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
-    def update_slower_global_epsilon(self, div_factor):
-        self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY / div_factor)
+    def update_gestation_epsilon(self, num_subgoal_hits_required):
+        assert "global" in self.name.lower(), "DDPGAgent::update_gestation_epsilon: Can only call on global solver."
+        self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY / num_subgoal_hits_required)
 
     def update_epsilon(self):
         if "global" in self.name.lower():

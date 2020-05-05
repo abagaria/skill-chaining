@@ -42,7 +42,7 @@ class Option(object):
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=2,
 				 generate_plots=False, device=torch.device("cpu"), writer=None, opt_nu=0.5, pes_nu=0.5, experiment_name=None, discrete_actions=False,
-				 tensor_log=False, use_old=False, use_prob_predict=False, episode=0, option_idx=None):
+				 tensor_log=False, use_old=False, episode=0, option_idx=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -70,7 +70,6 @@ class Option(object):
 			tensor_log (bool)
 			lr_dqn (float)
 			use_old (bool)
-			use_prob_predict (bool)
 			episode (int)
 			option_idx (int)
 			
@@ -95,12 +94,7 @@ class Option(object):
 		self.tensor_log = tensor_log
 		self.lr_dqn = lr_dqn
 		self.use_old = use_old
-		self.use_prob_predict = use_prob_predict
 		
-		if self.use_prob_predict:
-			# TODO: step seed from main dsc loop
-			self.step_seed = None
-
 		# Global option operates on a time-scale of 1 while child (learned) options are temporally extended
 		if enable_timeout:
 			self.timeout = 1 if name == "global_option" else timeout
@@ -164,10 +158,8 @@ class Option(object):
 		self.optimistic_classifier = None
 		self.pessimistic_classifier = None
 		self.approx_pessimistic_classifier = None
-		self.optimistic_classifier_probs = []
-		self.pessimistic_classifier_probs = []
-		self.X_global = None
 		self.episode = episode
+		self.X_pes = None
 
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
@@ -179,8 +171,6 @@ class Option(object):
 		self.num_executions = 0
 		self.taken_or_not = []
 		self.n_taken_or_not = 0
-
-		print()
 
 	def __str__(self):
 		return self.name
@@ -208,36 +198,14 @@ class Option(object):
 	def update_episode(self, episode):
 		self.episode = episode
 
-	# TODO: set random seed
-	def set_step_seed(self, seed):
-		self.step_seed = seed
-
-	# TODO: get seeded value
-	def get_seeded_random_value(self, seed):
-		np.random.seed(seed)
-		return np.random.random()
-
-	# TODO: get seeded array
-	def get_seeded_random_array(self, seed, len_array):
-		np.random.seed(seed)
-		return np.random.rand(len_array)
-
 	def get_training_phase(self):
-		# TODO: use old DSC
-		if self.use_old:
-			if self.num_goal_hits < self.num_subgoal_hits_required:
-				return "gestation"
-			if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
-				return "initiation"
-			if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
-				return "initiation_done"
-			return "trained"
-		else:
-			# TODO: never done training
-			if self.num_goal_hits < self.num_subgoal_hits_required:
-				return "gestation"
-			if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
-				return "initiation"
+		if self.num_goal_hits < self.num_subgoal_hits_required:
+			return "gestation"
+		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
+			return "initiation"
+		if self.num_goal_hits == (self.num_subgoal_hits_required + self.initiation_period):
+			return "initiation_done"
+		return "trained"
 
 	def initialize_with_global_dqn(self):
 		for my_param, global_param in zip(self.solver.policy_network.parameters(), self.global_solver.policy_network.parameters()):
@@ -273,14 +241,6 @@ class Option(object):
 					subgoal_reward = self.get_subgoal_reward(next_state)
 					self.solver.step(state, action, subgoal_reward, next_state, done)
 
-	# TODO: utilities
-	def get_average_predict_proba(self, clf, X):
-		y_pred = (clf.predict(X) > 0).astype(int)
-		
-		# Only care about positive examples
-		probs = np.multiply(clf.predict_proba(X)[:,1], y_pred)
-		return np.average(probs[probs > 0])
-
 	def batched_is_init_true(self, state_matrix):
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
@@ -293,32 +253,26 @@ class Option(object):
 		
 		# TODO: use old DSC
 		if self.use_old:
+			assert self.initiation_classifier != None, "OptionClass::batched_is_init_true: {}'s  initiation_classifier needs to be trained before initiating".format(self.name)
 			return self.initiation_classifier.predict(states) == 1
-		# elif self.use_prob_predict:
-		# 	return self.get_seeded_random_array(self.step_seed, len(states)) < self.optimistic_classifier.predict_proba(states)[:,-1]
 		else:
-			# goal option or untrained paren
-			if (self.parent is None) or (self.parent.optimistic_classifier is None):
-				return self.optimistic_classifier.predict(states) == 1
-			
-			# States in each set
-			in_current_pes_set = self.pessimistic_classifier.predict(states) == 1
-			in_parent_opt_set = self.parent.optimistic_classifier.predict(states) == 1
-			
-			# Labels for where we can call classifier
-			batched_is_joint = np.all(np.vstack((in_current_pes_set, in_parent_opt_set)), axis=0)
-			
-			batched_inits = [self.optimistic_classifier.predict([state]) == 1 if is_joint else False for state, is_joint in zip(states, batched_is_joint)]
-			return np.array(batched_inits)
+			assert self.pessimistic_classifier != None, "OptionClass::batched_is_init_true: {}'s optimistic_classifier needs to be trained before initiating".format(self.name)
+			return self.optimistic_classifier.predict(states) == 1
 
-		# TODO: use predict pessimistic clf
-		# return self.pessimistic_classifier.predict(position_matrix) == 1
-
-		# TODO: use proba predict pessimistic clf
-		# return self.get_seeded_random_array(self.step_seed, len(position_matrix)) < self.approx_pessimistic_classifier.predict_proba(position_matrix)[:,-1]
-
-		# TODO: probabilistic batch initation with optimistic classifier
-		# return self.get_seeded_random_array(self.step_seed, len(position_matrix)) < self.optimistic_classifier.predict_proba(position_matrix)[:,-1]
+			# NOTE: old opt/pes logic
+			# goal option or untrained parent
+			# if (self.parent is None) or (self.parent.optimistic_classifier is None):
+			# 	return self.optimistic_classifier.predict(states) == 1
+			
+			# # States in each set
+			# in_current_opt_set = self.optimistic_classifier.predict(states) == 1
+			# in_parent_opt_set = self.parent.optimistic_classifier.predict(states) == 1
+			
+			# # Labels for where we can call classifier
+			# batched_is_joint = np.all(np.vstack((in_current_opt_set, in_parent_opt_set)), axis=0)
+			
+			# batched_inits = [self.optimistic_classifier.predict([state]) == 1 if is_joint else False for state, is_joint in zip(states, batched_is_joint)]
+			# return np.array(batched_inits)
 
 	def is_init_true(self, ground_state):
 		if self.name == "global_option":
@@ -333,41 +287,32 @@ class Option(object):
 			state = np.array(state)
 
 		if self.use_old:
+			assert self.initiation_classifier != None, "OptionClass::is_init_true: {}'s initiation_classifier needs to be trained before initiating".format(self.name)
 			return self.initiation_classifier.predict([state])[0] == 1
-		# elif self.use_prob_predict:
-		# 	if self.parent is None:
-		# 		return self.get_seeded_random_value(self.step_seed) < self.optimistic_classifier.predict_proba([state]).flatten()[-1]
 		else:
-			assert self.optimistic_classifier != None, "OptionClass::is_init_true: {} needs to be trained before initiating".format(self.name)
-			
+			assert self.optimistic_classifier != None, "OptionClass::is_init_true: {}'s optimistic_classifier needs to be trained before initiating".format(self.name)
+			return self.optimistic_classifier.predict([state])[0] == 1
+
+			# NOTE: old opt/pes logic
 			# goal option or untrained parent
-			if (self.parent is None) or (self.parent.optimistic_classifier is None):	# goal option or untrained parent
-				return self.optimistic_classifier.predict([state])[0] == 1
+			# if (self.parent is None) or (self.parent.optimistic_classifier is None):	# goal option or untrained parent
+				# return self.optimistic_classifier.predict([state])[0] == 1
 
 			# must be linked to parent
-			in_current_pes_set = self.pessimistic_classifier.predict([state])[0] == 1
-			in_parent_opt_set = self.parent.optimistic_classifier.predict([state])[0] == 1
-			if in_current_pes_set == in_parent_opt_set:
-				return self.optimistic_classifier.predict([state])[0] == 1
-			else:	# not linked, can't initiate
-				return False
-
-			# TODO: use optimistic clf
-			# return self.optimistic_classifier.predict([state])[0] == 1
-
-		# TODO use pessimistic clf
-		# return self.pessimistic_classifier.predict([state])[0] == 1
-
-		# TODO: use proba predict pessimistic clf
-		# return self.get_seeded_random_value(self.step_seed) < self.approx_pessimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
-
-		# TODO: probabilistic initiation with optimistic classifier
-		# return self.get_seeded_random_value(self.step_seed) < self.optimistic_classifier.predict_proba(state.reshape(1,-1)).flatten()[-1]
+			# in_current_opt_set = self.optimistic_classifier.predict([state])[0] == 1
+			# in_parent_opt_set = self.parent.optimistic_classifier.predict([state])[0] == 1
+			# if in_current_opt_set == in_parent_opt_set:
+			# 	return self.optimistic_classifier.predict([state])[0] == 1
+			# else:	# not linked , can't initiate
+			# 	return False
 
 	def is_term_true(self, ground_state):
-		
 		# TODO: use old DSC
 		if self.use_old:
+			# TODO: set term to init only when using chain fix
+			# if self.parent is not None and self.parent.get_training_phase() == 'gestation':
+				# return self.is_init_true(ground_state)
+			
 			if self.parent is not None:
 				return self.parent.is_init_true(ground_state)
 
@@ -375,10 +320,6 @@ class Option(object):
 			# assert self.name == "overall_goal_policy" or self.name == "global_option", "{}".format(self.name)
 			return self.overall_mdp.is_goal_state(ground_state)
 		else:
-			# TODO: return true if terminal
-			if self.overall_mdp.is_goal_state(ground_state):
-				return True
-			
 			# TODO: hack for treasure game domain
 			if "treasure" in self.overall_mdp.env_name:
 				state = ground_state.features() if isinstance(ground_state, State) else ground_state
@@ -387,37 +328,68 @@ class Option(object):
 				state = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
 				state = np.array(state)
 
-			# TODO: check if not the goal option and that it's trained
-			if (self.parent is not None) and (self.pessimistic_classifier is not None):
-				return self.pessimistic_classifier.predict([state])[0] == 1
-			elif (self.parent is not None) and (self.pessimistic_classifier is None):
-				# NOTE: untrained option will not have any trained classifiers so use parent init until trained
-				return self.parent.is_init_true(ground_state)
-		
-		
+			# if self.parent is not None:
+			# 	return self.parent.is_init_true(ground_state)
+			# else:	# goal or global option
+			# 	return self.overall_mdp.is_goal_state(ground_state)
+			
+			if self.parent is not None:
+				# untrained option will not have any trained classifiers so use parent init until trained
+				if self.pessimistic_classifier is None:
+					return self.parent.is_init_true(ground_state)
+				
+				# Edge case where parent isn't trained (w/ chain fix)
+				if self.parent.get_training_phase() == 'gestation':
+					return self.pessimistic_classifier.predict([state])[0] == 1
+				
+				# If parent and child trained, check if parent's opt clf and current pes overlap
+				if self.pessimistic_classifier is not None:
+					return self.parent.is_init_true(ground_state) and self.pessimistic_classifier.predict([state])[0] == 1
+
+			# Otherwise, goal or global option
+			return self.overall_mdp.is_goal_state(ground_state)
 
 	# TODO: needed for new term method
 	def batched_is_term_true(self, state_matrix):
 		# TODO: use old DSC
 		if self.use_old:
+			# TODO: set term to init only when using chain fix
+			# if self.parent is not None and self.parent.get_training_phase() == 'gestation':
+				# return self.batched_is_init_true(state_matrix)
+			
 			if self.parent is not None:
 				return self.parent.batched_is_init_true(state_matrix)
-		else:
-			# TODO: return true if terminal
 			
+			return self.overall_mdp.batched_is_goal_state(state_matrix)
+		else:
 			# TODO: hack for treasure game domain
 			if "treasure" in self.overall_mdp.env_name:
-				state = state_matrix
+				states = state_matrix
 			else:
-				state = state_matrix[:, :2]
+				states = state_matrix[:, :2]
 
-			# TODO: termination with pessimistic classifier
-			if (self.parent is not None) and (self.pessimistic_classifier is not None):
-				return self.pessimistic_classifier.predict(state) == 1
-			elif self.parent is not None:
-				return self.parent.batched_is_init_true(state)
+			# if self.parent is not None:
+			# 	return self.parent.batched_is_init_true(state_matrix)
+			# else:
+			# 	return self.overall_mdp.batched_is_goal_state(state_matrix)
 
-		return self.overall_mdp.batched_is_goal_state(state_matrix)
+			if self.parent is not None:
+				# untrained option will not have any trained classifiers so use parent init until trained
+				if self.pessimistic_classifier is None:
+					return self.parent.batched_is_init_true(state_matrix)
+				
+				# Edge case where parent isn't trained (w/ chain fix)
+				if self.parent.get_training_phase() == 'gestation':
+					return self.pessimistic_classifier.predict(states)[0] == 1
+				else:
+					return self.parent.batched_is_init_true(state_matrix)
+
+				# If parent and child trained, check if parent's opt clf and current pes overlap
+				if self.pessimistic_classifier is not None:
+					return np.array(self.parent.batched_is_init_true(states) * self.pessimistic_classifier.predict(states) == 1, dtype=bool)
+
+			return self.overall_mdp.batched_is_goal_state(state_matrix)
+			
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -468,7 +440,7 @@ class Option(object):
 	# TODO: old
 	def train_one_class_svm(self):
 		assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
-		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		self.X = positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
@@ -485,12 +457,14 @@ class Option(object):
 	# TODO: old
 	def train_two_class_classifier(self):
 		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+		if self.negative_examples == 1:
+			self.negative_examples.append(self.get_neg_examples(1)) # TODO: edge case where there's no negative samples, just add 1 at random
 		negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
 		positive_labels = [1] * positive_feature_matrix.shape[0]
 		negative_labels = [0] * negative_feature_matrix.shape[0]
 
-		X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
-		Y = np.concatenate((positive_labels, negative_labels))
+		self.X = X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+		self.y = Y = np.concatenate((positive_labels, negative_labels))
 
 		# if len(self.negative_examples) >= 10:
 		kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
@@ -502,7 +476,7 @@ class Option(object):
 		initiation_classifier.fit(X, Y)
 
 		training_predictions = initiation_classifier.predict(X)
-		positive_training_examples = X[training_predictions == 1]
+		positive_training_examples = self.X[training_predictions == 1]
 
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=0.1, gamma="scale")
 		self.initiation_classifier.fit(positive_training_examples)
@@ -525,7 +499,8 @@ class Option(object):
 		else:
 			self.initialize_with_global_ddpg()
 
-		self.solver.epsilon = self.global_solver.epsilon
+		# TODO: don't set option solver to global. this will hinder chain fix options that need to fix for far salient events
+		# self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
 		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
@@ -559,7 +534,7 @@ class Option(object):
 				self.old_train_initiation_classifier()
 			else:
 				# TODO: call new initiation set classifier
-				self.train_initiation_classifier()
+				self.train_initiation_classifiers(is_train=True)
 			
 			self.initialize_option_policy()
 			return True
@@ -691,13 +666,11 @@ class Option(object):
 					else:
 						self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
 					
-					# TODO: slow down epsilon schedule for global DDPG solver during gestation
-					# if self.get_training_phase() == "gestation":
-					# 	self.global_solver.update_slower_global_epsilon(2)
-					# else:
-					# 	self.global_solver.update_epsilon()
-					
-					self.global_solver.update_epsilon()
+					# TODO: reduce global epsilon by the number of goals hits if in gestation
+					if not self.use_old and self.get_training_phase() == 'gestation':
+						self.global_solver.update_gestation_epsilon(self.num_subgoal_hits_required)
+					else:
+						self.global_solver.update_epsilon()
 
 				self.solver.update_epsilon()
 				option_transitions.append((state, action, reward, next_state))
@@ -710,23 +683,20 @@ class Option(object):
 				step_number += 1
 				num_steps += 1
 
-			# print("    |-> option_transitions = {}".format(option_transitions))
-
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
 			if self.is_term_true(state):
 				self.num_goal_hits += 1
 
-			# TODO: use old DSC
-			if self.use_old:
-				if self.get_training_phase() == "initiation" and self.name != "global_option":
-					self.refine_option_classifiers(visited_states, start_state, state, num_steps, step_number)
-			else:
-				# TODO: refine after execution (no longer initiation period)
-				if self.name != "global_option" and self.get_training_phase() != "gestation":
-					self.refine_option_classifiers(
-						visited_states, start_state, state, num_steps, step_number)
+			# NOTE: not continuous learning
+			# if self.get_training_phase() == "initiation" and self.name != "global_option":
+			# 	self.refine_option_classifiers(visited_states, start_state, state, num_steps, step_number)
+				
+			# TODO: continously refine after execution
+			if self.name != "global_option" and self.get_training_phase() != "gestation":
+				self.refine_option_classifiers(
+					visited_states, start_state, state, num_steps, step_number)
 
 			if self.writer is not None:
 				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
@@ -749,12 +719,14 @@ class Option(object):
 				positive_examples = [state.position for state in positive_states]
 			self.positive_examples.append(positive_examples)
 		elif num_steps == self.timeout:
+			negative_states = [start_state]
+
 			# TODO: hack for treasure game domain
 			if "treasure" in self.overall_mdp.env_name:
-				negative_examples = [start_state]
+				negative_examples = negative_states
 				assert np.array(negative_examples).shape[1] == len(self.overall_mdp.init_state.features()), "OptionClass::refine_option_classifiers: Wrong size of state (negative)"
 			else:
-				negative_examples = [start_state.position]
+				negative_examples = [state.position for state in negative_states]
 			self.negative_examples.append(negative_examples)
 		else:
 			assert final_state.is_terminal() or outer_step_number == self.max_steps, \
@@ -766,163 +738,19 @@ class Option(object):
 			if self.use_old:
 				self.train_two_class_classifier()
 			else:
-				# TODO: call new initiation set classifier
-				self.train_initiation_classifier()
-
-
-	# # TODO: utilities
-	# def make_meshgrid(self, x, y, h=.01):
-	# 	"""Create a mesh of points to plot in
-
-	# 	Args:
-	# 		x: data to base x-axis meshgrid on
-	# 		y: data to base y-axis meshgrid on
-	# 		h: stepsize for meshgrid, optional
-
-	# 	Returns:
-	# 		X and y mesh grid
-	# 	"""
-	# 	x_min, x_max = x.min() - 1, x.max() + 1
-	# 	y_min, y_max = y.min() - 1, y.max() + 1
-	# 	xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-    #                    np.arange(y_min, y_max, h))
-	# 	return xx, yy
-
-	# # TODO: utilities
-	# def plot_contours(self, ax, clf, xx, yy, **params):
-	# 	"""Plot the decision boundaries for a classifier.
-
-	# 	Args:
-	# 		ax: matplotlib axes object
-	# 		clf: a classifier
-	# 		xx: meshgrid ndarray
-	# 		yy: meshgrid ndarray
-	# 		params: dictionary of params to pass to contourf, optional
-		
-	# 	Returns:
-	# 		Contour of decision boundary
-	# 	"""
-	# 	Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
-	# 	Z = Z.reshape(xx.shape)
-	# 	out = ax.contourf(xx, yy, Z, **params)
-	# 	return out
-
-	# # TODO: utilities
-	# def plot_boundary(self, X_global, X_buff, y_labels, clfs, colors, option_id, cnt, experiment_name, alpha):
-	# 	# Create plotting dir (if not created)
-	# 	path = 'plots/{}/clf_plots'.format(experiment_name)
-	# 	Path(path).mkdir(exist_ok=True)
-		
-	# 	x_coord, y_coord = X_global[:,0], X_global[:,1]
-	# 	x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
-
-	# 	patches = []
-
-	# 	# Plot classifier boundaries
-	# 	for (clf_name, clf), color in zip(clfs.items(), colors):
-	# 		z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
-	# 		z = (z.reshape(x_mesh.shape) > 0).astype(int)
-	# 		z = np.ma.masked_where(z == 0, z)
-
-	# 		cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
-	# 		patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
-
-	# 	cb = plt.colorbar()
-	# 	cb.remove()
-
-	# 	# Plot positive examples
-	# 	X_pos = X_buff[y_labels == 1]
-	# 	x_pos_coord, y_pos_coord = X_pos[:,0], X_pos[:,1]
-	# 	pos_color = 'black'
-	# 	p = plt.scatter(x_pos_coord, y_pos_coord, marker='+', c=pos_color, label='positive samples', alpha=alpha)
-	# 	patches.append(p)
-
-	# 	plt.xticks(())
-	# 	plt.yticks(())
-	# 	plt.title("Option {} - Classifier boundaries (t = {})".format(option_id, cnt))
-	# 	plt.legend(handles=patches, 
-	# 			   bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-		
-	# 	# Save plots
-	# 	plt.savefig("{}/option_{}_{}.png".format(path, option_id, cnt),
-    #                 bbox_inches='tight', edgecolor='black')
-	# 	plt.close()
-
-	# 	# TODO: remove
-	# 	print("      |-> {}/option_{}_{}.png saved!".format(path, option_id, cnt))
-
-	# # TODO: utilities
-	# def plot_state_probs(self, X, clfs, option_id, cmaps, cnt, experiment_name):
-	# 	# Create plotting dir (if not created)
-	# 	path = 'plots/{}/state_prob_plots'.format(experiment_name)
-	# 	Path(path).mkdir(exist_ok=True)
-		
-	# 	# Generate mesh grid
-	# 	x_coord, y_coord = X[:, 0], X[:, 1]
-	# 	x_mesh, y_mesh = self.make_meshgrid(x_coord, y_coord)
-
-	# 	# Plot state probability estimates
-	# 	for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
-
-	# 		fig, ax = plt.subplots()
-			
-	# 		# Only plot positive predictions
-	# 		X_mesh = np.vstack([x_mesh.flatten(), y_mesh.flatten()]).T
-	# 		probs = clf.predict_proba(X_mesh)[:, 1]
-	# 		preds = (clf.predict(X_mesh) > 0).astype(int)
-	# 		probs = np.multiply(probs, preds)
-
-	# 		ax.set_title(
-	# 			'Option {} - Probability estimates of {} (t = {})'.format(option_id, clf_name, cnt))
-			
-	# 		states = ax.pcolormesh(x_mesh, y_mesh, probs.reshape(x_mesh.shape), shading='gouraud', cmap=cmap, vmin=0.0, vmax=1.0)
-	# 		cbar = fig.colorbar(states)
-
-	# 		ax.set_xticks(())
-	# 		ax.set_yticks(())
-			
-	# 		# Save plots
-	# 		plt.savefig("{}/option_{}_{}_{}.png".format(path, option_id,
-	# 					clf_name, cnt), bbox_inches='tight', edgecolor='black')
-	# 		plt.close()
-
-	# 		# TODO: remove
-	# 		print("      |-> {}/option_{}_{}_{}.png saved!".format(path, option_id, clf_name, cnt))
+				# TODO: train opt/pes initiation set classifiers
+				self.train_initiation_classifiers(is_train=False)
 
 	# TODO: Optimistic classifier
-	def train_optimistic_classifier(self, X, y):
-		"""
-		Optimistic classifier that is a two-class SVM 
-		
-		Args:
-			X: Input data
-			y: Input labels
-		
-		Returns:
-			Fitted two-class linear SVM
-		"""
-		if self.use_prob_predict:
-			return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y)
-		else:
-			return svm.SVC(gamma='scale', class_weight='balanced').fit(X, y)
+	# def train_optimistic_classifier(self, X, y):
+		# return svm.SVC(gamma='scale', class_weight='balanced').fit(X, y)
 	
 	# TODO: alternate optimistic classifier (1-class, more conservative)
-	def train_alt_optimistic_classifier(self, X, nu):
+	def train_optimistic_classifier(self, X, nu):
 		return svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale").fit(X)
 
 	# TODO: Pessimistic classifier
 	def train_pessimistic_classifier(self, opt_clf, X, nu):
-		"""
-		Pessimistic classifier that is a one-class SVM
-		
-		Args:
-			tc_smv: fitted two-class SVM
-			X: Input data
-			y: Input labels
-
-		Returns:
-			Fitted one-class SVM on positive classification of two-class SVM
-		"""
 		# Get subset of inputs that are on the (+) side of the optimistic classifier
 		y_pred = opt_clf.predict(X)
 		X_pos = X[y_pred == 1]
@@ -935,53 +763,6 @@ class Option(object):
 		else:
 			# No samples
 			return False  
-
-	# TODO: classifier convertion 
-	def one_class_to_two_class_classifier(self, oc_svm, X):
-		y_pred = oc_svm.predict(X)
-		try:
-			if self.use_prob_predict:
-				return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y_pred)
-			else:
-				return svm.SVC(gamma='scale', class_weight='balanced').fit(X, y_pred)
-		except:
-			print("ValueError: The number of classes has to be greater than one; got 1 class")
-			print("|-> Flipping random prediction..")
-			i = random.randint(0, len(y_pred))
-			y_pred[i] = y_pred[i] * -1
-			if self.use_prob_predict:
-				return svm.SVC(gamma='scale', probability=True, class_weight='balanced').fit(X, y_pred)
-			else:
-				return svm.SVC(gamma='scale', class_weight='balanced').fit(X, y_pred)
-	
-	# TODO: Platt Scalling module (not accurate)
-	# def platt_scale(self, oc_svm, X, train_size, cv_size):
-	# 	"""
-	# 	Uses Platt Scalling to get probability values from a one-class SVM
-		
-	# 	Args:
-	# 		ocsvm_: One-class SVM on positive classification of two-class SVM
-	# 		X_: Input data
-	# 		train_size: Proportion of data that is included in train split
-	# 		cv_size: Number of folds used in cross-validation generator
-	# 		outlier: Toggle to set predictions using outlier data
-		
-	# 	Returns:
-	# 		platt scalling classifier
-	# 		prediction probabilities on test data
-	# 	"""
-		
-	# 	# Get SVM predictions
-	# 	y_SVM_pred = oc_svm.predict(X)
-		
-	# 	# Split the data and SVM labels
-	# 	X_train, X_test, y_train, y_test = train_test_split(X, y_SVM_pred, train_size=train_size)
-
-	# 	# Train using logistic regression layer with cross validation 
-	# 	lr = LRCV(cv=cv_size)
-	# 	lr.fit(X_train, y_train)
-
-	# 	return lr, lr.predict_proba(X_test)
 
 	# TODO: utilities
 	def get_rand_global_states(self, k):
@@ -999,52 +780,99 @@ class Option(object):
 		assert states.shape[1] == len(self.overall_mdp.init_state.features()), "OptionClass::get_all_global_samples: Wrong size of state"
 		return states
 
-	# TODO: main initiation and termination classifier call
-	def train_initiation_classifier(self):		
+	def get_neg_examples(self, k):
 		# If no negative examples, pick k random states to be negative
-		if not self.negative_examples:
-			k=100
-			if k > len(self.get_all_global_states()):
-				k = len(self.get_all_global_states())
-
-			print("      |-> No negative examples...Adding {} now!".format(k))
-			
-			# TODO: hack for treasure game domain
-			if "treasure" in self.overall_mdp.env_name:
-				self.negative_examples.append(self.get_rand_global_states(k))
-			else:
-				self.negative_examples.append(self.get_rand_global_states(k)[:,:2])
+		if k > len(self.get_all_global_states()):
+			k = len(self.get_all_global_states())
 		
+		# TODO: hack for treasure game domain
+		if "treasure" in self.overall_mdp.env_name:
+			return np.array(self.get_rand_global_states(k))
+		else:
+			return np.array(self.get_rand_global_states(k)[:,:2])
+		
+
+	# TODO: main initiation and termination classifier call
+	def train_initiation_classifiers(self, is_train):		
 		# Create input and labels
-		positive_feature_matrix = self.construct_feature_matrix(
-			self.positive_examples)		
-		negative_feature_matrix = self.construct_feature_matrix(
-			self.negative_examples)
+		positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 		positive_labels = [1] * positive_feature_matrix.shape[0]
+
+		negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
+		
+		# TODO: add parent's pos pes predictions as negative samples (but only for predictions)
+		if self.parent is not None and self.parent.get_training_phase() != 'gestation':
+			if self.parent.X_pes.ndim != 1:
+				if negative_feature_matrix.ndim == 1:
+					negative_feature_matrix = self.parent.X_pes
+				else:
+					negative_feature_matrix = np.concatenate((negative_feature_matrix, self.parent.X_pes))
+		
+		# NOTE: edge case where there's no neg samples
+		if negative_feature_matrix.ndim == 1:
+			k=1
+			print("      |-> No negative examples...Adding {} now!".format(k))
+			negative_feature_matrix = self.get_neg_examples(k)	
+
 		negative_labels = [0] * negative_feature_matrix.shape[0]
 		
-		# Save input and labels
-
-		# NOTE: for 2-class
 		self.X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
 		self.y = np.concatenate((positive_labels, negative_labels))
-		self.optimistic_classifier = self.train_optimistic_classifier(self.X, self.y)
-		self.pessimistic_classifier = self.train_pessimistic_classifier(self.optimistic_classifier, self.X, nu=self.pes_nu)
+		
+		# Fit and train classifiers
+		
+		X_pos = self.X[self.y == 1]
+		if X_pos.ndim == 1:
+			X_pos = [X_pos]
 
-		# NOTE: for 1-class
-		# self.X = positive_feature_matrix
-		# self.optimistic_classifier = self.train_alt_optimistic_classifier(self.X, self.opt_nu)
-		# self.pessimistic_classifier = self.train_pessimistic_classifier(self.optimistic_classifier, self.X, nu=self.pes_nu)
-		# self.approx_pessimistic_classifier = self.one_class_to_two_class_classifier(self.pessimistic_classifier, self.X)
+		self.optimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=self.opt_nu, gamma="scale").fit(X_pos)
+		opt_preds = self.optimistic_classifier.predict(self.X)
+		self.optimistic_classifier = svm.SVC(gamma='scale', class_weight='balanced').fit(self.X, opt_preds)
 		
-		# NOTE: only call once
-		if self.X_global is None:
-			self.X_global = self.get_all_global_states()
+		# self.optimistic_classifier = svm.SVC(gamma='scale', class_weight='balanced').fit(self.X, self.y)
+		# opt_preds = self.optimistic_classifier.predict(self.X)
+		# X_pos = self.X[opt_preds == 1]
+		# self.optimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=self.opt_nu, gamma="scale").fit(X_pos)
+
+		opt_preds = self.optimistic_classifier.predict(self.X)
+		X_pos = self.X[opt_preds == 1]
+		if X_pos.ndim == 1:
+			X_pos = [X_pos]
+
+		self.pessimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=self.pes_nu, gamma="scale").fit(self.X[opt_preds == 1])
 		
-		# Update variables		
-		# self.optimistic_classifier_probs.append(self.get_average_predict_proba(
-		# 	self.optimistic_classifier, self.X_global))
-		# self.pessimistic_classifier_probs.append(self.get_average_predict_proba(self.approx_pessimistic_classifier, self.X_global))
+		# For child to use as negative samples
+		pes_preds = self.pessimistic_classifier.predict(X_pos)
+		self.X_pes = X_pos[pes_preds == 1]
+
+		# if is_train:	# NOTE: train w/ 1-class opt and pes clf 
+		# 	# Create input
+		# 	self.X = self.construct_feature_matrix(self.positive_examples)
+			
+		# 	# Train classifiers
+		# 	self.optimistic_classifier = self.train_optimistic_classifier(self.X, self.opt_nu)
+		# 	self.pessimistic_classifier = self.train_pessimistic_classifier(self.optimistic_classifier, self.X, nu=self.pes_nu)
+		
+		# else:	# NOTE: refine 1-class opt w/ 2-class clf then train 1-class pes clf
+		# 	# self.check_and_get_neg_examples(100)
+			
+		# 	# Create input and labels
+		# 	positive_feature_matrix = self.construct_feature_matrix(
+		# 		self.positive_examples)		
+		# 	negative_feature_matrix = self.construct_feature_matrix(
+		# 		self.negative_examples)
+		# 	positive_labels = [1] * positive_feature_matrix.shape[0]
+		# 	negative_labels = [0] * negative_feature_matrix.shape[0]
+		# 	self.X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+		# 	self.y = np.concatenate((positive_labels, negative_labels))
+
+		# 	# Refined predictions
+		# 	y_pred = svm.SVC(gamma='scale', class_weight='balanced').fit(self.X, self.y).predict(self.X)
+		# 	X_pos_refine = X[y_pred == 1]
+
+		# 	# Refine classifiers
+		# 	self.optimistic_classifier = self.train_optimistic_classifier(X_pos_refine, self.y)
+		# 	self.pessimistic_classifier = self.train_pessimistic_classifier(self.optimistic_classifier, X_pos_refine, nu=self.pes_nu)
 
 	def trained_option_execution(self, mdp, outer_step_counter):
 		state = mdp.cur_state

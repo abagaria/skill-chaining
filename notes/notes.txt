@@ -34,7 +34,8 @@ Bugs
 			* 3400 steps: reaches gold coin
 			* 7700 steps: reaches goal
 
-		- Q: how does first option made include init state?
+		- the DQN agent eps decays very fast (almost to 0 in 10 episodes)
+			* this could due to DQN not performing well for extended temporal planning
 		
 	
 	[x] Test failed unexpectedly due to option_transitions list being empty
@@ -249,23 +250,40 @@ Writeup
 			-> Treasure Domain?
 			- Hierarchical RL NEEDS robustness for optimal learning
 
-		- Title: Robust Initation Set Confidence
+		- Title: Robust Skill Chaining
 		- Abstract
 		- Introduction
 		- Background
 			* Sequential decision making with MDPs
 			* Options Framework
 			* Deep Skill Chaining
-		- Initation Set Classifier (aka Methods)
+		- Types of Skill Chain Breaks
+			* Type 1 & 2
+		- Chain Fixing Options
+			* Links: broken, weak, strong
+			* Optimistic and Pessimistic Classifiers
+				- Continous vs Discrete Learning
+			* Detecting and Fixing Breaks
+				- Tune detection of strong breaks with nu
 		- Experiments
 			* Domains
-			* Comparative Analysis (include Hyperparameter Search)
+			* Learning Performance
+			* Chain Break Analysis
+			* Learned Skills
 		- Discussion & Conclusions
+			* (Hopefully) no worse than old methods
+			* (Hopefully) fixing the skill chain increases performance
+			* this fixes "withering" option problem
+			* (Future) more the options, the better the global solver eps schedule needs to be
 		- Acknowledgments
-			* George and Akhil
+			* Akhil and George
 		- References
-	
-	CS2951X Final Paper (DUE: T May 5th)
+		- Supplementary Material
+			* Hyperparameters
+			* Testing Environment
+			* Computing Environment
+
+	CS2951X Final Paper (DUE: F May 15th)
 	------------------------------------
 
 

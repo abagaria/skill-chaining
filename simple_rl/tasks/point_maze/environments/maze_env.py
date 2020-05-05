@@ -499,14 +499,14 @@ class MazeEnv(gym.Env):
     return False
 
   def is_in_goal_position(self, pos):
-    return self.distance_to_goal_position(pos) <= 0.6
+    return self.distance_to_goal_position(pos) <= 0.3
 
   def distance_to_goal_position(self, pos):
     return np.linalg.norm(pos - self.goal_xy)
 
   # TODO: batched goal positions
   def batched_is_in_goal_position(self, pos_array):
-    return self.batched_distance_to_goal_position(pos_array) <= 0.6
+    return self.batched_distance_to_goal_position(pos_array) <= 0.3
 
   # TODO: batched distance to goal
   def batched_distance_to_goal_position(self, pos_array):

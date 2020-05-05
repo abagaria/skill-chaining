@@ -42,14 +42,6 @@ class EpsilonSchedule:
 
     def update_epsilon(self, current_epsilon, num_executions):
         pass
-
-class GestationEpsilonSchedule(EpsilonSchedule):
- def __init__(self, eps_start):
-        EPS_END = 0.05
-        EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 500000
-        super(GlobalEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
-
 class GlobalEpsilonSchedule(EpsilonSchedule):
     def __init__(self, eps_start):
         EPS_END = 0.05
@@ -153,8 +145,7 @@ class DQNAgent(Agent):
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
                  eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
-                 gradient_clip=None, evaluation_epsilon=0.05, writer=None, for_option=False, batch_size=BATCH_SIZE,
-                 use_prob_predict=False):
+                 gradient_clip=None, evaluation_epsilon=0.05, writer=None, for_option=False, batch_size=BATCH_SIZE):
         self.state_size = state_size
         self.action_size = action_size
         self.trained_options = trained_options
@@ -168,7 +159,6 @@ class DQNAgent(Agent):
         self.tensor_log = tensor_log
         self.device = device
         self.batch_size = batch_size
-        self.use_prob_predict = use_prob_predict
 
         # TODO: if DQN agent is for a single option
         self.for_option = for_option
@@ -193,10 +183,6 @@ class DQNAgent(Agent):
         self.num_updates = 0
         self.num_epsilon_updates = 0
 
-        # TODO: step seed from main loop (int)
-        if self.use_prob_predict:
-            self.step_seed = None
-
         if self.tensor_log:
             self.writer = SummaryWriter() if writer is None else writer
 
@@ -205,16 +191,8 @@ class DQNAgent(Agent):
 
         Agent.__init__(self, name, range(action_size), GAMMA)
 
-    # TODO: change epsilon during gestation period
-    def set_gestation_epsilon_schedule(self):
-        self.epsilon_schedule = GestationEpsilonSchedule(self.epsilon)
-
     def set_global_epsilon_schedule(self):
         self.epsilon_schedule = GlobalEpsilonSchedule(self.epsilon)
-
-    # TODO: set step seed from main loop
-    def set_step_seed(self, seed):
-        self.step_seed = seed
 
     def set_new_learning_rate(self, learning_rate):
         self.learning_rate = learning_rate
@@ -236,10 +214,6 @@ class DQNAgent(Agent):
         impossible_option_idx = []
         for idx, option in enumerate(self.trained_options):
             np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
-
-            # TODO: set option's step seed
-            if self.use_prob_predict:
-                option.set_step_seed(self.step_seed)
 
             if option.parent is None:
                 # assert option.name == "overall_goal_policy" or option.name == "global_option"

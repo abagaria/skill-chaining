@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.cm as cm
 import matplotlib.patheffects as pe
+import matplotlib.colors as mc
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -30,11 +31,11 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
 
 class SkillChaining(object):
-	def __init__(self, mdp, max_steps, lr_actor, lr_critic, lr_dqn, ddpg_batch_size, device, max_num_options=5,
+	def __init__(self, mdp, max_steps, lr_actor, lr_critic, lr_dqn, ddpg_batch_size, device, max_num_options=np.inf,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, episodic_plots=False, use_full_smdp_update=False,
 				 log_dir="", seed=0, tensor_log=False, opt_nu=0.5, pes_nu=0.5, experiment_name=None, num_run=0, discrete_actions=False,
-				 use_old=False, use_prob_predict=False, episodic_saves=False, args=None):
+				 use_old=False, episodic_saves=False, args=None, use_chain_fix=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -60,9 +61,9 @@ class SkillChaining(object):
 			num_run (int): Number of the current run.
 			discrete_actions (bool): Whether or not actions are discrete
 			use_old (bool): Whether or not to use previous DSC methods
-			use_prob_predict (bool): Whether to use probability predictions with classifiers
 			episodic_saves (bool): Whether to save all data per episode
 			args (argparse.ArgumentParser().parse_args())
+			use_chain_fix (bool)
 )
 		"""
 		self.mdp = mdp
@@ -91,9 +92,9 @@ class SkillChaining(object):
 		self.discrete_actions = discrete_actions
 		self.lr_dqn = lr_dqn
 		self.use_old = use_old
-		self.use_prob_predict = use_prob_predict
 		self.episodic_saves = episodic_saves
 		self.args = args
+		self.use_chain_fix = use_chain_fix
 
 		tensor_name = "logs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -117,7 +118,7 @@ class SkillChaining(object):
 										generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 										dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 										discrete_actions=self.discrete_actions, use_old=self.use_old,
-										episode=self.episode, use_prob_predict=self.use_prob_predict)
+										episode=self.episode)
 		else:
 			self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
 										lr_actor=self.lr_actor, lr_critic=self.lr_critic, lr_dqn=None, buffer_length=buffer_length,
@@ -127,7 +128,7 @@ class SkillChaining(object):
 										generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 										dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 										discrete_actions=self.discrete_actions, use_old=self.use_old,
-										episode=self.episode, use_prob_predict=self.use_prob_predict)
+										episode=self.episode)
 
 		self.trained_options = [self.global_option]
 
@@ -147,7 +148,7 @@ class SkillChaining(object):
 								generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 								dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 								discrete_actions=self.discrete_actions, use_old=self.use_old,
-								episode=self.episode, use_prob_predict=self.use_prob_predict, option_idx=option_idx)
+								episode=self.episode, option_idx=option_idx)
 		else:
 			goal_option = Option(overall_mdp=self.mdp, name=name, global_solver=self.global_option.solver,
 								lr_actor=self.lr_actor, lr_critic=self.lr_critic, lr_dqn=None, buffer_length=self.buffer_length,
@@ -157,7 +158,7 @@ class SkillChaining(object):
 								generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 								dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 								discrete_actions=self.discrete_actions, use_old=self.use_old,
-								episode=self.episode, use_prob_predict=self.use_prob_predict, option_idx=option_idx)
+								episode=self.episode, option_idx=option_idx)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -165,8 +166,7 @@ class SkillChaining(object):
 		# options, this agent will predict Q-values for them as well
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
 										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
-										   use_double_dqn=True, writer=self.writer, device=self.device,
-										   use_prob_predict=self.use_prob_predict)
+										   use_double_dqn=True, writer=self.writer, device=self.device)
 
 		# Pointer to the current option:
 		# 1. This option has the termination set which defines our current goal trigger
@@ -174,7 +174,7 @@ class SkillChaining(object):
 		self.untrained_option = goal_option
 
 		# List of init states seen while running this algorithm
-		self.init_states = []
+		# self.init_states = []
 
 		# Debug variables
 		self.global_execution_states = []
@@ -188,16 +188,17 @@ class SkillChaining(object):
 		self.final_skill_chain = None
 		self.full_chain_breaks = {}
 		self.temporal_full_chain_breaks = {}
-
-		# TODO: classifier variables
-		# self.all_opt_clf_probs = {}
-		# self.all_pes_clf_probs = {}
+		self.full_chain_fix_option = []
 
 		# TODO: plotting variables
 		self.episodic_plots = episodic_plots
 		self.x_mesh = None
 		self.y_mesh = None
+		self.x_mesh_hd = None
+		self.y_mesh_hd = None
 		self.option_data = {}
+		self.goal_xy = np.array(self.mdp.goal_position)
+		self.start_xy = np.array(self.mdp.init_state[:2])
 		
 		self.options_chain_breaks = {}
 
@@ -215,10 +216,10 @@ class SkillChaining(object):
 	def set_random_step_seed(self):
 		self.step_seed = np.random.randint(2**32 - 1)
 
-	def create_option(self, parent_option, option_idx):
+	def create_option(self, parent_option, option_idx, type=''):
 		# Create new option whose termination is the initiation of the option we just trained
 		name = "option_{}".format(option_idx)
-		print("Creating {}".format(name))
+		print("{}Creating {}".format(type, name))
 
 		if parent_option is None:
 			if self.discrete_actions:
@@ -230,7 +231,7 @@ class SkillChaining(object):
 											generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 											dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 											discrete_actions=self.discrete_actions, use_old=self.use_old,
-											episode=self.episode, use_prob_predict=self.use_prob_predict, option_idx=option_idx)
+											episode=self.episode, option_idx=option_idx)
 			else:
 				new_untrained_option = Option(overall_mdp=self.mdp, name=name, global_solver=self.global_option.solver,
 											lr_actor=self.lr_actor, lr_critic=self.lr_critic, lr_dqn=None, buffer_length=self.buffer_length,
@@ -240,7 +241,7 @@ class SkillChaining(object):
 											generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 											dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 											discrete_actions=self.discrete_actions, use_old=self.use_old,
-											episode=self.episode, use_prob_predict=self.use_prob_predict, option_idx=option_idx)
+											episode=self.episode, option_idx=option_idx)
 		else:
 			if self.discrete_actions:
 				new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
@@ -256,8 +257,7 @@ class SkillChaining(object):
 										enable_timeout=self.enable_option_timeout,
 										writer=self.writer, device=self.device, dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 										discrete_actions=self.discrete_actions, use_old=self.use_old,
-										episode=self.episode, use_prob_predict=self.use_prob_predict,
-										option_idx=option_idx)
+										episode=self.episode, option_idx=option_idx)
 			else:
 				new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
 											lr_actor=parent_option.solver.actor_learning_rate,
@@ -272,8 +272,7 @@ class SkillChaining(object):
 											enable_timeout=self.enable_option_timeout,
 											writer=self.writer, device=self.device, dense_reward=self.dense_reward, opt_nu=self.opt_nu, pes_nu=self.pes_nu, experiment_name=self.experiment_name,
 											discrete_actions=self.discrete_actions, use_old=self.use_old,
-											episode=self.episode, use_prob_predict=self.use_prob_predict,
-											option_idx=option_idx)
+											episode=self.episode, option_idx=option_idx)
 		
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option_id = id(new_untrained_option)
@@ -348,21 +347,17 @@ class SkillChaining(object):
 									tensor_log=self.agent_over_options.tensor_log,
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
-									writer=self.writer, device=self.device, use_prob_predict=self.use_prob_predict)
+									writer=self.writer, device=self.device)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
-		print("Initializing new option node with q value {}".format(init_q))
+		print("|-> Initializing new option node with q value {}".format(init_q))
 		new_global_agent.policy_network.initialize_with_smaller_network(self.agent_over_options.policy_network, init_q)
 		new_global_agent.target_network.initialize_with_smaller_network(self.agent_over_options.target_network, init_q)
 
 		self.agent_over_options = new_global_agent
 
 	def act(self, state):
-		# TODO: set step seed for DQN agent
-		if self.use_prob_predict:
-			self.agent_over_options.set_step_seed(self.step_seed)
-		
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
 		self.agent_over_options.update_epsilon()
@@ -457,138 +452,188 @@ class SkillChaining(object):
 	def get_mesh_positions(self):
 		return np.c_[self.x_mesh.ravel(), self.y_mesh.ravel()]
 
-	def update_full_chain_breaks(self, episode, step, weak_broken_options):
+	def log_full_chain_breaks(self, episode):
 		# Time index with steps and episodes (assume can be 0)
-		time_step = episode + (step / self.max_steps)
+		time_step = episode
+		
+		full_broken_options = self.check_full_chain_breaks()
+		
+		if full_broken_options == []:
+			self.temporal_full_chain_breaks[time_step] = 0
 
-		if weak_broken_options != []:
-			print("LOG: FULL CHAIN BREAK")
-
-		for weak_broken_option in weak_broken_options:
-			# Update total temporal weak chain breaks
+		for full_broken_option in full_broken_options:
+			# Update total temporal full chain breaks
 			if time_step not in self.temporal_full_chain_breaks:
-				self.temporal_chain_breaks[time_step] = 1
+				self.temporal_full_chain_breaks[time_step] = 1
 			else:
-				self.temporal_chain_breaks[time_step] += 1
+				self.temporal_full_chain_breaks[time_step] += 1
 
 			# Update the options that broke the goal
-			if weak_broken_option.name not in self.full_chain_breaks:
-				self.full_chain_breaks[weak_broken_option.name] = {time_step : 1}
+			if full_broken_option.name not in self.full_chain_breaks:
+				self.full_chain_breaks[full_broken_option.name] = {time_step : 1}
 			else:
-				if time_step not in self.full_chain_breaks[weak_broken_option.name]:
-					self.full_chain_breaks[weak_broken_option.name][time_step] = 1
+				if time_step not in self.full_chain_breaks[full_broken_option.name]:
+					self.full_chain_breaks[full_broken_option.name][time_step] = 1
 				else:
-					self.full_chain_breaks[weak_broken_option.name][time_step] += 1
-		
-	def old_log_full_chain_breaks(self):
+					self.full_chain_breaks[full_broken_option.name][time_step] += 1
+
+	def check_full_chain_breaks(self):
 		local_options = self.trained_options[1:]
-		weak_broken_options = []
+		full_chain_breaks = []
 		for option in local_options:
-			if option.parent is not None:
+			if option.parent is not None and option.parent.get_training_phase() != 'gestation':	# NOTE: gestation will only happen with chain fix code
 				# TODO: hack for treasure game
 				if "treasure" in self.mdp.env_name:
 					# ???
 					pass
 				else:
-					states = self.get_mesh_positions()
-				current_pred = option.initiation_classifier.predict(states)
-				parent_pred = option.parent.initiation_classifier.predict(states)
-				if not (current_pred == parent_pred).any(): 
-					weak_broken_options.append(option)
-		return weak_broken_options
+					states = option.parent.X
 
-
-	def log_full_chain_breaks(self):
-		local_options = self.trained_options[1:]
-		weak_broken_options = []
-		for option in local_options:
-			if option.parent is not None:
-				# TODO: hack for treasure game
-				if "treasure" in self.mdp.env_name:
-					# ???
-					pass
-				else:
-					states = self.get_mesh_positions()
-				current_pred = option.optimistic_classifier.predict(states)
-				parent_pred = option.parent.optimistic_classifier.predict(states)
-				if not (current_pred == parent_pred).any(): 
-					weak_broken_options.append(option)
-		return weak_broken_options
+				current_pred = np.array(option.batched_is_init_true(states), dtype=int)
+				parent_pred = np.array(option.parent.batched_is_init_true(states), dtype=int)
+				
+				if not 1 in (current_pred * parent_pred): 
+					full_chain_breaks.append(option)
+		return full_chain_breaks
 
 	# TODO: chain fix for start of chain
-	def should_create_new_goal_option(self):
-		local_options = self.trained_options[1:]
-		for option in local_options:
-			if option.parent is None:
-				# TODO: hack for treasure game
-				if "treasure" in self.mdp.env_name:
-					# ???
-					pass
-				else:
-					states = self.get_mesh_positions()
-				opt_predict = option.optimistic_classifier.predict(states)
-				states_in_opt_set = states[opt_predict == 1]
-				any_goal_states_in_opt_set = self.mdp.batched_is_goal_state(states_in_opt_set).any()
-				if not any_goal_states_in_opt_set:
-					return True, option
-				else:
-					return False, None
+	# def should_create_new_goal_option(self):
+	# 	local_options = self.trained_options[1:]
+	# 	for option in local_options:
+	# 		if option.parent is None:
+	# 			# TODO: hack for treasure game
+	# 			if "treasure" in self.mdp.env_name:
+	# 				# ???
+	# 				pass
+	# 			else:
+	# 				states = option.X
+	# 			opt_predict = option.optimistic_classifier.predict(states)
+	# 			states_in_opt_set = states[opt_predict == 1]
+	# 			if not (self.mdp.batched_is_goal_state(states_in_opt_set).any()):
+	# 				return True, option
+	# 	return False, None
 
 	# TODO: chain fix for middle of chain (rename)
 	def should_create_chain_fix_option(self):
 		local_options = self.trained_options[1:]
 		for option in local_options:
-			if option.parent is not None:
+			if option.parent is not None and option.parent.get_training_phase() != 'gestation':
 				# TODO: hack for treasure game
 				if "treasure" in self.mdp.env_name:
 					# ???
 					pass
 				else:
-					states = self.get_mesh_positions()
-			
-				current_pred = option.pessimistic_classifier.predict(states)
-				parent_pred = option.parent.optimistic_classifier.predict(states)
-				if not (current_pred == parent_pred).any(): 
+					states = option.parent.X
+				
+				current_pred = np.array(option.batched_is_init_true(states), dtype=int)
+				parent_pred = np.array(option.parent.batched_is_init_true(states), dtype=int)
+				
+				if not 1 in (current_pred * parent_pred):
+					print("    |-> FULL CHAIN BREAK: (parent) {}, (option) {}".format(option.parent.name, option.name))
 					return True, option
 		return False, None
 
-	def update_goal_chain_breaks(self, broken_goal, episode, step):
-		# Time index with steps and episodes (assume can be 0)
-		time_step = episode + (step / self.max_steps)
+	# def update_goal_chain_breaks(self, broken_goal, episode, step):
+	# 	# Time index with steps and episodes (assume can be 0)
+	# 	time_step = episode + (step / self.max_steps)
 
-		# Update total temporal chain breaks
-		if time_step not in self.temporal_chain_breaks:
-			self.temporal_chain_breaks[time_step] = 1
-		else:
-			self.temporal_chain_breaks[time_step] += 1
+	# 	# Update total temporal chain breaks
+	# 	if time_step not in self.temporal_chain_breaks:
+	# 		self.temporal_chain_breaks[time_step] = 1
+	# 	else:
+	# 		self.temporal_chain_breaks[time_step] += 1
 
-		# Update the options that broke the goal
-		if broken_goal.name not in self.goal_chain_breaks:
-			self.goal_chain_breaks[broken_goal.name] = {time_step : 1}
-		else:
-			if time_step not in self.goal_chain_breaks[broken_goal.name]:
-				self.goal_chain_breaks[broken_goal.name][time_step] = 1
+	# 	# Update the options that broke the goal
+	# 	if broken_goal.name not in self.goal_chain_breaks:
+	# 		self.goal_chain_breaks[broken_goal.name] = {time_step : 1}
+	# 	else:
+	# 		if time_step not in self.goal_chain_breaks[broken_goal.name]:
+	# 			self.goal_chain_breaks[broken_goal.name][time_step] = 1
+	# 		else:
+	# 			self.goal_chain_breaks[broken_goal.name][time_step] += 1
+
+	# TODO: chain fix protocol
+	def detect_and_fix_chain(self, episode, step_number):
+		# First detect if goal option needs to be fixed
+		# goal_needs_fix, broken_goal = self.should_create_new_goal_option()
+		# if goal_needs_fix:
+		# 	print("    |-> GOAL CHAIN BREAK: (goal option) {}".format(broken_goal.name))
+		# 	self.update_goal_chain_breaks(broken_goal, episode, step_number)
+			
+		# 	# Create fix for goal option
+		# 	self.num_options += 1
+		# 	new_idx = self.num_options
+		# 	goal_fix_option = self.create_option(None, new_idx, type='(goal fix) ')
+			
+		# 	# Link broken goal option to new goal fix option
+		# 	self.update_options_parent(broken_goal, goal_fix_option)
+		# 	return True, goal_fix_option
+
+		# Then detect if intermediate option needs to be fixed
+		option_needs_fix, broken_option = self.should_create_chain_fix_option()
+		if option_needs_fix:
+			self.full_chain_fix_option.append(episode)
+
+			# Create fix for intermediate option
+			self.num_options += 1
+			new_idx = self.num_options
+			option_fix = self.create_option(broken_option.parent, new_idx, type='(option fix) ')
+
+			# Link broken option to new chain fix option
+			self.update_options_parent(broken_option, option_fix)
+			return True, option_fix
+
+		# Otherwise, no options need to be fixed
+		return False, None
+
+	# TODO: utilities
+	def get_skill_chain(self):
+		# Build parent to child option dictionary
+		all_options = {}
+		for option in self.trained_options[1:]:
+			if option.parent is None:
+				all_options['None'] = option
 			else:
-				self.goal_chain_breaks[broken_goal.name][time_step] += 1
+				all_options[option.parent.name] = option
+		debug_trained_options = all_options
 
-	def update_chain_breaks(self, broken_option, episode, step):
-		# Time index with steps and episodes (assume can be 0)
-		time_step = episode + (step / self.max_steps)
+		# Check for empty list
+		if not all_options:
+			return []
+
+		# Sort by lineage in chain
+		skill_chain = [all_options['None']]
+		for _ in range(len(all_options)-1):
+			last_option = skill_chain[-1]
+			try:
+				skill_chain.append(all_options[last_option.name])
+			except:
+				print("DEBUG: waiting on untrained option to fix the chain")
+				print("|-> DEBUG: self.trained_options[1:] = {}".format(self.trained_options[1:]))
+				print("|-> DEBUG: debug_trained_options = {}".format(debug_trained_options))
+				print("|-> DEBUG: self.untrained_option = {}".format(self.untrained_option))
+				# Options could be in training
+				break
+		return skill_chain
+
+	# def update_chain_breaks(self, broken_option, episode, step):
+	# 	# Time index with steps and episodes (assume can be 0)
+	# 	time_step = episode + (step / self.max_steps)
 		
-		# Update total temporal chain breaks
-		if time_step not in self.temporal_chain_breaks:
-			self.temporal_chain_breaks[time_step] = 1
-		else:
-			self.temporal_chain_breaks[time_step] += 1
+	# 	# Update total temporal chain breaks
+	# 	if time_step not in self.temporal_chain_breaks:
+	# 		self.temporal_chain_breaks[time_step] = 1
+	# 	else:
+	# 		self.temporal_chain_breaks[time_step] += 1
 
-		# Update the options that broke the chain
-		if broken_option.name not in self.option_chain_breaks:
-			self.option_chain_breaks[broken_option.name] = {time_step : 1}
-		else:
-			if time_step not in self.option_chain_breaks[broken_option.name]:
-				self.option_chain_breaks[broken_option.name][time_step] = 1
-			else:
-				self.option_chain_breaks[broken_option.name][time_step] += 1
+	# 	# Update the options that broke the chain
+	# 	if broken_option.name not in self.option_chain_breaks:
+	# 		self.option_chain_breaks[broken_option.name] = {time_step : 1}
+	# 	else:
+	# 		if time_step not in self.option_chain_breaks[broken_option.name]:
+	# 			self.option_chain_breaks[broken_option.name][time_step] = 1
+	# 		else:
+	# 			self.option_chain_breaks[broken_option.name][time_step] += 1
 
 	# TODO: chain fix
 	def update_options_parent(self, child_option, new_parent_option):
@@ -597,13 +642,20 @@ class SkillChaining(object):
 				child_option.update_parent(new_parent_option)
 				self.trained_options[i] = child_option
 
-	def should_create_child_options(self):
+	def should_create_child_options(self, verbose=False):
 		local_options = self.trained_options[1:]
-		for start_state in self.init_states:
-			for option in local_options:  # type: Option
-				if option.is_init_true(start_state):
+		
+		# # TODO: Wait for a trained option
+		if local_options == []:
+			return False
+		
+		# for start_state in self.init_states:
+		for option in local_options:  # type: Option
+			# if option.is_init_true(start_state):
+			if option.is_init_true(self.start_xy):
+				if verbose:
 					print("Init state is in {}'s initiation set classifier".format(option.name))
-					return False
+				return False
 		return True
 		# return len(self.trained_options) < self.max_num_options
 	
@@ -645,14 +697,24 @@ class SkillChaining(object):
 		return out
 
 	# TODO: utilities
-	def plot_boundary(self, x_mesh, y_mesh, clfs, colors, option_name, episode, experiment_name, alpha, img_name=None, goal=None, start=None):
+	def adjust_lightness(self, color, amount=0.5):
+		import colorsys
+		try:
+			c = mc.cnames[color]
+		except:
+			c = color
+		c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+		return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
+	# TODO: utilities
+	def plot_boundary(self, x_mesh, y_mesh, clfs, colors, option_name, episode, experiment_name, alpha, img_name=None, img_alpha=1, goal=None, start=None):
 		# Create plotting dir (if not created)
 		path = '{}/plots/clf_plots'.format(experiment_name)
 		Path(path).mkdir(exist_ok=True)
 	
 		if img_name != None:
 			back_img = plt.imread(img_name)
-			plt.imshow(back_img, extent=[x_mesh.min(), x_mesh.max(), y_mesh.min(), y_mesh.max()], alpha=0.3)
+			plt.imshow(back_img, extent=[x_mesh.min(), x_mesh.max(), y_mesh.min(), y_mesh.max()], alpha=img_alpha)
 
 		patches = []
 		
@@ -668,8 +730,12 @@ class SkillChaining(object):
 			z = (z.reshape(x_mesh.shape) > 0).astype(int)
 			z = np.ma.masked_where(z == 0, z)
 
-			cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
-			patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
+			if 'pessimistic' in clf_name.lower():
+				cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha, hatches='xxx')
+				patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha, hatch='xxx'))
+			else:
+				cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
+				patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
 
 		# Plot successful trajectories
 		# if extra_X_data:
@@ -691,6 +757,79 @@ class SkillChaining(object):
 		# TODO: remove
 		print("|-> {}/{}_{}.png saved!".format(path, option_name, episode))
 
+	def plot_multi_boundaries(self, x_mesh, y_mesh, option_data, rgb_color_palette, experiment_name, alpha, plot_eps, img_name=None, img_alpha=1, goal=None, start=None):
+		# Create plotting dir (if not created)
+		path = '{}/plots/clf_plots'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
+
+		if img_name:
+			back_img = plt.imread(img_name)
+			plt.imshow(back_img, extent=[x_mesh.min(), x_mesh.max(), y_mesh.min(), y_mesh.max()], alpha=img_alpha)
+
+		patches = []
+
+		# Gray classifier key
+		default_colors = ['lightgrey', 'grey']
+		once = False
+		for i, (option_name, option) in enumerate(option_data.items()):
+			if not once:
+				for episode, episode_data in option.items():
+					once = True
+					clfs = episode_data['clfs_bounds']
+					if episode == plot_eps:
+						saved_eps = episode
+						for (clf_name, clf), color in zip(clfs.items(), default_colors):
+							if 'pessimistic' in clf_name.lower():
+								pass
+								patches.append(mpatches.Patch(color=color, label='{}'.format(clf_name), alpha=alpha, hatch='xxx'))
+							else:
+								patches.append(mpatches.Patch(color=color, label='{}'.format(clf_name), alpha=alpha))
+
+		# Plot all options
+		saved_eps = None
+		colors =[mc.to_hex(rgb) for rgb in rgb_color_palette]
+		dark_colors = [mc.to_hex(self.adjust_lightness(color, amount=0.5)) for color in colors]
+
+		for i, (option_name, option) in enumerate(option_data.items()):
+			for episode, episode_data in option.items():
+				# colors = [all_color_strs[i], 'dark' + all_color_strs[i]]
+				clfs = episode_data['clfs_bounds']
+				# plot boundaries of classifiers
+				if episode == plot_eps:
+					saved_eps = episode
+					patches.append(mpatches.Patch(color=colors[i], label='{}'.format(option_name), alpha=alpha))
+					# patches.append(mpatches.Patch(label='{}'.format(option_name), alpha=alpha))
+
+					# Plot classifier boundaries
+					for (clf_name, clf) in clfs.items():
+						z = clf.predict(np.c_[x_mesh.ravel(), y_mesh.ravel()])
+						z = (z.reshape(x_mesh.shape) > 0).astype(int)
+						z = np.ma.masked_where(z == 0, z)
+						if 'pessimistic' in clf_name.lower():
+							cf = plt.contourf(x_mesh, y_mesh, z, colors=dark_colors[i], alpha=alpha, hatches='xxx')
+							for collection in cf.collections:
+								collection.set_edgecolor(dark_colors[i])
+						else:
+							cf = plt.contourf(x_mesh, y_mesh, z, colors=colors[i] , alpha=alpha)
+
+		g = plt.scatter(goal[0], goal[1], marker="*", color="y", s=80, path_effects=[pe.Stroke(linewidth=1, foreground='k'), pe.Normal()], label="Goal")
+		patches.append(g)
+			
+		s = plt.scatter(start[0], start[1], marker="X", color="k", label="Start")
+		patches.append(s)
+
+		plt.xticks(())
+		plt.yticks(())
+		plt.title("All Options' Sets")
+		plt.legend(handles=patches, 
+					bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+		
+		# Save plots
+		plt.savefig("{}/all_options_{}.png".format(path, saved_eps),bbox_inches='tight', edgecolor='black', format='png', quality=100)
+		plt.close()
+
+		print("|-> {}/all_options_{}.png saved!".format(path, saved_eps))
+
 	# TODO: utilities
 	def plot_learning_curves(self, experiment_name, data):
 		# Create plotting dir (if not created)
@@ -711,92 +850,6 @@ class SkillChaining(object):
 		# TODO: remove
 		print("|-> {}/learning_curve.png saved!".format(path))
 
-	# TODO: utilities
-	# def plot_prob(self, all_clf_probs, experiment_name):
-	# 	# Create plotting dir (if not created)
-	# 	path = '{}/plots/prob_plots'.format(experiment_name)
-	# 	Path(path).mkdir(exist_ok=True)
-
-	# 	for clf_name, clf_probs in all_clf_probs.items():
-	# 		colors = sns.hls_palette(len(clf_probs), l=0.5)
-	# 		for i, (opt_name, opt_probs) in enumerate(clf_probs.items()):
-	# 			probs, episodes = opt_probs
-	# 			if 'optimistic' in clf_name:
-	# 				plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(clf_name, opt_name))
-	# 			else:
-	# 				plt.plot(episodes, probs, c=colors[i], label="{} - {}".format(clf_name, opt_name), linestyle='--')
-
-	# 	plt.title("Average Probability Estimates")
-	# 	plt.ylabel("Probabilities")
-	# 	plt.xlabel("Episodes")
-	# 	plt.legend(title="Options", bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-
-	# 	# Save plots
-	# 	plt.savefig("{}/option_prob_estimates.png".format(path), bbox_inches='tight')
-	# 	plt.close()
-		
-	# 	# TODO: remove
-	# 	print("|-> {}/option_prob_estmates.png saved!".format(path))
-
-	# TODO: utilities
-	def plot_state_probs(self, x_mesh, y_mesh, clfs, option_name, cmaps, episode, experiment_name):
-		# Create plotting dir (if not created)
-		path = '{}/plots/state_prob_plots'.format(experiment_name)
-		Path(path).mkdir(exist_ok=True)
-		
-		# Plot state probability estimates
-		for (clf_name, clf), cmap in zip(clfs.items(), cmaps):
-
-			fig, ax = plt.subplots()
-			
-			# Only plot positive predictions
-			X_mesh = np.vstack([x_mesh.flatten(), y_mesh.flatten()]).T
-			probs = clf.predict_proba(X_mesh)[:, 1]
-			preds = (clf.predict(X_mesh) > 0).astype(int)
-			probs = np.multiply(probs, preds)
-
-			ax.set_title(
-				'Probability Estimates ({}) - {}'.format(clf_name, option_name))
-			
-			states = ax.pcolormesh(x_mesh, y_mesh, probs.reshape(x_mesh.shape), shading='gouraud', cmap=cmap, vmin=0.0, vmax=1.0)
-			cbar = fig.colorbar(states)
-
-			ax.set_xticks(())
-			ax.set_yticks(())
-			
-			# Save plots
-			plt.savefig("{}/{}_{}_{}.png".format(path, option_name,
-						clf_name, episode), bbox_inches='tight', edgecolor='black')
-			plt.close()
-
-			# TODO: remove
-			print("|-> {}/{}_{}_{}.png saved!".format(path, option_name, clf_name, episode))
-
-	def generate_all_plots(self, per_episode_scores):
-		sns.set_style("white")
-		num_colors = 100
-		colors = ['blue', 'darkblue']
-		cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
-		
-		for option_name, option in self.option_data.items():
-			for episode, episode_data in option.items():
-				clfs_bounds = episode_data['clfs_bounds']
-				clfs_probs = episode_data['clfs_probs']
-				# X_pos = episode_data['X_pos']
-				
-				# plot boundaries of classifiers
-				self.plot_boundary(self.x_mesh, self.y_mesh, clfs_bounds, colors, option_name, episode, self.log_dir, 0.5, self.img_name)
-
-				# plot state probability estimates
-				# self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option_name, cmaps, episode, self.log_dir)
-		
-		# plot average probabilities
-		# all_clf_probs = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
-		# self.plot_prob(all_clf_probs, self.log_dir)
-
-		# plot learning curves
-		# self.plot_learning_curves(self.log_dir, per_episode_scores)
-
 	# TODO: export option data
 	def save_all_data(self, logdir, args, episodic_scores, episodic_durations):
 		data_dir = logdir + '/run_{}_all_data'.format(self.seed)
@@ -807,6 +860,8 @@ class SkillChaining(object):
 		all_data['option_data'] = self.option_data
 		all_data['x_mesh'] = self.x_mesh
 		all_data['y_mesh'] = self.y_mesh
+		all_data['x_mesh_hd'] = self.x_mesh_hd
+		all_data['y_mesh_hd'] = self.y_mesh_hd
 		all_data['experiment_name'] = self.experiment_name
 		all_data['per_episode_scores'] = episodic_scores
 		all_data['mdp_env_name'] = self.mdp.env_name
@@ -820,6 +875,8 @@ class SkillChaining(object):
 		all_data['final_skill_chain'] = self.final_skill_chain
 		all_data['full_chain_breaks'] = self.full_chain_breaks
 		all_data['temporal_full_chain_breaks'] = self.temporal_full_chain_breaks
+		all_data['goal_xy'] = self.goal_xy
+		all_data['start_xy'] = self.start_xy
 
 		for var_name, data in all_data.items():
 			with open(data_dir + '/' + var_name + '.pkl', 'wb+') as f:
@@ -828,14 +885,9 @@ class SkillChaining(object):
 	def run_plot_processing(self, episode):
 		for option in self.trained_options:
 			if option.optimistic_classifier or option.initiation_classifier:
-				# NOTE: make domain mesh once
-				# if self.x_mesh is None:
-				# 	x_coord, y_coord = option.X_global[:, 0], option.X_global[:, 1]
-				# 	self.x_mesh, self.y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.008)
-
 				# Per option data
 				if self.use_old:
-					clfs_bounds = {'Initiation set classifier': option.initiation_classifier}
+					clfs_bounds = {'Initiation set': option.initiation_classifier}
 				else:
 					clfs_bounds = {'Optimistic initiation set':option.optimistic_classifier, 'Pessimistic initiation set':option.pessimistic_classifier}
 
@@ -847,66 +899,37 @@ class SkillChaining(object):
 				else:
 					self.option_data[option.name][episode] = {'clfs_bounds' : clfs_bounds}
 
-				# update option's probability values
-				# if option.name not in self.all_opt_clf_probs:
-				# 	self.all_opt_clf_probs[option.name] = ([option.optimistic_classifier_probs[-1]], [episode])
-				# 	self.all_pes_clf_probs[option.name] = ([option.pessimistic_classifier_probs[-1]], [episode])
-				# else:
-				# 	self.all_opt_clf_probs[option.name][0].append(
-				# 		option.optimistic_classifier_probs[-1])
-				# 	self.all_opt_clf_probs[option.name][1].append(episode)
-					
-				# 	self.all_pes_clf_probs[option.name][0].append(
-				# 		option.pessimistic_classifier_probs[-1])
-				# 	self.all_pes_clf_probs[option.name][1].append(episode)
-
-	def episodic_plot_processing(self, episode, per_episode_scores):
+	def plot_episodic_plots(self, episode, per_episode_scores):
 		sns.set_style("white")
 
-		all_color_strs =['salmon', 'green', 'orange', 'cyan', 'khaki', 'slateblue', 'goldenrod', 'turquoise', 'red', 'blue', 'slategray', 'violet', 'magenta']
+		all_color_strs =['salmon', 'green', 'violet', 'orange', 'cyan', 'khaki', 'slateblue', 'red', 'goldenrod', 'turquoise', 'blue', 'slategray', 'magenta']
 
-		for i, option in enumerate(self.trained_options):
-			if option.optimistic_classifier or option.initiation_classifier:
-				# plotting variables
-				# num_colors = 100
-				# cmaps = [cm.get_cmap('Blues', num_colors), cm.get_cmap('Greens', num_colors)]
-				colors = [all_color_strs[i], 'dark' + all_color_strs[i]]
-				if self.use_old:
-					clfs_bounds = {'Initiation set classifier': option.initiation_classifier}
-				else:
-					clfs_bounds = {'Optimistic initiation set':option.optimistic_classifier, 'Pessimistic initiation set':option.pessimistic_classifier}
+		# for i, option in enumerate(self.trained_options):
+		# 	if option.optimistic_classifier or option.initiation_classifier:
+		# 		# plotting variables
+		# 		colors = [all_color_strs[i], 'dark' + all_color_strs[i]]
+		# 		if self.use_old:
+		# 			clfs_bounds = {'Initiation set classifier': option.initiation_classifier}
+		# 		else:
+		# 			clfs_bounds = {'Optimistic initiation set':option.optimistic_classifier, 'Pessimistic initiation set':option.pessimistic_classifier}
 				
-				# clfs_probs = {'optimistic_classifier':option.optimistic_classifier, 'pessimistic_classifier':option.approx_pessimistic_classifier}
-				
-				# NOTE: make domain mesh once
-				# if self.x_mesh is None:
-				# 	x_coord, y_coord = option.X_global[:, 0], option.X_global[:, 1]
-				# 	self.x_mesh, self.y_mesh = self.make_meshgrid(x_coord, y_coord, h=0.01)
+		# 		# plot each option's boundaries of classifiers
+		# 		self.plot_boundary(self.x_mesh, self.y_mesh, clfs_bounds, colors, option.name, episode, self.log_dir, 0.3, img_name=self.img_name, img_alpha=0.7, goal=self.goal_xy, start=self.start_xy)
 
-				# plot boundaries of classifiers
-				self.plot_boundary(self.x_mesh, self.y_mesh, clfs_bounds, colors, option.name, episode, self.log_dir, 0.5, img_name=self.img_name, goal=np.array(self.mdp.goal_position), start=np.array(self.init_states)[0,:2])
-
-				# plot state probabilty estimates
-				# self.plot_state_probs(self.x_mesh, self.y_mesh, clfs_probs, option.name, cmaps, episode, self.log_dir)
-
-				# update option's probability values
-				# if option.name not in self.all_opt_clf_probs:
-				# 	self.all_opt_clf_probs[option.name] = ([option.optimistic_classifier_probs[-1]], [episode])
-				# 	self.all_pes_clf_probs[option.name] = ([option.pessimistic_classifier_probs[-1]], [episode])
-				# else:
-				# 	self.all_opt_clf_probs[option.name][0].append(
-				# 		option.optimistic_classifier_probs[-1])
-				# 	self.all_opt_clf_probs[option.name][1].append(episode)
-					
-				# 	self.all_pes_clf_probs[option.name][0].append(
-				# 		option.pessimistic_classifier_probs[-1])
-				# 	self.all_pes_clf_probs[option.name][1].append(episode)
+		# plot all options' boundaries
+		rgb_color_palette = sns.color_palette('deep')
+		self.plot_multi_boundaries(x_mesh=self.x_mesh,
+									y_mesh=self.y_mesh,
+									option_data=self.option_data,
+									rgb_color_palette=rgb_color_palette,
+									experiment_name=self.log_dir,
+									alpha=0.7,
+									plot_eps=episode,
+									img_name='images/point_maze_domain.png',
+									img_alpha=0.9,
+									goal=self.goal_xy,
+									start=self.start_xy)
 		
-		# plot average probabilities
-		# if option.optimistic_classifier:
-		# 	all_clf_probs = {'optimistic classifier':self.all_opt_clf_probs, 'pessimistic classifier':self.all_pes_clf_probs}
-			# self.plot_prob(all_clf_probs, self.log_dir)
-
 		# plot learning curves
 		self.plot_learning_curves(self.log_dir, per_episode_scores)
 
@@ -914,50 +937,6 @@ class SkillChaining(object):
 	def update_options_episode(self, episode):
 		for option in self.trained_options:
 			option.update_episode(episode)
-
-	# TODO: utilities
-	# def update_options_chain_breaks(self):
-	# 	for option in self.trained_options:
-	# 		self.options_chain_breaks[option.name] = option.chain_break
-
-	# TODO: utilities
-	def get_skill_chain(self):
-		
-		# Build parent to child option dictionary
-		all_options = {}
-		for option in self.trained_options[1:]:
-			if option.parent is None:
-				all_options['None'] = option.name
-			else:
-				all_options[option.parent.name] = option.name
-		debug_trained_options = all_options
-		# debug_untrained_option = {}
-		# if self.untrained_option != None:
-		# 	if self.untrained_option.parent is None:
-		# 		all_options[None] = self.untrained_option.name
-		# 		debug_untrained_option[None] = self.untrained_option.name
-		# 	else: 
-		# 		all_options[self.untrained_option.parent.name] = self.untrained_option.name
-		# 		debug_untrained_option[self.untrained_option.parent.name] = self.untrained_option.name
-
-		# Check for empty list
-		if not all_options:
-			return []
-
-		# Sort by lineage in chain
-		skill_chain = [all_options['None']]
-		for _ in range(len(all_options)-1):
-			last_name = skill_chain[-1]
-			try:
-				skill_chain.append(all_options[last_name])
-			except:
-				print("WARNING: waiting on untrained option to fix the chain")
-				print("|-> DEBUG: self.trained_options[1:] = {}".format(self.trained_options[1:]))
-				print("|-> DEBUG: debug_trained_options = {}".format(debug_trained_options))
-				print("|-> DEBUG: self.untrained_option = {}".format(self.untrained_option.name))
-				# Options could be in training
-				break
-		return skill_chain
 
 
 	def skill_chaining(self, num_episodes, num_steps):
@@ -977,7 +956,7 @@ class SkillChaining(object):
 
 		# TODO: create mesh of environment
 		width_coord = height_coord = np.array([-2,11])
-		self.x_mesh, self.y_mesh = self.make_meshgrid(width_coord, height_coord, h=0.01)
+		self.x_mesh, self.y_mesh = self.make_meshgrid(width_coord, height_coord, h=0.1)	# for predictions
 
 		for episode in range(num_episodes):
 
@@ -987,16 +966,12 @@ class SkillChaining(object):
 			step_number = 0
 			uo_episode_terminated = False
 			state = deepcopy(self.mdp.init_state)
-			self.init_states.append(deepcopy(state))
+			# self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []
 			episode_option_executions = defaultdict(lambda : 0)
 
 			while step_number < num_steps:
-				# TODO: seed each step
-				if self.use_prob_predict:
-					self.set_random_step_seed()
-
 				if step_number % 500 == 0:
 					print("  |-> step_number: {}".format(step_number))  # TODO: remove
 				experiences, reward, state, steps = self.take_action(
@@ -1011,78 +986,45 @@ class SkillChaining(object):
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
 
-				# TODO: set option step seed
-				if self.use_prob_predict:
-					self.untrained_option.set_step_seed(self.step_seed)
-
-				# TODO: use old DSC
-				if self.use_old:
-					if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
-						self.max_num_options > 0 and self.untrained_option.initiation_classifier is None:
-						uo_episode_terminated = True
+				# TODO: first check if chain needs fix from trained options
+				# if self.use_chain_fix and (not uo_episode_terminated) and self.untrained_option.get_training_phase() != 'gestation':
+				# 	should_fix, new_fix_option = self.detect_and_fix_chain(episode, step_number)
+				# 	if should_fix:
+				# 		uo_episode_terminated = True
+				# 		self.untrained_option = new_fix_option
 				
-						if self.untrained_option.train(experience_buffer, state_buffer):
-							self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
-							
-							# TODO: log weak chain breaks
-							self.update_full_chain_breaks(episode, step_number, self.old_log_full_chain_breaks())
+				skip_child = False
 
-							if self.should_create_child_options():
-								new_option = self.create_option(self.untrained_option, self.untrained_option.option_idx + 1)
-								self.untrained_option = new_option
-				
-				else:
-					if self.untrained_option.is_term_true(state) and (not uo_episode_terminated) and\
-							self.max_num_options > 0 and self.untrained_option.optimistic_classifier is None:
+				# Can only do one thing per episode
+				if (not uo_episode_terminated):
+					# Train terminating option
+					if self.untrained_option.is_term_true(state) and\
+						self.max_num_options > 0 and self.untrained_option.get_training_phase() == 'gestation':
 						uo_episode_terminated = True
 
 						if self.untrained_option.train(experience_buffer, state_buffer):
-							# plot_one_class_optimistic_classifier(self.untrained_option, episode, args.experiment_name)
-							
 							self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
+					
+					# Check on last step in episode, Can only create options if one is not being trained
+					elif self.untrained_option.get_training_phase() != 'gestation':
+						# Check and fix breaks
+						if self.use_chain_fix:
+							uo_episode_terminated = True	# check only once per episode
+							should_fix, new_fix_option = self.detect_and_fix_chain(episode, step_number)
+							if should_fix:
+								skip_child = True
+								self.untrained_option = new_fix_option
+						
+						# Check if children need to be made from trained options
+						if (not skip_child) and self.should_create_child_options(verbose=False):	
+							self.num_options += 1
 							
-							# TODO: log weak chain breaks
-							self.update_full_chain_breaks(episode, step_number, self.log_full_chain_breaks())
+							# TODO: if untrained option was a chain fix, need to create child from the last in chain
+							last_option_in_chain = self.get_skill_chain()[-1]
+							new_idx = self.num_options
 
-							# TODO: chain fixes
-							goal_needs_fix, broken_goal = self.should_create_new_goal_option()
-							option_needs_fix, broken_option = self.should_create_chain_fix_option()
-							
-							if self.should_create_child_options():
-								self.num_options += 1
-								new_idx = self.num_options
-								child_option = self.create_option(self.untrained_option, new_idx)
-								self.untrained_option = child_option
-							elif goal_needs_fix:
-								print("    |-> GOAL CHAIN BREAK: (broken) {}".format(broken_goal.name))
-								self.update_goal_chain_breaks(broken_goal, episode, step_number)
-								self.num_options += 1
-								# Create goal fix option with broken goal option's positive examples
-								new_idx = self.num_options
-								goal_fix_option = self.create_option(None, new_idx)
-								
-								# Link broken goal option to new goal fix option
-								self.update_options_parent(broken_goal, goal_fix_option)
-
-								self.untrained_option = goal_fix_option
-							elif option_needs_fix:
-								print("    |-> STRONG CHAIN BREAK: (parent) {}, (broken) {}".format(broken_option.parent.name, broken_option.name))
-								self.update_chain_breaks(broken_option, episode, step_number)
-								self.num_options += 1
-
-								# Create chain fix option with broken option's positive examples
-								new_idx = self.num_options
-								chain_fix_option = self.create_option(broken_option.parent, new_idx)
-
-								# Link broken option to new chain fix option
-								self.update_options_parent(broken_option, chain_fix_option)
-
-								self.untrained_option = chain_fix_option
-							# elif self.should_create_child_options():
-							# 	self.num_options += 1
-							# 	new_idx = self.num_options
-							# 	child_option = self.create_option(self.untrained_option, new_idx)
-							# 	self.untrained_option = child_option
+							child_option = self.create_option(last_option_in_chain, new_idx, type='(child) ')
+							self.untrained_option = child_option
 
 				if state.is_terminal():
 					break
@@ -1092,39 +1034,46 @@ class SkillChaining(object):
 			per_episode_scores.append(score)
 			per_episode_durations.append(step_number)
 
+			# TODO: log full chain breaks
+			self.log_full_chain_breaks(episode)
+
+			# TODO: save data for plots
+			self.run_plot_processing(episode)
+
+			# TODO: call for making episodic plots
+			if self.episodic_plots:
+				self.plot_episodic_plots(episode, per_episode_scores)
+
+			# TODO: log if child doesn't need to be created this episode
+			self.should_create_child_options(verbose=True)
+
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
 			
-			# TODO: print current chain (not valid for old method)
-			if not self.use_old:
-				print("Current Skill Chain: {}".format(self.get_skill_chain()))
+			# TODO: print chain info
+			print("Current Skill Chain: {}".format(self.get_skill_chain()))
+			print("EPISODE FULL CHAIN BREAKS: {}\n".format(self.temporal_full_chain_breaks[episode]))
 
 			# TODO: save data per episode
 			if self.episodic_saves:
 				self.save_all_data(self.log_dir, self.args, per_episode_scores, per_episode_durations)
 
-			# TODO: call for making episodic plots
-			if self.episodic_plots:
-				self.episodic_plot_processing(episode, per_episode_scores)
-			else:
-				self.run_plot_processing(episode)
-
 			# TODO: update episode count of trained options
 			self.update_options_episode(episode)
 			self.episode += 1
 
-		# TODO: call for generating plots at end of the run
-		if self.generate_plots:
-			self.generate_all_plots(per_episode_scores)
+		# TODO: export
+		self.final_skill_chain = [str(option.name) for option in self.get_skill_chain()]
+		self.x_mesh_hd, self.y_mesh_hd = self.make_meshgrid(width_coord, height_coord, h=0.01)	#for plotting
 
-		# TODO: save skill chain
-		self.final_skill_chain = self.get_skill_chain()
+		print("Saving all data...")
+		self.save_all_data(self.log_dir, self.args, per_episode_scores, per_episode_durations)
 
 		return per_episode_scores, per_episode_durations
 
 	
 	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
 
-		print('\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
+		print('Episode {}\tScore: {:.2f}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
 			episode, last_10_scores[-1], np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
 
 		self.num_options_history.append(len(self.trained_options))
@@ -1251,7 +1200,7 @@ if __name__ == '__main__':
 	parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
 	parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
 	parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
-	parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
+	parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=np.inf)
 	parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
 	parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
 	parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
@@ -1263,8 +1212,8 @@ if __name__ == '__main__':
 	parser.add_argument("--discrete_actions", type=bool, help="Whether or not actions are discrete", default=False)
 	parser.add_argument("--lr_dqn", type=float, help="DQN learning rate", default=1e-4)
 	parser.add_argument("--use_old", type=bool, help="Whether to use older DSC methods", default=False)
-	parser.add_argument("--use_prob_predict", type=bool, help="Whether to use probability predictions with classifiers", default=False)
 	parser.add_argument("--episodic_saves", type=bool, help="Save all data per episode", default=False)
+	parser.add_argument("--use_chain_fix", type=bool, help="Whether or not to use chain fixing method", default=False)
 	args = parser.parse_args()
 
 	if "reacher" in args.env.lower():
@@ -1317,17 +1266,14 @@ if __name__ == '__main__':
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, episodic_plots=args.episodic_plots, tensor_log=args.tensor_log, device=args.device,
 							opt_nu=args.opt_nu, pes_nu=args.pes_nu, experiment_name=args.experiment_name, num_run=args.num_run, discrete_actions=args.discrete_actions,
-							use_old=args.use_old, use_prob_predict=args.use_prob_predict, episodic_saves=args.episodic_saves, args=args)
+							use_old=args.use_old, episodic_saves=args.episodic_saves, args=args, use_chain_fix=args.use_chain_fix)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
 	# TODO: remove
 	print("Scores: {}".format(episodic_scores))
-	if not args.use_old:
-		print("Final Skill Chain: {}".format(chainer.final_skill_chain))
+	print("Final Skill Chain: {}".format(chainer.final_skill_chain))
 
 	# Log performance metrics
 	# chainer.save_all_models()
 	# chainer.perform_experiments()
 	# chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
-	print("Saving all data...")
-	chainer.save_all_data(logdir, args, episodic_scores, episodic_durations)
