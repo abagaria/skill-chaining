@@ -12,9 +12,7 @@ from PIL import Image
 from tqdm import tqdm
 
 # Other imports.
-from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
-from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
-from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
+from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP, D4RLPointMazeState
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -44,7 +42,7 @@ class Experience(object):
 
 def plot_trajectory(trajectory, color='k', marker="o"):
     for i, state in enumerate(trajectory):
-        if isinstance(state, PointMazeState):
+        if isinstance(state, D4RLPointMazeState):
             x = state.position[0]
             y = state.position[1]
         else:
@@ -65,62 +63,24 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
     ss = []
-    for x in np.arange(-11., 11., 1.):
-        for y in np.arange(-11., 11., 0.5):
-            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-                               theta=0., theta_dot=0., done=False)
+    x_low_lim, y_low_lim = D4RLPointMazeMDP.get_x_y_low_lims()
+    x_high_lim, y_high_lim = D4RLPointMazeMDP.get_x_y_high_lims()
+    for x in np.arange(x_low_lim, x_high_lim, 1.):
+        for y in np.arange(y_low_lim, y_high_lim, 1.):
+            s = D4RLPointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]), done=False)
             ss.append(s)
     return ss
 
 def get_initiation_set_values(option, has_key):
     values = []
-    for x in np.arange(-11., 11., 1.):
-        for y in np.arange(-11., 11., 0.5):
-            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0, 0]),
-                               theta=0, theta_dot=0, done=False)
+    x_low_lim, y_low_lim = D4RLPointMazeMDP.get_x_y_low_lims()
+    x_high_lim, y_high_lim = D4RLPointMazeMDP.get_x_y_high_lims()
+    for x in np.arange(x_low_lim, x_high_lim, 1.):
+        for y in np.arange(y_low_lim, y_high_lim, 1.):
+            s = D4RLPointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]), done=False)
             values.append(option.is_init_true(s))
 
     return values
-
-def get_values(solver, init_values=False):
-    values = []
-    for x in np.arange(0., 11., 0.5):
-        for y in np.arange(0., 11., 0.5):
-            v = []
-            for vx in [-0.01, -0.1, 0., 0.01, 0.1]:
-                for vy in [-0.01, -0.1, 0., 0.01, 0.1]:
-                    for theta in [-90., -45., 0., 45., 90.]:
-                        for theta_dot in [-1., 0., 1.]:
-                            s = PointMazeState(position=np.array([x, y]), velocity=np.array([vx, vy]),
-                                               theta=theta, theta_dot=theta_dot, done=False)
-
-                            if not init_values:
-                                v.append(solver.get_value(s.features()))
-                            else:
-                                v.append(solver.is_init_true(s))
-
-            if not init_values:
-                values.append(np.mean(v))
-            else:
-                values.append(np.sum(v))
-
-    return values
-
-def render_sampled_value_function(solver, episode=None, experiment_name=""):
-    states = get_grid_states()
-    values = get_values(solver)
-
-    x = np.array([state.position[0] for state in states])
-    y = np.array([state.position[1] for state in states])
-    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
-    xx, yy = np.meshgrid(xi, yi)
-    rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
-    zz = rbf(xx, yy)
-    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
-    plt.colorbar()
-    name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
-    plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
-    plt.close()
 
 def make_meshgrid(x, y, h=.02):
     x_min, x_max = x.min() - 1, x.max() + 1
@@ -268,10 +228,10 @@ def replay_trajectory(trajectory, dir_name):
 
     for i, (option, state) in enumerate(trajectory):
         color = colors[option % len(colors)]
-        mdp = PointMazeMDP(seed=0, render=True, color_str=color)
+        mdp = D4RLPointMazeMDP(seed=0, render=True)
 
-        qpos = np.copy(state.features()[:3])
-        qvel = np.copy(state.features()[3:])
+        qpos = np.copy(state.features()[:2])
+        qvel = np.copy(state.features()[2:])
 
         mdp.env.wrapped_env.set_state(qpos, qvel)
         mdp.env.render()

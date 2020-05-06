@@ -124,7 +124,7 @@ class SkillChaining(object):
 										   exploration_strategy="shaping")
 
 		# Keep track of which chain each created option belongs to
-		s0 = self.mdp.env._init_positions
+		s0 = self.mdp.get_init_positions()
 		self.s0 = s0
 		start_state_salient_event = self.mdp.get_start_state_salient_event() if self.start_state_salience else None
 		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
@@ -809,6 +809,11 @@ if __name__ == '__main__':
 		overall_mdp = PointReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
 		state_dim = 6
 		action_dim = 2
+	elif args.env == "d4rl-point-maze":
+		from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+		overall_mdp = D4RLPointMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
 	elif "reacher" in args.env.lower():
 		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
