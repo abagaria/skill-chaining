@@ -1,0 +1,3479 @@
+=====================================
+START: Wed May  6 01:55:06 UTC 2020
+CMD: python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env=maze --experiment_name=(cs2951x) maze_pes_nu_0.3_without_chainfix --episodes=300 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device=cuda:0 --num_subgoal_hits=5 --pes_nu=0.3 --opt_nu=0.1 --num_run=3 --seed=3 --episodic_saves=True
+- experiment_name: (cs2951x) maze_pes_nu_0.3_without_chainfix
+- pes_nu: 0.3
+- opt_nu 0.1
+- seed: 3
+=====================================
+
+Goal position:  [0. 8.]
+Training skill chaining agent from scratch with a subgoal reward = 300.0 and buffer_len = 20
+
+MDP: point_maze
+MDP InitState =  x: 0.02451317564164679	y: -0.04660202682885657	theta: -0.026051286742278232	xdot: -0.04316681017495501	ydot: -0.16350620285019132	thetadot: -0.09765233867085127	terminal: False
+
+Initializing skill chaining with option_timeout=True, seed=3
+
+Creating global_option with enable_timeout=True
+|-> Creating (global_solver) DDPG-Agent-global_option with lr_actor=0.0001, lr_critic=0.001, and buffer_sz=1000000
+|-> Creating (solver) DDPG-Agent-global_option with lr_actor=0.0001, lr_critic=0.001, and buffer_sz=1000000
+Creating option_1 with enable_timeout=True
+|-> Creating (solver) DDPG-Agent-option_1 with lr_actor=0.0001, lr_critic=0.001, and buffer_sz=1000000
+Creating GlobalDQN with lr=0.0001, ddqn=True, and buffer_sz=1000000
+
+SkillChaining::skill_chaining: call
+|-> episode: 0
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 0	Score: -2000.00	Average Score: -2000.00	Duration: 2000.00 steps	GO Eps: 0.98
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 1
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+global_option execution successful
+    |-> Option::train: call (train option_1)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+Episode 1	Score: -1428.00	Average Score: -1714.00	Duration: 1714.50 steps	GO Eps: 0.97
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 2
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+global_option execution successful
+    |-> Option::train: call (train option_1)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+Episode 2	Score: -1001.00	Average Score: -1476.33	Duration: 1477.00 steps	GO Eps: 0.96
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 3
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 3	Score: -2000.00	Average Score: -1607.25	Duration: 1607.75 steps	GO Eps: 0.94
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 4
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 4	Score: -2000.00	Average Score: -1685.80	Duration: 1686.20 steps	GO Eps: 0.92
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 5
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 5	Score: -2000.00	Average Score: -1738.17	Duration: 1738.50 steps	GO Eps: 0.90
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 6
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 6	Score: -2000.00	Average Score: -1775.57	Duration: 1775.86 steps	GO Eps: 0.88
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 7
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 7	Score: -2000.00	Average Score: -1803.62	Duration: 1803.88 steps	GO Eps: 0.86
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 8
+  |-> step_number: 0
+  |-> step_number: 500
+global_option execution successful
+    |-> Option::train: call (train option_1)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+Episode 8	Score: -582.00	Average Score: -1667.89	Duration: 1668.22 steps	GO Eps: 0.85
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 9
+  |-> step_number: 0
+global_option execution successful
+    |-> Option::train: call (train option_1)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+Episode 9	Score: -275.00	Average Score: -1528.60	Duration: 1529.00 steps	GO Eps: 0.85
+Current Skill Chain: []
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 10
+  |-> step_number: 0
+  |-> step_number: 500
+global_option execution successful
+    |-> Option::train: call (train option_1)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+      |-> No negative examples...Adding 1 now!
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+option_1 execution successful
+Creating GlobalDQN with lr=0.0001, ddqn=True, and buffer_sz=1000000
+|-> Initializing new option node with q value 0.0
+Episode 10	Score: -907.00	Average Score: -1419.30	Duration: 1419.80 steps	GO Eps: 0.84
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 11
+  |-> step_number: 0
+(child) Creating option_2
+Creating option_2 with enable_timeout=True
+|-> Creating (solver) DDPG-Agent-option_2 with lr_actor=0.0001, lr_critic=0.001, and buffer_sz=1000000
+  |-> step_number: 500
+    |-> Option::train: call (train option_2)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+option_1 execution successful
+Episode 11	Score: -832.00	Average Score: -1359.70	Duration: 1360.20 steps	GO Eps: 0.83
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 12
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 12	Score: -2000.00	Average Score: -1459.60	Duration: 1460.00 steps	GO Eps: 0.81
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 13
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 13	Score: -2000.00	Average Score: -1459.60	Duration: 1460.00 steps	GO Eps: 0.79
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 14
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+    |-> Option::train: call (train option_2)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+option_1 execution successful
+Episode 14	Score: -1129.00	Average Score: -1372.50	Duration: 1373.00 steps	GO Eps: 0.78
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 15
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 15	Score: -2000.00	Average Score: -1372.50	Duration: 1373.00 steps	GO Eps: 0.76
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 16
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 16	Score: -2000.00	Average Score: -1372.50	Duration: 1373.00 steps	GO Eps: 0.74
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 17
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+    |-> Option::train: call (train option_2)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+Episode 17	Score: -2000.00	Average Score: -1372.50	Duration: 1373.00 steps	GO Eps: 0.72
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 18
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+    |-> Option::train: call (train option_2)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+option_1 execution successful
+Episode 18	Score: -1518.00	Average Score: -1466.10	Duration: 1466.60 steps	GO Eps: 0.70
+Current Skill Chain: [option_1]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 19
+  |-> step_number: 0
+  |-> step_number: 500
+    |-> Option::train: call (train option_2)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+Creating GlobalDQN with lr=0.0001, ddqn=True, and buffer_sz=1000000
+|-> Initializing new option node with q value 0.0
+option_1 execution successful
+Episode 19	Score: -702.00	Average Score: -1508.80	Duration: 1509.30 steps	GO Eps: 0.70
+Current Skill Chain: [option_1, option_2]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 20
+  |-> step_number: 0
+(child) Creating option_3
+Creating option_3 with enable_timeout=True
+|-> Creating (solver) DDPG-Agent-option_3 with lr_actor=0.0001, lr_critic=0.001, and buffer_sz=1000000
+    |-> Option::train: call (train option_3)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 20	Score: -2000.00	Average Score: -1618.10	Duration: 1618.50 steps	GO Eps: 0.68
+Current Skill Chain: [option_1, option_2]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 21
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+    |-> Option::train: call (train option_3)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+Episode 21	Score: -2000.00	Average Score: -1734.90	Duration: 1735.20 steps	GO Eps: 0.66
+Current Skill Chain: [option_1, option_2]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 22
+  |-> step_number: 0
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 22	Score: -2000.00	Average Score: -1734.90	Duration: 1735.20 steps	GO Eps: 0.64
+Current Skill Chain: [option_1, option_2]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 23
+  |-> step_number: 0
+  |-> step_number: 500
+    |-> Option::train: call (train option_3)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+option_1 execution successful
+Episode 23	Score: -1689.00	Average Score: -1703.80	Duration: 1704.20 steps	GO Eps: 0.62
+Current Skill Chain: [option_1, option_2]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 24
+  |-> step_number: 0
+    |-> Option::train: call (train option_3)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+  |-> step_number: 500
+  |-> step_number: 1000
+  |-> step_number: 1500
+Episode 24	Score: -2000.00	Average Score: -1790.90	Duration: 1791.20 steps	GO Eps: 0.60
+Current Skill Chain: [option_1, option_2]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 25
+  |-> step_number: 0
+  |-> step_number: 500
+    |-> Option::train: call (train option_3)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+option_3 execution successful
+option_3 execution successful
+Creating GlobalDQN with lr=0.0001, ddqn=True, and buffer_sz=1000000
+|-> Initializing new option node with q value 0.0
+option_1 execution successful
+Episode 25	Score: -808.00	Average Score: -1671.70	Duration: 1672.10 steps	GO Eps: 0.59
+Current Skill Chain: [option_1, option_2, option_3]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 26
+  |-> step_number: 0
+(child) Creating option_4
+Creating option_4 with enable_timeout=True
+|-> Creating (solver) DDPG-Agent-option_4 with lr_actor=0.0001, lr_critic=0.001, and buffer_sz=1000000
+    |-> Option::train: call (train option_4)
+      |-> num_goal_hits: 1, num_subgoal_hits_required: 5 
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Episode 26	Score: -432.00	Average Score: -1514.90	Duration: 1515.40 steps	GO Eps: 0.59
+Current Skill Chain: [option_1, option_2, option_3]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 27
+  |-> step_number: 0
+    |-> Option::train: call (train option_4)
+      |-> num_goal_hits: 2, num_subgoal_hits_required: 5 
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+Init state is in option_3's initiation set classifier
+Episode 27	Score: -2000.00	Average Score: -1514.90	Duration: 1515.40 steps	GO Eps: 0.57
+Current Skill Chain: [option_1, option_2, option_3]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 28
+  |-> step_number: 0
+    |-> Option::train: call (train option_4)
+      |-> num_goal_hits: 3, num_subgoal_hits_required: 5 
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+Episode 28	Score: -2000.00	Average Score: -1563.10	Duration: 1563.50 steps	GO Eps: 0.55
+Current Skill Chain: [option_1, option_2, option_3]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 29
+  |-> step_number: 0
+    |-> Option::train: call (train option_4)
+      |-> num_goal_hits: 4, num_subgoal_hits_required: 5 
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.19469370992759372	y: 7.78040283504525	theta: 68.94160264977332	xdot: -0.30895657382952374	ydot: 1.138697793970822	thetadot: -0.7553895875244978	terminal: True
+ is_terminal() but not term_true()
+Episode 29	Score: -793.00	Average Score: -1572.20	Duration: 1572.60 steps	GO Eps: 0.54
+Current Skill Chain: [option_1, option_2, option_3]
+EPISODE FULL CHAIN BREAKS: 0
+
+|-> episode: 30
+  |-> step_number: 0
+    |-> Option::train: call (train option_4)
+      |-> num_goal_hits: 5, num_subgoal_hits_required: 5 
+option_4 execution successful
+Creating GlobalDQN with lr=0.0001, ddqn=True, and buffer_sz=1000000
+|-> Initializing new option node with q value 0.0
+option_3 execution successful
+option_3 execution successful
+option_2 execution successful
+option_2 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 30	Score: -797.00	Average Score: -1451.90	Duration: 1452.40 steps	GO Eps: 0.53
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 31
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 31	Score: -1732.00	Average Score: -1425.10	Duration: 1425.70 steps	GO Eps: 0.51
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 32
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 32	Score: -1736.00	Average Score: -1398.70	Duration: 1399.40 steps	GO Eps: 0.50
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 33
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 33	Score: -997.00	Average Score: -1329.50	Duration: 1330.20 steps	GO Eps: 0.49
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 34
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.07675159655519458	y: 7.7658144245560266	theta: 66.87772749609378	xdot: -1.2732116513806544	ydot: 5.214919932948823	thetadot: 3.9659160694383004	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 34	Score: -188.00	Average Score: -1148.30	Duration: 1149.10 steps	GO Eps: 0.48
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 35
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 35	Score: -989.00	Average Score: -1166.40	Duration: 1167.20 steps	GO Eps: 0.47
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 36
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.019650963865120413	y: 8.141775772209055	theta: 67.05867093538325	xdot: 4.459031465085067	ydot: -0.4551965346066767	thetadot: -1.0615409118607662	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 36	Score: -491.00	Average Score: -1172.30	Duration: 1173.10 steps	GO Eps: 0.47
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 37
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.21596767403979572	y: 8.081246628543965	theta: 541.5804649194109	xdot: 0.036092764162974314	ydot: 5.210246935439072	thetadot: 0.4604265344123516	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 37	Score: -857.00	Average Score: -1058.00	Duration: 1058.90 steps	GO Eps: 0.46
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 38
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+Init state is in option_4's initiation set classifier
+Episode 38	Score: -2000.00	Average Score: -1058.00	Duration: 1058.90 steps	GO Eps: 0.44
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 39
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 39	Score: -464.00	Average Score: -1025.10	Duration: 1026.00 steps	GO Eps: 0.44
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 40
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 40	Score: -1025.00	Average Score: -1047.90	Duration: 1048.80 steps	GO Eps: 0.43
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 41
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.2763149886808678	y: 8.093197010541317	theta: 215.0870944001755	xdot: -6.08870810197295	ydot: 0.5369979485703472	thetadot: -2.962486442440476	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 41	Score: -886.00	Average Score: -963.30	Duration: 964.20 steps	GO Eps: 0.42
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 42
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 42	Score: -1845.00	Average Score: -974.20	Duration: 975.10 steps	GO Eps: 0.40
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 43
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 1500
+Init state is in option_4's initiation set classifier
+Episode 43	Score: -2000.00	Average Score: -1074.50	Duration: 1075.30 steps	GO Eps: 0.38
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 44
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+Init state is in option_4's initiation set classifier
+Episode 44	Score: -2000.00	Average Score: -1255.70	Duration: 1256.40 steps	GO Eps: 0.36
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 45
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 45	Score: -213.00	Average Score: -1178.10	Duration: 1178.80 steps	GO Eps: 0.36
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 46
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_4 execution successful
+Init state is in option_4's initiation set classifier
+Episode 46	Score: -2000.00	Average Score: -1329.00	Duration: 1329.60 steps	GO Eps: 0.34
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 47
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+Init state is in option_4's initiation set classifier
+Episode 47	Score: -2000.00	Average Score: -1443.30	Duration: 1443.80 steps	GO Eps: 0.32
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 48
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.000888228138829108	y: 7.712885617932128	theta: 164.37867953518668	xdot: -0.1336317245998303	ydot: 4.840649175034873	thetadot: 1.098998675413923	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 48	Score: -311.00	Average Score: -1274.40	Duration: 1275.00 steps	GO Eps: 0.31
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 49
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 49	Score: -312.00	Average Score: -1259.20	Duration: 1259.80 steps	GO Eps: 0.31
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 50
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.012047048135867766	y: 8.218399917237067	theta: 83.2644128432601	xdot: -0.1847608872399289	ydot: 4.179789178043784	thetadot: 0.9343900132411425	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 50	Score: -809.00	Average Score: -1237.60	Duration: 1238.20 steps	GO Eps: 0.30
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 51
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 51	Score: -304.00	Average Score: -1179.40	Duration: 1180.00 steps	GO Eps: 0.30
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 52
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 52	Score: -1182.00	Average Score: -1113.10	Duration: 1113.70 steps	GO Eps: 0.29
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 53
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 53	Score: -1394.00	Average Score: -1052.50	Duration: 1053.20 steps	GO Eps: 0.27
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 54
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+  |-> step_number: 1500
+option_4 execution successful
+Init state is in option_4's initiation set classifier
+Episode 54	Score: -2000.00	Average Score: -1052.50	Duration: 1053.20 steps	GO Eps: 0.25
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 55
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+Init state is in option_4's initiation set classifier
+Episode 55	Score: -2000.00	Average Score: -1231.20	Duration: 1231.80 steps	GO Eps: 0.23
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 56
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 56	Score: -444.00	Average Score: -1075.60	Duration: 1076.30 steps	GO Eps: 0.23
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 57
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 57	Score: -174.00	Average Score: -893.00	Duration: 893.80 steps	GO Eps: 0.23
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 58
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+Init state is in option_4's initiation set classifier
+Episode 58	Score: -2000.00	Average Score: -1061.90	Duration: 1062.60 steps	GO Eps: 0.21
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 59
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_3]: x: 0.027505815340544165	y: 8.22140327622352	theta: -72.26197082403611	xdot: 3.3066575278733437	ydot: 2.6093946333835643	thetadot: 7.00899274283851	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 59	Score: -207.00	Average Score: -1051.40	Duration: 1052.10 steps	GO Eps: 0.21
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 60
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.28939072710080804	y: 7.9454228109152965	theta: 58.18497096811035	xdot: 0.7942642569627442	ydot: 5.59522457514778	thetadot: -0.7074949628300868	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 60	Score: -352.00	Average Score: -1005.70	Duration: 1006.40 steps	GO Eps: 0.20
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 61
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 61	Score: -292.00	Average Score: -1004.50	Duration: 1005.20 steps	GO Eps: 0.20
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 62
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.1565126140126842	y: 7.904423887472021	theta: 76.60342642146016	xdot: -0.07111716038255432	ydot: 4.352483281630761	thetadot: 1.7631299366891031	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 62	Score: -533.00	Average Score: -939.60	Duration: 940.30 steps	GO Eps: 0.19
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 63
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 63	Score: -486.00	Average Score: -848.80	Duration: 849.50 steps	GO Eps: 0.19
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 64
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 64	Score: -1574.00	Average Score: -806.20	Duration: 807.00 steps	GO Eps: 0.17
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 65
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.19193294958560128	y: 7.894442297968824	theta: 61.47317374309496	xdot: -0.03310659675408059	ydot: 4.462617524337581	thetadot: 0.2049051773285236	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 65	Score: -241.00	Average Score: -630.30	Duration: 631.20 steps	GO Eps: 0.17
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 66
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 66	Score: -541.00	Average Score: -640.00	Duration: 640.90 steps	GO Eps: 0.16
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 67
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.26195080599062254	y: 7.906565826368239	theta: 50.57584436708895	xdot: 0.04527205911172461	ydot: 5.765183800125112	thetadot: -0.23695218157951375	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 67	Score: -484.00	Average Score: -671.00	Duration: 671.90 steps	GO Eps: 0.16
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 68
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 68	Score: -319.00	Average Score: -502.90	Duration: 503.90 steps	GO Eps: 0.16
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 69
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_3]: x: 0.024158404043699858	y: 7.859060179868512	theta: -38.13104584076065	xdot: -4.46531849347969	ydot: 0.11910261204251792	thetadot: -0.758629827790071	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 69	Score: -237.00	Average Score: -505.90	Duration: 506.90 steps	GO Eps: 0.15
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 70
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.22106766695203028	y: 8.043431703389388	theta: 55.09771389895622	xdot: -0.5364040603657126	ydot: 2.353165875283292	thetadot: -0.9928618723581009	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 70	Score: -527.00	Average Score: -523.40	Duration: 524.40 steps	GO Eps: 0.15
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 71
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 71	Score: -339.00	Average Score: -528.10	Duration: 529.10 steps	GO Eps: 0.15
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 72
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 72	Score: -965.00	Average Score: -571.30	Duration: 572.30 steps	GO Eps: 0.14
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 73
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 73	Score: -504.00	Average Score: -573.10	Duration: 574.10 steps	GO Eps: 0.13
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 74
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 74	Score: -190.00	Average Score: -434.70	Duration: 435.70 steps	GO Eps: 0.13
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 75
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 75	Score: -179.00	Average Score: -428.50	Duration: 429.50 steps	GO Eps: 0.13
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 76
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 500
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+Init state is in option_4's initiation set classifier
+Episode 76	Score: -2000.00	Average Score: -574.40	Duration: 575.30 steps	GO Eps: 0.11
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 77
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 77	Score: -790.00	Average Score: -605.00	Duration: 605.90 steps	GO Eps: 0.10
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 78
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.07921526709420813	y: 8.122609890205732	theta: 23.884143718166687	xdot: 1.1426137099315858	ydot: -6.953731972225672	thetadot: -7.207428249212996	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 78	Score: -128.00	Average Score: -585.90	Duration: 586.80 steps	GO Eps: 0.10
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 79
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 79	Score: -381.00	Average Score: -600.30	Duration: 601.20 steps	GO Eps: 0.09
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 80
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.18907936325782623	y: 7.91648343391994	theta: 11.158539604758454	xdot: 0.069514865919271	ydot: 4.701932598355043	thetadot: -0.5811029655650967	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 80	Score: -142.00	Average Score: -561.80	Duration: 562.70 steps	GO Eps: 0.09
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 81
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 81	Score: -286.00	Average Score: -556.50	Duration: 557.40 steps	GO Eps: 0.09
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 82
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.012759197043140155	y: 8.083901609960488	theta: 39.07045647909496	xdot: 0.2329355054781134	ydot: -4.064341881664465	thetadot: -1.06789648929995	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 82	Score: -345.00	Average Score: -494.50	Duration: 495.40 steps	GO Eps: 0.09
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 83
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 83	Score: -423.00	Average Score: -486.40	Duration: 487.30 steps	GO Eps: 0.08
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 84
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 84	Score: -1253.00	Average Score: -592.70	Duration: 593.60 steps	GO Eps: 0.07
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 85
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.17249820648233577	y: 7.835460923445393	theta: 9.143957400432111	xdot: 0.10789877143874048	ydot: -4.571858554285958	thetadot: -1.4034643035678867	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 85	Score: -741.00	Average Score: -648.90	Duration: 649.80 steps	GO Eps: 0.06
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 86
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 86	Score: -226.00	Average Score: -471.50	Duration: 472.50 steps	GO Eps: 0.06
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 87
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.23329290105925826	y: 7.954386117025423	theta: 30.524148087873307	xdot: -1.0191771440098016	ydot: -4.160478758149774	thetadot: 1.778468646558572	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 87	Score: -404.00	Average Score: -432.90	Duration: 433.90 steps	GO Eps: 0.06
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 88
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 88	Score: -206.00	Average Score: -440.70	Duration: 441.70 steps	GO Eps: 0.05
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 89
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.20224377873730762	y: 7.885799542407475	theta: 30.838101639243703	xdot: -1.5472498524255591	ydot: -4.8604991034663225	thetadot: -0.5312667879506262	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 89	Score: -157.00	Average Score: -418.30	Duration: 419.30 steps	GO Eps: 0.05
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 90
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 90	Score: -420.00	Average Score: -446.10	Duration: 447.10 steps	GO Eps: 0.05
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 91
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_4 execution successful
+option_3 execution successful
+  |-> step_number: 1000
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 91	Score: -1163.00	Average Score: -533.80	Duration: 534.80 steps	GO Eps: 0.04
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 92
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 92	Score: -687.00	Average Score: -568.00	Duration: 569.00 steps	GO Eps: 0.03
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 93
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 93	Score: -268.00	Average Score: -552.50	Duration: 553.50 steps	GO Eps: 0.03
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 94
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.1900941424228802	y: 8.103593034013763	theta: 55.65399218017275	xdot: -1.0651718449075858	ydot: -2.524506147082109	thetadot: -4.114717641345555	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 94	Score: -346.00	Average Score: -461.80	Duration: 462.80 steps	GO Eps: 0.02
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 95
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 1000
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 95	Score: -1758.00	Average Score: -563.50	Duration: 564.50 steps	GO Eps: 0.01
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 96
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 96	Score: -373.00	Average Score: -578.20	Duration: 579.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 97
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 97	Score: -183.00	Average Score: -556.10	Duration: 557.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 98
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.1827594596970589	y: 7.866660688876937	theta: 53.58067709711195	xdot: 8.0651326353979	ydot: 1.0548414715112655	thetadot: -10.353258630846485	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 98	Score: -164.00	Average Score: -551.90	Duration: 552.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 99
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+[option_2]: x: 0.280656429074992	y: 8.039603037059036	theta: 23.02540091895238	xdot: 0.3283082838096637	ydot: 1.0269277564647754	thetadot: 1.5368768487229962	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 99	Score: -302.00	Average Score: -566.40	Duration: 567.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 100
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.12559012868660016	y: 7.794942658481451	theta: 50.45978715586986	xdot: 0.1878083751026846	ydot: -4.014732942458594	thetadot: 0.10451521382226386	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 100	Score: -137.00	Average Score: -538.10	Duration: 539.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 101
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.03862677206564011	y: 8.075650271982607	theta: 68.00004066993064	xdot: 0.28353711363326095	ydot: -0.8560928363234735	thetadot: 0.5801549845924072	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 101	Score: -139.00	Average Score: -435.70	Duration: 436.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 102
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.11310872264475447	y: 7.7807632787480765	theta: 32.39670175221851	xdot: 0.47651581253487524	ydot: -2.687702107327541	thetadot: 1.689217881028337	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 102	Score: -235.00	Average Score: -390.50	Duration: 391.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 103
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 103	Score: -171.00	Average Score: -380.80	Duration: 381.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 104
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 104	Score: -299.00	Average Score: -376.10	Duration: 377.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 105
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 105	Score: -210.00	Average Score: -221.30	Duration: 222.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 106
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 106	Score: -170.00	Average Score: -201.00	Duration: 202.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 107
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 107	Score: -612.00	Average Score: -243.90	Duration: 244.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 108
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 108	Score: -946.00	Average Score: -322.10	Duration: 323.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 109
+  |-> step_number: 0
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 109	Score: -120.00	Average Score: -303.90	Duration: 304.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 110
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.12771688969846773	y: 7.898819147819803	theta: 59.512409597398836	xdot: 2.715491082963717	ydot: -1.5316722816425288	thetadot: 2.387901357075009	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 110	Score: -306.00	Average Score: -320.80	Duration: 321.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 111
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 111	Score: -455.00	Average Score: -352.40	Duration: 353.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 112
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.020537118941455726	y: 7.845327270800394	theta: 34.41319450273128	xdot: 5.892425332232456	ydot: 0.788016427226	thetadot: 7.57668984678405	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 112	Score: -249.00	Average Score: -353.80	Duration: 354.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 113
+  |-> step_number: 0
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 113	Score: -345.00	Average Score: -371.20	Duration: 372.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 114
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.18060257560512455	y: 7.862960439747915	theta: 51.82295374975492	xdot: -0.07160449558858634	ydot: -1.7682264163212822	thetadot: 0.23027195932547875	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 114	Score: -143.00	Average Score: -355.60	Duration: 356.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 115
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.24982800547678	y: 7.929244280396261	theta: 54.079558680749166	xdot: 2.3372400805850893	ydot: 3.5614523688686197	thetadot: 3.786162706556171	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 115	Score: -187.00	Average Score: -353.30	Duration: 354.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 116
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 116	Score: -180.00	Average Score: -354.30	Duration: 355.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 117
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+[option_2]: x: -0.0013754069984809924	y: 8.122671727239242	theta: 68.0535273616923	xdot: -0.010291695581076125	ydot: 5.563579309685822	thetadot: 0.5749516029701148	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 117	Score: -293.00	Average Score: -322.40	Duration: 323.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 118
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 118	Score: -196.00	Average Score: -247.40	Duration: 248.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 119
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.06634408967578585	y: 8.093735548838884	theta: 64.92617080167598	xdot: 0.36562657454067177	ydot: -2.0713282976828085	thetadot: 1.0877365143833786	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 119	Score: -133.00	Average Score: -248.70	Duration: 249.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 120
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+  |-> step_number: 500
+option_3 execution successful
+[option_2]: x: -0.012273283680081765	y: 8.035516914262187	theta: 84.64256230942551	xdot: 3.157205909277025	ydot: -0.9098906650152593	thetadot: 5.7985924180369	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 120	Score: -669.00	Average Score: -285.00	Duration: 286.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 121
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.10801191596044812	y: 7.78970919466051	theta: 111.54927734244441	xdot: 2.2614833317593774	ydot: 4.4299980164710515	thetadot: -7.6341593233616685	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 121	Score: -254.00	Average Score: -264.90	Duration: 265.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 122
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.12143294211028026	y: 8.010048768346428	theta: 54.520196091039956	xdot: 0.2784894927824518	ydot: 2.8153989907639105	thetadot: 1.2063438672116242	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 122	Score: -219.00	Average Score: -261.90	Duration: 262.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 123
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.06341244446477817	y: 7.966539543128675	theta: 45.650823202285466	xdot: 0.1548201885943765	ydot: -4.436763859405446	thetadot: 2.8914959660177946	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 123	Score: -85.00	Average Score: -235.90	Duration: 236.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 124
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.18492565075114076	y: 7.875465016293012	theta: 90.26399640056175	xdot: 3.6635805447503564	ydot: -0.8086616158104868	thetadot: 7.781194794141402	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 124	Score: -181.00	Average Score: -239.70	Duration: 240.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 125
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 125	Score: -613.00	Average Score: -282.30	Duration: 283.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 126
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 126	Score: -366.00	Average Score: -300.90	Duration: 301.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 127
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.2860040880068687	y: 7.94717076890457	theta: 42.51811072501709	xdot: -0.3766938594508929	ydot: 2.2234930546662195	thetadot: 0.6041913852331842	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 127	Score: -110.00	Average Score: -282.60	Duration: 283.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 128
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.1213208800838448	y: 8.24528306004704	theta: 51.19204450136222	xdot: 2.539722060507667	ydot: -4.009277228067139	thetadot: 3.8013490278242292	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 128	Score: -105.00	Average Score: -273.50	Duration: 274.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 129
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 129	Score: -142.00	Average Score: -274.40	Duration: 275.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 130
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 130	Score: -306.00	Average Score: -238.10	Duration: 239.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 131
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.06877012809008946	y: 8.250108335128738	theta: 72.45488102256452	xdot: 4.945240828898404	ydot: 0.0892754395861865	thetadot: 2.1195455263909113	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 131	Score: -225.00	Average Score: -235.20	Duration: 236.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 132
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 132	Score: -480.00	Average Score: -261.30	Duration: 262.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 133
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 133	Score: -188.00	Average Score: -271.60	Duration: 272.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 134
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 134	Score: -256.00	Average Score: -279.10	Duration: 280.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 135
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 135	Score: -172.00	Average Score: -235.00	Duration: 236.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 136
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.19602725481812772	y: 7.781023610579663	theta: 81.8794509662204	xdot: -0.41107172206642767	ydot: -1.988359951069902	thetadot: -0.7757506532348591	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 136	Score: -194.00	Average Score: -217.80	Duration: 218.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 137
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.15936233017929308	y: 7.829315991719306	theta: 46.317722498598535	xdot: 2.0807520427816444	ydot: -5.168169095045659	thetadot: 5.162237891189212	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 137	Score: -95.00	Average Score: -216.30	Duration: 217.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 138
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.15782171281991186	y: 8.155873257649509	theta: 89.22705283788729	xdot: 0.21781645848940595	ydot: -4.904160739955682	thetadot: 1.8244720162637922	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 138	Score: -368.00	Average Score: -242.60	Duration: 243.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 139
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.15628583080113342	y: 7.979282106840275	theta: 39.19628511062952	xdot: 5.550991657493943	ydot: 1.4971185396323095	thetadot: 6.86692020989322	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 139	Score: -79.00	Average Score: -236.30	Duration: 237.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 140
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 140	Score: -262.00	Average Score: -231.90	Duration: 232.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 141
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 141	Score: -236.00	Average Score: -233.00	Duration: 234.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 142
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.15882608577975857	y: 7.807602231604377	theta: 37.17215662710395	xdot: 1.6112632080023253	ydot: 1.35644772378963	thetadot: -0.43374887557839775	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 142	Score: -95.00	Average Score: -194.50	Duration: 195.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 143
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.03746789454403711	y: 8.208751530800777	theta: 107.8156208306821	xdot: -0.4789909723523331	ydot: -6.7853923412169435	thetadot: 5.2805965864137985	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 143	Score: -330.00	Average Score: -208.70	Duration: 209.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 144
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.24870246943306307	y: 8.131524519371512	theta: 22.23827324536749	xdot: 0.5964310005415644	ydot: -1.6488434875480678	thetadot: -0.9696339747907038	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 144	Score: -175.00	Average Score: -200.60	Duration: 201.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 145
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+  |-> step_number: 500
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 145	Score: -731.00	Average Score: -256.50	Duration: 257.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 146
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.22299235758988373	y: 7.855062568619835	theta: 45.83659235996666	xdot: 4.546890307685123	ydot: -0.47935321391312885	thetadot: 3.2847927227576053	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 146	Score: -97.00	Average Score: -246.80	Duration: 247.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 147
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.18068253833822642	y: 7.867631577094915	theta: 49.893539041758494	xdot: -1.0987687978820935	ydot: 2.9216587333940462	thetadot: -3.320729727136241	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 147	Score: -143.00	Average Score: -251.60	Duration: 252.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 148
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 148	Score: -182.00	Average Score: -233.00	Duration: 234.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 149
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.07003126120600447	y: 7.858121352490827	theta: 48.026293071195	xdot: -1.5633377817297487	ydot: 1.5469399923720755	thetadot: 3.512833943619594	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 149	Score: -118.00	Average Score: -236.90	Duration: 237.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 150
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 150	Score: -176.00	Average Score: -228.30	Duration: 229.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 151
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.24174011573942245	y: 7.939715363091214	theta: 42.929247595380325	xdot: 2.027224376394835	ydot: -2.1185258218885705	thetadot: -3.262276683008444	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 151	Score: -118.00	Average Score: -216.50	Duration: 217.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 152
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 152	Score: -273.00	Average Score: -234.30	Duration: 235.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 153
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.005178379786411613	y: 8.299113304138212	theta: 68.15158878072134	xdot: 1.7397652003976674	ydot: 5.13091368076592	thetadot: -4.836958536311148	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 153	Score: -246.00	Average Score: -225.90	Duration: 226.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 154
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.26197171539338066	y: 8.093543795434341	theta: 57.99753034702038	xdot: 5.445410945829738	ydot: 1.0151433989636158	thetadot: 3.9053281241651816	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 154	Score: -139.00	Average Score: -222.30	Duration: 223.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 155
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 155	Score: -524.00	Average Score: -201.60	Duration: 202.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 156
+  |-> step_number: 0
+option_4 execution successful
+[option_2]: x: -0.20379480535559102	y: 7.929012327123107	theta: 54.765417702856105	xdot: 0.7679452505072154	ydot: 4.278171529520064	thetadot: -2.0477076986682103	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 156	Score: -124.00	Average Score: -204.30	Duration: 205.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 157
+  |-> step_number: 0
+option_4 execution successful
+[option_2]: x: 0.16513885414253227	y: 7.859971625469791	theta: 126.90051211503288	xdot: -1.2058793791193247	ydot: 3.432023974333227	thetadot: 3.1093267743740904	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 157	Score: -356.00	Average Score: -225.60	Duration: 226.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 158
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.15118931617065398	y: 7.851466545157167	theta: 27.934664797232113	xdot: 6.448913278998865	ydot: 2.3491111540460947	thetadot: -9.261134085304565	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 158	Score: -112.00	Average Score: -218.60	Duration: 219.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 159
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 159	Score: -203.00	Average Score: -227.10	Duration: 228.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 160
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.050490082915672155	y: 8.010264032247827	theta: 39.03104560856611	xdot: 5.219754470337661	ydot: -0.3064496778775846	thetadot: -1.8846874580604638	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 160	Score: -87.00	Average Score: -218.20	Duration: 219.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 161
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.10597876730822572	y: 7.807059496318881	theta: 130.32540269628353	xdot: 3.127462055049117	ydot: 2.3531123796921305	thetadot: -2.83686299772369	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 161	Score: -328.00	Average Score: -239.20	Duration: 240.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 162
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 162	Score: -149.00	Average Score: -226.80	Duration: 227.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 163
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.13764361273918557	y: 7.912520585726142	theta: 45.82333055485435	xdot: 3.8942003563545673	ydot: 3.1303016588629315	thetadot: 5.904019931782173	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 163	Score: -80.00	Average Score: -210.20	Duration: 211.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 164
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 164	Score: -204.00	Average Score: -216.70	Duration: 217.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 165
+  |-> step_number: 0
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 165	Score: -181.00	Average Score: -182.40	Duration: 183.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 166
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 166	Score: -261.00	Average Score: -196.10	Duration: 197.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 167
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 167	Score: -207.00	Average Score: -181.20	Duration: 182.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 168
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.24294745496241915	y: 7.840832676265482	theta: 105.3115216687403	xdot: 0.9209276830679484	ydot: 4.345306910125531	thetadot: -2.625326981315423	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 168	Score: -429.00	Average Score: -212.90	Duration: 213.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 169
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.009844403958618297	y: 8.234752311221923	theta: 227.35026145121756	xdot: -4.39246055661875	ydot: -0.47276678115500836	thetadot: 1.654775951685533	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 169	Score: -448.00	Average Score: -237.40	Duration: 238.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 170
+  |-> step_number: 0
+option_4 execution successful
+[option_2]: x: -0.24601179854841443	y: 7.969280633365884	theta: 65.40338166141838	xdot: 1.7420386500506362	ydot: -5.257904554558277	thetadot: 5.860101215049545	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 170	Score: -188.00	Average Score: -247.50	Duration: 248.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 171
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.11149968781217395	y: 7.944572095117423	theta: 84.11302431599793	xdot: 3.3760894615164205	ydot: -2.554742675756032	thetadot: 5.682674539820901	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 171	Score: -127.00	Average Score: -227.40	Duration: 228.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 172
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 172	Score: -152.00	Average Score: -227.70	Duration: 228.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 173
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.10206512632153616	y: 7.755702920706921	theta: 42.92623399572663	xdot: 3.8370506571179535	ydot: 5.246871515232225	thetadot: -10.62875393213853	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 173	Score: -188.00	Average Score: -238.50	Duration: 239.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 174
+  |-> step_number: 0
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 174	Score: -321.00	Average Score: -250.20	Duration: 251.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 175
+  |-> step_number: 0
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 175	Score: -267.00	Average Score: -258.80	Duration: 259.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 176
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 176	Score: -185.00	Average Score: -251.20	Duration: 252.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 177
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 177	Score: -609.00	Average Score: -291.40	Duration: 292.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 178
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.1415770016534999	y: 8.07680154949011	theta: 39.21077835232592	xdot: -0.17274312436089095	ydot: 4.960891645056251	thetadot: -1.0412467700594734	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 178	Score: -515.00	Average Score: -300.00	Duration: 301.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 179
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.24341084071883262	y: 7.863524792726592	theta: 53.15879605525536	xdot: 4.977165628235809	ydot: -1.2738017937363648	thetadot: -1.615949559847144	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 179	Score: -182.00	Average Score: -273.40	Duration: 274.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 180
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.0760602249983465	y: 8.033684927093786	theta: 67.1569443428601	xdot: -0.13968610251853417	ydot: 0.9185579275903755	thetadot: 0.3827957813107088	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 180	Score: -228.00	Average Score: -277.40	Duration: 278.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 181
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 181	Score: -161.00	Average Score: -280.80	Duration: 281.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 182
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.13289648676337137	y: 7.794030534309679	theta: 36.3107740755417	xdot: 2.6918608686138468	ydot: 3.703907505507686	thetadot: -5.607688048706215	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 182	Score: -124.00	Average Score: -278.00	Duration: 279.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 183
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 183	Score: -433.00	Average Score: -302.50	Duration: 303.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 184
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 184	Score: -449.00	Average Score: -315.30	Duration: 316.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 185
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 185	Score: -522.00	Average Score: -340.80	Duration: 341.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 186
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.02603088990866252	y: 7.8839676542526655	theta: 42.717966235018075	xdot: 0.7629168919594085	ydot: 2.109164520947167	thetadot: -1.8878000095518495	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 186	Score: -114.00	Average Score: -333.70	Duration: 334.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 187
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.06742972301166875	y: 7.790168117342163	theta: 29.646300482568186	xdot: 3.1446274437172073	ydot: 4.454226897500891	thetadot: -5.633861234597308	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 187	Score: -105.00	Average Score: -283.30	Duration: 284.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 188
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 188	Score: -309.00	Average Score: -262.70	Duration: 263.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 189
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 189	Score: -269.00	Average Score: -271.40	Duration: 272.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 190
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.12683857386696953	y: 8.062863875067167	theta: 189.48598818928804	xdot: -0.39329994893727727	ydot: -1.8005993249987235	thetadot: 1.6045544195255796	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 190	Score: -365.00	Average Score: -285.10	Duration: 286.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 191
+  |-> step_number: 0
+[option_2]: x: -0.2316573949933194	y: 8.058776007608575	theta: 22.278286042398197	xdot: 5.854723211310918	ydot: 1.7393058976754552	thetadot: 3.528378677787618	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 191	Score: -70.00	Average Score: -276.00	Duration: 277.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 192
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 192	Score: -211.00	Average Score: -284.70	Duration: 285.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 193
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 193	Score: -290.00	Average Score: -270.40	Duration: 271.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 194
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 194	Score: -362.00	Average Score: -261.70	Duration: 262.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 195
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 195	Score: -160.00	Average Score: -225.50	Duration: 226.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 196
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 196	Score: -501.00	Average Score: -264.20	Duration: 265.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 197
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 197	Score: -42.00	Average Score: -257.90	Duration: 258.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 198
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 198	Score: -208.00	Average Score: -247.80	Duration: 248.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 199
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.08903831077990879	y: 7.948806125571568	theta: 28.14117443202164	xdot: 4.935855708445177	ydot: -0.6537397101047687	thetadot: -3.671779033454829	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 199	Score: -110.00	Average Score: -231.90	Duration: 232.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 200
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.09743109703125638	y: 7.887166978956441	theta: 47.08765514888503	xdot: 4.4155285061443745	ydot: 0.38369828054279764	thetadot: -1.725681139766438	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 200	Score: -105.00	Average Score: -205.90	Duration: 206.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 201
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.23345907740379482	y: 8.170098488049137	theta: 45.64183112889339	xdot: 0.7539790652644784	ydot: -1.241670746890726	thetadot: 10.498690975791144	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 201	Score: -101.00	Average Score: -209.00	Duration: 210.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 202
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.2541312323517526	y: 7.9719585282767	theta: 34.06382123700291	xdot: 5.092733050389017	ydot: 0.5804743012634416	thetadot: 1.2913572852008957	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 202	Score: -74.00	Average Score: -195.30	Duration: 196.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 203
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.19711014050844344	y: 8.099305069589608	theta: 34.297155544551686	xdot: 5.12789635123714	ydot: 0.025038107709118098	thetadot: 0.6663164677936592	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 203	Score: -100.00	Average Score: -176.30	Duration: 177.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 204
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.02088223132684046	y: 8.231008105060795	theta: 72.0911577792057	xdot: 4.813451556362385	ydot: -1.2037249313706833	thetadot: -4.01943271690618	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 204	Score: -205.00	Average Score: -160.60	Duration: 161.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 205
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.019543746886565537	y: 7.789522085977216	theta: 42.412168078403056	xdot: 2.1169282840980777	ydot: 4.5683657739348185	thetadot: -8.837290476719174	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 205	Score: -145.00	Average Score: -159.10	Duration: 160.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 206
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.11792546973348904	y: 7.9832468569605055	theta: 46.63527140526568	xdot: 5.153100462647919	ydot: -2.5076104197979454	thetadot: -7.984662507530835	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 206	Score: -125.00	Average Score: -121.50	Duration: 122.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 207
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.05783753984009692	y: 7.808403728386077	theta: 38.97998508215651	xdot: 1.8873720594100816	ydot: -4.9708982213162844	thetadot: 4.848040621120493	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 207	Score: -90.00	Average Score: -126.30	Duration: 127.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 208
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.07215911003110674	y: 7.810579841172344	theta: 50.115758565827484	xdot: -0.2933867123744156	ydot: -0.5425741555981443	thetadot: -0.11746670284510607	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 208	Score: -406.00	Average Score: -146.10	Duration: 147.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 209
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 209	Score: -171.00	Average Score: -152.20	Duration: 153.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 210
+  |-> step_number: 0
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 210	Score: -351.00	Average Score: -176.80	Duration: 177.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 211
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.12599625624007388	y: 7.872585126120703	theta: 24.083216955205057	xdot: 3.985135729577556	ydot: 7.169246596353126	thetadot: -6.824839517788838	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 211	Score: -64.00	Average Score: -173.10	Duration: 174.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 212
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 212	Score: -417.00	Average Score: -207.40	Duration: 208.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 213
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 213	Score: -178.00	Average Score: -215.20	Duration: 216.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 214
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 214	Score: -160.00	Average Score: -210.70	Duration: 211.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 215
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.052482340615676804	y: 7.802445303107848	theta: 44.6343440713708	xdot: -1.7833097553773074	ydot: 0.6292696909639865	thetadot: -0.6413290616622515	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 215	Score: -73.00	Average Score: -203.50	Duration: 204.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 216
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.07834093516719792	y: 7.7478798581072414	theta: 59.620269747547766	xdot: 4.498558240894495	ydot: -2.1465234591379847	thetadot: -7.449072254715389	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 216	Score: -121.00	Average Score: -203.10	Duration: 204.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 217
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.17593249585693868	y: 7.98962862728772	theta: 44.825047975829975	xdot: -2.321434433777647	ydot: -0.07743562494133549	thetadot: 0.21338013067178957	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 217	Score: -163.00	Average Score: -210.40	Duration: 211.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 218
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 218	Score: -505.00	Average Score: -220.30	Duration: 221.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 219
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.02975196981148199	y: 7.826537954232692	theta: 115.72391589924769	xdot: 2.4340645139122805	ydot: -0.17315172422706687	thetadot: 0.5807390549443152	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 219	Score: -307.00	Average Score: -233.90	Duration: 234.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 220
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.06574450199135934	y: 8.058142761679747	theta: 59.737485140820645	xdot: 3.956670044958289	ydot: 0.3217321002343348	thetadot: -0.8237712961588955	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 220	Score: -153.00	Average Score: -214.10	Duration: 215.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 221
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 221	Score: -303.00	Average Score: -238.00	Duration: 239.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 222
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.16601594861017172	y: 8.088770384303912	theta: 25.615036843098142	xdot: 4.551341228427481	ydot: -2.026199315230746	thetadot: -4.257625294956259	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 222	Score: -83.00	Average Score: -204.60	Duration: 205.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 223
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 223	Score: -203.00	Average Score: -207.10	Duration: 208.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 224
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.16198013865674435	y: 8.186620419563132	theta: 116.1423630118362	xdot: 3.023357668438293	ydot: -0.4346793697820223	thetadot: 0.7172909617026904	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 224	Score: -221.00	Average Score: -213.20	Duration: 214.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 225
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 225	Score: -124.00	Average Score: -218.30	Duration: 219.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 226
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.20553893213201793	y: 7.875406710130037	theta: 45.973409768661966	xdot: 1.2871371494597688	ydot: -2.6207928663693227	thetadot: 1.5541460050168132	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 226	Score: -138.00	Average Score: -220.00	Duration: 221.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 227
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.15565781071951662	y: 8.022147266416722	theta: 39.547751985149624	xdot: 1.6857774792957134	ydot: -4.878009357740628	thetadot: 5.186924894094766	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 227	Score: -192.00	Average Score: -222.90	Duration: 223.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 228
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 228	Score: -426.00	Average Score: -215.00	Duration: 216.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 229
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 229	Score: -326.00	Average Score: -216.90	Duration: 217.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 230
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 230	Score: -471.00	Average Score: -248.70	Duration: 249.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 231
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.15411517109249273	y: 8.023000113110692	theta: 130.7796869130938	xdot: 2.499738383717998	ydot: 3.515189690847271	thetadot: -5.892421120445862	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 231	Score: -295.00	Average Score: -247.90	Duration: 248.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 232
+  |-> step_number: 0
+option_4 execution successful
+[option_2]: x: 0.09892086758639816	y: 7.974156386208896	theta: 42.287082635889554	xdot: 1.0245358974125927	ydot: 2.3888756691752095	thetadot: -2.8309194766863386	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 232	Score: -86.00	Average Score: -248.20	Duration: 249.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 233
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.0960915682524905	y: 8.139022530817574	theta: 78.56329432332377	xdot: 4.634535296593284	ydot: -0.3833531420539096	thetadot: -1.4550423957039662	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 233	Score: -443.00	Average Score: -272.20	Duration: 273.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 234
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.21353988764207082	y: 7.955557824224134	theta: 19.779457770939047	xdot: 2.440047041224673	ydot: 0.12327208817738529	thetadot: -0.8510267771960922	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 234	Score: -114.00	Average Score: -261.50	Duration: 262.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 235
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 235	Score: -190.00	Average Score: -268.10	Duration: 269.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 236
+  |-> step_number: 0
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 236	Score: -137.00	Average Score: -268.00	Duration: 269.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 237
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 237	Score: -310.00	Average Score: -279.80	Duration: 280.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 238
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.26841861971970704	y: 8.019374244621012	theta: 34.17671762984272	xdot: 4.320017198752321	ydot: 0.160396427584952	thetadot: 1.85920917499872	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 238	Score: -118.00	Average Score: -249.00	Duration: 250.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 239
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.14802528138598192	y: 8.065503586495558	theta: 30.572445045359228	xdot: 2.815145275626672	ydot: 4.271055399587619	thetadot: -3.8112340092168138	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 239	Score: -104.00	Average Score: -226.80	Duration: 227.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 240
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.10160420679280224	y: 7.953010910118886	theta: 34.12189665036938	xdot: 3.001499728733309	ydot: -3.1884027095504632	thetadot: 4.4118625401797456	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 240	Score: -136.00	Average Score: -193.30	Duration: 194.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 241
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.19973052136970032	y: 7.82026687275459	theta: 75.21349594993465	xdot: -0.8688019016768274	ydot: -4.948767534025714	thetadot: -0.8299904945606054	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 241	Score: -141.00	Average Score: -177.90	Duration: 178.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 242
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.14780208579456755	y: 8.1277247316249	theta: 52.97983507382472	xdot: 4.992906883793289	ydot: 0.1310784592911222	thetadot: 8.816201930681451	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 242	Score: -177.00	Average Score: -187.00	Duration: 188.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 243
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_3]: x: 0.07508301707734988	y: 7.743644339311507	theta: 10.10394751429937	xdot: -4.9750961972285195	ydot: -0.4912865205356613	thetadot: 1.8352920010704108	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 243	Score: -165.00	Average Score: -159.20	Duration: 160.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 244
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.04712967225318798	y: 8.103354679635228	theta: 36.077509481554884	xdot: 3.087264448804424	ydot: 5.437050837378514	thetadot: -3.407210311310081	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 244	Score: -107.00	Average Score: -158.50	Duration: 159.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 245
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 245	Score: -275.00	Average Score: -167.00	Duration: 168.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 246
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.012589106396910608	y: 7.9502000877314964	theta: 37.768612269984246	xdot: 0.39008797968573594	ydot: -4.104380636837496	thetadot: -0.5624731644235584	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 246	Score: -87.00	Average Score: -162.00	Duration: 163.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 247
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.009004323633415301	y: 8.05633363074051	theta: 50.7112616156954	xdot: 1.80250605290795	ydot: 5.663089170289768	thetadot: 0.5285035955460563	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 247	Score: -139.00	Average Score: -144.90	Duration: 145.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 248
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 248	Score: -167.00	Average Score: -149.80	Duration: 150.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 249
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.09675871820638397	y: 7.975830151259014	theta: 31.244926748535562	xdot: 2.284373273048363	ydot: 4.832858773649805	thetadot: -4.876679423060271	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 249	Score: -84.00	Average Score: -147.80	Duration: 148.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 250
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 250	Score: -646.00	Average Score: -198.80	Duration: 199.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 251
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 251	Score: -147.00	Average Score: -199.40	Duration: 200.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 252
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.029942787543555734	y: 8.027066124268124	theta: 49.5192906857058	xdot: -1.7635722533469598	ydot: 4.728364926099391	thetadot: 6.323360873250039	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 252	Score: -113.00	Average Score: -193.00	Duration: 194.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 253
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 253	Score: -232.00	Average Score: -199.70	Duration: 200.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 254
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 254	Score: -356.00	Average Score: -224.60	Duration: 225.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 255
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.14487217736408986	y: 8.214575765454718	theta: 69.97312735946115	xdot: 3.0329231974900095	ydot: 2.0925885052268236	thetadot: -1.3576005474543056	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 255	Score: -199.00	Average Score: -217.00	Duration: 218.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 256
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.18431072212753902	y: 8.180539949886152	theta: 59.89868670188952	xdot: 3.379693728300277	ydot: 0.41595207615322766	thetadot: 2.5778738710938804	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 256	Score: -164.00	Average Score: -224.70	Duration: 225.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 257
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 257	Score: -308.00	Average Score: -241.60	Duration: 242.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 258
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.1204679060317405	y: 8.113579986419316	theta: 53.58382712190562	xdot: 5.230611237731479	ydot: -0.028768444490951155	thetadot: -0.3046377224893909	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 258	Score: -226.00	Average Score: -247.50	Duration: 248.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 259
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.26806556582525526	y: 8.064707112532597	theta: 34.873605806468746	xdot: 2.6363001215355206	ydot: 0.17460805462674664	thetadot: -2.3195620607740413	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 259	Score: -121.00	Average Score: -251.20	Duration: 252.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 260
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 260	Score: -368.00	Average Score: -223.40	Duration: 224.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 261
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 261	Score: -140.00	Average Score: -222.70	Duration: 223.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 262
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: 0.08304468109015664	y: 7.781054917379158	theta: 39.472642012271095	xdot: 4.3384601875587885	ydot: 0.23800881486600797	thetadot: 0.6118577981759263	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 262	Score: -135.00	Average Score: -224.90	Duration: 225.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 263
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 263	Score: -204.00	Average Score: -222.10	Duration: 223.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 264
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.15231680872421383	y: 7.815210571284811	theta: 55.039109959246126	xdot: -1.2811845781852167	ydot: 3.763109710824864	thetadot: 1.7590903676627387	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 264	Score: -97.00	Average Score: -196.20	Duration: 197.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 265
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 265	Score: -332.00	Average Score: -209.50	Duration: 210.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 266
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 266	Score: -227.00	Average Score: -215.80	Duration: 216.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 267
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+  |-> step_number: 500
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 267	Score: -504.00	Average Score: -235.40	Duration: 236.40 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 268
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 268	Score: -248.00	Average Score: -237.60	Duration: 238.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 269
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.05270465730250111	y: 8.027985270479949	theta: 61.50477754840909	xdot: 0.06878702477312101	ydot: -0.48198638170180536	thetadot: -0.1643710166331782	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 269	Score: -136.00	Average Score: -239.10	Duration: 240.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 270
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 270	Score: -65.00	Average Score: -208.80	Duration: 209.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 271
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 271	Score: -193.00	Average Score: -214.10	Duration: 215.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 272
+  |-> step_number: 0
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 272	Score: -145.00	Average Score: -215.10	Duration: 216.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 273
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 273	Score: -133.00	Average Score: -208.00	Duration: 209.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 274
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 274	Score: -505.00	Average Score: -248.80	Duration: 249.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 275
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.24637104491555378	y: 7.982768399065526	theta: 40.51974176454072	xdot: 5.033476385288399	ydot: -0.06346011490576446	thetadot: 0.3696731927419813	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 275	Score: -153.00	Average Score: -230.90	Duration: 231.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 276
+  |-> step_number: 0
+option_4 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 276	Score: -143.00	Average Score: -222.50	Duration: 223.50 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 277
+  |-> step_number: 0
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 277	Score: -171.00	Average Score: -189.20	Duration: 190.20 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 278
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+global_option execution successful
+Init state is in option_4's initiation set classifier
+Episode 278	Score: -299.00	Average Score: -194.30	Duration: 195.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 279
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.08663659221363083	y: 8.03823989285268	theta: 20.390645998974858	xdot: 3.4668341008734083	ydot: -1.967766662720875	thetadot: 1.5348797568777406	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 279	Score: -134.00	Average Score: -194.10	Duration: 195.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 280
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.1512388208169544	y: 7.750528631922803	theta: 45.57899478924535	xdot: 8.55503199477436	ydot: -0.514910179028433	thetadot: 7.12419411957503	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 280	Score: -140.00	Average Score: -201.60	Duration: 202.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 281
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.11509194831298712	y: 7.824070142218763	theta: 22.218648218083274	xdot: 5.570287428818742	ydot: 0.14472210302422214	thetadot: -3.6813136919989895	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 281	Score: -108.00	Average Score: -193.10	Duration: 194.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 282
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.11964903543460215	y: 7.7653592998632535	theta: 42.666487187166	xdot: -3.437355392058138	ydot: -0.335216257040314	thetadot: 1.1762122715217198	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 282	Score: -85.00	Average Score: -187.10	Duration: 188.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 283
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 283	Score: -532.00	Average Score: -227.00	Duration: 228.00 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 284
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.16397262096461301	y: 7.824840494314261	theta: 20.627350586459286	xdot: 6.290151433728628	ydot: -0.6734141379625975	thetadot: -0.771196354563175	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 284	Score: -84.00	Average Score: -184.90	Duration: 185.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 285
+  |-> step_number: 0
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 285	Score: -271.00	Average Score: -196.70	Duration: 197.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 286
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.1690699381182809	y: 7.914640476408849	theta: 28.625306666362608	xdot: 4.201567321920656	ydot: 0.16183629038898184	thetadot: 0.7237430674854145	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 286	Score: -447.00	Average Score: -227.10	Duration: 228.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 287
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.23618372356158268	y: 8.04654030542773	theta: 30.751926789828662	xdot: 4.559074191478389	ydot: -0.7198633364851423	thetadot: -2.117655350472493	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 287	Score: -87.00	Average Score: -218.70	Duration: 219.70 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 288
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 288	Score: -280.00	Average Score: -216.80	Duration: 217.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 289
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.18230836278191676	y: 7.9382734724980075	theta: 45.820556204102566	xdot: 2.5328374096475614	ydot: -4.400699532539308	thetadot: 7.022855762154471	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 289	Score: -102.00	Average Score: -213.60	Duration: 214.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 290
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.0030393710296360704	y: 7.705605460532913	theta: 72.33572337567563	xdot: 5.336364644958184	ydot: -0.07601232671528028	thetadot: -0.2561562846358373	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 290	Score: -307.00	Average Score: -230.30	Duration: 231.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 291
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.040515587728363306	y: 7.722890603092205	theta: 58.79426922428374	xdot: 3.8864963956688694	ydot: -0.37885563658076693	thetadot: 5.482755765911487	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 291	Score: -133.00	Average Score: -232.80	Duration: 233.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 292
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 292	Score: -180.00	Average Score: -242.30	Duration: 243.30 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 293
+  |-> step_number: 0
+option_3 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: 0.14671828398986353	y: 7.904373957773777	theta: 32.45876118538658	xdot: -3.986645122218056	ydot: -0.5390302581367578	thetadot: 4.8954883408066285	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 293	Score: -110.00	Average Score: -200.10	Duration: 201.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 294
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 294	Score: -194.00	Average Score: -211.10	Duration: 212.10 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 295
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+option_1 execution successful
+Init state is in option_4's initiation set classifier
+Episode 295	Score: -138.00	Average Score: -197.80	Duration: 198.80 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 296
+  |-> step_number: 0
+option_4 execution successful
+option_4 execution successful
+option_3 execution successful
+option_3 execution successful
+[option_2]: x: -0.19589687660352578	y: 8.05635411620118	theta: 34.19603093295062	xdot: 5.9808462503678275	ydot: 0.19133951751208622	thetadot: 0.9215936171278185	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 296	Score: -88.00	Average Score: -161.90	Duration: 162.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 297
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: -0.004781838821883336	y: 8.219344711825	theta: 53.34183206922127	xdot: 5.218450103842268	ydot: 0.5202082406949992	thetadot: 1.5038711711478066	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 297	Score: -114.00	Average Score: -164.60	Duration: 165.60 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 298
+  |-> step_number: 0
+option_4 execution successful
+option_3 execution successful
+[option_2]: x: 0.04529959335544494	y: 7.7435905216710665	theta: 80.25294124215296	xdot: 0.4750504679063997	ydot: 3.144534155465507	thetadot: -1.3988130346772258	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 298	Score: -183.00	Average Score: -154.90	Duration: 155.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+|-> episode: 299
+  |-> step_number: 0
+option_3 execution successful
+[option_2]: x: -0.08733353222319147	y: 8.245491889219254	theta: 71.87574282040381	xdot: 5.219571363802677	ydot: -0.20376427615079926	thetadot: 1.8741031415103013	terminal: True
+ is_terminal() but not term_true()
+Init state is in option_4's initiation set classifier
+Episode 299	Score: -262.00	Average Score: -170.90	Duration: 171.90 steps	GO Eps: 0.00
+Current Skill Chain: [option_1, option_2, option_3, option_4]
+EPISODE FULL CHAIN BREAKS: 1
+
+Saving all data...
+Scores: [-2000.0, -1428.0, -1001.0, -2000.0, -2000.0, -2000.0, -2000.0, -2000.0, -582.0, -275.0, -907.0, -832.0, -2000.0, -2000.0, -1129.0, -2000.0, -2000.0, -2000.0, -1518.0, -702.0, -2000.0, -2000.0, -2000.0, -1689.0, -2000.0, -808.0, -432.0, -2000.0, -2000.0, -793.0, -797.0, -1732.0, -1736.0, -997.0, -188.0, -989.0, -491.0, -857.0, -2000.0, -464.0, -1025.0, -886.0, -1845.0, -2000.0, -2000.0, -213.0, -2000.0, -2000.0, -311.0, -312.0, -809.0, -304.0, -1182.0, -1394.0, -2000.0, -2000.0, -444.0, -174.0, -2000.0, -207.0, -352.0, -292.0, -533.0, -486.0, -1574.0, -241.0, -541.0, -484.0, -319.0, -237.0, -527.0, -339.0, -965.0, -504.0, -190.0, -179.0, -2000.0, -790.0, -128.0, -381.0, -142.0, -286.0, -345.0, -423.0, -1253.0, -741.0, -226.0, -404.0, -206.0, -157.0, -420.0, -1163.0, -687.0, -268.0, -346.0, -1758.0, -373.0, -183.0, -164.0, -302.0, -137.0, -139.0, -235.0, -171.0, -299.0, -210.0, -170.0, -612.0, -946.0, -120.0, -306.0, -455.0, -249.0, -345.0, -143.0, -187.0, -180.0, -293.0, -196.0, -133.0, -669.0, -254.0, -219.0, -85.0, -181.0, -613.0, -366.0, -110.0, -105.0, -142.0, -306.0, -225.0, -480.0, -188.0, -256.0, -172.0, -194.0, -95.0, -368.0, -79.0, -262.0, -236.0, -95.0, -330.0, -175.0, -731.0, -97.0, -143.0, -182.0, -118.0, -176.0, -118.0, -273.0, -246.0, -139.0, -524.0, -124.0, -356.0, -112.0, -203.0, -87.0, -328.0, -149.0, -80.0, -204.0, -181.0, -261.0, -207.0, -429.0, -448.0, -188.0, -127.0, -152.0, -188.0, -321.0, -267.0, -185.0, -609.0, -515.0, -182.0, -228.0, -161.0, -124.0, -433.0, -449.0, -522.0, -114.0, -105.0, -309.0, -269.0, -365.0, -70.0, -211.0, -290.0, -362.0, -160.0, -501.0, -42.0, -208.0, -110.0, -105.0, -101.0, -74.0, -100.0, -205.0, -145.0, -125.0, -90.0, -406.0, -171.0, -351.0, -64.0, -417.0, -178.0, -160.0, -73.0, -121.0, -163.0, -505.0, -307.0, -153.0, -303.0, -83.0, -203.0, -221.0, -124.0, -138.0, -192.0, -426.0, -326.0, -471.0, -295.0, -86.0, -443.0, -114.0, -190.0, -137.0, -310.0, -118.0, -104.0, -136.0, -141.0, -177.0, -165.0, -107.0, -275.0, -87.0, -139.0, -167.0, -84.0, -646.0, -147.0, -113.0, -232.0, -356.0, -199.0, -164.0, -308.0, -226.0, -121.0, -368.0, -140.0, -135.0, -204.0, -97.0, -332.0, -227.0, -504.0, -248.0, -136.0, -65.0, -193.0, -145.0, -133.0, -505.0, -153.0, -143.0, -171.0, -299.0, -134.0, -140.0, -108.0, -85.0, -532.0, -84.0, -271.0, -447.0, -87.0, -280.0, -102.0, -307.0, -133.0, -180.0, -110.0, -194.0, -138.0, -88.0, -114.0, -183.0, -262.0]
+Final Skill Chain: ['option_1', 'option_2', 'option_3', 'option_4']
+
+=====================================
+END: Wed May  6 03:04:09 UTC 2020
+RUNTIME: 1:9:3 (h:m:s)
+=====================================
