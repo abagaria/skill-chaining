@@ -18,7 +18,7 @@ from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlen
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function, visualize_next_state_reward_heat_map
+from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
 
 
