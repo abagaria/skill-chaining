@@ -389,7 +389,7 @@ class SkillChaining(object):
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=train_mode)
 
-		if not train_mode:
+		if train_mode:
 			self.agent_over_options.update_epsilon()
 
 		# Selected option
