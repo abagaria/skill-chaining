@@ -21,7 +21,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=5, option_idx=None,
+				 dense_reward=False, enable_timeout=True, timeout=250, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, intersecting_options=[], max_num_children=3,
 				 init_salient_event=None, target_salient_event=None,
 				 gestation_init_predicates=[], is_backward_option=False, generate_plots=False, device=torch.device("cpu"), writer=None):
@@ -132,6 +132,12 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	def act(self, state, eval_mode):
+		""" Epsilon greedy action selection when in training mode. """
+		if random.random() < 0.25 and not eval_mode:
+			return self.overall_mdp.env.action_space.sample()
+		return self.solver.act(state.features(), evaluation_mode=eval_mode)
 
 	def reset_ddpg_solver(self):
 		state_size = self.overall_mdp.state_space_size()
@@ -490,11 +496,6 @@ class Option(object):
 		return trained
 
 	def initialize_option_policy(self):
-		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		if self.chain_id < 3:
-			self.initialize_with_global_ddpg()
-			self.solver.epsilon = self.global_solver.epsilon
-
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
 		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
 		for experience in experience_buffer:
@@ -550,7 +551,6 @@ class Option(object):
 
 	def off_policy_update(self, state, action, reward, next_state):
 		""" Make off-policy updates to the current option's low level DDPG solver. """
-		assert self.overall_mdp.is_primitive_action(action), "option should be markov: {}".format(action)
 		assert not state.is_terminal(), "Terminal state did not terminate at some point"
 
 		# Don't make updates while walking around the termination set of an option
@@ -567,11 +567,10 @@ class Option(object):
 
 	def update_option_solver(self, s, a, r, s_prime):
 		""" Make on-policy updates to the current option's low-level DDPG solver. """
-		assert self.overall_mdp.is_primitive_action(a), "Option solver should be over primitive actions: {}".format(a)
 		assert not s.is_terminal(), "Terminal state did not terminate at some point"
 
 		if self.is_term_true(s):
-			print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
+			# print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
 			return
 
 		if self.is_term_true(s_prime):
@@ -618,13 +617,9 @@ class Option(object):
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
-				action = self.solver.act(state.features(), evaluation_mode=eval_mode)
+				action = self.act(state, eval_mode=eval_mode)
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
-
 				self.update_option_solver(state, action, reward, next_state)
-
-				# Note: We are not using the option augmented subgoal reward while making off-policy updates to global DQN
-				assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
 
 				if self.name != "global_option":
 					self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
@@ -645,8 +640,6 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
-			# TODO: When initialize_everywhere is true, self.train() needs to be called from the OptionClass and not from SkillChainingClass
-
 			if self.is_term_true(state) and self.last_episode_term_triggered != episode: # and self.is_valid_init_data(visited_states):
 				self.num_goal_hits += 1
 				self.last_episode_term_triggered = episode
@@ -660,6 +653,27 @@ class Option(object):
 			return option_transitions, total_reward
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
+
+	def is_eligible_for_off_policy_triggers(self):
+		return self.get_training_phase() != "initiation_done" and not self.backward_option
+
+	def trigger_termination_condition_off_policy(self, trajectory, episode):
+		trajectory_so_far = []
+		states_so_far = []
+
+		for state, action, reward, next_state in trajectory:  # type: State, np.ndarray, float, State
+			trajectory_so_far.append((state, action, reward, next_state))
+			states_so_far.append(state)
+
+			if self.is_term_true(next_state) and self.is_valid_init_data(states_so_far) and \
+					episode != self.last_episode_term_triggered and self.is_eligible_for_off_policy_triggers():
+
+				print(f"Triggered termination condition for {self}")
+				states_so_far.append(next_state)  # We want the terminal state to be part of the initiation classifier
+				if self.train(trajectory_so_far, states_so_far, episode):
+					return True
+
+		return False
 
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps, outer_step_number):
 		if self.is_term_true(final_state):  # success

@@ -389,7 +389,7 @@ class SkillChaining(object):
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=train_mode)
 
-		if not train_mode:
+		if train_mode:
 			self.agent_over_options.update_epsilon()
 
 		# Selected option
@@ -431,6 +431,18 @@ class SkillChaining(object):
 			if untrained_option.is_term_true(next_state) and not untrained_option.is_term_true(state):
 				untrained_option.final_transitions.append((state, selected_option.option_idx))
 				untrained_option.terminal_states.append(next_state)
+
+		# While you were executing `selected_option`, it is possible that you triggered the
+		# termination condition of some other option in gestation. If so, we want to use that
+		# off-policy data to train that other option's first initiation classifier
+		for untrained_option in self.untrained_options:
+			if untrained_option != selected_option:
+				if untrained_option.trigger_termination_condition_off_policy(option_transitions, episode_number):
+					print(f"Triggered final termination condition for {untrained_option} while executing {selected_option}")
+					if untrained_option.classifier_type == "ocsvm" or len(untrained_option.negative_examples) == 0:
+						plot_one_class_initiation_classifier(untrained_option, episode_number, args.experiment_name)
+					else:
+						plot_two_class_classifier(untrained_option, episode_number, args.experiment_name)
 
 		# Add data to train Q(s, o)
 		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
@@ -584,26 +596,6 @@ class SkillChaining(object):
 				# We must iterate through all such options and check if the current transition
 				# triggered the termination condition of any such option
 				for untrained_option in self.untrained_options:
-
-					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
-							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
-							untrained_option.is_valid_init_data(state_buffer) and not untrained_option.initialize_everywhere:
-
-						print("\rTriggered termination condition of ", untrained_option)
-						uo_episode_terminated = True
-						if untrained_option.train(experience_buffer, state_buffer, episode):
-
-							# If the option can be initiated from anywhere, it has already been added to
-							# the list of actions available to the agent (so that it may be executed before
-							# we train its one-class classifier)
-							if not untrained_option.initialize_everywhere:
-								self.augment_agent_with_new_option(untrained_option, self.init_q)
-
-							# Visualize option you just learned
-							if untrained_option.classifier_type == "ocsvm":
-								plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
-							else:
-								plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 
 					# In the skill-graph setting, we have to check if the current option's chain
 					# is still accepting new options
@@ -802,6 +794,7 @@ if __name__ == '__main__':
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	parser.add_argument("--use_start_state_salience", action="store_true", default=False)
+	parser.add_argument("--warmup_period", type=float, default=0)
 	args = parser.parse_args()
 
 	if args.env == "point-reacher":
@@ -812,6 +805,11 @@ if __name__ == '__main__':
 	elif args.env == "d4rl-point-maze":
 		from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
 		overall_mdp = D4RLPointMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
+	elif args.env == "d4rl-ant-maze":
+		from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+		overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
 		state_dim = overall_mdp.state_space_size()
 		action_dim = overall_mdp.action_space_size()
 	elif "reacher" in args.env.lower():
@@ -850,7 +848,7 @@ if __name__ == '__main__':
 	q0 = 0. if args.init_q == "zero" else None
 
 	chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
-							seed=args.seed, subgoal_reward=args.subgoal_reward,
+							seed=args.seed, subgoal_reward=args.subgoal_reward, buffer_length=args.buffer_len,
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,

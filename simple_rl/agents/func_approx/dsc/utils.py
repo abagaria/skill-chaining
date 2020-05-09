@@ -61,22 +61,22 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
         color_idx = i % len(possible_colors)
         plot_trajectory(trajectory, color=possible_colors[color_idx], marker=marker)
 
-def get_grid_states():
+def get_grid_states(mdp):
     ss = []
-    x_low_lim, y_low_lim = D4RLPointMazeMDP.get_x_y_low_lims()
-    x_high_lim, y_high_lim = D4RLPointMazeMDP.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim, 1.):
-        for y in np.arange(y_low_lim, y_high_lim, 1.):
+    x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
+    for x in np.arange(x_low_lim, x_high_lim, 0.5):
+        for y in np.arange(y_low_lim, y_high_lim, 0.5):
             s = D4RLPointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]), done=False)
             ss.append(s)
     return ss
 
-def get_initiation_set_values(option, has_key):
+def get_initiation_set_values(option):
     values = []
-    x_low_lim, y_low_lim = D4RLPointMazeMDP.get_x_y_low_lims()
-    x_high_lim, y_high_lim = D4RLPointMazeMDP.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim, 1.):
-        for y in np.arange(y_low_lim, y_high_lim, 1.):
+    x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
+    for x in np.arange(x_low_lim, x_high_lim, 0.5):
+        for y in np.arange(y_low_lim, y_high_lim, 0.5):
             s = D4RLPointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]), done=False)
             values.append(option.is_init_true(s))
 
@@ -111,8 +111,11 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
     # plt.xticks([])
     # plt.yticks([])
 
-    plt.xlim((-10, 10))
-    plt.ylim((-10, 10))
+    x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
 
     plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
@@ -121,9 +124,9 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 
 
 def plot_two_class_classifier(option, episode, experiment_name):
-    def generate_plot(has_key):
-        states = get_grid_states()
-        values = get_initiation_set_values(option, has_key=has_key)
+    def generate_plot():
+        states = get_grid_states(option.overall_mdp)
+        values = get_initiation_set_values(option)
 
         x = np.array([state.position[0] for state in states])
         y = np.array([state.position[1] for state in states])
@@ -137,7 +140,9 @@ def plot_two_class_classifier(option, episode, experiment_name):
         # Plot trajectories
         positive_examples = option.construct_feature_matrix(option.positive_examples)
         negative_examples = option.construct_feature_matrix(option.negative_examples)
-        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+
+        if positive_examples.shape[0] > 0:
+            plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
 
         if negative_examples.shape[0] > 0:
             plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
@@ -145,16 +150,11 @@ def plot_two_class_classifier(option, episode, experiment_name):
         # background_image = imageio.imread("four_room_domain.png")
         # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-        plt.xlim((-10, 10))
-        plt.ylim((-10, 10))
-
         name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
         plt.title("{} Initiation Set".format(option.name))
-        plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier_{}.png".format(experiment_name, name, has_key, option.seed))
+        plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
         plt.close()
-
-    generate_plot(has_key=True)
-    # generate_plot(has_key=False)
+    generate_plot()
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
     goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))

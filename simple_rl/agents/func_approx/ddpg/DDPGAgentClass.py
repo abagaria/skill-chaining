@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 import argparse
-import pdb
+import ipdb
 
 # PyTorch imports.
 import torch
@@ -18,14 +18,14 @@ from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlen
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.agents.func_approx.dsc.utils import render_sampled_value_function, visualize_next_state_reward_heat_map
+from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
 
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
                  batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="shaping",
-                 trained_options=[], evaluation_epsilon=0.1):
+                 trained_options=[], evaluation_epsilon=0.1, use_fixed_noise=True):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
@@ -34,6 +34,7 @@ class DDPGAgent(Agent):
         self.exploration_method = exploration
         self.trained_options = trained_options
         self.evaluation_epsilon = evaluation_epsilon
+        self.use_fixed_noise = use_fixed_noise
 
         self.seed = random.seed(seed)
         np.random.seed(seed)
@@ -80,12 +81,25 @@ class DDPGAgent(Agent):
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
+    def add_noise_to_action(self, action):
+
+        if self.use_fixed_noise:
+            noise = np.random.normal(0, self.evaluation_epsilon, size=(self.action_size,))
+            action += noise
+        else:  # OU Noise
+            noise = self.noise()
+            action += (noise * self.epsilon)
+
+        # Adding noise could have taken us outside the action space bounds
+        action = np.clip(action, -1., 1.)
+
+        return action
+
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
-        noise = self.noise()
+
         if not evaluation_mode:
-            action += (noise * self.epsilon)
-        action = np.clip(action, -1., 1.)
+            action = self.add_noise_to_action(action)
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
@@ -95,8 +109,6 @@ class DDPGAgent(Agent):
             self.writer.add_scalar("{}_state_y".format(self.name), state[1], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_xdot".format(self.name), state[2], self.n_acting_iterations)
             self.writer.add_scalar("{}_state_ydot".format(self.name), state[3], self.n_acting_iterations)
-            self.writer.add_scalar("{}_noise_x".format(self.name), noise[0], self.n_acting_iterations)
-            self.writer.add_scalar("{}_noise_y".format(self.name), noise[1], self.n_acting_iterations)
 
         return action
 
