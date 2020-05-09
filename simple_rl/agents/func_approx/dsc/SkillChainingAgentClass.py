@@ -24,7 +24,6 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
-from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
@@ -126,7 +125,7 @@ class SkillChaining(object):
 		# Keep track of which chain each created option belongs to
 		s0 = self.mdp.env._init_positions
 		self.s0 = s0
-		start_state_salient_event = self.mdp.get_start_state_salient_event() if self.start_state_salience else None
+		start_state_salient_event = self.mdp.get_start_state_salient_event()
 		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
 		 			   			  intersecting_options=[], mdp_start_states=s0, is_backward_chain=False,
 								  target_salient_event=salient_event, init_salient_event=start_state_salient_event)
@@ -480,13 +479,6 @@ class SkillChaining(object):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
 		return self.mdp.get_current_target_events()
 
-	# TODO: Get rid of this - it is prone to bugs. Instead, just add the start state to the original salient events in the MDP
-	def get_original_salient_events(self):
-		original_salient_events = self.mdp.get_original_target_events()
-		if self.start_state_salience and self.mdp.get_start_state_salient_event() not in original_salient_events:
-			original_salient_events.append(self.mdp.get_start_state_salient_event())
-		return original_salient_events
-
 	def get_chained_salient_events(self):
 		chained_salient_events = [chain.target_salient_event for chain in self.chains if chain.chained_till_start_state()]
 		chained_salient_events = list(set(chained_salient_events))
@@ -543,6 +535,129 @@ class SkillChaining(object):
 			new_option.initialize_with_global_ddpg()
 			self.augment_agent_with_new_option(new_option, 0.)
 			self.untrained_options.append(new_option)
+
+	def create_backward_skill_chain(self, start_event, target_event, intersecting_options=[]):
+		"""
+		Create a skill chain that takes you from target_event to start_event
+		Args:
+			start_event (SalientEvent): Chain will continue until this is covered. This is also the
+										default initiation set for backward options
+			target_event (SalientEvent): Chain will try to hit this event
+			intersecting_options (list)
+
+		"""
+		back_chain = SkillChain(start_states=[start_event.target_state],
+								  mdp_start_states=self.s0,
+								  target_salient_event=target_event,
+								  init_salient_event=start_event,
+								  options=[], chain_id=len(self.chains) + 1,
+								  intersecting_options=[], is_backward_chain=True)
+		self.add_skill_chain(back_chain)
+
+		# Create a new option and equip the SkillChainingAgent with it
+		back_chain_root_option = Option(self.mdp, name=f"chain_{back_chain.chain_id}_backward_option",
+										  global_solver=self.global_option.solver,
+										  lr_actor=self.global_option.solver.actor_learning_rate,
+										  lr_critic=self.global_option.solver.critic_learning_rate,
+										  ddpg_batch_size=self.global_option.solver.batch_size,
+										  subgoal_reward=self.subgoal_reward,
+										  buffer_length=self.buffer_length,
+										  classifier_type=self.classifier_type,
+										  num_subgoal_hits_required=self.num_subgoal_hits_required,
+										  seed=self.seed, parent=None, max_steps=self.max_steps,
+										  enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
+										  intersecting_options=intersecting_options,
+										  initialize_everywhere=True, max_num_children=1,
+										  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
+										  is_backward_option=True,
+										  init_salient_event=start_event,
+										  target_salient_event=target_event)
+
+		back_chain_root_option.initialize_with_global_ddpg()
+		self.augment_agent_with_new_option(back_chain_root_option, 0.)
+		self.untrained_options.append(back_chain_root_option)
+
+	def manage_intersecting_skill_chains(self):
+		"""
+		When two forward chains intersect, we want to create a new chain that goes from
+		their target salient events to the region of intersection.
+
+		"""
+		intersecting_options = self.get_intersecting_options()
+
+		if intersecting_options:
+			intersecting_options = intersecting_options[0]
+			intersecting_chains = [self.chains[o.chain_id - 1] for o in intersecting_options if not o.backward_option]
+			chain1, chain2 = intersecting_chains[0], intersecting_chains[1]
+
+			if not chain1.has_backward_chain and not chain2.has_backward_chain:
+
+				chain1.has_backward_chain = True
+				chain2.has_backward_chain = True
+
+				# Add this new salient event to the MDP - so that we can plan to and from it
+				common_states = chain1.get_intersecting_states_between_options(intersecting_options[0], intersecting_options[1])
+				target_state = common_states[np.random.choice(range(common_states.shape[0])), :]
+				all_salient_events = list(set(self.mdp.get_current_target_events() + self.mdp.get_original_target_events()))
+				all_salient_event_idx = [event.event_idx for event in all_salient_events]
+				intersection_salient_event = SalientEvent(target_state, event_idx=max(all_salient_event_idx) + 1, intersection_event=True)
+				self.mdp.add_new_target_event(intersection_salient_event)
+
+				# Create the following skill-chains:
+				# 1. Chain from beta1 to beta-intersection
+				# 2. Chain from beta2 to beta-intersection
+				# 3. Chain from beta-intersection to MDP start-state
+				self.create_backward_skill_chain(start_event=chain1.target_salient_event,
+												 target_event=intersection_salient_event,
+												 intersecting_options=intersecting_options)
+				self.create_backward_skill_chain(start_event=chain2.target_salient_event,
+												 target_event=intersection_salient_event,
+												 intersecting_options=intersecting_options)
+				self.create_backward_skill_chain(start_event=intersection_salient_event,
+												 target_event=self.mdp.get_start_state_salient_event())
+
+				self.rewire_intersecting_chains(intersecting_chains, intersecting_options, intersection_salient_event)
+
+	def rewire_intersecting_chains(self, intersecting_chains, intersecting_options, intersection_salient_event):
+		"""
+
+		Args:
+			intersecting_chains:
+			intersecting_options:
+			intersection_salient_event (SalientEvent)
+
+		Returns:
+
+		"""
+		assert len(intersecting_options) == 2, intersecting_options
+		assert len(intersecting_chains) == 2, intersecting_chains
+
+		chain1, chain2 = intersecting_chains[0], intersecting_chains[1]      # type: SkillChain
+
+		# Find the chain that chains until the start state of the MDP
+		long_chain = chain1 if chain1.chained_till_start_state() else chain2
+
+		# Find the chain that chains until the region of intersection
+		short_chain = chain1 if long_chain == chain2 else chain2
+
+		# Change the init_salient_event corresponding to the short_chain
+		short_chain.init_salient_event = intersection_salient_event
+
+		print(f"Set {short_chain}'s init event to {short_chain.init_salient_event}, while keeping {long_chain}'s init event as {long_chain.init_salient_event}")
+
+		# Split the long chain into 2 parts: one that goes TO the intersection event and the other that goes to target_event
+		# The split will occur at the intersection option that is part of the long chain
+		# option1, option2 = intersecting_options[0], intersecting_options[1]  # type: Option
+
+		# split_option = option1 if option1 in chain1.options else option2
+		# split_index = get_split_idx(long_chain, split_option)
+		# first_split = long_chain.options[:split_index]
+		# second_split = short_chain.options[split_index:]
+		#
+		# # TODO: Create skills chains out of this...
+		#
+		# # Change the termination condition of options that target the `intersecting_options`
+		# pass
 
 	def skill_chaining_run_loop(self, num_episodes, num_steps, starting_episode=0, interrupt_handle=lambda x: False):
 
@@ -640,8 +755,8 @@ class SkillChaining(object):
 							not untrained_option.backward_option and self.start_state_salience:
 						self.manage_skill_chain_to_start_state(untrained_option)
 
-				# if not self.start_state_salience:
-				# 	self.manage_intersecting_skill_chains()
+				if not self.start_state_salience:
+					self.manage_intersecting_skill_chains()
 
 				if state.is_terminal() or interrupt_handle(state):
 					break
@@ -657,8 +772,8 @@ class SkillChaining(object):
 
 	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
 
-		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
-			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
+		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
+			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
 
 		self.num_options_history.append(len(self.trained_options))
 
@@ -666,8 +781,8 @@ class SkillChaining(object):
 			self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
 
 		if episode % 10 == 0:
-			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
-				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.global_option.solver.epsilon))
+			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
+				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
 
 		if episode > 0 and episode % 100 == 0:
 			# eval_score, trajectory = self.trained_forward_pass(render=False)

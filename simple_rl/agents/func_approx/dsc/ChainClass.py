@@ -104,6 +104,45 @@ class SkillChain(object):
         stop_condition = start_state_in_chain or (chain_itersects_another and mdp_chained)
         return not stop_condition
 
+    @staticmethod
+    def get_positive_states_from_options(option1, option2):
+        positive_feature_matrix = option1.construct_feature_matrix(option1.positive_examples)
+        other_positive_feature_matrix = option2.construct_feature_matrix(option2.positive_examples)
+
+        state_matrix = np.concatenate((positive_feature_matrix, other_positive_feature_matrix), axis=0)
+        return state_matrix
+
+    @staticmethod
+    def get_intersecting_states_between_options(my_option, other_option):
+        state_matrix = SkillChain.get_positive_states_from_options(my_option, other_option)
+        intersections = SkillChain.get_intersecting_indices(my_option, other_option)
+        if intersections.sum() > 0 and my_option.get_training_phase() == "initiation_done" and \
+            other_option.get_training_phase() == "initiation_done":
+            return state_matrix[intersections == 1, :]
+        return []
+
+    @staticmethod
+    def get_intersecting_indices(my_option, other_option):
+        state_matrix = SkillChain.get_positive_states_from_options(my_option, other_option)
+        my_predictions = my_option.batched_is_init_true(state_matrix)
+        other_predictions = other_option.batched_is_init_true(state_matrix)
+        intersections = np.logical_and(my_predictions, other_predictions)
+        return intersections
+
+    @staticmethod
+    def detect_intersection_between_options(my_option, other_option):
+        if len(my_option.positive_examples) > 0 and len(other_option.positive_examples) > 0:
+
+            intersections = SkillChain.get_intersecting_indices(my_option, other_option)
+
+            # If at least one state is inside the initiation classifier of both options,
+            # we have found our salient intersection event. Also verify that we have fit initiation
+            # classifiers for both options - this is needed if option's initialize_everywhere property is true
+            if intersections.sum() > 0 and my_option.get_training_phase() == "initiation_done" and \
+                    other_option.get_training_phase() == "initiation_done":
+                return True
+        return False
+
     def detect_intersection_with_other_chains(self, other_chains):
         for chain in other_chains:
             intersecting_options = self.detect_intersection(chain)
@@ -131,22 +170,8 @@ class SkillChain(object):
 
         for my_option in self.options:  # type: Option
             for other_option in other_chain.options:  # type: Option
-                if len(my_option.positive_examples) > 0 and len(other_option.positive_examples) > 0:
-                    positive_feature_matrix = my_option.construct_feature_matrix(my_option.positive_examples)
-                    other_positive_feature_matrix = other_option.construct_feature_matrix(other_option.positive_examples)
-
-                    state_matrix = np.concatenate((positive_feature_matrix, other_positive_feature_matrix), axis=0)
-                    my_predictions = my_option.batched_is_init_true(state_matrix)
-                    other_predictions = other_option.batched_is_init_true(state_matrix)
-                    intersections = np.logical_and(my_predictions, other_predictions)
-
-                    # If at least one state is inside the initiation classifier of both options,
-                    # we have found our salient intersection event. Also verify that we have fit initiation
-                    # classifiers for both options - this is needed if option's initialize_everywhere property is true
-                    if intersections.sum() > 0 and my_option.get_training_phase() == "initiation_done" and \
-                            other_option.get_training_phase() == "initiation_done":
+                if self.detect_intersection_between_options(my_option, other_option):
                         return my_option, other_option
-
         return None
 
     def is_intersecting(self, other_chain):
