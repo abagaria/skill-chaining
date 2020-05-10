@@ -928,7 +928,7 @@ if __name__ == '__main__':
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	parser.add_argument("--use_start_state_salience", action="store_true", default=False)
 	parser.add_argument("--warmup_period", type=float, default=0)
-	parser.add_argument("--pretrain_option_policies", type=bool, action="store_true", default=False)
+	parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
 	args = parser.parse_args()
 
 	if args.env == "point-reacher":
