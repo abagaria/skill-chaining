@@ -583,7 +583,7 @@ class Option(object):
 			print("[{}]: {} is_terminal() but not term_true()".format(self.name, s))
 			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)  # TODO: Make sure that your MDP doesn't have negative terminal rewards
 		else:
-			subgoal_reward = self.get_subgoal_reward(s_prime)
+			subgoal_reward = self.get_subgoal_reward(s_prime) if self.name != "global_option" else r
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
 	def execute_option_in_mdp(self, mdp, episode, step_number, eval_mode=False):
