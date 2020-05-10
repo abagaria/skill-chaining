@@ -540,7 +540,10 @@ class Option(object):
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
-			return -0.1 * self.overall_mdp.distance_to_goal(position_vector)
+			goal_state = self.target_salient_event.target_state
+			goal_position = goal_state.features()[:2] if isinstance(goal_state, State) else goal_state[:2]
+			distance_to_goal = np.linalg.norm(position_vector-goal_position)
+			return -0.1 * distance_to_goal
 
 		# For every other option, we use the negative distance to the parent's initiation set classifier
 		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]

@@ -68,7 +68,7 @@ class SkillChaining(object):
 		self.device = torch.device(device)
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
-		self.dense_reward = mdp.dense_reward
+		self.dense_reward = args.dense_reward
 		self.start_state_salience = start_state_salience
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
