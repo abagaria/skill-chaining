@@ -384,6 +384,15 @@ class SkillChaining(object):
 				return option
 		return None
 
+	def planning_act(self, state):
+		""" Quick hacky version of planning - just to check if this helps with large ant mazes. """
+		for chain in self.chains:  # type: SkillChain
+			if not chain.should_continue_chaining(self.chains) and chain.state_in_chain(state) and not chain.is_backward_chain:
+				for option in chain.options:  # type: Option
+					if option.is_init_true(state) and not option.is_term_true(state):
+						return option
+		return None
+
 	def act(self, state, train_mode=True):
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=train_mode)
@@ -393,6 +402,19 @@ class SkillChaining(object):
 
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
+
+		planning_option = self.planning_act(state)  # type: Option
+
+		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
+		backward_option = self._get_backward_options_in_gestation(state)
+		if backward_option is not None:
+			selected_option = backward_option
+		elif planning_option is not None:
+			selected_option = planning_option
+
+		# TODO: Hack - do not take option from a salient event targeting it
+		if selected_option.is_term_true(state):
+			selected_option = self.global_option
 
 		return selected_option
 
@@ -410,15 +432,6 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		selected_option = self.act(state)
-
-		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
-		backward_option = self._get_backward_options_in_gestation(state)
-		if backward_option is not None:
-			selected_option = backward_option
-
-		# TODO: Hack - do not take option from a salient event targeting it
-		if selected_option.is_term_true(state):
-			selected_option = self.global_option
 
 		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, episode_number, step_number)
 

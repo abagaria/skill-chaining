@@ -516,7 +516,7 @@ class SkillGraphPlanningAgent(object):
                                      init_salient_event=init_salient_event,
                                      target_salient_event=target_salient_event,
                                      is_backward_chain=False,
-                                     chain_until_intersection=False,
+                                     chain_until_intersection=True,     # TODO: Is this intersection managed by the DSC Class?
                                      chain_id=chain_id,
                                      options=[])
 

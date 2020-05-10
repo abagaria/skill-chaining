@@ -6,7 +6,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 class SkillChain(object):
     def __init__(self, start_states, mdp_start_states, init_salient_event, target_salient_event, options, chain_id,
-                 intersecting_options=[], is_backward_chain=False, has_backward_chain=False, chain_until_intersection=False):
+                 intersecting_options=[], is_backward_chain=False, has_backward_chain=False, chain_until_intersection=True):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here

@@ -207,7 +207,7 @@ class DQNAgent(Agent):
             self.fitting_interval = 200  # every episode
             self.sampled_bonus_for_action = defaultdict(lambda : [])
         elif exploration_strategy == "shaping":
-            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start)
+            self.epsilon_schedule = OptionEpsilonSchedule(0.2)
             self.epsilon = eps_start
             self.num_executions = 0
 

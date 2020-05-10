@@ -578,7 +578,7 @@ class Option(object):
 			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
 		elif s_prime.is_terminal():
 			print("[{}]: {} is_terminal() but not term_true()".format(self.name, s))
-			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
+			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)  # TODO: Make sure that your MDP doesn't have negative terminal rewards
 		else:
 			subgoal_reward = self.get_subgoal_reward(s_prime)
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
