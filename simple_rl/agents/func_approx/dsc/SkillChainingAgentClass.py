@@ -31,7 +31,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 start_state_salience=False, log_dir="", seed=0, tensor_log=False):
+				 start_state_salience=False, pretrain_option_policies=False, log_dir="", seed=0, tensor_log=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -49,6 +49,7 @@ class SkillChaining(object):
 			generate_plots (bool): whether or not to produce plots in this run
 			use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
 			start_state_salience (bool): Treat the start state of the MDP as a salient event OR create intersection events
+			pretrain_option_policies (bool): Whether to pre-train option policies with data from the global DDPG solver
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -70,6 +71,7 @@ class SkillChaining(object):
 		self.classifier_type = classifier_type
 		self.dense_reward = args.dense_reward
 		self.start_state_salience = start_state_salience
+		self.pretrain_option_policies = pretrain_option_policies
 
 		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -557,7 +559,8 @@ class SkillChaining(object):
 								init_salient_event=init_salient_event,
 								target_salient_event=target_salient_event)
 
-			new_option.initialize_with_global_ddpg()
+			if self.pretrain_option_policies:
+				new_option.initialize_with_global_ddpg()
 			self.augment_agent_with_new_option(new_option, 0.)
 			self.untrained_options.append(new_option)
 
@@ -598,7 +601,8 @@ class SkillChaining(object):
 										  init_salient_event=start_event,
 										  target_salient_event=target_event)
 
-		back_chain_root_option.initialize_with_global_ddpg()
+		if self.pretrain_option_policies:
+			back_chain_root_option.initialize_with_global_ddpg()
 		self.augment_agent_with_new_option(back_chain_root_option, 0.)
 		self.untrained_options.append(back_chain_root_option)
 
@@ -746,7 +750,8 @@ class SkillChaining(object):
 
 								# If initialize_everywhere is True, also add to trained_options
 								if new_option.initialize_everywhere:
-									new_option.initialize_with_global_ddpg()
+									if self.pretrain_option_policies:
+										new_option.initialize_with_global_ddpg()
 									self.augment_agent_with_new_option(new_option, self.init_q)
 
 					# If the current option's initiation set covers one of the target salient events
@@ -923,6 +928,7 @@ if __name__ == '__main__':
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	parser.add_argument("--use_start_state_salience", action="store_true", default=False)
 	parser.add_argument("--warmup_period", type=float, default=0)
+	parser.add_argument("--pretrain_option_policies", type=bool, action="store_true", default=False)
 	args = parser.parse_args()
 
 	if args.env == "point-reacher":
@@ -980,7 +986,8 @@ if __name__ == '__main__':
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,
-							start_state_salience=args.use_start_state_salience)
+							start_state_salience=args.use_start_state_salience,
+							pretrain_option_policies=args.pretrain_option_policies)
 	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(args.episodes, args.steps)
 
 	# Log performance metrics
