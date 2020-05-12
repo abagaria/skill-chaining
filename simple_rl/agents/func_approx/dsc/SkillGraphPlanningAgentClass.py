@@ -485,7 +485,7 @@ class SkillGraphPlanningAgent(object):
         print(f"Set {new_untrained_option}'s training phase to {new_untrained_option.get_training_phase()}")
 
         # Augment the DSC agent with the new option and pre-train it's policy
-        new_untrained_option.initialize_with_global_ddpg()
+        new_untrained_option.initialize_with_global_solver()
         new_untrained_option.solver.epsilon = train_goal_option.solver.epsilon
         self.chainer.augment_agent_with_new_option(new_untrained_option, 0.)
 
@@ -548,19 +548,22 @@ class SkillGraphPlanningAgent(object):
         print(f"Created {new_untrained_option} targeting {target_salient_event}")
 
         # Augment the DSC agent with the new option and pre-train it's policy
-        new_untrained_option.initialize_with_global_ddpg()
+        new_untrained_option.initialize_with_global_solver()
 
         # Check if the value function diverges - if it does, then retry. If it still does,
         # then initialize to random weights and use that
-        max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed, self.experiment_name)
+        max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
+                                                       self.experiment_name,
+                                                       replay_buffer=self.chainer.global_option.solver.replay_buffer)
         if max_q_value > 500:
             print("=" * 80)
             print(f"{new_untrained_option} VF diverged")
             print("=" * 80)
             self.reset_ddpg_solver(new_untrained_option)
-            new_untrained_option.initialize_with_global_ddpg()
+            new_untrained_option.initialize_with_global_solver()
             max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                           self.experiment_name)
+                                                           self.experiment_name,
+                                                           replay_buffer=self.chainer.global_option.solver.replay_buffer)
             if max_q_value > 500:
                 print("=" * 80)
                 print(f"{new_untrained_option} VF diverged AGAIN")

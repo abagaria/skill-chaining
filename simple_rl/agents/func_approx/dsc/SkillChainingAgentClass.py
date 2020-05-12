@@ -532,7 +532,7 @@ class SkillChaining(object):
 								init_salient_event=init_salient_event,
 								target_salient_event=target_salient_event)
 
-			new_option.initialize_with_global_ddpg()
+			new_option.initialize_with_global_solver()
 			self.augment_agent_with_new_option(new_option, 0.)
 			self.untrained_options.append(new_option)
 
@@ -573,7 +573,7 @@ class SkillChaining(object):
 										  init_salient_event=start_event,
 										  target_salient_event=target_event)
 
-		back_chain_root_option.initialize_with_global_ddpg()
+		back_chain_root_option.initialize_with_global_solver()
 		self.augment_agent_with_new_option(back_chain_root_option, 0.)
 		self.untrained_options.append(back_chain_root_option)
 
@@ -741,7 +741,7 @@ class SkillChaining(object):
 
 								# If initialize_everywhere is True, also add to trained_options
 								if new_option.initialize_everywhere:
-									new_option.initialize_with_global_ddpg()
+									new_option.initialize_with_global_solver()
 									self.augment_agent_with_new_option(new_option, self.init_q)
 
 					# If the current option's initiation set covers one of the target salient events

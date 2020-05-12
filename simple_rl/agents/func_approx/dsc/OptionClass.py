@@ -13,6 +13,7 @@ from scipy.spatial import distance
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
+from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
@@ -24,7 +25,8 @@ class Option(object):
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, intersecting_options=[], max_num_children=3,
 				 init_salient_event=None, target_salient_event=None,
-				 gestation_init_predicates=[], is_backward_option=False, generate_plots=False, device=torch.device("cpu"), writer=None):
+				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
+				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (MDP)
@@ -68,6 +70,14 @@ class Option(object):
 		self.target_salient_event = target_salient_event
 		self.gestation_init_predicates = gestation_init_predicates
 		self.overall_mdp = overall_mdp
+		self.device = device
+		self.lr_actor = lr_actor
+		self.lr_critic = lr_critic
+		self.ddpg_batch_size = ddpg_batch_size
+		self.solver_type = solver_type
+
+		self.state_size = self.overall_mdp.state_space_size()
+		self.action_size = self.overall_mdp.action_space_size()
 
 		self.timeout = np.inf
 
@@ -85,13 +95,12 @@ class Option(object):
 		random.seed(seed)
 		np.random.seed(seed)
 
-		state_size = overall_mdp.state_space_size()
-		action_size = overall_mdp.action_space_size()
-
-		solver_name = "{}_ddpg_agent".format(self.name)
-		self.global_solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size, name=solver_name) if name == "global_option" else global_solver
+		self.global_solver = global_solver
 		self.solver = None
-		self.reset_ddpg_solver()
+
+		if self.name == "global_option":
+			self.reset_global_solver()
+		self.reset_option_solver()
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -133,19 +142,33 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
-	def reset_ddpg_solver(self):
-		state_size = self.overall_mdp.state_space_size()
-		action_size = self.overall_mdp.action_space_size()
-		seed = self.seed
-		device = self.global_solver.device
-		lr_actor = self.global_solver.actor_learning_rate
-		lr_critic = self.global_solver.critic_learning_rate
-		ddpg_batch_size = self.global_solver.batch_size
-		writer = self.writer
-		solver_name = "{}_ddpg_agent".format(self.name)
-		exploration = "shaping" if self.name == "global_option" else ""
-		self.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-								tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
+	def reset_global_solver(self):
+		if self.solver_type == "ddpg":
+			self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device,
+										   self.lr_actor, self.lr_critic, self.ddpg_batch_size, name="global_option")
+		elif self.solver_type == "td3":
+			self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size, max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
+
+		else:
+			raise NotImplementedError(self.solver_type)
+
+	def reset_option_solver(self):
+		if self.solver_type == "ddpg":
+			seed = self.seed
+			device = self.global_solver.device
+			lr_actor = self.global_solver.actor_learning_rate
+			lr_critic = self.global_solver.critic_learning_rate
+			ddpg_batch_size = self.global_solver.batch_size
+			writer = self.writer
+			solver_name = "{}_ddpg_agent".format(self.name)
+			exploration = "shaping" if self.name == "global_option" else ""
+			self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
+									tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
+		elif self.solver_type == "td3":
+			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size, max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
+
+		else:
+			raise NotImplementedError(self.solver_type)
 
 	def sample_state(self):
 		""" Return a state from the option's initiation set. """
@@ -154,8 +177,13 @@ class Option(object):
 
 		sampled_state = None
 		while sampled_state is None:
-			sampled_experience = random.choice(self.solver.replay_buffer.memory)
-			sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
+			if isinstance(self.solver, DDPGAgent):
+				sampled_experience = random.choice(self.solver.replay_buffer.memory)
+				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
+			elif isinstance(self.solver, TD3):
+				sampled_idx = random.randint(0, len(self.solver.replay_buffer))
+				sampled_experience = self.solver.replay_buffer[sampled_idx]
+				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
 		return sampled_state
 
 	def get_sibling_options(self):
@@ -212,10 +240,10 @@ class Option(object):
 			return "initiation_done"
 		return "trained"
 
-	def initialize_with_global_ddpg(self, reset_option_buffer=True):
+	def initialize_with_global_solver(self, reset_option_buffer=True):
 		"""" Initialize option policy - unrestricted support because not checking if I_o(s) is true. """
 		# Not using off_policy_update() because we have numpy arrays not state objects here
-		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer.memory, desc=f"Initializing {self.name} policy"):
+		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer, desc=f"Initializing {self.name} policy"):
 			if self.is_term_true(state):
 				continue
 			if self.is_term_true(next_state):
@@ -229,11 +257,11 @@ class Option(object):
 		if reset_option_buffer:
 			self.solver.replay_buffer.clear()
 
-	def initialize_option_ddpg_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
+	def initialize_option_solver_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
 
 		assert self.initiation_classifier is not None, f"{self.name} in phase {self.get_training_phase()}"
 
-		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer.memory,
+		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer,
 															desc=f"Initializing {self.name} policy with {self.global_solver.name}"):
 
 			# Adding terminal self transitions causes the option value function to explode
@@ -293,12 +321,7 @@ class Option(object):
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option" or self.name == "exploration_option":
 			return np.zeros((state_matrix.shape[0]))
-		elif self.name == "goal_option_1":
-			return self.overall_mdp.get_original_salient_events()[0](state_matrix)
-		elif self.name == "goal_option_2":
-			return self.overall_mdp.get_original_salient_events()[1](state_matrix)
-		else:
-			assert len(self.intersecting_options) > 0
+		elif len(self.intersecting_options) > 0:
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
 			return np.logical_and(o1.batched_is_init_true(state_matrix), o2.batched_is_init_true(state_matrix))
 
@@ -336,12 +359,7 @@ class Option(object):
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
-		elif self.name == "goal_option_1":
-			return self.overall_mdp.get_original_target_events()[0](ground_state)
-		elif self.name == "goal_option_2":
-			return self.overall_mdp.get_original_target_events()[1](ground_state)
-		else:
-			assert len(self.intersecting_options) > 0, "{}, {}".format(self, self.intersecting_options)
+		elif len(self.intersecting_options) > 0:
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
 			return o1.is_init_true(ground_state) and o2.is_init_true(ground_state)
 
@@ -492,7 +510,7 @@ class Option(object):
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
 		if self.chain_id < 3:
-			self.initialize_with_global_ddpg()
+			self.initialize_with_global_solver()
 			self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition

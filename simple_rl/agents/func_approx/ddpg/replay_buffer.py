@@ -68,6 +68,9 @@ class ReplayBuffer(object):
     def __len__(self):
         return self.num_exp
 
+    def __getitem__(self, i):
+        return self.memory[i]
+
     def sample(self, batch_size=BATCH_SIZE):
         if self.num_exp < batch_size:
             batch = random.sample(self.memory, self.num_exp)
