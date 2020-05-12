@@ -34,32 +34,16 @@ def create_clf_gifs(opt_dict, duration, plot_dir_path, gif_dir_path, skip_window
         gif_path = gif_dir_path + '/{}.gif'.format(opt_name)
         start, end = opt_range
         with imageio.get_writer(gif_path, mode='I', duration=duration) as writer:
-            for i in range(start, end+1):
-                if skip_window % i == 0:
-                    frames_path = plot_dir_path + '/{}_{}.png'.format(opt_name, i)
-                    save_path = plot_dir_path + '/text_{}_{}.png'.format(opt_name, i)
-                    
-                    # Add episode to image
-                    add_text_to_img(frames_path, str(i), save_path, "plotting/Arial.ttf")
-                    
-                    writer.append_data(imageio.imread(save_path))
-    
-        print("Gif {} saved!".format(gif_path))
+            for i in range(start, end+skip_window, skip_window):
+                frames_path = plot_dir_path + '/{}_{}.png'.format(opt_name, i)
+                save_path = plot_dir_path + '/text_{}_{}.png'.format(opt_name, i)
+                
+                # Add episode to image
+                add_text_to_img(frames_path, str(i), save_path, "plotting/Arial.ttf")
+                
+                writer.append_data(imageio.imread(save_path))
 
-def create_state_prob_gifs(opt_dict, duration, plot_dir_path, gif_dir_path):
-    # Create directory
-    Path(gif_dir_path).mkdir(exist_ok=True)
-    
-    # Generate gifs
-    clfs = ['initiation_classifier', 'pessimistic_classifier']
-    for clf in clfs:
-        for opt_name, opt_range in opt_dict.items():
-            gif_path = gif_dir_path + '/{}_{}.gif'.format(opt_name, clf)
-            start, end = opt_range
-            with imageio.get_writer(gif_path, mode='I', duration=duration) as writer:
-                for i in range(start, end+1):
-                    frames_path = plot_dir_path + '/{}_{}_{}.png'.format(opt_name, clf, j)
-                    writer.append_data(imageio.imread(frames_path))
+        print("Gif {} saved!".format(gif_path))
 
 def main(args):
     
@@ -70,26 +54,9 @@ def main(args):
                     plot_dir_path = '{}/clf_plots'.format(args.test_path),
                     gif_dir_path='{}/clf_gifs'.format(args.test_path),
                     skip_window=args.skip_window)
-    
-    # create_state_prob_gifs(opt_names=args.opt_names,
-    #                        num_frames=args.num_frames,
-    #                        duration = 0.5,
-    #                        plot_dir_path = '{}/state_prob_plots'.format(args.test_path),
-    #                        gif_dir_path = '{}/state_prob_gifs'.format(args.test_path))
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument(
-    #     '--opt_names',
-    #     nargs='*',
-    #     type=str
-    # )
-    # parser.add_argument(
-    #     '--num_frames',
-    #     nargs='*',
-    #     type=int
-    # )
     parser.add_argument(
         '--test_path',
         type=str

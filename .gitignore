@@ -13,3 +13,5 @@ examples/blank_example.py
 notes/
 plots/
 saved_runs/
+runs/
+value_function_plots/

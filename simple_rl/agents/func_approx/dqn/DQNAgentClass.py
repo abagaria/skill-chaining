@@ -326,7 +326,6 @@ class DQNAgent(Agent):
 
             for idx, option in enumerate(self.trained_options): # type: Option
                 inits = option.batched_is_init_true(states)
-                # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
                 # TODO: needed for new term method
                 terms = np.zeros(inits.shape) if option.parent is None else option.batched_is_term_true(states)
                 try:

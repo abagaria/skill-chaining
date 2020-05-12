@@ -56,8 +56,8 @@ class SkillChaining(object):
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
-			opt_nu (float)
-			pes_nu (float)
+			opt_nu (float): Nu parameter for optimitisic one-class classifier
+			pes_nu (float): Nu parameter for pessimistic one-class classifier
 			num_run (int): Number of the current run.
 			discrete_actions (bool): Whether or not actions are discrete
 			use_old (bool): Whether or not to use previous DSC methods
@@ -69,9 +69,6 @@ class SkillChaining(object):
 		self.mdp = mdp
 		self.original_actions = deepcopy(mdp.actions)
 		self.max_steps = max_steps
-		self.lr_actor = lr_actor
-		self.lr_critic = lr_critic
-		self.ddpg_batch_size = ddpg_batch_size
 		self.subgoal_reward = subgoal_reward
 		self.enable_option_timeout = enable_option_timeout
 		self.init_q = init_q
@@ -85,6 +82,11 @@ class SkillChaining(object):
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
 		self.dense_reward = mdp.dense_reward
+
+		# TODO: extra
+		self.lr_actor = lr_actor
+		self.lr_critic = lr_critic
+		self.ddpg_batch_size = ddpg_batch_size
 		self.opt_nu = opt_nu
 		self.pes_nu = pes_nu
 		self.experiment_name = experiment_name
@@ -95,7 +97,9 @@ class SkillChaining(object):
 		self.episodic_saves = episodic_saves
 		self.args = args
 		self.use_chain_fix = use_chain_fix
+		self.episode = 0
 
+		# TODO: changed log dir
 		tensor_name = "logs/{}_{}".format(args.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
 
@@ -106,10 +110,8 @@ class SkillChaining(object):
 
 		self.validation_scores = []
 
-		self.episode = 0
-
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
-		if self.discrete_actions:
+		if self.discrete_actions:	# TODO discrete solver toggle
 			self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
 										lr_actor=None, lr_critic=None, lr_dqn=self.lr_dqn, buffer_length=buffer_length,
 										ddpg_batch_size=self.ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
@@ -137,9 +139,10 @@ class SkillChaining(object):
 		# Once we pick this option, we will use its internal DDPG solver to take primitive actions until termination
 		# Once we hit its termination condition N times, we will start learning its initiation set
 		# Once we have learned its initiation set, we will create its child option
+		# TODO: changed how options are labeled due to chain fix options
 		self.num_options = option_idx = 1
 		name = 'option_{}'.format(option_idx)
-		if self.discrete_actions:
+		if self.discrete_actions:	# TODO: discrete solver toggle
 			goal_option = Option(overall_mdp=self.mdp, name=name, global_solver=self.global_option.solver,
 								lr_actor=None, lr_critic=None, lr_dqn=self.lr_dqn, buffer_length=self.buffer_length,
 								ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=self.num_subgoal_hits_required,
@@ -173,8 +176,10 @@ class SkillChaining(object):
 		# 2. This option has an untrained initialization set and policy, which we need to train from experience
 		self.untrained_option = goal_option
 
+		# TODO: don't need a list of initial states, just take it from the MDP directly
 		# List of init states seen while running this algorithm
 		# self.init_states = []
+		self.start_state = np.array(self.mdp.init_state) 
 
 		# Debug variables
 		self.global_execution_states = []
@@ -190,7 +195,7 @@ class SkillChaining(object):
 		self.temporal_full_chain_breaks = {}
 		self.full_chain_fix_option = []
 
-		# TODO: plotting variables
+		# TODO: plotting/logging variables
 		self.episodic_plots = episodic_plots
 		self.x_mesh = None
 		self.y_mesh = None
@@ -198,10 +203,10 @@ class SkillChaining(object):
 		self.y_mesh_hd = None
 		self.option_data = {}
 		self.goal_xy = np.array(self.mdp.goal_position)
-		self.start_xy = np.array(self.mdp.init_state[:2])
-		
+		self.start_xy = np.array(self.start_state[:2])
 		self.options_chain_breaks = {}
 
+		# TODO: add environment image for plotting
 		if "maze" in self.mdp.env_name:
 			self.img_name = "images/point_maze_domain.png"
 		elif "treasure" in self.mdp.env_name:
@@ -209,20 +214,14 @@ class SkillChaining(object):
 		else:
 			self.img_name = None
 
-		# TODO: per step seed (int)
-		self.step_seed = None
-
-	# TODO: Set random seed value
-	def set_random_step_seed(self):
-		self.step_seed = np.random.randint(2**32 - 1)
-
+	# TODO restructered for new naming convention
 	def create_option(self, parent_option, option_idx, type=''):
 		# Create new option whose termination is the initiation of the option we just trained
 		name = "option_{}".format(option_idx)
 		print("{}Creating {}".format(type, name))
 
 		if parent_option is None:
-			if self.discrete_actions:
+			if self.discrete_actions:	# TODO: discrete solver toggle
 				new_untrained_option = Option(overall_mdp=self.mdp, name=name, global_solver=self.global_option.solver,
 											lr_actor=None, lr_critic=None, lr_dqn=self.lr_dqn, buffer_length=self.buffer_length,
 											ddpg_batch_size=self.ddpg_batch_size, num_subgoal_hits_required=self.num_subgoal_hits_required,
@@ -243,7 +242,7 @@ class SkillChaining(object):
 											discrete_actions=self.discrete_actions, use_old=self.use_old,
 											episode=self.episode, option_idx=option_idx)
 		else:
-			if self.discrete_actions:
+			if self.discrete_actions:	# TODO: discrete solver toggle
 				new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
 										lr_actor=None,
 										lr_critic=None,
@@ -284,7 +283,6 @@ class SkillChaining(object):
 	def make_off_policy_updates_for_options(self, state, action, reward, next_state):
 		for option in self.trained_options: # type: Option
 			option.off_policy_update(state, action, reward, next_state)\
-
 
 	def make_smdp_update(self, state, action, total_discounted_reward, next_state, option_transitions):
 		"""
@@ -416,8 +414,8 @@ class SkillChaining(object):
 		return option_transitions, option_reward, next_state, len(option_transitions)
 
 	def sample_qvalue(self, option):
-		# TODO: different replay buffers for DQN
-		if self.discrete_actions:
+		if self.discrete_actions:	# TODO: discrete solver toggle
+			# NOTE: different replay buffers for DQN
 			if len(option.solver.replay_buffer) > 500:
 				sample_experiences = option.solver.replay_buffer.sample(batch_size=500)
 				sample_states = sample_experiences[0]
@@ -446,12 +444,15 @@ class SkillChaining(object):
 			total_reward += reward
 		return total_reward
 
+	# TODO: utilities
 	def get_all_global_states(self):
 		return np.array([row[0] for row in list(self.global_option.solver.replay_buffer.memory)])
 
+	# TODO: utilities
 	def get_mesh_positions(self):
 		return np.c_[self.x_mesh.ravel(), self.y_mesh.ravel()]
 
+	# TODO: log chain breaks
 	def log_full_chain_breaks(self, episode):
 		# Time index with steps and episodes (assume can be 0)
 		time_step = episode
@@ -477,15 +478,16 @@ class SkillChaining(object):
 				else:
 					self.full_chain_breaks[full_broken_option.name][time_step] += 1
 
+	# TODO: detect chain breaks for logging
 	def check_full_chain_breaks(self):
 		local_options = self.trained_options[1:]
 		full_chain_breaks = []
 		for option in local_options:
-			if option.parent is not None and option.parent.get_training_phase() != 'gestation':	# NOTE: gestation will only happen with chain fix code
+			# NOTE: gestation will only happen with chain fix code
+			if option.parent is not None and option.parent.get_training_phase() != 'gestation':
 				# TODO: hack for treasure game
 				if "treasure" in self.mdp.env_name:
-					# ???
-					pass
+					raise NotImplementedError
 				else:
 					states = option.parent.X
 
@@ -496,32 +498,14 @@ class SkillChaining(object):
 					full_chain_breaks.append(option)
 		return full_chain_breaks
 
-	# TODO: chain fix for start of chain
-	# def should_create_new_goal_option(self):
-	# 	local_options = self.trained_options[1:]
-	# 	for option in local_options:
-	# 		if option.parent is None:
-	# 			# TODO: hack for treasure game
-	# 			if "treasure" in self.mdp.env_name:
-	# 				# ???
-	# 				pass
-	# 			else:
-	# 				states = option.X
-	# 			opt_predict = option.optimistic_classifier.predict(states)
-	# 			states_in_opt_set = states[opt_predict == 1]
-	# 			if not (self.mdp.batched_is_goal_state(states_in_opt_set).any()):
-	# 				return True, option
-	# 	return False, None
-
-	# TODO: chain fix for middle of chain (rename)
+	# TODO: detect chain breaks in main protocol
 	def should_create_chain_fix_option(self):
 		local_options = self.trained_options[1:]
 		for option in local_options:
 			if option.parent is not None and option.parent.get_training_phase() != 'gestation':
 				# TODO: hack for treasure game
 				if "treasure" in self.mdp.env_name:
-					# ???
-					pass
+					raise NotImplementedError
 				else:
 					states = option.parent.X
 				
@@ -533,42 +517,8 @@ class SkillChaining(object):
 					return True, option
 		return False, None
 
-	# def update_goal_chain_breaks(self, broken_goal, episode, step):
-	# 	# Time index with steps and episodes (assume can be 0)
-	# 	time_step = episode + (step / self.max_steps)
-
-	# 	# Update total temporal chain breaks
-	# 	if time_step not in self.temporal_chain_breaks:
-	# 		self.temporal_chain_breaks[time_step] = 1
-	# 	else:
-	# 		self.temporal_chain_breaks[time_step] += 1
-
-	# 	# Update the options that broke the goal
-	# 	if broken_goal.name not in self.goal_chain_breaks:
-	# 		self.goal_chain_breaks[broken_goal.name] = {time_step : 1}
-	# 	else:
-	# 		if time_step not in self.goal_chain_breaks[broken_goal.name]:
-	# 			self.goal_chain_breaks[broken_goal.name][time_step] = 1
-	# 		else:
-	# 			self.goal_chain_breaks[broken_goal.name][time_step] += 1
-
-	# TODO: chain fix protocol
+	# TODO: main chain fix protocol
 	def detect_and_fix_chain(self, episode, step_number):
-		# First detect if goal option needs to be fixed
-		# goal_needs_fix, broken_goal = self.should_create_new_goal_option()
-		# if goal_needs_fix:
-		# 	print("    |-> GOAL CHAIN BREAK: (goal option) {}".format(broken_goal.name))
-		# 	self.update_goal_chain_breaks(broken_goal, episode, step_number)
-			
-		# 	# Create fix for goal option
-		# 	self.num_options += 1
-		# 	new_idx = self.num_options
-		# 	goal_fix_option = self.create_option(None, new_idx, type='(goal fix) ')
-			
-		# 	# Link broken goal option to new goal fix option
-		# 	self.update_options_parent(broken_goal, goal_fix_option)
-		# 	return True, goal_fix_option
-
 		# Then detect if intermediate option needs to be fixed
 		option_needs_fix, broken_option = self.should_create_chain_fix_option()
 		if option_needs_fix:
@@ -588,6 +538,7 @@ class SkillChaining(object):
 
 	# TODO: utilities
 	def get_skill_chain(self):
+		# NOTE: this only produces a skill chain of learned options (excludes global option)
 		# Build parent to child option dictionary
 		all_options = {}
 		for option in self.trained_options[1:]:
@@ -616,48 +567,34 @@ class SkillChaining(object):
 				break
 		return skill_chain
 
-	# def update_chain_breaks(self, broken_option, episode, step):
-	# 	# Time index with steps and episodes (assume can be 0)
-	# 	time_step = episode + (step / self.max_steps)
-		
-	# 	# Update total temporal chain breaks
-	# 	if time_step not in self.temporal_chain_breaks:
-	# 		self.temporal_chain_breaks[time_step] = 1
-	# 	else:
-	# 		self.temporal_chain_breaks[time_step] += 1
-
-	# 	# Update the options that broke the chain
-	# 	if broken_option.name not in self.option_chain_breaks:
-	# 		self.option_chain_breaks[broken_option.name] = {time_step : 1}
-	# 	else:
-	# 		if time_step not in self.option_chain_breaks[broken_option.name]:
-	# 			self.option_chain_breaks[broken_option.name][time_step] = 1
-	# 		else:
-	# 			self.option_chain_breaks[broken_option.name][time_step] += 1
-
-	# TODO: chain fix
+	# TODO: assign new parent when chain fix option is created
 	def update_options_parent(self, child_option, new_parent_option):
 		for i, option in enumerate(self.trained_options):
 			if option.name == child_option.name:
 				child_option.update_parent(new_parent_option)
 				self.trained_options[i] = child_option
 
+	# TODO: restructured
 	def should_create_child_options(self, verbose=False):
 		local_options = self.trained_options[1:]
 		
-		# # TODO: Wait for a trained option
+		# TODO: Wait for a trained option
 		if local_options == []:
 			return False
 		
-		# for start_state in self.init_states:
+		# TODO: hack for treasure game
+		if "treasure" in self.mdp.env_name:
+			start_state = self.start_state
+		else:
+			start_state = self.start_xy
+
+		# TODO: remove iterating over init states
 		for option in local_options:  # type: Option
-			# if option.is_init_true(start_state):
-			if option.is_init_true(self.start_xy):
+			if option.is_init_true(start_state):
 				if verbose:
 					print("Init state is in {}'s initiation set classifier".format(option.name))
 				return False
 		return True
-		# return len(self.trained_options) < self.max_num_options
 	
 	# TODO: utilities
 	def make_meshgrid(self, x, y, h=.01):
@@ -737,13 +674,6 @@ class SkillChaining(object):
 				cf = plt.contourf(x_mesh, y_mesh, z, colors=color, alpha=alpha)
 				patches.append(mpatches.Patch(color=color, label=clf_name, alpha=alpha))
 
-		# Plot successful trajectories
-		# if extra_X_data:
-		# 	x_coord, y_coord = extra_X_data[:,0], extra_X_data[:,1]
-		# 	pos_color = 'black'
-		# 	p = plt.scatter(x_coord, y_coord, marker='+', c=pos_color, label='init_states', alpha=0.6)
-		# 	patches.append(p)
-
 		plt.xticks(())
 		plt.yticks(())
 		plt.title("{}".format(option_name))
@@ -755,7 +685,7 @@ class SkillChaining(object):
 		plt.close()
 
 		# TODO: remove
-		print("|-> {}/{}_{}.png saved!".format(path, option_name, episode))
+		print("|-> Figure {}/{}_{}.png saved!".format(path, option_name, episode))
 
 	def plot_multi_boundaries(self, x_mesh, y_mesh, option_data, rgb_color_palette, experiment_name, alpha, plot_eps, img_name=None, img_alpha=1, goal=None, start=None):
 		# Create plotting dir (if not created)
@@ -792,13 +722,11 @@ class SkillChaining(object):
 
 		for i, (option_name, option) in enumerate(option_data.items()):
 			for episode, episode_data in option.items():
-				# colors = [all_color_strs[i], 'dark' + all_color_strs[i]]
 				clfs = episode_data['clfs_bounds']
 				# plot boundaries of classifiers
 				if episode == plot_eps:
 					saved_eps = episode
 					patches.append(mpatches.Patch(color=colors[i], label='{}'.format(option_name), alpha=alpha))
-					# patches.append(mpatches.Patch(label='{}'.format(option_name), alpha=alpha))
 
 					# Plot classifier boundaries
 					for (clf_name, clf) in clfs.items():
@@ -828,7 +756,7 @@ class SkillChaining(object):
 		plt.savefig("{}/all_options_{}.png".format(path, saved_eps),bbox_inches='tight', edgecolor='black', format='png', quality=100)
 		plt.close()
 
-		print("|-> {}/all_options_{}.png saved!".format(path, saved_eps))
+		print("|-> Figure {}/all_options_{}.png saved!".format(path, saved_eps))
 
 	# TODO: utilities
 	def plot_learning_curves(self, experiment_name, data):
@@ -848,7 +776,7 @@ class SkillChaining(object):
 		plt.close()
 
 		# TODO: remove
-		print("|-> {}/learning_curve.png saved!".format(path))
+		print("|-> Figure {}/learning_curve.png saved!".format(path))
 
 	# TODO: export option data
 	def save_all_data(self, logdir, args, episodic_scores, episodic_durations):
@@ -882,6 +810,7 @@ class SkillChaining(object):
 			with open(data_dir + '/' + var_name + '.pkl', 'wb+') as f:
 				pickle.dump(data, f)
 
+	# TODO: intermediate processing for plots
 	def run_plot_processing(self, episode):
 		for option in self.trained_options:
 			if option.optimistic_classifier or option.initiation_classifier:
@@ -899,25 +828,12 @@ class SkillChaining(object):
 				else:
 					self.option_data[option.name][episode] = {'clfs_bounds' : clfs_bounds}
 
+	# TODO: main plotting calss for episodic plots
 	def plot_episodic_plots(self, episode, per_episode_scores):
 		sns.set_style("white")
-
-		all_color_strs =['salmon', 'green', 'violet', 'orange', 'cyan', 'khaki', 'slateblue', 'red', 'goldenrod', 'turquoise', 'blue', 'slategray', 'magenta']
-
-		# for i, option in enumerate(self.trained_options):
-		# 	if option.optimistic_classifier or option.initiation_classifier:
-		# 		# plotting variables
-		# 		colors = [all_color_strs[i], 'dark' + all_color_strs[i]]
-		# 		if self.use_old:
-		# 			clfs_bounds = {'Initiation set classifier': option.initiation_classifier}
-		# 		else:
-		# 			clfs_bounds = {'Optimistic initiation set':option.optimistic_classifier, 'Pessimistic initiation set':option.pessimistic_classifier}
-				
-		# 		# plot each option's boundaries of classifiers
-		# 		self.plot_boundary(self.x_mesh, self.y_mesh, clfs_bounds, colors, option.name, episode, self.log_dir, 0.3, img_name=self.img_name, img_alpha=0.7, goal=self.goal_xy, start=self.start_xy)
+		rgb_color_palette = sns.color_palette('deep')
 
 		# plot all options' boundaries
-		rgb_color_palette = sns.color_palette('deep')
 		self.plot_multi_boundaries(x_mesh=self.x_mesh,
 									y_mesh=self.y_mesh,
 									option_data=self.option_data,
@@ -938,10 +854,9 @@ class SkillChaining(object):
 		for option in self.trained_options:
 			option.update_episode(episode)
 
-
+	# TODO: restructured
 	def skill_chaining(self, num_episodes, num_steps):
-
-		print("\nSkillChaining::skill_chaining: call")		# TODO: remove
+		print("\nSkillChaining::skill_chaining: call")	# TODO: remove
 
 		# For logging purposes
 		per_episode_scores = []
@@ -955,18 +870,20 @@ class SkillChaining(object):
 			Path('{}/plots'.format(self.log_dir)).mkdir(exist_ok=True)
 
 		# TODO: create mesh of environment
-		width_coord = height_coord = np.array([-2,11])
-		self.x_mesh, self.y_mesh = self.make_meshgrid(width_coord, height_coord, h=0.1)	# for predictions
+		if "treasure" in self.mdp.env_name:
+			raise NotImplementedError
+		else:
+			# TODO: hardcode for point maze
+			width_coord = height_coord = np.array([-2,11])
+			self.x_mesh, self.y_mesh = self.make_meshgrid(width_coord, height_coord, h=0.1)	# for predictions
 
 		for episode in range(num_episodes):
-
-			print("|-> episode: {}".format(episode))		# TODO: remove
+			print("|-> episode: {}".format(episode))	# TODO: remove
 			self.mdp.reset()
 			score = 0.
 			step_number = 0
 			uo_episode_terminated = False
 			state = deepcopy(self.mdp.init_state)
-			# self.init_states.append(deepcopy(state))
 			experience_buffer = []
 			state_buffer = []
 			episode_option_executions = defaultdict(lambda : 0)
@@ -985,19 +902,12 @@ class SkillChaining(object):
 				# Don't forget to add the last s' to the buffer_length
 				if state.is_terminal() or (step_number == num_steps - 1):
 					state_buffer.append(state)
-
-				# TODO: first check if chain needs fix from trained options
-				# if self.use_chain_fix and (not uo_episode_terminated) and self.untrained_option.get_training_phase() != 'gestation':
-				# 	should_fix, new_fix_option = self.detect_and_fix_chain(episode, step_number)
-				# 	if should_fix:
-				# 		uo_episode_terminated = True
-				# 		self.untrained_option = new_fix_option
 				
+				# NOTE: this still works with old DSC methods
+				# TODO: can only do one thing per episode
 				skip_child = False
-
-				# Can only do one thing per episode
 				if (not uo_episode_terminated):
-					# Train terminating option
+					# train terminating option
 					if self.untrained_option.is_term_true(state) and\
 						self.max_num_options > 0 and self.untrained_option.get_training_phase() == 'gestation':
 						uo_episode_terminated = True
@@ -1005,9 +915,9 @@ class SkillChaining(object):
 						if self.untrained_option.train(experience_buffer, state_buffer):
 							self._augment_agent_with_new_option(self.untrained_option, init_q_value=self.init_q)
 					
-					# Check on last step in episode, Can only create options if one is not being trained
+					# check on last step in episode, can only create options if one is not being trained
 					elif self.untrained_option.get_training_phase() != 'gestation':
-						# Check and fix breaks
+						# check and fix chain breaks
 						if self.use_chain_fix:
 							uo_episode_terminated = True	# check only once per episode
 							should_fix, new_fix_option = self.detect_and_fix_chain(episode, step_number)
@@ -1015,11 +925,11 @@ class SkillChaining(object):
 								skip_child = True
 								self.untrained_option = new_fix_option
 						
-						# Check if children need to be made from trained options
+						# check if children need to be made from trained options
 						if (not skip_child) and self.should_create_child_options(verbose=False):	
 							self.num_options += 1
 							
-							# TODO: if untrained option was a chain fix, need to create child from the last in chain
+							# if untrained option was a chain fix, need to create child from the last in chain
 							last_option_in_chain = self.get_skill_chain()[-1]
 							new_idx = self.num_options
 
@@ -1061,16 +971,15 @@ class SkillChaining(object):
 			self.update_options_episode(episode)
 			self.episode += 1
 
-		# TODO: export
+		# TODO: post run assignments
 		self.final_skill_chain = [str(option.name) for option in self.get_skill_chain()]
-		self.x_mesh_hd, self.y_mesh_hd = self.make_meshgrid(width_coord, height_coord, h=0.01)	#for plotting
+		self.x_mesh_hd, self.y_mesh_hd = self.make_meshgrid(width_coord, height_coord, h=0.01)	# save HD mesh for plotting
 
 		print("Saving all data...")
 		self.save_all_data(self.log_dir, self.args, per_episode_scores, per_episode_durations)
 
 		return per_episode_scores, per_episode_durations
 
-	
 	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
 
 		print('Episode {}\tScore: {:.2f}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tGO Eps: {:.2f}'.format(
@@ -1099,27 +1008,28 @@ class SkillChaining(object):
 		for option in self.trained_options: # type: Option
 			save_model(option.solver, args.episodes, best=False)
 
-	# def save_all_scores(self, pretrained, scores, durations):
-	# 	print("\rSaving training and validation scores..")
-	# 	training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
-	# 	training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
-	# 	validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
-	# 	num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
+	# TODO: old
+	def save_all_scores(self, pretrained, scores, durations):
+		print("\rSaving training and validation scores..")
+		training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
+		training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
+		validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
+		num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
 
-	# 	if self.log_dir:
-	# 		training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
-	# 		training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
-	# 		validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
-	# 		num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
+		if self.log_dir:
+			training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
+			training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
+			validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
+			num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
 
-	# 	with open(training_scores_file_name, "wb+") as _f:
-	# 		pickle.dump(scores, _f)
-	# 	with open(training_durations_file_name, "wb+") as _f:
-	# 		pickle.dump(durations, _f)
-	# 	with open(validation_scores_file_name, "wb+") as _f:
-	# 		pickle.dump(self.validation_scores, _f)
-	# 	with open(num_option_history_file_name, "wb+") as _f:
-	# 		pickle.dump(self.num_options_history, _f)
+		with open(training_scores_file_name, "wb+") as _f:
+			pickle.dump(scores, _f)
+		with open(training_durations_file_name, "wb+") as _f:
+			pickle.dump(durations, _f)
+		with open(validation_scores_file_name, "wb+") as _f:
+			pickle.dump(self.validation_scores, _f)
+		with open(num_option_history_file_name, "wb+") as _f:
+			pickle.dump(self.num_options_history, _f)
 
 	def perform_experiments(self):
 		for option in self.trained_options:
@@ -1168,19 +1078,13 @@ class SkillChaining(object):
 
 		return overall_reward, option_trajectories
 
+# TODO: restructured
 def create_log_dir(path):
-	# path = os.path.join(os.getcwd(), experiment_name)
 	Path(path).mkdir(exist_ok=True)
-	# try:
-	# 	os.mkdir(path)
-	# except OSError:
-	# 	print("Creation of the directory %s failed" % path)
-	# else:
-	# 	print("Successfully created the directory %s " % path)
 	return path
 
-
 if __name__ == '__main__':
+	# TODO: added more arguments
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--experiment_name", type=str, help="Experiment Name")
 	parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
@@ -1231,7 +1135,7 @@ if __name__ == '__main__':
 		overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
 		state_dim = 4
 		action_dim = 2
-	elif "treasure" in args.env.lower():
+	elif "treasure" in args.env.lower():	# TODO: new treasure game domain
 		from simple_rl.tasks.treasure_game.TreasureGameMDPClass import TreasureGameMDP
 		overall_mdp = TreasureGameMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
 		state_dim = overall_mdp.init_state.features().shape[0]
@@ -1244,7 +1148,7 @@ if __name__ == '__main__':
 		action_dim = overall_mdp.env.action_space.n
 		overall_mdp.env.seed(args.seed)
 
-
+	# TODO: changed log dir
 	# Create folders for saving various things
 	logdir = create_log_dir('runs/' + args.experiment_name)
 	create_log_dir("saved_runs")
@@ -1255,6 +1159,7 @@ if __name__ == '__main__':
 
 	print("Training skill chaining agent from scratch with a subgoal reward = {} and buffer_len = {}".format(args.subgoal_reward, args.buffer_len))
 	
+	# TODO: added MDP info
 	print("\nMDP: {}".format(overall_mdp.env_name))
 	print("MDP InitState = ", overall_mdp.init_state)
 
@@ -1269,10 +1174,11 @@ if __name__ == '__main__':
 							use_old=args.use_old, episodic_saves=args.episodic_saves, args=args, use_chain_fix=args.use_chain_fix)
 	episodic_scores, episodic_durations = chainer.skill_chaining(args.episodes, args.steps)
 
-	# TODO: remove
+	# TODO: print final run info
 	print("Scores: {}".format(episodic_scores))
 	print("Final Skill Chain: {}".format(chainer.final_skill_chain))
 
+	# TODO: old
 	# Log performance metrics
 	# chainer.save_all_models()
 	# chainer.perform_experiments()

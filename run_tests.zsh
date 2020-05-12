@@ -1,16 +1,15 @@
-# Command to wait for test to finish to run another
+# Command to wait for a test to finish to run another
 # echo Waiting...; while ps -p $PID > /dev/null; do sleep 1; done; zsh run_tests.zsh
 
 # Variables
 # env="treasure_game-v0"
-
 env="maze"
 episodes=300
 steps=2000
-declare -a pes_nus=(0.1)
+declare -a pes_nus=(0.3)
 declare -a opt_nus=(0.1)
-declare -a starts=(2)
-declare -a ends=(5)
+declare -a starts=(6)
+declare -a ends=(10)
 num_runs=${#pes_nus[@]}
 hits=5
 
@@ -20,6 +19,7 @@ if [[ "${env}" = "treasure" ]]; then
 else
 	# extra_args='--use_chain_fix=True'
 	extra_args='--use_old=True'
+	# extra_args=''
 fi
 
 # Main loop
@@ -27,8 +27,8 @@ for i in {1..${num_runs}}; do
 	# Run variables
 	pes_nu=${pes_nus[i]}
 	opt_nu=${opt_nus[i]}
-	# experiment_name="(cs2951x) ${env}_chain_fix_pes_nu_${pes_nu}"
-	experiment_name="(cs2951x) ${env}_old_continuous_learning_2"
+	experiment_name="(cs2951x) maze_old_continuous_learning_2"
+	# experiment_name="(cs2951x) ${env}_pes_nu_${pes_nu}_with_chainfix"
 	start=${starts[i]}
 	end=${ends[i]}
 
