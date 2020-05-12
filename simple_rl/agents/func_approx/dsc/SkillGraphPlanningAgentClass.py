@@ -12,7 +12,6 @@ from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
 from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot
-from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 
 
 class SkillGraphPlanningAgent(object):
@@ -510,13 +509,17 @@ class SkillGraphPlanningAgent(object):
 
     def create_goal_option_outside_graph(self, target_salient_event):
         chain_id = max([chain.chain_id for chain in self.chainer.chains]) + 1
-        init_salient_event = self.mdp.get_start_state_salient_event()  # TODO: This should be ANY of the init sets in the known part of the graph
+
+        # The init salient event of this new chain is initialized to be the start state of the MDP
+        # However, as DSC adds skills to this chain, it will eventually stop when it finds a chain intersection
+        # At that point it will rewire the chain to set its init_salient_event to be the region of intersection
+        init_salient_event = self.mdp.get_start_state_salient_event()
         new_skill_chain = SkillChain(start_states=[self.mdp.init_state],
                                      mdp_start_states=[self.mdp.init_state],
                                      init_salient_event=init_salient_event,
                                      target_salient_event=target_salient_event,
                                      is_backward_chain=False,
-                                     chain_until_intersection=False,
+                                     chain_until_intersection=True,
                                      chain_id=chain_id,
                                      options=[])
 
@@ -543,7 +546,7 @@ class SkillGraphPlanningAgent(object):
                                       is_backward_option=False,
                                       init_salient_event=init_salient_event,
                                       target_salient_event=target_salient_event,
-                                      initiation_period=0)
+                                      initiation_period=0)  # TODO: This might not be wise in Ant
 
         print(f"Created {new_untrained_option} targeting {target_salient_event}")
 
@@ -559,7 +562,7 @@ class SkillGraphPlanningAgent(object):
             print("=" * 80)
             print(f"{new_untrained_option} VF diverged")
             print("=" * 80)
-            self.reset_ddpg_solver(new_untrained_option)
+            new_untrained_option.reset_option_solver()
             new_untrained_option.initialize_with_global_solver()
             max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
                                                            self.experiment_name,
@@ -569,7 +572,7 @@ class SkillGraphPlanningAgent(object):
                 print(f"{new_untrained_option} VF diverged AGAIN")
                 print("Just initializing to random weights")
                 print("=" * 80)
-                self.reset_ddpg_solver(new_untrained_option)
+                new_untrained_option.reset_option_solver()
 
         self.chainer.untrained_options.append(new_untrained_option)
         self.chainer.augment_agent_with_new_option(new_untrained_option, 0.)
@@ -627,18 +630,3 @@ class SkillGraphPlanningAgent(object):
             if reached_goal:
                 successes += 1
         return successes
-
-    def reset_ddpg_solver(self, option):
-        state_size = self.mdp.state_space_size()
-        action_size = self.mdp.action_space_size()
-        seed = self.seed
-        device = self.chainer.device
-        lr_actor = option.global_solver.actor_learning_rate
-        lr_critic = option.global_solver.critic_learning_rate
-        ddpg_batch_size = option.global_solver.batch_size
-        writer = option.writer
-        solver_name = "{}_ddpg_agent".format(option.name)
-        exploration = "shaping" if option.name == "global_option" else ""
-        option.solver = DDPGAgent(state_size, action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-                                tensor_log=(writer is not None), writer=writer, name=solver_name,
-                                exploration=exploration)
