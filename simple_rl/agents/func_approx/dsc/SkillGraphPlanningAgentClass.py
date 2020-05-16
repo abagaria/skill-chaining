@@ -15,7 +15,7 @@ from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_p
 
 
 class SkillGraphPlanningAgent(object):
-    def __init__(self, mdp, chainer, experiment_name, seed):
+    def __init__(self, mdp, chainer, initialize_graph, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -24,17 +24,19 @@ class SkillGraphPlanningAgent(object):
         Args:
             mdp (PointReacherMDP)
             chainer (SkillChaining)
+            initialize_graph (bool)
             experiment_name (str)
             seed (int)
         """
         self.mdp = mdp
         self.chainer = chainer
+        self.initialize_graph = initialize_graph
         self.experiment_name = experiment_name
         self.seed = seed
 
         self.bandit_agents = {}
 
-        self.plan_graph = self.construct_plan_graph()
+        self.plan_graph = self.construct_plan_graph() if initialize_graph else GraphSearch()
 
     def construct_plan_graph(self):
         # Perform test rollouts to determine edge weights in the plan graph
@@ -88,7 +90,7 @@ class SkillGraphPlanningAgent(object):
                         return selected_option
 
         print(f"Reverting to the DSC policy over options")
-        return self.chainer.act(start_state, train_mode=False)
+        return self.chainer.act(start_state, train_mode=True)
 
     def chain_for_target_event(self, goal_state):
         for chain in self.chainer.chains:  # type: SkillChain
@@ -125,18 +127,17 @@ class SkillGraphPlanningAgent(object):
     def get_goal_salient_event(self, goal_state):
         """ If there is no salient event already corresponding to the given goal_state, create one. """
 
-        all_salient_events = self.plan_graph.salient_nodes
-        target_salient_event = self.get_salient_event_for_state(goal_state)
-
-        if target_salient_event is not None:
-            created_new_event = False
-        else:
+        def _create_new_salient_event():
+            all_salient_events = self.mdp.get_all_target_events_ever()
             event_indices = [event.event_idx for event in all_salient_events]
-            target_salient_event = SalientEvent(goal_state, event_idx=max(event_indices) + 1)
-            self.mdp.add_new_target_event(target_salient_event)
-            created_new_event = True
+            new_salient_event = SalientEvent(goal_state, event_idx=max(event_indices) + 1)
+            self.mdp.add_new_target_event(new_salient_event)
+            return new_salient_event
 
-        return target_salient_event, created_new_event
+        target_salient_event = self.get_salient_event_for_state(goal_state)
+        if target_salient_event is None:
+            target_salient_event = _create_new_salient_event()
+        return target_salient_event
 
     def should_planning_run_loop_terminate(self, state, goal_state, goal_salient_event, target_option, salient_event_inside_graph):
         """
@@ -221,47 +222,114 @@ class SkillGraphPlanningAgent(object):
 
         Returns:
             next_state (State)
+            step_number (int)
         """
-        def _get_options_created_inside_run_loop(old_option_idx, new_option_idx):
-            old_option_indices = set(old_option_idx)
-            new_option_indices = set(new_option_idx)
-            added_options_indices = list(new_option_indices - old_option_indices)
-            added_options = [option for option in self.chainer.trained_options if option.option_idx in added_options_indices]
-            added_trained_options = [option for option in added_options if option.get_training_phase() == "initiation_done"]
-            return added_trained_options
 
         # If the DSC agent has completed creating a forward chain targeting a salient event, but
         # is still in the process of creating the backward chain, `inside_graph` will be true,
         # but no `new_option` would have been created
         if inside_graph and new_option is not None:
-            new_option.execute_option_in_mdp(self.mdp, episode=episode, step_number=num_steps, eval_mode=True)
+            ipdb.set_trace()  # TODO: I don't expect this to be called at train-time
+            step_number = self.perform_option_rollout(option=new_option,
+                                                      episode=episode,
+                                                      step=num_steps,
+                                                      goal_salient_event=goal_salient_event,
+                                                      eval_mode=False)
+
         else:
             dsc_run_loop_budget = self.chainer.max_steps - num_steps
-            print(f"Starting Skill Chaining Run-Loop for {dsc_run_loop_budget} steps.")
+            pre_rollout_state = deepcopy(self.mdp.cur_state)
+            print(f"About to rollout DSC for {dsc_run_loop_budget} steps with interrupt handle {goal_salient_event}")
+            score, step_number, newly_created_options = self.chainer.dsc_rollout(episode_number=episode,
+                                                                                 step_number=num_steps,
+                                                                                 interrupt_handle=goal_salient_event)
+            self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state, goal_salient_event)
 
-            # Grab the option from whose initiation set we are jumping off the graph
-            jumping_off_options = [option for option in self.chainer.trained_options[1:]
-                                   if option.get_training_phase() == "initiation_done" and option.is_init_true(self.mdp.cur_state)]
+        return deepcopy(self.mdp.cur_state), step_number
 
-            # TODO: Consider changing the initiation_period of test time options to be 0
-            known_options_before_run_loop = [option.option_idx for option in self.chainer.trained_options if option.get_training_phase() == "initiation_done"]
-            self.chainer.skill_chaining_run_loop(1, dsc_run_loop_budget, starting_episode=episode, interrupt_handle=goal_salient_event)
-            known_options_after_run_loop = [option.option_idx for option in self.chainer.trained_options if option.get_training_phase() == "initiation_done"]
+    def perform_option_rollout(self, option, episode, step, eval_mode, goal_salient_event):
 
-            newly_created_options = _get_options_created_inside_run_loop(known_options_before_run_loop,
-                                                                         known_options_after_run_loop)
-            for newly_created_option in newly_created_options:  # type: Option
-                self.add_newly_created_option_to_plan_graph(newly_created_option)
+        def _completed_learning_init_set_during_rollout(before, after):
+            return before != "initiation_done" and after == "initiation_done"
 
-            # Update the UCB Option Selection module based on the option whose initiation set you jumped off the graph from
-            if goal_salient_event in self.bandit_agents:
-                used_bandit = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
+        option_phase_before_rollout = deepcopy(option.get_training_phase())
+        state_before_rollout = deepcopy(self.mdp.cur_state)
 
-                for option in jumping_off_options:  # type: Option
-                    if option in used_bandit.options:
-                        used_bandit.update(option, success=goal_salient_event(self.mdp.cur_state))
+        option_transitions, option_reward = option.execute_option_in_mdp(self.mdp,
+                                                                         episode=episode,
+                                                                         step_number=step,
+                                                                         eval_mode=eval_mode)
 
-        return deepcopy(self.mdp.cur_state)
+        option_phase_after_rollout = deepcopy(option.get_training_phase())
+
+        print(f"Going to manage skill chains after rolling out {option}")
+        self.chainer.manage_skill_chain_after_option_rollout(created_options=[], episode_number=episode)
+
+        if _completed_learning_init_set_during_rollout(option_phase_before_rollout, option_phase_after_rollout):
+            print(f"Learned initiation set for {option} during planner rollout so adding to the graph now")
+            self.manage_options_learned_during_rollout(newly_created_options=[option],
+                                                       pre_rollout_state=state_before_rollout,
+                                                       goal_salient_event=goal_salient_event)
+
+        # Modify the edge weight associated with the executed option
+        self.modify_executed_option_edge_weight(option)
+
+        return step + len(option_transitions)
+
+    def manage_options_learned_during_rollout(self, newly_created_options, pre_rollout_state, goal_salient_event):
+
+        # TODO: Adding new options is not enough - we also have to create their children
+        for newly_created_option in newly_created_options:  # type: Option
+            self.add_newly_created_option_to_plan_graph(newly_created_option)
+
+        self.manage_bandits_after_dsc_rollout(pre_rollout_state, newly_created_options, goal_salient_event)
+
+    def manage_bandits_after_dsc_rollout(self, pre_rollout_state, newly_created_options, goal_salient_event):
+        """
+        If new options were created during the DSC rollout, we have to inform all the bandits about that.
+        Furthermore, we need to update the value of the option from which we ended up exiting the graph.
+
+        Args:
+            pre_rollout_state (State)
+            newly_created_options (list)
+            goal_salient_event (SalientEvent)
+
+        Returns:
+
+        """
+        for newly_created_option in newly_created_options:  # type: Option
+
+            # If the newly created option is part of a completed chain, then we should tell all
+            # the bandit agents about this option so that they can compute the value of falling off the graph from it
+            corresponding_chain = self.chainer.chains[newly_created_option.chain_id - 1]  # type: SkillChain
+            if corresponding_chain.is_chain_completed(self.chainer.chains):
+                self.update_bandits_with_new_option(newly_created_option)
+
+        if goal_salient_event in self.bandit_agents.keys():
+            used_bandit = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
+
+            jumping_off_options = [option for option in self.get_options_in_known_part_of_the_graph()
+                                    if option.is_init_true(pre_rollout_state)]
+
+            for option in jumping_off_options:  # type: Option
+                if option in used_bandit.options:
+                    used_bandit.update(option, success=goal_salient_event(self.mdp.cur_state))
+
+    def update_bandits_with_new_option(self, new_option):
+        """
+        When the DSC agent learns a new option, not only do we want to add it to the skill-graph,
+        but we also want to add this option to the candidate set of options available to the
+        UCB option selection module.
+
+        Args:
+            new_option (Option)
+
+        """
+        assert new_option.get_training_phase() == "initiation_done"
+        for salient_event in self.bandit_agents:  # type: SalientEvent
+            if not new_option.backward_option:  # TODO: Adding condition for implementation ease for now
+                bandit = self.bandit_agents[salient_event]
+                bandit.add_candidate_option(new_option)
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option):
 
@@ -281,6 +349,10 @@ class SkillGraphPlanningAgent(object):
         if target_salient_event not in self.plan_graph.plan_graph:
             self.plan_graph.add_node(target_salient_event)
 
+        # If the init salient event is not in the plan-graph, add it
+        if is_leaf_node and (init_salient_event not in self.plan_graph.plan_graph):
+            self.plan_graph.add_node(init_salient_event)
+
         # For adding edges, there are 3 possible cases:
         # 1. Nominal case - you are neither a root nor a leaf - just connect to your parent option
         # 2. Leaf Option - if you are a leaf option, you should add a 0 weight edge from the init
@@ -293,7 +365,7 @@ class SkillGraphPlanningAgent(object):
             print(f"Case 3: Adding edge from {newly_created_option} to {target_salient_event}")
             self.plan_graph.add_edge(newly_created_option, target_salient_event, edge_weight=1.)
         # Case 2: Leaf option
-        elif chain.chained_till_start_state() and is_leaf_node:
+        elif chain.is_chain_completed(self.chainer.chains) and is_leaf_node:
             print(f"Case 2: Adding edge from {init_salient_event} to {newly_created_option}")
             self.plan_graph.add_edge(init_salient_event, newly_created_option, edge_weight=0.)
             if newly_created_option.parent is not None:
@@ -303,49 +375,21 @@ class SkillGraphPlanningAgent(object):
             print(f"Case 1: Adding edge from {newly_created_option} to {newly_created_option.parent}")
             self.plan_graph.add_edge(newly_created_option, newly_created_option.parent)
 
-    def planning_run_loop(self, *, start_episode, goal_state, start_state=None):
-        """
-        This is a test-time run loop that uses planning to select options when it can.
-        Args:
-            start_episode (int)
-            goal_state (State)
-            start_state (State)
+    def planner_rollout(self, *, state, goal_state, target_option, inside_graph, goal_salient_event, episode_number, step_number):
 
-        Returns:
-            executed_options (list)
-            reached_goal (bool)
-        """
-
-        self.reset(start_state)
-        state = deepcopy(self.mdp.cur_state)
-
-        episode, num_steps = start_episode, 0
-        executed_options = []
         should_terminate_run_loop = False
 
-        goal_salient_event, created_new_salient_event = self.get_goal_salient_event(goal_state)
-
-        # When going in the forward direction, we will target this option if the goal is not in a known salient event
-        target_option, inside_graph = self.get_target_option(goal_state, goal_salient_event, backward_direction=False)
-
-        while not should_terminate_run_loop and num_steps < self.chainer.max_steps:
+        while not should_terminate_run_loop and step_number < self.chainer.max_steps:
 
             selected_option = self.act(state, goal_state, target_option, inside_graph)  # type: Option
 
-            option_transitions, option_reward = selected_option.execute_option_in_mdp(self.mdp,
-                                                                                      episode=episode,
-                                                                                      step_number=num_steps,
-                                                                                      eval_mode=True)
+            step_number = self.perform_option_rollout(option=selected_option,
+                                                      episode=episode_number,
+                                                      step=step_number,
+                                                      eval_mode=False,
+                                                      goal_salient_event=goal_salient_event)
 
-            num_steps += len(option_transitions)
-            executed_options.append(selected_option)
-            next_state = self.chainer.get_next_state_from_experiences(option_transitions)
-
-            # Modify the edge weight associated with the executed option
-            self.modify_executed_option_edge_weight(selected_option)
-
-            state = next_state
-            episode = episode + 1
+            state = deepcopy(self.mdp.cur_state)
 
             should_terminate_run_loop = self.should_planning_run_loop_terminate(state,
                                                                                 goal_state,
@@ -358,18 +402,84 @@ class SkillGraphPlanningAgent(object):
                 new_option = None
                 if not self.does_exist_chain_targeting_state(goal_state):
                     assert target_option is not None
-                    assert created_new_salient_event
-                    new_option = self.create_goal_option(goal_salient_event, target_option, inside_graph, episode)  # type: Option
+                    new_option = self.create_goal_option(goal_salient_event, target_option, inside_graph, episode_number)  # type: Option
 
-                state = self.execute_actions_to_reach_goal(episode, num_steps, inside_graph, new_option, goal_salient_event)
+                print("[SkillGraphPlanning] Handing control to DSC inside the planning run loop")
+                state, step_number = self.execute_actions_to_reach_goal(episode_number, step_number, inside_graph, new_option, goal_salient_event)
 
-        return executed_options, goal_salient_event(state)
+        return step_number, goal_salient_event(state)
+
+
+    def planning_run_loop(self, *, start_episode, goal_state, to_reset,
+                          step_number=0, start_state=None, goal_salient_event=None):
+        """
+        This is a test-time run loop that uses planning to select options when it can.
+        Args:
+            start_episode (int)
+            goal_state (State)
+            to_reset (bool)
+            step_number (int)
+            start_state (State)
+            goal_salient_event (SalientEvent)
+
+        Returns:
+            executed_options (list)
+            reached_goal (bool)
+        """
+
+        if to_reset:
+            self.reset(start_state)
+
+        state = deepcopy(self.mdp.cur_state)
+
+        episode = start_episode
+
+        goal_salient_event = self.get_goal_salient_event(goal_state) if goal_salient_event is None else goal_salient_event
+
+        # When going in the forward direction, we will target this option if the goal is not in a known salient event
+        target_option, inside_graph = self.get_target_option(goal_state, goal_salient_event, backward_direction=False)
+
+        # If your goal is outside the graph and you are already at the target option, run skill chaining.
+        already_at_target_option = self.is_at_target_option(target_option, state) and not inside_graph
+        no_planning_possible = self.is_plan_graph_empty() or already_at_target_option
+
+        if no_planning_possible:
+            print(f"Handing control to DSC - already_at_target_option {already_at_target_option} \t empty_graph: {self.is_plan_graph_empty()}")
+            state, step_number = self.execute_actions_to_reach_goal(episode, step_number,
+                                                                    inside_graph, new_option=None,
+                                                                    goal_salient_event=goal_salient_event)
+
+            return step_number, goal_salient_event(state)
+
+        step_number, success = self.planner_rollout(state=state, goal_state=goal_state, target_option=target_option,
+                                                    inside_graph=inside_graph, goal_salient_event=goal_salient_event,
+                                                    episode_number=episode, step_number=step_number)
+
+        return step_number, success
 
     def get_target_option_for_event_inside_graph(self, goal_state, backward_direction):
+        """
+        What does it mean for a state to be "inside the graph"? It means that the state is
+        inside a skill-chain and that that skill chain is "completed". To be a "complete" chain
+        means that you are no longer adding skills to your chain AND that all your skills are
+        already part of the plan-graph.
+
+        Args:
+            goal_state (State)
+            backward_direction (bool)
+
+        Returns:
+            target_option: Option in the graph if it exists, None otherwise
+        """
+
+        def _chain_is_completed(c):
+            options_in_graph = all([o in self.plan_graph.option_nodes for o in c.options])
+            return options_in_graph and c.is_chain_completed(self.chainer.chains)
+
         # Grab all the completed skill chains that contain the goal_state
         chains_with_goal_state = [chain for chain in self.chainer.chains if
                                   chain.state_in_chain(goal_state) and
-                                  chain.chained_till_start_state() and
+                                  _chain_is_completed(chain) and
                                   chain.is_backward_chain == backward_direction]
 
         # Select the option (options created earlier have a higher priority)
@@ -411,15 +521,24 @@ class SkillGraphPlanningAgent(object):
         return outside_target_option, False
 
     def get_options_in_known_part_of_the_graph(self):
-        completed_chains = [chain for chain in self.chainer.chains if chain.chained_till_start_state()]
+        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed(self.chainer.chains)]
 
         # Grab the learned options from the completed chains
         known_options = []
         for chain in completed_chains:  # type: SkillChain
-            chain_options = [option for option in chain.options if option.get_training_phase() == "initiation_done"]
+            chain_options = [option for option in chain.options if option.get_training_phase() == "initiation_done"
+                                and option in self.plan_graph.option_nodes]
             known_options.append(chain_options)
         known_options = list(itertools.chain.from_iterable(known_options))
         return known_options
+
+    def is_plan_graph_empty(self):
+        return len(self.get_options_in_known_part_of_the_graph()) == 0
+
+    def is_at_target_option(self, target_option, state):
+        if target_option is not None:
+            return target_option.is_init_true(state)
+        return False
 
     def create_goal_option_inside_graph(self, train_goal_option, target_salient_event):
         """
@@ -519,7 +638,7 @@ class SkillGraphPlanningAgent(object):
                                      init_salient_event=init_salient_event,
                                      target_salient_event=target_salient_event,
                                      is_backward_chain=False,
-                                     chain_until_intersection=True,
+                                     chain_until_intersection=False,
                                      chain_id=chain_id,
                                      options=[])
 
@@ -597,10 +716,12 @@ class SkillGraphPlanningAgent(object):
                         raise ValueError(child_option, type(child_option))
 
     def choose_option_to_fall_off_graph_from(self, goal_salient_event):
-        bandit_agent = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
-        selected_option = bandit_agent.act()  # type: Option
-        print(f"Chose {selected_option} to fall off the graph from")
-        return selected_option
+        if not self.is_plan_graph_empty():
+            bandit_agent = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
+            selected_option = bandit_agent.act()  # type: Option
+            print(f"Chose {selected_option} to fall off the graph from")
+            return selected_option
+        return None
 
     def perform_test_rollouts(self, num_rollouts):
         """ Perform test rollouts to collect statistics on option success rates.
@@ -624,9 +745,10 @@ class SkillGraphPlanningAgent(object):
     def measure_success(self, goal_state, start_state=None):
         successes = 0
         for episode in range(100):
-            executed_options, reached_goal = self.planning_run_loop(start_episode=episode,
-                                                                    goal_state=goal_state,
-                                                                    start_state=start_state)
+            step_number, reached_goal = self.planning_run_loop(start_episode=episode,
+                                                               goal_state=goal_state,
+                                                               start_state=start_state,
+                                                               to_reset=True)
             if reached_goal:
                 successes += 1
         return successes

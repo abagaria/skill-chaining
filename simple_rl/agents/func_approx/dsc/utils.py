@@ -10,6 +10,7 @@ import seaborn as sns
 sns.set()
 from PIL import Image
 from tqdm import tqdm
+import os
 
 # Other imports.
 from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
@@ -245,8 +246,8 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
     plt.close()
 
 def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name=""):
-    next_states = [experience[3] for experience in solver.replay_buffer.memory]
-    rewards = [experience[2] for experience in solver.replay_buffer.memory]
+    next_states = [experience[3] for experience in solver.replay_buffer]
+    rewards = [experience[2] for experience in solver.replay_buffer]
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
 
@@ -295,7 +296,7 @@ def visualize_dqn_shaped_rewards(dqn_agent, option, episode, seed, experiment_na
 
 def visualize_ddpg_shaped_rewards(global_option, other_option, episode, seed, experiment_name):
     ddpg_agent = global_option.solver
-    next_states = np.array([exp[-2] for exp in ddpg_agent.replay_buffer.memory])
+    next_states = np.array([exp[-2] for exp in ddpg_agent.replay_buffer])
     if other_option.should_target_with_bonus():
         shaped_rewards = 1. * other_option.batched_is_init_true(next_states)
     else:
@@ -348,8 +349,8 @@ def visualize_buffer(option, episode, seed, experiment_name):
 
 def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([exp[0] for exp in replay_buffer.memory])
-    actions = np.array([exp[1] for exp in replay_buffer.memory])
+    states = np.array([exp[0] for exp in replay_buffer])
+    actions = np.array([exp[1] for exp in replay_buffer])
 
     # Chunk up the inputs so as to conserve GPU memory
     num_chunks = int(np.ceil(states.shape[0] / chunk_size))
@@ -373,3 +374,13 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
     plt.close()
 
     return qvalues.max()
+
+def create_log_dir(experiment_name):
+    path = os.path.join(os.getcwd(), experiment_name)
+    try:
+        os.mkdir(path)
+    except OSError:
+        print("Creation of the directory %s failed" % path)
+    else:
+        print("Successfully created the directory %s " % path)
+    return path

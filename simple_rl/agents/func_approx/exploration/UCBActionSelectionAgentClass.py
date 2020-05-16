@@ -50,6 +50,19 @@ class UCBActionSelectionAgent(object):
     def __repr__(self):
         return str(self)
 
+    def add_candidate_option(self, option):
+        """
+        If a new option is added to the graph, we want the UCB agent to be able
+        to select that new option as the one that the DSG agent should jump off from.
+
+        Args:
+            option (Option)
+
+        """
+        assert option.get_training_phase() == "initiation_done"
+        if option not in self.options:
+            self.options.append(option)
+
     def act(self):
         """
         Given the goal state, the available options in the skill-graph and the number of
@@ -58,10 +71,12 @@ class UCBActionSelectionAgent(object):
         Returns:
             selected_option (Option)
         """
-        option_values = [self._get_option_value(option, self.goal_state) for option in self.options]
-        exploration_bonuses = [self._get_option_bonus(option) for option in self.options]
-        selected_option = self._get_best_option(option_values, exploration_bonuses)
-        return selected_option
+        if len(self.options) > 0:
+            option_values = [self._get_option_value(option, self.goal_state) for option in self.options]
+            exploration_bonuses = [self._get_option_bonus(option) for option in self.options]
+            selected_option = self._get_best_option(option_values, exploration_bonuses)
+            return selected_option
+        return None
 
     def update(self, option, success):
         """

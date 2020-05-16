@@ -11,6 +11,9 @@ class SalientEvent(object):
         self.tolerance = tolerance
         self.intersection_event = intersection_event
 
+        # This is the union of the effect set of all the options targeting this salient event
+        self.trigger_points = []
+
         assert isinstance(event_idx, int)
         assert isinstance(tolerance, float)
 
@@ -56,6 +59,24 @@ class SalientEvent(object):
         goal_position = self._get_position(self.target_state)
         in_goal_position = distance.cdist(position_matrix, goal_position[None, :]) <= self.tolerance
         return in_goal_position.squeeze(1)
+
+    def is_intersecting(self, option):
+        """
+        Is this salient event "intersecting" with another option? To intersect, we have to make sure
+        that `option`'s initiation set includes all the current salient event. For this we have to
+        have access to the effect sets of all the options that are targeting this salient event.
+        Alternatively, we can keep track of all the states which were considered to successfully
+        trigger the current salient event and make sure that they are all inside `option`'s initiation set.
+
+        Args:
+            option (Option)
+
+        Returns:
+            is_intersecting (bool)
+        """
+        if len(self.trigger_points) > 0 and option.get_training_phase() == "initiation_done":
+            return all([option.is_init_true(s) for s in self.trigger_points])
+        return False
 
     @staticmethod
     def _get_position(state):

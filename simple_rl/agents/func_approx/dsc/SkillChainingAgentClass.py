@@ -31,7 +31,7 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 start_state_salience=False, log_dir="", seed=0, tensor_log=False):
+				 start_state_salience=False, log_dir="", seed=0, tensor_log=False, experiment_name=""):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -52,6 +52,7 @@ class SkillChaining(object):
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
+			experiment_name (str)
 		"""
 		self.mdp = mdp
 		self.original_actions = deepcopy(mdp.actions)
@@ -70,8 +71,9 @@ class SkillChaining(object):
 		self.classifier_type = classifier_type
 		self.dense_reward = mdp.dense_reward
 		self.start_state_salience = start_state_salience
+		self.experiment_name = experiment_name
 
-		tensor_name = "runs/{}_{}".format(args.experiment_name, seed)
+		tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
 
 		print("Initializing skill chaining with option_timeout={}, seed={}".format(self.enable_option_timeout, seed))
@@ -394,6 +396,15 @@ class SkillChaining(object):
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
 
+		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
+		backward_option = self._get_backward_options_in_gestation(state)
+		if backward_option is not None:
+			selected_option = backward_option
+
+		# TODO: Hack - do not take option from a salient event targeting it
+		if selected_option.is_term_true(state):
+			selected_option = self.global_option
+
 		return selected_option
 
 	def take_action(self, state, episode_number, step_number):
@@ -410,15 +421,6 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		selected_option = self.act(state)
-
-		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
-		backward_option = self._get_backward_options_in_gestation(state)
-		if backward_option is not None:
-			selected_option = backward_option
-
-		# TODO: Hack - do not take option from a salient event targeting it
-		if selected_option.is_term_true(state):
-			selected_option = self.global_option
 
 		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, episode_number, step_number)
 
@@ -493,8 +495,7 @@ class SkillChaining(object):
 
 		"""
 		chain = self.chains[option.chain_id - 1]  # type: SkillChain
-		assert not chain.is_backward_chain, "Only applicable for forward chains"
-		if chain.chained_till_start_state() and not chain.has_backward_chain:
+		if chain.chained_till_start_state() and not chain.is_backward_chain and not chain.has_backward_chain:
 			chain.has_backward_chain = True
 
 			# 1. The new skill chain will chain back until it covers `start_states`
@@ -659,7 +660,99 @@ class SkillChaining(object):
 		# # Change the termination condition of options that target the `intersecting_options`
 		# pass
 
-	def skill_chaining_run_loop(self, num_episodes, num_steps, starting_episode=0, interrupt_handle=lambda x: False):
+	def conclude_option_initiation_phase(self, untrained_option, episode):
+		"""
+
+		Args:
+			untrained_option (Option)
+			episode (int)
+
+		Returns:
+			completed_option (Option)
+			new_options (list)
+
+		"""
+		# In the skill-graph setting, we have to check if the current option's chain
+		# is still accepting new options
+
+		if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done" \
+				and self.chains[untrained_option.chain_id - 1].should_continue_chaining(self.chains):
+
+				new_options = self.create_children_options(untrained_option)
+
+				# Iterate through all the child options and add them to the skill tree 1 by 1
+				for new_option in new_options:  # type: Option
+					if new_option is not None:
+						self.untrained_options.append(new_option)
+						self.add_negative_examples(new_option)
+
+						# If initialize_everywhere is True, also add to trained_options
+						if new_option.initialize_everywhere:
+							new_option.initialize_with_global_solver()
+							self.augment_agent_with_new_option(new_option, self.init_q)
+
+				# We fix the learned option's initiation set and remove it from the list of target events
+				self.untrained_options.remove(untrained_option)
+
+				return untrained_option, new_options
+
+		elif untrained_option.get_training_phase() == "initiation_done":
+			# Debug visualization
+			plot_two_class_classifier(untrained_option, episode, self.experiment_name)
+
+			# We fix the learned option's initiation set and remove it from the list of target events
+			self.untrained_options.remove(untrained_option)
+
+			return untrained_option, []
+
+		return None, []
+
+	def manage_skill_chain_after_option_rollout(self, created_options, episode_number):
+		""" After a single option rollout, this method will perform the book-keeping necessary to maintain skill-chain. """
+
+		# In the skill-tree setting we could be learning many options at the current time
+		# We must iterate through all such options and check if the current transition
+		# triggered the termination condition of any such option
+		for untrained_option in self.untrained_options:
+
+			completed_option, new_options = self.conclude_option_initiation_phase(untrained_option, episode_number)
+
+			# if completed_option is not None:
+			# 	self.mdp.satisfy_target_event(self.chains)
+
+			if completed_option is not None and self.start_state_salience:
+				self.manage_skill_chain_to_start_state(completed_option)
+
+			if completed_option is not None:
+				created_options.append(completed_option)
+
+		if not self.start_state_salience:
+			self.manage_intersecting_skill_chains()
+
+		return created_options
+
+	def dsc_rollout(self, *, episode_number, step_number, interrupt_handle=lambda x: False):
+		""" Single episode rollout of deep skill chaining from the current state in the MDP. """
+
+		score = 0.
+
+		state = deepcopy(self.mdp.cur_state)
+		created_options = []
+
+		while step_number < self.max_steps:
+
+			experiences, reward, state, steps = self.take_action(state, episode_number, step_number)
+			score += reward
+			step_number += steps
+
+			created_options = self.manage_skill_chain_after_option_rollout(created_options, episode_number)
+
+			if state.is_terminal() or interrupt_handle(state):
+				break
+
+		return score, step_number, created_options
+
+	def skill_chaining_run_loop(self, *, num_episodes, num_steps, to_reset, starting_episode=0, interrupt_handle=lambda x: False):
 
 		# For logging purposes
 		per_episode_scores = []
@@ -669,108 +762,23 @@ class SkillChaining(object):
 
 		for episode in range(starting_episode, starting_episode + num_episodes):
 
-			self.mdp.reset()
-			score = 0.
 			step_number = 0
+			if to_reset: self.mdp.reset()
 
-			# TODO: Does this flag's logic need to be changed? YES when there is a list of target events in the MDP
-			uo_episode_terminated = False
-
-			state = deepcopy(self.mdp.cur_state)
-			self.init_states.append(deepcopy(state))
-			experience_buffer = []
-			state_buffer = []
-			episode_option_executions = defaultdict(lambda : 0)
-
-			while step_number < num_steps:
-				# pdb.set_trace()
-				experiences, reward, state, steps = self.take_action(state, episode, step_number)
-				score += reward
-				step_number += steps
-				for experience in experiences:
-					experience_buffer.append(experience)
-					state_buffer.append(experience[0])
-
-				# Don't forget to add the last s' to the buffer
-				if state.is_terminal() or (step_number == num_steps - 1):
-					state_buffer.append(state)
-
-				# In the skill-tree setting we could be learning many options at the current time
-				# We must iterate through all such options and check if the current transition
-				# triggered the termination condition of any such option
-				for untrained_option in self.untrained_options:
-
-					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
-							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
-							untrained_option.is_valid_init_data(state_buffer) and not untrained_option.initialize_everywhere:
-
-						print("\rTriggered termination condition of ", untrained_option)
-						uo_episode_terminated = True
-						if untrained_option.train(experience_buffer, state_buffer, episode):
-
-							# If the option can be initiated from anywhere, it has already been added to
-							# the list of actions available to the agent (so that it may be executed before
-							# we train its one-class classifier)
-							if not untrained_option.initialize_everywhere:
-								self.augment_agent_with_new_option(untrained_option, self.init_q)
-
-							# Visualize option you just learned
-							if untrained_option.classifier_type == "ocsvm":
-								plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
-							else:
-								plot_two_class_classifier(untrained_option, episode, args.experiment_name)
-
-					# In the skill-graph setting, we have to check if the current option's chain
-					# is still accepting new options
-					if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done" \
-							and self.chains[untrained_option.chain_id - 1].should_continue_chaining(self.chains):
-
-						# Debug visualization
-						plot_two_class_classifier(untrained_option, episode, args.experiment_name)
-
-						# We fix the learned option's initiation set and remove it from the list of target events
-						self.untrained_options.remove(untrained_option)
-
-						new_options = self.create_children_options(untrained_option)
-
-						# Iterate through all the child options and add them to the skill tree 1 by 1
-						for new_option in new_options:  # type: Option
-							if new_option is not None:
-								self.untrained_options.append(new_option)
-								self.add_negative_examples(new_option)
-
-								# If initialize_everywhere is True, also add to trained_options
-								if new_option.initialize_everywhere:
-									new_option.initialize_with_global_solver()
-									self.augment_agent_with_new_option(new_option, self.init_q)
-
-					# If the current option's initiation set covers one of the target salient events
-					# (and the current is in a backward chain), then remove that salient event from the
-					# list of target events. This way, we will generate options that start from other
-					# salient events and end up in the corresponding intersection salient event
-					if untrained_option.get_training_phase() == "initiation_done" and untrained_option.backward_option:
-						self.mdp.satisfy_target_event(untrained_option)
-
-					if untrained_option.get_training_phase() == "initiation_done" and \
-							not untrained_option.backward_option and self.start_state_salience:
-						self.manage_skill_chain_to_start_state(untrained_option)
-
-				if not self.start_state_salience:
-					self.manage_intersecting_skill_chains()
-
-				if state.is_terminal() or interrupt_handle(state):
-					break
+			score, step_number, newly_created_options = self.dsc_rollout(episode_number=episode,
+																		 interrupt_handle=interrupt_handle,
+																		 step_number=step_number)
 
 			last_10_scores.append(score)
 			last_10_durations.append(step_number)
 			per_episode_scores.append(score)
 			per_episode_durations.append(step_number)
 
-			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
+			self._log_dqn_status(episode, last_10_scores, last_10_durations)
 
 		return per_episode_scores, per_episode_durations
 
-	def _log_dqn_status(self, episode, last_10_scores, episode_option_executions, last_10_durations):
+	def _log_dqn_status(self, episode, last_10_scores, last_10_durations):
 
 		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
 			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
@@ -793,22 +801,16 @@ class SkillChaining(object):
 
 		if self.generate_plots and episode % 10 == 0 and episode > 0:
 
-			visualize_best_option_to_take(self.agent_over_options, episode, self.seed, args.experiment_name)
+			visualize_best_option_to_take(self.agent_over_options, episode, self.seed, self.experiment_name)
 
 			for option in self.trained_options:
-				make_chunked_value_function_plot(option.solver, episode, self.seed, args.experiment_name)
-				visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, args.experiment_name)
-				visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, args.experiment_name)
-
-		for trained_option in self.trained_options:  # type: Option
-			self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
-			if self.writer is not None:
-				self.writer.add_scalar("{}_executions".format(trained_option.name),
-									   episode_option_executions[trained_option.name], episode)
+				make_chunked_value_function_plot(option.solver, episode, self.seed, self.experiment_name)
+				visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, self.experiment_name)
+				visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, self.experiment_name)
 
 	def save_all_models(self):
 		for option in self.trained_options: # type: Option
-			save_model(option.solver, args.episodes, best=False)
+			save_model(option.solver, -1, best=False)
 
 	def save_all_scores(self, pretrained, scores, durations):
 		print("\rSaving training and validation scores..")
@@ -834,24 +836,17 @@ class SkillChaining(object):
 
 	def perform_experiments(self):
 		for option in self.trained_options:
-			visualize_dqn_replay_buffer(option.solver, args.experiment_name)
+			visualize_dqn_replay_buffer(option.solver, self.experiment_name)
 
 		for i, o in enumerate(self.trained_options):
 			plt.subplot(1, len(self.trained_options), i + 1)
 			plt.plot(self.option_qvalues[o.name])
 			plt.title(o.name)
-		plt.savefig("value_function_plots/{}/sampled_q_so_{}.png".format(args.experiment_name, self.seed))
+		plt.savefig("value_function_plots/{}/sampled_q_so_{}.png".format(self.experiment_name, self.seed))
 		plt.close()
 
 		for option in self.trained_options:
-			visualize_next_state_reward_heat_map(option.solver, args.episodes, args.experiment_name)
-
-		for i, o in enumerate(self.trained_options):
-			plt.subplot(1, len(self.trained_options), i + 1)
-			plt.plot(o.taken_or_not)
-			plt.title(o.name)
-		plt.savefig("value_function_plots/{}_taken_or_not_{}.png".format(args.experiment_name, self.seed))
-		plt.close()
+			visualize_next_state_reward_heat_map(option.solver, -1, self.experiment_name)
 
 	def trained_forward_pass(self, render=True):
 		"""
@@ -964,8 +959,8 @@ if __name__ == '__main__':
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,
-							start_state_salience=args.use_start_state_salience)
-	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(args.episodes, args.steps)
+							start_state_salience=args.use_start_state_salience, experiment_name=args.experiment_name)
+	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
 	# Log performance metrics
 	# chainer.save_all_models()

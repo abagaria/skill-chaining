@@ -47,6 +47,9 @@ class PointReacherMDP(MDP):
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
         self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
 
+        # Keep track of all the salient events ever created in this MDP
+        self.all_salient_events_ever = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
+
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
 
     def _reward_func(self, state, action):
@@ -84,9 +87,16 @@ class PointReacherMDP(MDP):
     def get_original_target_events(self):
         return self.original_salient_events
 
+    def get_all_target_events_ever(self):
+        return self.all_salient_events_ever
+
     def add_new_target_event(self, new_event):
+        ipdb.set_trace()
         if new_event not in self.current_salient_events:
             self.current_salient_events.append(new_event)
+
+        if new_event not in self.all_salient_events_ever:
+            self.all_salient_events_ever.append(new_event)
 
     def is_goal_state(self, state):
         # return any([predicate(state) for predicate in self.get_current_target_events()])
@@ -105,25 +115,38 @@ class PointReacherMDP(MDP):
     def get_start_state_salient_event(self):
         return self.start_state_salient_event
 
-    def satisfy_target_event(self, option):
+    def satisfy_target_event(self, chains):
         """
         Once a salient event has both forward and backward options related to it,
         we no longer need to maintain it as a target_event. This function will find
         the salient event that corresponds to the input state and will remove that
-        event from the list of target_events.
+        event from the list of target_events. Additionally, we have to ensure that
+        the chain corresponding to `option` is "completed".
+
+        A target event is satisfied when all chains targeting it are completed.
 
         Args:
-            option (Option)
+            chains (list)
 
         Returns:
 
         """
-        if option.backward_option:
-            for salient_event in self.current_salient_events:
-                satisfied_salience = option.is_init_true(salient_event.target_state)
+        for salient_event in self.get_current_target_events():  # type: SalientEvent
+            satisfied_salience = self.should_remove_salient_event_from_mdp(salient_event, chains)
+            if satisfied_salience and (salient_event in self.current_salient_events):
+                ipdb.set_trace()
+                self.current_salient_events.remove(salient_event)
 
-                if satisfied_salience and (salient_event in self.current_salient_events):
-                    self.current_salient_events.remove(salient_event)
+    @staticmethod
+    def should_remove_salient_event_from_mdp(salient_event, chains):
+        incoming_chains = [chain for chain in chains if chain.target_salient_event == salient_event]
+        outgoing_chains = [chain for chain in chains if chain.init_salient_event == salient_event]
+
+        event_chains = incoming_chains + outgoing_chains
+        event_chains_completed = all([chain.is_chain_completed(chains) for chain in event_chains])
+        satisfied = len(incoming_chains) > 0 and len(outgoing_chains) and event_chains_completed
+
+        return satisfied
 
     @staticmethod
     def _get_position(state):

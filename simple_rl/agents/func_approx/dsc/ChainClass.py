@@ -105,42 +105,13 @@ class SkillChain(object):
         return not stop_condition
 
     @staticmethod
-    def get_positive_states_from_options(option1, option2):
-        positive_feature_matrix = option1.construct_feature_matrix(option1.positive_examples)
-        other_positive_feature_matrix = option2.construct_feature_matrix(option2.positive_examples)
-
-        state_matrix = np.concatenate((positive_feature_matrix, other_positive_feature_matrix), axis=0)
-        return state_matrix
-
-    @staticmethod
-    def get_intersecting_states_between_options(my_option, other_option):
-        state_matrix = SkillChain.get_positive_states_from_options(my_option, other_option)
-        intersections = SkillChain.get_intersecting_indices(my_option, other_option)
-        if intersections.sum() > 0 and my_option.get_training_phase() == "initiation_done" and \
-            other_option.get_training_phase() == "initiation_done":
-            return state_matrix[intersections == 1, :]
-        return []
-
-    @staticmethod
-    def get_intersecting_indices(my_option, other_option):
-        state_matrix = SkillChain.get_positive_states_from_options(my_option, other_option)
-        my_predictions = my_option.batched_is_init_true(state_matrix)
-        other_predictions = other_option.batched_is_init_true(state_matrix)
-        intersections = np.logical_and(my_predictions, other_predictions)
-        return intersections
-
-    @staticmethod
     def detect_intersection_between_options(my_option, other_option):
-        if len(my_option.positive_examples) > 0 and len(other_option.positive_examples) > 0:
-
-            intersections = SkillChain.get_intersecting_indices(my_option, other_option)
-
-            # If at least one state is inside the initiation classifier of both options,
-            # we have found our salient intersection event. Also verify that we have fit initiation
-            # classifiers for both options - this is needed if option's initialize_everywhere property is true
-            if intersections.sum() > 0 and my_option.get_training_phase() == "initiation_done" and \
-                    other_option.get_training_phase() == "initiation_done":
-                return True
+        if my_option.get_training_phase() == "initiation_done" and other_option.get_training_phase() == "initiation_done":
+            effect_set = other_option.effect_set  # list of states
+            effect_set_matrix = SkillChain.get_position_matrix(effect_set)
+            inits = my_option.batched_is_init_true(effect_set_matrix)
+            is_intersecting = inits.all()
+            return is_intersecting
         return False
 
     def detect_intersection_with_other_chains(self, other_chains):
@@ -184,12 +155,45 @@ class SkillChain(object):
         assert len(self.intersecting_options) > 0, self.intersecting_options
         return self.target_predicate(state)
 
+    def is_chain_completed(self, chains):
+        is_intersecting_another_chain = False
+        if self.chain_until_intersection:
+            other_chains = [chain for chain in chains if chain != self]
+            is_intersecting_another_chain = any([self.is_intersecting(chain) for chain in other_chains])
+        return self.chained_till_start_state() or is_intersecting_another_chain
+
     def chained_till_start_state(self):
         start_state_in_chain = all([self.state_in_chain(s) for s in self.start_states])
         return start_state_in_chain
+
+    def get_overlapping_options_and_events(self, chains):
+        """ Options in the current chain that satisfy the target salient events of other chains. """
+        def is_linked(e, o):
+            """ Given a target salient event from another chain and an option,
+                tell me if the event is a subset of the option's initiation set. """
+            if o.get_training_phase() == "initiation_done":
+                if len(e.trigger_points) > 0: # Be careful: all([]) = True
+                    return all([o.is_init_true(s) for s in e.trigger_points])
+                return o.is_init_true(e.target_state)
+            return False
+
+        links = []
+        events = [chain.target_salient_event for chain in chains if chain != self]
+
+        for event in events:
+            for option in self.options:
+                if is_linked(event, option):
+                    links.append((event, option))
+
+        return links
 
     def get_leaf_nodes_from_skill_chain(self):
         return [option for option in self.options if len(option.children) == 0]
 
     def get_root_nodes_from_skill_chain(self):
         return [option for option in self.options if option.parent is None]
+
+    @staticmethod
+    def get_position_matrix(states):
+        positions = [state.position for state in states]
+        return np.array(positions)

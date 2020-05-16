@@ -16,16 +16,16 @@ class GraphSearch(object):
         self.salient_nodes = []
 
     def add_node(self, node):
-        if not node in self.plan_graph.nodes:
+        if node not in self.plan_graph.nodes:
             self.plan_graph.add_node(node)
 
-            #  Keep track of the options and the salient events separately in the graph
-            if isinstance(node, Option):
-                self.option_nodes.append(node)
-            elif isinstance(node, SalientEvent):
-                self.salient_nodes.append(node)
-            else:
-                raise IOError(f"Got {node} of type {type(node)}, but expected either Option or SalientEvent")
+        #  Keep track of the options and the salient events separately in the graph
+        if isinstance(node, Option) and (node not in self.option_nodes):
+            self.option_nodes.append(node)
+        elif isinstance(node, SalientEvent) and (node not in self.salient_nodes):
+            self.salient_nodes.append(node)
+        else:
+            raise IOError(f"Got {node} of type {type(node)}, but expected either Option or SalientEvent")
 
     def add_edge(self, option1, option2, edge_weight=1.):
         self.plan_graph.add_edge(option1, option2)

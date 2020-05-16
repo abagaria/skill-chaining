@@ -1,65 +1,15 @@
-import copy
+import ipdb
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from simple_rl.agents.func_approx.td3.replay_buffer import ReplayBuffer
+from simple_rl.agents.func_approx.td3.model import Actor, Critic
+from simple_rl.agents.func_approx.td3.utils import *
 
 
 # Adapted author implementation of Twin Delayed Deep Deterministic Policy Gradients (TD3)
 # Paper: https://arxiv.org/abs/1802.09477
-
-
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action):
-        super(Actor, self).__init__()
-
-        self.l1 = nn.Linear(state_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, action_dim)
-
-        self.max_action = max_action
-
-    def forward(self, state):
-        a = F.relu(self.l1(state))
-        a = F.relu(self.l2(a))
-        return self.max_action * torch.tanh(self.l3(a))
-
-
-class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(Critic, self).__init__()
-
-        # Q1 architecture
-        self.l1 = nn.Linear(state_dim + action_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, 1)
-
-        # Q2 architecture
-        self.l4 = nn.Linear(state_dim + action_dim, 256)
-        self.l5 = nn.Linear(256, 256)
-        self.l6 = nn.Linear(256, 1)
-
-    def forward(self, state, action):
-        sa = torch.cat([state, action], 1)
-
-        q1 = F.relu(self.l1(sa))
-        q1 = F.relu(self.l2(q1))
-        q1 = self.l3(q1)
-
-        q2 = F.relu(self.l4(sa))
-        q2 = F.relu(self.l5(q2))
-        q2 = self.l6(q2)
-        return q1, q2
-
-    def Q1(self, state, action):
-        sa = torch.cat([state, action], 1)
-
-        q1 = F.relu(self.l1(sa))
-        q1 = F.relu(self.l2(q1))
-        q1 = self.l3(q1)
-        return q1
 
 
 class TD3(object):
@@ -75,8 +25,11 @@ class TD3(object):
             policy_freq=2,
             batch_size=256,
             exploration_noise=0.1,
+            exploration_method="",
             device=torch.device("cuda")
     ):
+
+        assert exploration_method in ("", "shaping"), exploration_method
 
         self.actor = Actor(state_dim, action_dim, max_action).to(device)
         self.actor_target = copy.deepcopy(self.actor)
@@ -97,6 +50,7 @@ class TD3(object):
         self.policy_freq = policy_freq
         self.batch_size = batch_size
         self.epsilon = exploration_noise
+        self.exploration_method = exploration_method
         self.device = device
 
         self.trained_options = []
@@ -124,6 +78,11 @@ class TD3(object):
 
         # Sample replay buffer - result is tensors
         state, action, next_state, reward, done = replay_buffer.sample(batch_size)
+
+        if len(self.trained_options) > 0 and self.exploration_method == "shaping":
+            shaping_bonus = self.get_exploration_bonus(next_state)
+            assert shaping_bonus.shape == reward.shape
+            reward += shaping_bonus
 
         with torch.no_grad():
             # Select action according to policy and add clipped noise
@@ -170,6 +129,7 @@ class TD3(object):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
     def update_epsilon(self):
+        """ We are using fixed (default) epsilons for TD3 because tuning it is hard. """
         pass
 
     def get_qvalues(self, states, actions):
@@ -179,18 +139,19 @@ class TD3(object):
         self.critic.train()
         return q_values
 
-    def save(self, filename):
-        torch.save(self.critic.state_dict(), filename + "_critic")
-        torch.save(self.critic_optimizer.state_dict(), filename + "_critic_optimizer")
+    def get_exploration_bonus(self, next_states):
+        """
+        Optional exploration bonus for reaching certain regions of the state-space.
 
-        torch.save(self.actor.state_dict(), filename + "_actor")
-        torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer")
+        Args:
+            next_states (torch.tensor)
 
-    def load(self, filename):
-        self.critic.load_state_dict(torch.load(filename + "_critic"))
-        self.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer"))
-        self.critic_target = copy.deepcopy(self.critic)
-
-        self.actor.load_state_dict(torch.load(filename + "_actor"))
-        self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer"))
-        self.actor_target = copy.deepcopy(self.actor)
+        Returns:
+            bonuses (torch.tensor)
+        """
+        np_next_states = next_states.clone().detach().cpu().numpy()
+        shaping_rewards = np.zeros((np_next_states.shape[0],))
+        for option in self.trained_options:
+            if option.should_target_with_bonus():
+                shaping_rewards += option.batched_is_init_true(np_next_states)
+        return torch.FloatTensor(shaping_rewards).to(self.device).unsqueeze(1)

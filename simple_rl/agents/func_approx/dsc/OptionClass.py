@@ -104,6 +104,7 @@ class Option(object):
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
+		self.effect_set = []
 		self.positive_examples = []
 		self.negative_examples = []
 		self.experience_buffer = []
@@ -119,9 +120,6 @@ class Option(object):
 
 		# Debug member variables
 		self.num_executions = 0
-		self.taken_or_not = []
-		self.n_taken_or_not = 0
-		self.option_start_states = []
 		self.num_test_executions = 0
 		self.num_successful_test_executions = 0
 
@@ -165,7 +163,10 @@ class Option(object):
 			self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
 									tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
 		elif self.solver_type == "td3":
-			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size, max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
+			exploration_method = "shaping" if self.name == "global_option" else ""
+			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
+							  max_action=self.overall_mdp.env.action_space.high[0],
+							  device=self.device, exploration_method=exploration_method)
 
 		else:
 			raise NotImplementedError(self.solver_type)
@@ -181,7 +182,7 @@ class Option(object):
 				sampled_experience = random.choice(self.solver.replay_buffer.memory)
 				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
 			elif isinstance(self.solver, TD3):
-				sampled_idx = random.randint(0, len(self.solver.replay_buffer))
+				sampled_idx = random.randint(0, len(self.solver.replay_buffer) - 1)
 				sampled_experience = self.solver.replay_buffer[sampled_idx]
 				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
 		return sampled_state
@@ -631,8 +632,6 @@ class Option(object):
 			if self.name != "global_option":
 				print("Executing {}".format(self.name))
 
-			self.option_start_states.append(start_state)
-
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
@@ -668,6 +667,7 @@ class Option(object):
 			if self.is_term_true(state) and self.last_episode_term_triggered != episode: # and self.is_valid_init_data(visited_states):
 				self.num_goal_hits += 1
 				self.last_episode_term_triggered = episode
+				self.effect_set.append(state)
 
 			if self.name != "global_option" and self.get_training_phase() != "initiation_done":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
@@ -731,4 +731,6 @@ class Option(object):
 	def get_option_success_rate(self):
 		if self.num_test_executions > 0:
 			return self.num_successful_test_executions / self.num_test_executions
+		elif self.num_executions > 0:
+			return self.num_goal_hits / self.num_executions
 		return 1.
