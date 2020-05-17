@@ -24,7 +24,7 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent
 
 
 class SkillChaining(object):
@@ -286,13 +286,11 @@ class SkillChaining(object):
 			option.off_policy_update(state, action, reward, next_state)\
 
 
-	def make_smdp_update(self, state, action, total_discounted_reward, next_state, option_transitions):
+	def make_smdp_update(self, *, action, next_state, option_transitions):
 		"""
 		Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
 		Args:
-			state (State): state from which we started option execution
 			action (int): option taken by the global solver
-			total_discounted_reward (float): cumulative reward from the overall SMDP update
 			next_state (State): state we landed in after executing the option
 			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
 		"""
@@ -407,36 +405,28 @@ class SkillChaining(object):
 
 		return selected_option
 
-	def take_action(self, state, episode_number, step_number):
+	def update_policy_over_options_after_option_rollout(self, state_before_rollout, executed_option, option_transitions):
 		"""
-		Either take a primitive action from `state` or execute a closed-loop option policy.
+
 		Args:
-			state (State)
-			episode_number (int)
-			step_number (int): which iteration of the control loop we are on
+			state_before_rollout (State)
+			executed_option (Option)
+			option_transitions (list)
 
 		Returns:
-			experiences (list): list of (s, a, r, s') tuples
-			reward (float): sum of all rewards accumulated while executing chosen action
-			next_state (State): state we landed in after executing chosen action
+
 		"""
-		selected_option = self.act(state)
 
-		option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, episode_number, step_number)
-
-		option_reward = self.get_reward_from_experiences(option_transitions)
-		next_state = self.get_next_state_from_experiences(option_transitions)
+		state_after_rollout = self.get_next_state_from_experiences(option_transitions)
 
 		# If we triggered the untrained option's termination condition, add to its buffer of terminal transitions
 		for untrained_option in self.untrained_options:
-			if untrained_option.is_term_true(next_state) and not untrained_option.is_term_true(state):
-				untrained_option.final_transitions.append((state, selected_option.option_idx))
-				untrained_option.terminal_states.append(next_state)
+			if untrained_option.is_term_true(state_after_rollout) and not untrained_option.is_term_true(state_before_rollout):
+				untrained_option.final_transitions.append((state_before_rollout, executed_option.option_idx))
+				untrained_option.terminal_states.append(state_after_rollout)
 
 		# Add data to train Q(s, o)
-		self.make_smdp_update(state, selected_option.option_idx, discounted_reward, next_state, option_transitions)
-
-		return option_transitions, option_reward, next_state, len(option_transitions)
+		self.make_smdp_update(action=executed_option.option_idx, next_state=state_after_rollout, option_transitions=option_transitions)
 
 	def sample_qvalue(self, option):
 		""" Sample Q-value from the given option's intra-option policy. """
@@ -526,7 +516,6 @@ class SkillChaining(object):
 								num_subgoal_hits_required=self.num_subgoal_hits_required,
 								seed=self.seed, parent=None, max_steps=self.max_steps,
 								enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
-								intersecting_options=[],
 								initialize_everywhere=True, max_num_children=1,
 								writer=self.writer, device=self.device, dense_reward=self.dense_reward,
 								is_backward_option=True,
@@ -537,14 +526,13 @@ class SkillChaining(object):
 			self.augment_agent_with_new_option(new_option, 0.)
 			self.untrained_options.append(new_option)
 
-	def create_backward_skill_chain(self, start_event, target_event, intersecting_options=[]):
+	def create_backward_skill_chain(self, start_event, target_event):
 		"""
 		Create a skill chain that takes you from target_event to start_event
 		Args:
 			start_event (SalientEvent): Chain will continue until this is covered. This is also the
 										default initiation set for backward options
 			target_event (SalientEvent): Chain will try to hit this event
-			intersecting_options (list)
 
 		"""
 		back_chain = SkillChain(start_states=[start_event.target_state],
@@ -567,7 +555,6 @@ class SkillChaining(object):
 										  num_subgoal_hits_required=self.num_subgoal_hits_required,
 										  seed=self.seed, parent=None, max_steps=self.max_steps,
 										  enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
-										  intersecting_options=intersecting_options,
 										  initialize_everywhere=True, max_num_children=1,
 										  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
 										  is_backward_option=True,
@@ -591,17 +578,20 @@ class SkillChaining(object):
 			intersecting_chains = [self.chains[o.chain_id - 1] for o in intersecting_options if not o.backward_option]
 			chain1, chain2 = intersecting_chains[0], intersecting_chains[1]
 
-			if not chain1.has_backward_chain and not chain2.has_backward_chain:
+			if not chain1.has_backward_chain or not chain2.has_backward_chain:
 
 				chain1.has_backward_chain = True
 				chain2.has_backward_chain = True
 
 				# Add this new salient event to the MDP - so that we can plan to and from it
-				common_states = chain1.get_intersecting_states_between_options(intersecting_options[0], intersecting_options[1])
-				target_state = common_states[np.random.choice(range(common_states.shape[0])), :]
-				all_salient_events = list(set(self.mdp.get_current_target_events() + self.mdp.get_original_target_events()))
+				common_states = intersecting_options[1].effect_set
+				all_salient_events = self.mdp.get_all_salient_events_ever()
 				all_salient_event_idx = [event.event_idx for event in all_salient_events]
-				intersection_salient_event = SalientEvent(target_state, event_idx=max(all_salient_event_idx) + 1, intersection_event=True)
+
+				intersection_salient_event = LearnedSalientEvent(state_set=common_states,
+																 event_idx=max(all_salient_event_idx) + 1,
+																 intersection_event=True)
+
 				self.mdp.add_new_target_event(intersection_salient_event)
 
 				# Create the following skill-chains:
@@ -609,11 +599,9 @@ class SkillChaining(object):
 				# 2. Chain from beta2 to beta-intersection
 				# 3. Chain from beta-intersection to MDP start-state
 				self.create_backward_skill_chain(start_event=chain1.target_salient_event,
-												 target_event=intersection_salient_event,
-												 intersecting_options=intersecting_options)
+												 target_event=intersection_salient_event)
 				self.create_backward_skill_chain(start_event=chain2.target_salient_event,
-												 target_event=intersection_salient_event,
-												 intersecting_options=intersecting_options)
+												 target_event=intersection_salient_event)
 				self.create_backward_skill_chain(start_event=intersection_salient_event,
 												 target_event=self.mdp.get_start_state_salient_event())
 
@@ -707,8 +695,14 @@ class SkillChaining(object):
 
 		return None, []
 
-	def manage_skill_chain_after_option_rollout(self, created_options, episode_number):
+	def manage_skill_chain_after_option_rollout(self, *, state_before_rollout, executed_option,
+												created_options, episode_number, option_transitions):
 		""" After a single option rollout, this method will perform the book-keeping necessary to maintain skill-chain. """
+
+		# Update Q(s, o) for the `agent_over_options`
+		self.update_policy_over_options_after_option_rollout(state_before_rollout=state_before_rollout,
+															 executed_option=executed_option,
+															 option_transitions=option_transitions)
 
 		# In the skill-tree setting we could be learning many options at the current time
 		# We must iterate through all such options and check if the current transition
@@ -720,14 +714,13 @@ class SkillChaining(object):
 			# if completed_option is not None:
 			# 	self.mdp.satisfy_target_event(self.chains)
 
-			if completed_option is not None and self.start_state_salience:
+			if completed_option is not None:
 				self.manage_skill_chain_to_start_state(completed_option)
 
 			if completed_option is not None:
 				created_options.append(completed_option)
 
-		if not self.start_state_salience:
-			self.manage_intersecting_skill_chains()
+		self.manage_intersecting_skill_chains()
 
 		return created_options
 
@@ -741,11 +734,25 @@ class SkillChaining(object):
 
 		while step_number < self.max_steps:
 
-			experiences, reward, state, steps = self.take_action(state, episode_number, step_number)
-			score += reward
-			step_number += steps
+			# Pick an option
+			selected_option = self.act(state)
 
-			created_options = self.manage_skill_chain_after_option_rollout(created_options, episode_number)
+			# Execute it in the MDP
+			option_transitions, reward = selected_option.execute_option_in_mdp(self.mdp,
+																			   episode_number,
+																			   step_number)
+
+			# Logging
+			score += reward
+			step_number += len(option_transitions)
+			state = self.get_next_state_from_experiences(option_transitions)
+
+			# DSC book keeping
+			created_options = self.manage_skill_chain_after_option_rollout(state_before_rollout=state,
+																		   executed_option=selected_option,
+																		   option_transitions=option_transitions,
+																		   episode_number=episode_number,
+																		   created_options=created_options)
 
 			if state.is_terminal() or interrupt_handle(state):
 				break

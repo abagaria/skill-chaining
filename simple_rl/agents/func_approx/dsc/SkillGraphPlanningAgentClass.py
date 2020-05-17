@@ -131,7 +131,7 @@ class SkillGraphPlanningAgent(object):
             all_salient_events = self.mdp.get_all_target_events_ever()
             event_indices = [event.event_idx for event in all_salient_events]
             new_salient_event = SalientEvent(goal_state, event_idx=max(event_indices) + 1)
-            self.mdp.add_new_target_event(new_salient_event)
+            self.mdp.add_new_target_event(new_salient_event) # TODO: Shouldn't you add the salient event to the graph as well??
             return new_salient_event
 
         target_salient_event = self.get_salient_event_for_state(goal_state)
@@ -263,7 +263,11 @@ class SkillGraphPlanningAgent(object):
         option_phase_after_rollout = deepcopy(option.get_training_phase())
 
         print(f"Going to manage skill chains after rolling out {option}")
-        self.chainer.manage_skill_chain_after_option_rollout(created_options=[], episode_number=episode)
+        self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
+                                                             executed_option=option,
+                                                             created_options=[],
+                                                             episode_number=episode,
+                                                             option_transitions=option_transitions)
 
         if _completed_learning_init_set_during_rollout(option_phase_before_rollout, option_phase_after_rollout):
             print(f"Learned initiation set for {option} during planner rollout so adding to the graph now")

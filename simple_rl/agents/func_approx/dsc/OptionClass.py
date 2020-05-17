@@ -23,7 +23,7 @@ class Option(object):
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
 				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=5, option_idx=None,
-				 chain_id=None, initialize_everywhere=True, intersecting_options=[], max_num_children=3,
+				 chain_id=None, initialize_everywhere=True, max_num_children=3,
 				 init_salient_event=None, target_salient_event=None,
 				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
@@ -88,7 +88,6 @@ class Option(object):
 		self.option_idx = option_idx
 		self.chain_id = chain_id
 		self.backward_option = is_backward_option
-		self.intersecting_options = intersecting_options
 
 		print("Creating {} in chain {} with enable_timeout={}".format(name, chain_id, enable_timeout))
 
@@ -322,9 +321,6 @@ class Option(object):
 		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option" or self.name == "exploration_option":
 			return np.zeros((state_matrix.shape[0]))
-		elif len(self.intersecting_options) > 0:
-			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
-			return np.logical_and(o1.batched_is_init_true(state_matrix), o2.batched_is_init_true(state_matrix))
 
 	def is_init_true(self, ground_state):
 
@@ -360,9 +356,6 @@ class Option(object):
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
-		elif len(self.intersecting_options) > 0:
-			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
-			return o1.is_init_true(ground_state) and o2.is_init_true(ground_state)
 
 	def should_target_with_bonus(self):
 		"""

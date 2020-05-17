@@ -1,6 +1,7 @@
 import numpy as np
 from simple_rl.mdp.StateClass import State
 from scipy.spatial import distance
+from sklearn.svm import OneClassSVM
 import ipdb
 
 
@@ -88,34 +89,29 @@ class SalientEvent(object):
         return f"SalientEvent targeting {self.target_state}"
 
 
-class UnionSalientEvent(SalientEvent):
-    def __init__(self, event1, event2, event_idx):
-        """
+class LearnedSalientEvent(SalientEvent):
+    def __init__(self, state_set, event_idx, tolerance=0.6, intersection_event=False):
+        self.state_set = state_set
+        self.classifier = self._classifier_on_state_set()
 
-        Args:
-            event1 (SalientEvent)
-            event2 (SalientEvent)
-            event_idx (int)
-        """
-        self.event1 = event1
-        self.event2 = event2
-        
-        super(UnionSalientEvent, self).__init__(None, event_idx)
-
-    def __eq__(self, other):
-        if not isinstance(other, UnionSalientEvent):
-            return False
-
-        other_events = [other.event1, other.event2]
-        return self.event1 in other_events and self.event2 in other_events
-
-    def __repr__(self):
-        return f"{self.event1} U {self.event2}"
+        SalientEvent.__init__(self, target_state=None, event_idx=event_idx,
+                              tolerance=tolerance, intersection_event=intersection_event)
 
     def is_init_true(self, state):
-        return self.event1(state) or self.event2(state)
+        position = self._get_position(state)
+        return self.classifier.predict(position.reshape(1, -1))
 
     def batched_is_init_true(self, position_matrix):
-        inits1 = self.event1.batched_is_init_true(position_matrix)
-        inits2 = self.event2.batched_is_init_true(position_matrix)
-        return np.logical_or(inits1, inits2)
+        assert isinstance(position_matrix, np.ndarray), type(position_matrix)
+        return self.classifier.predict(position_matrix)
+
+    def __eq__(self, other):
+        if not isinstance(other, SalientEvent):
+            return False
+        return self.event_idx == other.event_idx and self.tolerance == other.tolerance
+
+    def _classifier_on_state_set(self):
+        positions = np.array([state.position for state in self.state_set])
+        classifier = OneClassSVM(nu=0.01, gamma="scale")
+        classifier.fit(positions)
+        return classifier

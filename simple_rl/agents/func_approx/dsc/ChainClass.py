@@ -114,6 +114,17 @@ class SkillChain(object):
             return is_intersecting
         return False
 
+    @staticmethod
+    def detect_intersection_between_option_and_event(option, event):
+        if option.get_training_phase() == "initiation_done":
+            if len(event.trigger_points) > 0:  # Be careful: all([]) = True
+                state_matrix = SkillChain.get_position_matrix(event.trigger_points)
+                inits = option.batched_is_init_true(state_matrix)
+                is_intersecting = inits.all()
+                return is_intersecting
+            return option.is_init_true(event.target_state)
+        return False
+
     def detect_intersection_with_other_chains(self, other_chains):
         for chain in other_chains:
             intersecting_options = self.detect_intersection(chain)
@@ -142,7 +153,7 @@ class SkillChain(object):
         for my_option in self.options:  # type: Option
             for other_option in other_chain.options:  # type: Option
                 if self.detect_intersection_between_options(my_option, other_option):
-                        return my_option, other_option
+                    return my_option, other_option
         return None
 
     def is_intersecting(self, other_chain):
