@@ -13,9 +13,7 @@ from tqdm import tqdm
 import os
 
 # Other imports.
-from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
-from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
-from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
+from simple_rl.mdp.StateClass import State
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -45,7 +43,7 @@ class Experience(object):
 
 def plot_trajectory(trajectory, color='k', marker="o"):
     for i, state in enumerate(trajectory):
-        if isinstance(state, PointMazeState):
+        if isinstance(state, State):
             x = state.position[0]
             y = state.position[1]
         else:
@@ -64,64 +62,66 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
         color_idx = i % len(possible_colors)
         plot_trajectory(trajectory, color=possible_colors[color_idx], marker=marker)
 
-def get_grid_states():
+
+def get_grid_states(mdp):
     ss = []
-    for x in np.arange(-11., 11., 1.):
-        for y in np.arange(-11., 11., 0.5):
-            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-                               theta=0., theta_dot=0., done=False)
-            ss.append(s)
+    x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
+    for x in np.arange(x_low_lim, x_high_lim, 0.5):
+        for y in np.arange(y_low_lim, y_high_lim, 0.5):
+            ss.append(np.array((x, y)))
     return ss
 
-def get_initiation_set_values(option, has_key):
+
+def get_initiation_set_values(option):
     values = []
-    for x in np.arange(-11., 11., 1.):
-        for y in np.arange(-11., 11., 0.5):
-            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0, 0]),
-                               theta=0, theta_dot=0, done=False)
-            values.append(option.is_init_true(s))
+    x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
+    for x in np.arange(x_low_lim, x_high_lim, 0.5):
+        for y in np.arange(y_low_lim, y_high_lim, 0.5):
+            values.append(option.is_init_true(np.array((x, y))))
 
     return values
 
-def get_values(solver, init_values=False):
-    values = []
-    for x in np.arange(0., 11., 0.5):
-        for y in np.arange(0., 11., 0.5):
-            v = []
-            for vx in [-0.01, -0.1, 0., 0.01, 0.1]:
-                for vy in [-0.01, -0.1, 0., 0.01, 0.1]:
-                    for theta in [-90., -45., 0., 45., 90.]:
-                        for theta_dot in [-1., 0., 1.]:
-                            s = PointMazeState(position=np.array([x, y]), velocity=np.array([vx, vy]),
-                                               theta=theta, theta_dot=theta_dot, done=False)
-
-                            if not init_values:
-                                v.append(solver.get_value(s.features()))
-                            else:
-                                v.append(solver.is_init_true(s))
-
-            if not init_values:
-                values.append(np.mean(v))
-            else:
-                values.append(np.sum(v))
-
-    return values
-
-def render_sampled_value_function(solver, episode=None, experiment_name=""):
-    states = get_grid_states()
-    values = get_values(solver)
-
-    x = np.array([state.position[0] for state in states])
-    y = np.array([state.position[1] for state in states])
-    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
-    xx, yy = np.meshgrid(xi, yi)
-    rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
-    zz = rbf(xx, yy)
-    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
-    plt.colorbar()
-    name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
-    plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
-    plt.close()
+# def get_values(solver, init_values=False):
+#     values = []
+#     for x in np.arange(0., 11., 0.5):
+#         for y in np.arange(0., 11., 0.5):
+#             v = []
+#             for vx in [-0.01, -0.1, 0., 0.01, 0.1]:
+#                 for vy in [-0.01, -0.1, 0., 0.01, 0.1]:
+#                     for theta in [-90., -45., 0., 45., 90.]:
+#                         for theta_dot in [-1., 0., 1.]:
+#                             s = PointMazeState(position=np.array([x, y]), velocity=np.array([vx, vy]),
+#                                                theta=theta, theta_dot=theta_dot, done=False)
+#
+#                             if not init_values:
+#                                 v.append(solver.get_value(s.features()))
+#                             else:
+#                                 v.append(solver.is_init_true(s))
+#
+#             if not init_values:
+#                 values.append(np.mean(v))
+#             else:
+#                 values.append(np.sum(v))
+#
+#     return values
+#
+# def render_sampled_value_function(solver, episode=None, experiment_name=""):
+#     states = get_grid_states()
+#     values = get_values(solver)
+#
+#     x = np.array([state.position[0] for state in states])
+#     y = np.array([state.position[1] for state in states])
+#     xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+#     xx, yy = np.meshgrid(xi, yi)
+#     rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
+#     zz = rbf(xx, yy)
+#     plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower")
+#     plt.colorbar()
+#     name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
+#     plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
+#     plt.close()
 
 def make_meshgrid(x, y, h=.02):
     x_min, x_max = x.min() - 1, x.max() + 1
@@ -162,40 +162,36 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 
 
 def plot_two_class_classifier(option, episode, experiment_name):
-    def generate_plot(has_key):
-        states = get_grid_states()
-        values = get_initiation_set_values(option, has_key=has_key)
+    states = get_grid_states(option.overall_mdp)
+    values = get_initiation_set_values(option)
 
-        x = np.array([state.position[0] for state in states])
-        y = np.array([state.position[1] for state in states])
-        xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
-        xx, yy = np.meshgrid(xi, yi)
-        rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
-        zz = rbf(xx, yy)
-        plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.bwr)
-        plt.colorbar()
+    x = np.array([state[0] for state in states])
+    y = np.array([state[1] for state in states])
+    xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+    xx, yy = np.meshgrid(xi, yi)
+    rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
+    zz = rbf(xx, yy)
+    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.bwr)
+    plt.colorbar()
 
-        # Plot trajectories
-        positive_examples = option.construct_feature_matrix(option.positive_examples)
-        negative_examples = option.construct_feature_matrix(option.negative_examples)
+    # Plot trajectories
+    positive_examples = option.construct_feature_matrix(option.positive_examples)
+    negative_examples = option.construct_feature_matrix(option.negative_examples)
+
+    if positive_examples.shape[0] > 0:
         plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
 
-        if negative_examples.shape[0] > 0:
-            plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+    if negative_examples.shape[0] > 0:
+        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
-        # background_image = imageio.imread("four_room_domain.png")
-        # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
+    # background_image = imageio.imread("four_room_domain.png")
+    # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-        plt.xlim((-10, 10))
-        plt.ylim((-10, 10))
+    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+    plt.title("{} Initiation Set".format(option.name))
+    plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
+    plt.close()
 
-        name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-        plt.title("{} Initiation Set".format(option.name))
-        plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier_{}.png".format(experiment_name, name, has_key, option.seed))
-        plt.close()
-
-    generate_plot(has_key=True)
-    # generate_plot(has_key=False)
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
     goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))

@@ -32,7 +32,7 @@ class SkillChaining(object):
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
 				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
-				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
+				 pretrain_option_policies=False, create_backward_options=False, log_dir="", seed=0, tensor_log=False, experiment_name=""):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -52,6 +52,8 @@ class SkillChaining(object):
 			start_state_salience (bool): Treat the start state of the MDP as a salient event OR create intersection events
 			option_intersection_salience (bool): Should we treat the intersection b/w options as a salient event
 			event_intersection_salience (bool): Should we treat the option-event intersections as salient events
+			pretrain_option_policies (bool): Whether to pre-train option policies with the global option
+			create_backward_options (bool): Whether to spend time learning back options for skill graphs
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -76,6 +78,8 @@ class SkillChaining(object):
 		self.start_state_salience = start_state_salience
 		self.option_intersection_salience = option_intersection_salience
 		self.event_intersection_salience = event_intersection_salience
+		self.pretrain_option_policies = pretrain_option_policies
+		self.create_backward_options = create_backward_options
 		self.experiment_name = experiment_name
 
 		tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
@@ -130,7 +134,7 @@ class SkillChaining(object):
 										   exploration_strategy="shaping")
 
 		# Keep track of which chain each created option belongs to
-		s0 = self.mdp.env._init_positions
+		s0 =self.mdp.get_init_positions()
 		self.s0 = s0
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
 		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
@@ -389,6 +393,25 @@ class SkillChaining(object):
 				return option
 		return None
 
+	def trigger_option_termination_conditions_off_policy(self, untrained_option, executed_option, option_transitions, episode_number):
+		"""
+		While you were executing `selected_option`, it is possible that you triggered the
+		termination condition of some other option in gestation. If so, we want to use that
+		off-policy data to train that other option's first initiation classifier
+
+		Args:
+			untrained_option (Option)
+			executed_option (Option)
+			option_transitions (list)
+			episode_number (int)
+
+		Returns:
+
+		"""
+		if untrained_option != executed_option:
+			if untrained_option.trigger_termination_condition_off_policy(option_transitions, episode_number):
+				print(f"Triggered final termination condition for {untrained_option} while executing {executed_option}")
+
 	def act(self, state, train_mode=True):
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=train_mode)
@@ -527,7 +550,8 @@ class SkillChaining(object):
 								init_salient_event=init_salient_event,
 								target_salient_event=target_salient_event)
 
-			new_option.initialize_with_global_solver()
+			if self.pretrain_option_policies:
+				new_option.initialize_with_global_solver()
 			self.augment_agent_with_new_option(new_option, 0.)
 			self.untrained_options.append(new_option)
 
@@ -566,7 +590,8 @@ class SkillChaining(object):
 										  init_salient_event=start_event,
 										  target_salient_event=target_event)
 
-		back_chain_root_option.initialize_with_global_solver()
+		if self.pretrain_option_policies:
+			back_chain_root_option.initialize_with_global_solver()
 		self.augment_agent_with_new_option(back_chain_root_option, 0.)
 		self.untrained_options.append(back_chain_root_option)
 
@@ -644,7 +669,8 @@ class SkillChaining(object):
 			print(f"Found intersection between {option} and {event} - will create a backward chain and rewire {option_chain}")
 
 			# Create a backward skill chain from the termination condition of the chain corresponding to `option` to the salient event
-			self.create_backward_skill_chain(start_event=option_chain.target_salient_event, target_event=event)
+			if self.create_backward_options:
+				self.create_backward_skill_chain(start_event=option_chain.target_salient_event, target_event=event)
 
 			# Set the `init_salient_event` of the chain corresponding to option to be the intersecting event
 			option_chain.init_salient_event = event
@@ -718,7 +744,8 @@ class SkillChaining(object):
 
 						# If initialize_everywhere is True, also add to trained_options
 						if new_option.initialize_everywhere:
-							new_option.initialize_with_global_solver()
+							if self.pretrain_option_policies:
+								new_option.initialize_with_global_solver()
 							self.augment_agent_with_new_option(new_option, self.init_q)
 
 				# We fix the learned option's initiation set and remove it from the list of target events
@@ -753,6 +780,11 @@ class SkillChaining(object):
 		# We must iterate through all such options and check if the current transition
 		# triggered the termination condition of any such option
 		for untrained_option in self.untrained_options:
+
+			self.trigger_option_termination_conditions_off_policy(untrained_option=untrained_option,
+																  executed_option=executed_option,
+																  option_transitions=option_transitions,
+																  episode_number=episode_number)
 
 			completed_option, new_options = self.conclude_option_initiation_phase(untrained_option, episode_number)
 
@@ -970,6 +1002,8 @@ if __name__ == '__main__':
 	parser.add_argument("--use_start_state_salience", action="store_true", default=False)
 	parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
 	parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
+	parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
+	parser.add_argument("--create_backward_options", action="store_true", default=False)
 	args = parser.parse_args()
 
 	if args.env == "point-reacher":
@@ -1017,9 +1051,12 @@ if __name__ == '__main__':
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,
+							buffer_length=args.buffer_len,
 							start_state_salience=args.use_start_state_salience,
 							option_intersection_salience=args.use_option_intersection_salience,
 							event_intersection_salience=args.use_event_intersection_salience,
+							pretrain_option_policies=args.pretrain_option_policies,
+							create_backward_options=args.create_backward_options,
 							experiment_name=args.experiment_name)
 	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 

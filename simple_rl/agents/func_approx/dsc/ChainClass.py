@@ -56,6 +56,12 @@ class SkillChain(object):
 
     def state_in_chain(self, state):
         """ Is state inside the initiation set of any of the options in the chain. """
+
+        # We consider the state is in the target salient event, it can be
+        # considered to be inside the skill-chain
+        if self.target_salient_event(state):
+            return True
+
         for option in self.options:  # type: Option
             if option.initiation_classifier is not None and \
                     option.is_init_true(state) and option.get_training_phase() == "initiation_done":

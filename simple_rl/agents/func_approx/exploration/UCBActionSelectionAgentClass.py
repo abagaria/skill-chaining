@@ -6,17 +6,19 @@ import matplotlib.pyplot as plt
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
+from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 
 
 class UCBActionSelectionAgent(object):
     """ Goal directed Option selection when the goal-state lies outside the skill graph. """
 
-    def __init__(self, goal_state, options, use_option_vf=False):
+    def __init__(self, goal_state, options, chains, use_option_vf=False):
         """
 
         Args:
             goal_state (State or np.ndarray)
             options (list): List of options in the known part of the graph
+            chains (list): List of skill-chains in the MDP
             use_option_vf (bool): Whether to initialize the value of jumping off an option
                                   with that option's value for the `goal_state`.
         """
@@ -24,7 +26,10 @@ class UCBActionSelectionAgent(object):
         assert all([option.get_training_phase() == "initiation_done" for option in options])
         assert not any([option.name == "global_option" for option in options]), options
 
+        print(f"Creating bandit targeting {goal_state} with options {options}")
+
         self.options = options
+        self.chains = chains
         self.goal_state = goal_state
         self.use_option_vf = use_option_vf
 
@@ -62,6 +67,7 @@ class UCBActionSelectionAgent(object):
         assert option.get_training_phase() == "initiation_done"
         if option not in self.options:
             self.options.append(option)
+            print(f"Adding {option} to the list of options for {self}. Now my options are {self.options}")
 
     def act(self):
         """
@@ -71,9 +77,10 @@ class UCBActionSelectionAgent(object):
         Returns:
             selected_option (Option)
         """
-        if len(self.options) > 0:
-            option_values = [self._get_option_value(option, self.goal_state) for option in self.options]
-            exploration_bonuses = [self._get_option_bonus(option) for option in self.options]
+        candidate_options = self._filter_candidate_options()
+        if len(candidate_options) > 0:
+            option_values = [self._get_option_value(option, self.goal_state) for option in candidate_options]
+            exploration_bonuses = [self._get_option_bonus(option) for option in candidate_options]
             selected_option = self._get_best_option(option_values, exploration_bonuses)
             return selected_option
         return None
@@ -153,6 +160,15 @@ class UCBActionSelectionAgent(object):
         combined_value = value + (scaling_factor * monte_carlo_estimate)
 
         return combined_value
+
+    def _filter_candidate_options(self):
+        """ Given the full set of candidate options, we only want to pick those that are part of a complete chain. """
+        filtered_options = []
+        for option in self.options:  # type: Option
+            chain = self.chains[option.chain_id - 1]  # type: SkillChain
+            if chain.is_chain_completed(self.chains):
+                filtered_options.append(option)
+        return filtered_options
 
     def visualize_option_values(self, states, seed, experiment_name):
         for option in self.options:  # type: Option

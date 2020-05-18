@@ -22,7 +22,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=100, initiation_period=5, option_idx=None,
+				 dense_reward=False, enable_timeout=True, timeout=250, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, max_num_children=3,
 				 init_salient_event=None, target_salient_event=None,
 				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
@@ -138,6 +138,16 @@ class Option(object):
 
 	def __ne__(self, other):
 		return not self == other
+
+	def act(self, state, eval_mode, warmup_phase):
+		""" Epsilon greedy action selection when in training mode. """
+
+		if warmup_phase:
+			return self.overall_mdp.env.action_space.sample()
+
+		if random.random() < 0.25 and not eval_mode:
+			return self.overall_mdp.env.action_space.sample()
+		return self.solver.act(state.features(), evaluation_mode=eval_mode)
 
 	def reset_global_solver(self):
 		if self.solver_type == "ddpg":
@@ -291,6 +301,8 @@ class Option(object):
 				if self.init_salient_event is not None:
 					return self.init_salient_event(state_matrix)
 
+				pdb.set_trace() # Just making sure that we dont come here
+
 				# When we create intersection salient events, then we treat the union of all salient
 				# events as the joint initiation set of the backward options
 				salients = [event(state_matrix) for event in self.overall_mdp.get_current_salient_events()]
@@ -339,6 +351,7 @@ class Option(object):
 					return self.init_salient_event(ground_state)
 
 				# Intersection salient event
+				pdb.set_trace()
 				salients = [event(ground_state) for event in self.overall_mdp.get_current_salient_events()]
 				return any(salients)
 			return True
@@ -551,7 +564,10 @@ class Option(object):
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
-			return -0.1 * self.overall_mdp.distance_to_goal(position_vector)
+			goal_state = self.target_salient_event.target_state
+			goal_position = goal_state.features()[:2] if isinstance(goal_state, State) else goal_state[:2]
+			distance_to_goal = np.linalg.norm(position_vector - goal_position)
+			return -distance_to_goal
 
 		# For every other option, we use the negative distance to the parent's initiation set classifier
 		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
@@ -562,7 +578,6 @@ class Option(object):
 
 	def off_policy_update(self, state, action, reward, next_state):
 		""" Make off-policy updates to the current option's low level DDPG solver. """
-		assert self.overall_mdp.is_primitive_action(action), "option should be markov: {}".format(action)
 		assert not state.is_terminal(), "Terminal state did not terminate at some point"
 
 		# Don't make updates while walking around the termination set of an option
@@ -579,7 +594,6 @@ class Option(object):
 
 	def update_option_solver(self, s, a, r, s_prime):
 		""" Make on-policy updates to the current option's low-level DDPG solver. """
-		assert self.overall_mdp.is_primitive_action(a), "Option solver should be over primitive actions: {}".format(a)
 		assert not s.is_terminal(), "Terminal state did not terminate at some point"
 
 		if self.is_term_true(s):
@@ -628,17 +642,16 @@ class Option(object):
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
-				action = self.solver.act(state.features(), evaluation_mode=eval_mode)
+				warmup_phase = self.get_training_phase() == "gestation"
+				action = self.act(state, eval_mode=eval_mode, warmup_phase=warmup_phase)
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
-				self.update_option_solver(state, action, reward, next_state)
+				if not warmup_phase:
+					self.update_option_solver(state, action, reward, next_state)
 
-				# Note: We are not using the option augmented subgoal reward while making off-policy updates to global DQN
-				assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
-
-				if self.name != "global_option":
-					self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-					self.global_solver.update_epsilon()
+				# if self.name != "global_option":
+				# 	self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+				# 	self.global_solver.update_epsilon()
 
 				self.solver.update_epsilon()
 				option_transitions.append((state, action, reward, next_state))
@@ -662,15 +675,42 @@ class Option(object):
 				self.last_episode_term_triggered = episode
 				self.effect_set.append(state)
 
+			if self.parent is None and self.is_term_true(state):
+				print(f"[{self}] Adding {state.position} to {self.target_salient_event}'s trigger points")
+				self.target_salient_event.trigger_points.append(state)
+
 			if self.name != "global_option" and self.get_training_phase() != "initiation_done":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
-
-			if self.writer is not None:
-				self.writer.add_scalar("{}_ExecutionLength".format(self.name), len(option_transitions), self.num_executions)
 
 			return option_transitions, total_reward
 
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
+
+	def is_eligible_for_off_policy_triggers(self):
+		return self.get_training_phase() != "initiation_done" and not self.backward_option
+
+	def trigger_termination_condition_off_policy(self, trajectory, episode):
+		trajectory_so_far = []
+		states_so_far = []
+
+		for state, action, reward, next_state in trajectory:  # type: State, np.ndarray, float, State
+			trajectory_so_far.append((state, action, reward, next_state))
+			states_so_far.append(state)
+
+			if self.is_term_true(next_state) and self.is_valid_init_data(states_so_far) and \
+					episode != self.last_episode_term_triggered and self.is_eligible_for_off_policy_triggers():
+
+				print(f"Triggered termination condition for {self}")
+
+				if self.parent is None and self.is_term_true(state):
+					print(f"[{self}] Adding {state.position} to {self.target_salient_event}'s trigger points")
+					self.target_salient_event.trigger_points.append(state)
+
+				states_so_far.append(next_state)  # We want the terminal state to be part of the initiation classifier
+				if self.train(trajectory_so_far, states_so_far, episode):
+					return True
+
+		return False
 
 	def refine_initiation_set_classifier(self, visited_states, start_state, final_state, num_steps, outer_step_number):
 		if self.is_term_true(final_state):  # success

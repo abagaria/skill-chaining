@@ -116,6 +116,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_start_state_salience", action="store_true", default=False)
     parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
+    parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
+    parser.add_argument("--create_backward_options", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -124,6 +126,11 @@ if __name__ == "__main__":
         overall_mdp = PointReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
         state_dim = 6
         action_dim = 2
+    elif args.env == "d4rl-ant-maze":
+        from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+        overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
     elif "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 
@@ -169,10 +176,12 @@ if __name__ == "__main__":
                             enable_option_timeout=args.option_timeout, init_q=q0,
                             use_full_smdp_update=args.use_smdp_update,
                             generate_plots=args.generate_plots, tensor_log=args.tensor_log,
-                            device=args.device,
+                            device=args.device, buffer_length=args.buffer_len,
                             start_state_salience=args.use_start_state_salience,
                             option_intersection_salience=args.use_option_intersection_salience,
                             event_intersection_salience=args.use_event_intersection_salience,
+                            pretrain_option_policies=args.pretrain_option_policies,
+                            create_backward_options=args.create_backward_options,
                             experiment_name=args.experiment_name)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])

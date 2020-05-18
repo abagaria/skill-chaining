@@ -243,6 +243,7 @@ class SkillGraphPlanningAgent(object):
             score, step_number, newly_created_options = self.chainer.dsc_rollout(episode_number=episode,
                                                                                  step_number=num_steps,
                                                                                  interrupt_handle=goal_salient_event)
+            print(f"============== Returned from DSC runloop having learned {newly_created_options}")
             self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state, goal_salient_event)
 
         return deepcopy(self.mdp.cur_state), step_number
@@ -263,17 +264,23 @@ class SkillGraphPlanningAgent(object):
         option_phase_after_rollout = deepcopy(option.get_training_phase())
 
         print(f"Going to manage skill chains after rolling out {option}")
-        self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
-                                                             executed_option=option,
-                                                             created_options=[],
-                                                             episode_number=episode,
-                                                             option_transitions=option_transitions)
+        new_options = self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
+                                                                           executed_option=option,
+                                                                           created_options=[],
+                                                                           episode_number=episode,
+                                                                           option_transitions=option_transitions)
 
-        if _completed_learning_init_set_during_rollout(option_phase_before_rollout, option_phase_after_rollout):
-            print(f"Learned initiation set for {option} during planner rollout so adding to the graph now")
-            self.manage_options_learned_during_rollout(newly_created_options=[option],
-                                                       pre_rollout_state=state_before_rollout,
-                                                       goal_salient_event=goal_salient_event)
+        # TODO: Aha with off-policy triggers, you can trigger the termination condition of an option w/o rolling it out
+        self.manage_options_learned_during_rollout(newly_created_options=new_options,
+                                                   pre_rollout_state=state_before_rollout,
+                                                   goal_salient_event=goal_salient_event)
+
+        # if _completed_learning_init_set_during_rollout(option_phase_before_rollout, option_phase_after_rollout):
+        #     print(f"Learned initiation set for {option} during planner rollout so adding to the graph now")
+        #     ipdb.set_trace()
+        #     self.manage_options_learned_during_rollout(newly_created_options=[option],
+        #                                                pre_rollout_state=state_before_rollout,
+        #                                                goal_salient_event=goal_salient_event)
 
         # Modify the edge weight associated with the executed option
         self.modify_executed_option_edge_weight(option)
@@ -305,9 +312,7 @@ class SkillGraphPlanningAgent(object):
 
             # If the newly created option is part of a completed chain, then we should tell all
             # the bandit agents about this option so that they can compute the value of falling off the graph from it
-            corresponding_chain = self.chainer.chains[newly_created_option.chain_id - 1]  # type: SkillChain
-            if corresponding_chain.is_chain_completed(self.chainer.chains):
-                self.update_bandits_with_new_option(newly_created_option)
+            self.update_bandits_with_new_option(newly_created_option)
 
         if goal_salient_event in self.bandit_agents.keys():
             used_bandit = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
@@ -519,6 +524,7 @@ class SkillGraphPlanningAgent(object):
             candidate_options = [option for option in candidate_options if not option.backward_option]  # TODO: This only makes sense if you start at s0
             self.bandit_agents[goal_salient_event] = UCBActionSelectionAgent(goal_state=goal_state,
                                                                              options=candidate_options,
+                                                                             chains=self.chainer.chains,
                                                                              use_option_vf=False)  # TODO: Set to true in the future
 
         outside_target_option = self.choose_option_to_fall_off_graph_from(goal_salient_event)
