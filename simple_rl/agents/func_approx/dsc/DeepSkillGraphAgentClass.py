@@ -114,6 +114,8 @@ if __name__ == "__main__":
     parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
     parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
     parser.add_argument("--use_start_state_salience", action="store_true", default=False)
+    parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
+    parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -169,7 +171,12 @@ if __name__ == "__main__":
                             generate_plots=args.generate_plots, tensor_log=args.tensor_log,
                             device=args.device,
                             start_state_salience=args.use_start_state_salience,
+                            option_intersection_salience=args.use_option_intersection_salience,
+                            event_intersection_salience=args.use_event_intersection_salience,
                             experiment_name=args.experiment_name)
+
+    assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
+    assert args.use_option_intersection_salience ^ args.use_event_intersection_salience
 
     planner = SkillGraphPlanningAgent(mdp=overall_mdp, chainer=chainer, experiment_name=args.experiment_name, seed=args.seed, initialize_graph=False)
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp, dsc_agent=chainer, planning_agent=planner, experiment_name=args.experiment_name, seed=args.seed)

@@ -31,7 +31,8 @@ class SkillChaining(object):
 	def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
-				 start_state_salience=False, log_dir="", seed=0, tensor_log=False, experiment_name=""):
+				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
+				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -49,6 +50,8 @@ class SkillChaining(object):
 			generate_plots (bool): whether or not to produce plots in this run
 			use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
 			start_state_salience (bool): Treat the start state of the MDP as a salient event OR create intersection events
+			option_intersection_salience (bool): Should we treat the intersection b/w options as a salient event
+			event_intersection_salience (bool): Should we treat the option-event intersections as salient events
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -71,6 +74,8 @@ class SkillChaining(object):
 		self.classifier_type = classifier_type
 		self.dense_reward = mdp.dense_reward
 		self.start_state_salience = start_state_salience
+		self.option_intersection_salience = option_intersection_salience
+		self.event_intersection_salience = event_intersection_salience
 		self.experiment_name = experiment_name
 
 		tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
@@ -585,7 +590,7 @@ class SkillChaining(object):
 
 				# Add this new salient event to the MDP - so that we can plan to and from it
 				common_states = intersecting_options[1].effect_set
-				all_salient_events = self.mdp.get_all_salient_events_ever()
+				all_salient_events = self.mdp.get_all_target_events_ever()
 				all_salient_event_idx = [event.event_idx for event in all_salient_events]
 
 				intersection_salient_event = LearnedSalientEvent(state_set=common_states,
@@ -606,6 +611,43 @@ class SkillChaining(object):
 												 target_event=self.mdp.get_start_state_salient_event())
 
 				self.rewire_intersecting_chains(intersecting_chains, intersecting_options, intersection_salient_event)
+
+	def manage_intersection_between_option_and_events(self, option):
+		"""
+		`option`'s initiation set completely contains the given `event`.
+		Create an intersection learned salient event and then target it with a skill chain
+
+		Args:
+			option (Option)
+
+		Returns:
+
+		"""
+
+		# Get chain corresponding to `option`
+		option_chain = self.chains[option.chain_id - 1]  # type: SkillChain
+
+		# Salient event corresponding to the current `option`
+		option_target_event = option_chain.target_salient_event  # type: SalientEvent
+
+		# Given just a freshly trained option, find all the events that the initiation set of the option completely engulfs
+		intersecting_events = []
+
+		for event in self.mdp.get_all_target_events_ever():  # type: SalientEvent
+			event_chains = [chain for chain in self.chains if chain.target_salient_event == event and chain.chained_till_start_state() and not chain.is_backward_chain]
+			if event != option_target_event and len(event_chains) > 0 and \
+					SkillChain.detect_intersection_between_option_and_event(option, event):
+				intersecting_events.append(event)
+
+		for event in intersecting_events:  # type: SalientEvent
+
+			print(f"Found intersection between {option} and {event} - will create a backward chain and rewire {option_chain}")
+
+			# Create a backward skill chain from the termination condition of the chain corresponding to `option` to the salient event
+			self.create_backward_skill_chain(start_event=option_chain.target_salient_event, target_event=event)
+
+			# Set the `init_salient_event` of the chain corresponding to option to be the intersecting event
+			option_chain.init_salient_event = event
 
 	def rewire_intersecting_chains(self, intersecting_chains, intersecting_options, intersection_salient_event):
 		"""
@@ -682,6 +724,9 @@ class SkillChaining(object):
 				# We fix the learned option's initiation set and remove it from the list of target events
 				self.untrained_options.remove(untrained_option)
 
+				# Debug visualization
+				plot_two_class_classifier(untrained_option, episode, self.experiment_name)
+
 				return untrained_option, new_options
 
 		elif untrained_option.get_training_phase() == "initiation_done":
@@ -714,13 +759,17 @@ class SkillChaining(object):
 			# if completed_option is not None:
 			# 	self.mdp.satisfy_target_event(self.chains)
 
-			if completed_option is not None:
+			if completed_option is not None and self.start_state_salience:
 				self.manage_skill_chain_to_start_state(completed_option)
+
+			if completed_option is not None and self.event_intersection_salience:
+				self.manage_intersection_between_option_and_events(completed_option)
 
 			if completed_option is not None:
 				created_options.append(completed_option)
 
-		self.manage_intersecting_skill_chains()
+		if self.option_intersection_salience:
+			self.manage_intersecting_skill_chains()
 
 		return created_options
 
@@ -919,6 +968,8 @@ if __name__ == '__main__':
 	parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
 	parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
 	parser.add_argument("--use_start_state_salience", action="store_true", default=False)
+	parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
+	parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
 	args = parser.parse_args()
 
 	if args.env == "point-reacher":
@@ -966,7 +1017,10 @@ if __name__ == '__main__':
 							log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
 							enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
 							generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,
-							start_state_salience=args.use_start_state_salience, experiment_name=args.experiment_name)
+							start_state_salience=args.use_start_state_salience,
+							option_intersection_salience=args.use_option_intersection_salience,
+							event_intersection_salience=args.use_event_intersection_salience,
+							experiment_name=args.experiment_name)
 	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
 	# Log performance metrics
