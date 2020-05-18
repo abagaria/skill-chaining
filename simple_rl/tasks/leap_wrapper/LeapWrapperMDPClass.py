@@ -34,6 +34,7 @@ class LeapWrapperMDP(MDP):
         self.endeff_goal_pos = self.env._state_goal[:3]
 
         # Will this exist in all gym environments??
+        pdb.set_trace()
         self.threshold = self.env.indicator_threshold
         #self.threshold = 0.6
 
