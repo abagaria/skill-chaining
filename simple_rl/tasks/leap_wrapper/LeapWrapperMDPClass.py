@@ -36,7 +36,7 @@ class LeapWrapperMDP(MDP):
 
         # Will this exist in all gym environments??
         #self.threshold = self.env.indicator_threshold # Default is 0.06
-        self.threshold = 0.1
+        self.threshold = 0.08
 
         # Not sure why we do a reset here
         self.reset()
