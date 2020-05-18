@@ -561,7 +561,8 @@ class SkillChaining(object):
 							and self.chains[untrained_option.chain_id - 1].should_continue_chaining(self.chains):
 
 						# Debug visualization
-						plot_two_class_classifier(untrained_option, episode, args.experiment_name)
+						# Commented out because it assumes we're in point maze - Kiran
+						#plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 
 						# We fix the learned option's initiation set and remove it from the list of target events
 						self.untrained_options.remove(untrained_option)
