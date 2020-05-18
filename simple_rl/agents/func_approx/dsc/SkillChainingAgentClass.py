@@ -359,6 +359,7 @@ class SkillChaining(object):
 		return None
 
 	def act(self, state):
+		pdb.set_trace()
 		# Query the global Q-function to determine which option to take in the current state
 		option_idx = self.agent_over_options.act(state.features(), train_mode=True)
 		self.agent_over_options.update_epsilon()
@@ -598,7 +599,6 @@ class SkillChaining(object):
 			last_10_scores.append(score)
 			last_10_durations.append(step_number)
 			per_episode_scores.append(score)
-			print(per_episode_scores)
 			per_episode_durations.append(step_number)
 
 			self._log_dqn_status(episode, last_10_scores, episode_option_executions, last_10_durations)
