@@ -232,6 +232,7 @@ class DQNAgent(Agent):
         # -- termination set.
 
         impossible_option_idx = []
+        pdb.set_trace()
         for idx, option in enumerate(self.trained_options):
             np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
 
