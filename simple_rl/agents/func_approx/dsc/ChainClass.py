@@ -6,7 +6,8 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 class SkillChain(object):
     def __init__(self, start_states, mdp_start_states, init_salient_event, target_salient_event, options, chain_id,
-                 intersecting_options=[], is_backward_chain=False, has_backward_chain=False, chain_until_intersection=False):
+                 intersecting_options=[], is_backward_chain=False, has_backward_chain=False,
+                 option_intersection_salience=False, event_intersection_salience=True):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here
@@ -21,7 +22,8 @@ class SkillChain(object):
             intersecting_options (list): List of options whose initiation sets overlap
             is_backward_chain (bool): Whether this chain goes from start -> salient or from salient -> start
             has_backward_chain (bool): Does there exist a backward chain corresponding to the current forward chain (N/A if `is_backward_chain`)
-            chain_until_intersection (bool): Whether to chain until the current chain intersects with another OR simply until the start states
+            option_intersection_salience (bool): Whether to chain until the current chain intersects with another option
+            event_intersection_salience (bool): Chain until you intersect with another salient event
         """
         self.options = options
         self.start_states = start_states
@@ -34,7 +36,8 @@ class SkillChain(object):
 
         self.is_backward_chain = is_backward_chain
         self.has_backward_chain = has_backward_chain
-        self.chain_until_intersection = chain_until_intersection
+        self.option_intersection_salience = option_intersection_salience
+        self.event_intersection_salience = event_intersection_salience
 
         if target_salient_event is None and len(intersecting_options) > 0:
             self.target_predicate = lambda s: all([option.is_init_true(s) for option in intersecting_options])
@@ -91,7 +94,9 @@ class SkillChain(object):
         # Continue if not all the start states have been covered by the options in the current chain
         start_state_in_chain = self.chained_till_start_state()
 
-        if self.is_backward_chain or not self.chain_until_intersection:
+        required_to_chain_until_intersection = self.option_intersection_salience or self.event_intersection_salience
+
+        if self.is_backward_chain or not required_to_chain_until_intersection:
             return not start_state_in_chain
 
         # For forward chains, continue until chain intersections have been found yet
@@ -133,12 +138,12 @@ class SkillChain(object):
 
     def detect_intersection_with_other_chains(self, other_chains):
         for chain in other_chains:
-            intersecting_options = self.detect_intersection(chain)
+            intersecting_options = self.get_intersecting_options(chain)
             if intersecting_options is not None:
                 return intersecting_options
         return None
 
-    def detect_intersection(self, other_chain):
+    def get_intersecting_options(self, other_chain):
         """
         One chain intersecting with another defines a chain intersection event.
         The intersecting region is treated as a salient event to construct skill graphs.
@@ -162,9 +167,23 @@ class SkillChain(object):
                     return my_option, other_option
         return None
 
+    def get_intersecting_option_and_event(self, other_chain):
+        # Do not identify self-intersections
+        if self == other_chain:
+            return None
+
+        for my_option in self.options:  # type: Option
+            event = other_chain.target_salient_event
+            if self.detect_intersection_between_option_and_event(my_option, event):
+                return my_option, event
+        return None
+
     def is_intersecting(self, other_chain):
         """ Boolean wrapper around detect_intersection(). """
-        return self.detect_intersection(other_chain) is not None
+        if self.option_intersection_salience:
+            return self.get_intersecting_options(other_chain) is not None
+        assert self.event_intersection_salience, "set event_intersection_salience or option_intersection_salience"
+        return self.get_intersecting_option_and_event(other_chain) is not None
 
     def chain_salience_satisfied(self, state):
         if self.target_salient_event is not None:
@@ -174,7 +193,7 @@ class SkillChain(object):
 
     def is_chain_completed(self, chains):
         is_intersecting_another_chain = False
-        if self.chain_until_intersection:
+        if self.option_intersection_salience or self.event_intersection_salience:
             other_chains = [chain for chain in chains if chain != self]
             is_intersecting_another_chain = any([self.is_intersecting(chain) for chain in other_chains])
         return self.chained_till_start_state() or is_intersecting_another_chain

@@ -182,6 +182,7 @@ if __name__ == "__main__":
                             event_intersection_salience=args.use_event_intersection_salience,
                             pretrain_option_policies=args.pretrain_option_policies,
                             create_backward_options=args.create_backward_options,
+                            dense_reward=args.dense_reward,
                             experiment_name=args.experiment_name)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])

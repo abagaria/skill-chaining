@@ -32,7 +32,8 @@ class SkillChaining(object):
 				 subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
 				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
-				 pretrain_option_policies=False, create_backward_options=False, log_dir="", seed=0, tensor_log=False, experiment_name=""):
+				 pretrain_option_policies=False, create_backward_options=False, dense_reward=False,
+				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -54,6 +55,7 @@ class SkillChaining(object):
 			event_intersection_salience (bool): Should we treat the option-event intersections as salient events
 			pretrain_option_policies (bool): Whether to pre-train option policies with the global option
 			create_backward_options (bool): Whether to spend time learning back options for skill graphs
+			dense_reward (bool): Whether DSC will use dense rewards to train option policies
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -74,7 +76,7 @@ class SkillChaining(object):
 		self.device = torch.device(device)
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
-		self.dense_reward = mdp.dense_reward
+		self.dense_reward = dense_reward
 		self.start_state_salience = start_state_salience
 		self.option_intersection_salience = option_intersection_salience
 		self.event_intersection_salience = event_intersection_salience
@@ -139,7 +141,9 @@ class SkillChaining(object):
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
 		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
 		 			   			  intersecting_options=[], mdp_start_states=s0, is_backward_chain=False,
-								  target_salient_event=salient_event, init_salient_event=start_state_salient_event)
+								  target_salient_event=salient_event, init_salient_event=start_state_salient_event,
+								  option_intersection_salience=option_intersection_salience,
+								  event_intersection_salience=event_intersection_salience)
 					   for i, salient_event in enumerate(self.mdp.get_original_target_events())]
 
 		# List of init states seen while running this algorithm
@@ -525,11 +529,13 @@ class SkillChaining(object):
 			# These target predicates are used to determine the goal of the new skill chain
 			target_salient_event = self.mdp.get_start_state_salient_event()
 
+			# No need to check for intersections for backward chains
 			new_chain = SkillChain(start_states=start_states, mdp_start_states=self.s0,
 								   target_salient_event=target_salient_event,
 								   init_salient_event=init_salient_event,
 								   options=[], chain_id=len(self.chains)+1,
-								   intersecting_options=[], is_backward_chain=True)
+								   intersecting_options=[], is_backward_chain=True,
+								   event_intersection_salience=False, option_intersection_salience=False)
 			self.add_skill_chain(new_chain)
 
 			# Create a new option and equip the SkillChainingAgent with it
@@ -564,12 +570,15 @@ class SkillChaining(object):
 			target_event (SalientEvent): Chain will try to hit this event
 
 		"""
+		# No need to check for intersections if you are a backward chain
 		back_chain = SkillChain(start_states=[start_event.target_state],
 								  mdp_start_states=self.s0,
 								  target_salient_event=target_event,
 								  init_salient_event=start_event,
 								  options=[], chain_id=len(self.chains) + 1,
-								  intersecting_options=[], is_backward_chain=True)
+								  intersecting_options=[], is_backward_chain=True,
+								  option_intersection_salience=False,
+								  event_intersection_salience=False)
 		self.add_skill_chain(back_chain)
 
 		# Create a new option and equip the SkillChainingAgent with it
@@ -659,12 +668,15 @@ class SkillChaining(object):
 		intersecting_events = []
 
 		for event in self.mdp.get_all_target_events_ever():  # type: SalientEvent
-			event_chains = [chain for chain in self.chains if chain.target_salient_event == event and chain.chained_till_start_state() and not chain.is_backward_chain]
-			if event != option_target_event and len(event_chains) > 0 and \
+			event_chains = [chain for chain in self.chains if chain.target_salient_event == event and
+							chain.chained_till_start_state() and not chain.is_backward_chain]
+			if event != option_target_event and \
+					len(event_chains) > 0 and \
 					SkillChain.detect_intersection_between_option_and_event(option, event):
 				intersecting_events.append(event)
 
 		for event in intersecting_events:  # type: SalientEvent
+			ipdb.set_trace()
 
 			print(f"Found intersection between {option} and {event} - will create a backward chain and rewire {option_chain}")
 
@@ -1057,6 +1069,7 @@ if __name__ == '__main__':
 							event_intersection_salience=args.use_event_intersection_salience,
 							pretrain_option_policies=args.pretrain_option_policies,
 							create_backward_options=args.create_backward_options,
+							dense_reward=args.dense_reward,
 							experiment_name=args.experiment_name)
 	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 

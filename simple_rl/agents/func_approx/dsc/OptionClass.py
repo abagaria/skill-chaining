@@ -589,7 +589,7 @@ class Option(object):
 		if self.is_init_true(state) and self.is_term_true(next_state):
 			self.solver.step(state.features(), action, self.subgoal_reward, next_state.features(), True)
 		elif self.is_init_true(state):
-			subgoal_reward = self.get_subgoal_reward(next_state)
+			subgoal_reward = self.get_subgoal_reward(next_state) if self.name != "global_option" else reward
 			self.solver.step(state.features(), action, subgoal_reward, next_state.features(), next_state.is_terminal())
 
 	def update_option_solver(self, s, a, r, s_prime):
@@ -607,7 +607,7 @@ class Option(object):
 			print("[{}]: {} is_terminal() but not term_true()".format(self.name, s))
 			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
 		else:
-			subgoal_reward = self.get_subgoal_reward(s_prime)
+			subgoal_reward = self.get_subgoal_reward(s_prime) if self.name != "global_option" else r
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
 
 	def execute_option_in_mdp(self, mdp, episode, step_number, eval_mode=False):

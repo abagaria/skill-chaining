@@ -250,18 +250,12 @@ class SkillGraphPlanningAgent(object):
 
     def perform_option_rollout(self, option, episode, step, eval_mode, goal_salient_event):
 
-        def _completed_learning_init_set_during_rollout(before, after):
-            return before != "initiation_done" and after == "initiation_done"
-
-        option_phase_before_rollout = deepcopy(option.get_training_phase())
         state_before_rollout = deepcopy(self.mdp.cur_state)
 
         option_transitions, option_reward = option.execute_option_in_mdp(self.mdp,
                                                                          episode=episode,
                                                                          step_number=step,
                                                                          eval_mode=eval_mode)
-
-        option_phase_after_rollout = deepcopy(option.get_training_phase())
 
         print(f"Going to manage skill chains after rolling out {option}")
         new_options = self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
@@ -270,17 +264,10 @@ class SkillGraphPlanningAgent(object):
                                                                            episode_number=episode,
                                                                            option_transitions=option_transitions)
 
-        # TODO: Aha with off-policy triggers, you can trigger the termination condition of an option w/o rolling it out
+        # With off-policy triggers, you can trigger the termination condition of an option w/o rolling it out
         self.manage_options_learned_during_rollout(newly_created_options=new_options,
                                                    pre_rollout_state=state_before_rollout,
                                                    goal_salient_event=goal_salient_event)
-
-        # if _completed_learning_init_set_during_rollout(option_phase_before_rollout, option_phase_after_rollout):
-        #     print(f"Learned initiation set for {option} during planner rollout so adding to the graph now")
-        #     ipdb.set_trace()
-        #     self.manage_options_learned_during_rollout(newly_created_options=[option],
-        #                                                pre_rollout_state=state_before_rollout,
-        #                                                goal_salient_event=goal_salient_event)
 
         # Modify the edge weight associated with the executed option
         self.modify_executed_option_edge_weight(option)
@@ -575,7 +562,8 @@ class SkillGraphPlanningAgent(object):
         new_forward_chain = SkillChain(start_states=[start_state], mdp_start_states=[self.mdp.init_state],
                                        init_salient_event=init_salient_event,
                                        target_salient_event=target_salient_event, is_backward_chain=False,
-                                       chain_until_intersection=False, chain_id=chain_id, options=[])
+                                       chain_id=chain_id, options=[], option_intersection_salience=False,
+                                       event_intersection_salience=False)
 
         if new_forward_chain not in self.chainer.chains:
             assert new_forward_chain not in self.chainer.chains
@@ -648,7 +636,8 @@ class SkillGraphPlanningAgent(object):
                                      init_salient_event=init_salient_event,
                                      target_salient_event=target_salient_event,
                                      is_backward_chain=False,
-                                     chain_until_intersection=False,
+                                     option_intersection_salience=self.chainer.option_intersection_salience,
+                                     event_intersection_salience=self.chainer.event_intersection_salience,
                                      chain_id=chain_id,
                                      options=[])
 
@@ -711,19 +700,32 @@ class SkillGraphPlanningAgent(object):
         return new_untrained_option
 
     def modify_executed_option_edge_weight(self, selected_option):
-        if selected_option in self.plan_graph.option_nodes:  # type: Option
-            for child_option in selected_option.children:  # type: Option or SalientEvent
-                if child_option is not None:
-                    # TODO: We want to do a moving average filter so as to not wipe off the optimism
 
-                    if isinstance(child_option, Option):
-                        child_option_success_rate = child_option.get_option_success_rate()
-                        self.plan_graph.set_edge_weight(child_option, selected_option,
-                                                        weight=1. / child_option_success_rate)
-                    elif isinstance(child_option, SalientEvent):
-                        self.plan_graph.set_edge_weight(child_option, selected_option, weight=0.)
-                    else:
-                        raise ValueError(child_option, type(child_option))
+        def _modify_edge_weight_of_root_option(root_option):
+            assert root_option.parent is None
+            target_event = self.chainer.chains[root_option.chain_id - 1].target_salient_event
+            success_rate = root_option.get_option_success_rate()
+            self.plan_graph.set_edge_weight(root_option, target_event, weight=1./success_rate)
+
+        def _modify_edge_weight_of_child_option(child_option):
+            assert child_option is not None
+            if isinstance(child_option, Option):
+                child_option_success_rate = child_option.get_option_success_rate()
+                self.plan_graph.set_edge_weight(child_option, selected_option,
+                                                weight=1. / child_option_success_rate)
+            elif isinstance(child_option, SalientEvent):
+                self.plan_graph.set_edge_weight(child_option, selected_option, weight=0.)
+            else:
+                raise ValueError(child_option, type(child_option))
+
+        if selected_option in self.plan_graph.option_nodes:  # type: Option
+            for child in selected_option.children:  # type: Option or SalientEvent
+                if child is not None:
+                    # TODO: We want to do a moving average filter so as to not wipe off the optimism
+                    _modify_edge_weight_of_child_option(child)
+
+        if selected_option.parent is None:
+            _modify_edge_weight_of_root_option(selected_option)
 
     def choose_option_to_fall_off_graph_from(self, goal_salient_event):
         if not self.is_plan_graph_empty():
