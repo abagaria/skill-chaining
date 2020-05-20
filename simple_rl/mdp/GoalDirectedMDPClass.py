@@ -26,7 +26,8 @@ class GoalDirectedMDP(MDP):
         self.current_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1]) for i, x in
                                        enumerate(self.salient_positions)]
 
-        # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
+        # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained
+        # options
         self.original_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1]) for i, x in
                                         enumerate(self.salient_positions)]
 

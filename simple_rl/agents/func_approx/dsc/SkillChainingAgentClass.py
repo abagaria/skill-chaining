@@ -413,7 +413,7 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		# KIRAN TRACE X
-		#pdb.set_trace()
+		pdb.set_trace()
 		selected_option = self.act(state)
 
 		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
