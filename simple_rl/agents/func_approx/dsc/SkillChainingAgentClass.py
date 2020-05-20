@@ -503,11 +503,6 @@ class SkillChaining(object):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
 		return self.mdp.get_current_target_events()
 
-	def get_chained_salient_events(self):
-		chained_salient_events = [chain.target_salient_event for chain in self.chains if chain.chained_till_start_state()]
-		chained_salient_events = list(set(chained_salient_events))
-		return chained_salient_events
-
 	def manage_skill_chain_to_start_state(self, option):
 		"""
 		When we complete creating a skill-chain targeting a salient event,
@@ -669,7 +664,7 @@ class SkillChaining(object):
 
 		for event in self.mdp.get_all_target_events_ever():  # type: SalientEvent
 			event_chains = [chain for chain in self.chains if chain.target_salient_event == event and
-							chain.chained_till_start_state() and not chain.is_backward_chain]
+							chain.is_chain_completed(self.chains) and not chain.is_backward_chain]
 			if event != option_target_event and \
 					len(event_chains) > 0 and \
 					SkillChain.detect_intersection_between_option_and_event(option, event):
@@ -704,7 +699,7 @@ class SkillChaining(object):
 		chain1, chain2 = intersecting_chains[0], intersecting_chains[1]      # type: SkillChain
 
 		# Find the chain that chains until the start state of the MDP
-		long_chain = chain1 if chain1.chained_till_start_state() else chain2
+		long_chain = chain1 if chain1.is_chain_completed(self.chains) else chain2
 
 		# Find the chain that chains until the region of intersection
 		short_chain = chain1 if long_chain == chain2 else chain2
@@ -748,18 +743,6 @@ class SkillChaining(object):
 
 				new_options = self.create_children_options(untrained_option)
 
-				# Iterate through all the child options and add them to the skill tree 1 by 1
-				for new_option in new_options:  # type: Option
-					if new_option is not None:
-						self.untrained_options.append(new_option)
-						self.add_negative_examples(new_option)
-
-						# If initialize_everywhere is True, also add to trained_options
-						if new_option.initialize_everywhere:
-							if self.pretrain_option_policies:
-								new_option.initialize_with_global_solver()
-							self.augment_agent_with_new_option(new_option, self.init_q)
-
 				# We fix the learned option's initiation set and remove it from the list of target events
 				self.untrained_options.remove(untrained_option)
 
@@ -778,6 +761,19 @@ class SkillChaining(object):
 			return untrained_option, []
 
 		return None, []
+
+	def add_new_options_to_skill_chains(self, new_options):
+		# Iterate through all the child options and add them to the skill tree 1 by 1
+		for new_option in new_options:  # type: Option
+			if new_option is not None:
+				self.untrained_options.append(new_option)
+				self.add_negative_examples(new_option)
+
+				# If initialize_everywhere is True, also add to trained_options
+				if new_option.initialize_everywhere:
+					if self.pretrain_option_policies:
+						new_option.initialize_with_global_solver()
+					self.augment_agent_with_new_option(new_option, self.init_q)
 
 	def manage_skill_chain_after_option_rollout(self, *, state_before_rollout, executed_option,
 												created_options, episode_number, option_transitions):
@@ -808,6 +804,9 @@ class SkillChaining(object):
 
 			if completed_option is not None and self.event_intersection_salience:
 				self.manage_intersection_between_option_and_events(completed_option)
+
+			if new_options:
+				self.add_new_options_to_skill_chains(new_options)
 
 			if completed_option is not None:
 				created_options.append(completed_option)

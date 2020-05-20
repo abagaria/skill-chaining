@@ -705,7 +705,8 @@ class SkillGraphPlanningAgent(object):
             assert root_option.parent is None
             target_event = self.chainer.chains[root_option.chain_id - 1].target_salient_event
             success_rate = root_option.get_option_success_rate()
-            self.plan_graph.set_edge_weight(root_option, target_event, weight=1./success_rate)
+            weight = 1. / success_rate if success_rate > 0 else 0.
+            self.plan_graph.set_edge_weight(root_option, target_event, weight=weight)
 
         def _modify_edge_weight_of_child_option(child_option):
             assert child_option is not None
@@ -724,8 +725,8 @@ class SkillGraphPlanningAgent(object):
                     # TODO: We want to do a moving average filter so as to not wipe off the optimism
                     _modify_edge_weight_of_child_option(child)
 
-        if selected_option.parent is None:
-            _modify_edge_weight_of_root_option(selected_option)
+            if selected_option.parent is None:
+                _modify_edge_weight_of_root_option(selected_option)
 
     def choose_option_to_fall_off_graph_from(self, goal_salient_event):
         if not self.is_plan_graph_empty():
