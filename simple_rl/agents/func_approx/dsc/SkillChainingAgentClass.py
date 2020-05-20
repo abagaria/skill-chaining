@@ -370,19 +370,26 @@ class SkillChaining(object):
 		""" Call to deep covering options: create new salient event and corresponding skill chain. """
 
 		if not self.use_hard_coded_event:
-			 replay_buffer = self.global_option.solver.replay_buffer
-			 c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-									   num_training_steps=1000,
-									   chain_id=len(self.chains) + 1,
-									   option_idx=len(self.generated_salient_events),
-									   name="covering-options-" + str(len(self.generated_salient_events)),
-									   threshold=self.threshold)
+			replay_buffer = self.global_option.solver.replay_buffer
 
-			 target_predicate = c_option.is_init_true
-			 batched_target_predicate = c_option.batched_is_init_true
+			for beta, seed in zip(np.linspace(0.0, 0.3, 10), np.linspace(0, 1000000, 10)):
+				seed = int(seed)
+				random.seed(seed)
+				np.random.seed(seed)
+				torch.manual_seed(seed)
 
-			 plot_covering_options(c_option, replay_buffer=self.global_option.solver.replay_buffer,
-								  experiment_name=args.experiment_name)
+				c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+										   num_training_steps=1000,
+										   chain_id=len(self.chains) + 1,
+										   option_idx=len(self.generated_salient_events),
+										   name=f"covering-options-{len(self.generated_salient_events)}_beta-{beta:.4f}",
+										   threshold=self.threshold, beta=beta)
+
+				target_predicate = c_option.is_init_true
+				batched_target_predicate = c_option.batched_is_init_true
+
+				plot_covering_options(c_option, self.mdp.init_state, replay_buffer=self.global_option.solver.replay_buffer,
+									  experiment_name=args.experiment_name)
 		else:
 			# TODO: Hack - hard coded salient event
 			if len(self.generated_salient_events) == 0:
@@ -634,6 +641,10 @@ def create_log_dir(experiment_name):
 
 
 if __name__ == '__main__':
+	random.seed(0)
+	np.random.seed(0)
+	torch.manual_seed(0)
+
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--experiment_name", type=str, help="Experiment Name")
 	parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
