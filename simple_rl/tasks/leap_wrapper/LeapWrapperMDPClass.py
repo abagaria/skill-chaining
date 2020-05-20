@@ -83,6 +83,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
+        pdb.set_trace()
         if self.dense_reward:
             # TODO: Ask Akhil about how/why this works
             return -0.1 * self.distance_from_goal(self.next_state)
