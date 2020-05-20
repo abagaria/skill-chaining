@@ -284,24 +284,24 @@ def replay_trajectory(trajectory, dir_name):
 		img.save("{}/frame{}.png".format(dir_name, i))
 
 
-def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name=""):
+def plot_covering_options(option, init_state, replay_buffer, n_samples=1000, experiment_name=""):
 	fig = plt.figure(figsize=(8.0, 10.0))
-	#ax = plt.gca()
 	ax2d = fig.add_subplot(2, 1, 1)
 	ax3d = fig.add_subplot(2, 1, 2, projection='3d')
 
 	states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
+	init_value = option.initiation_classifier(option.states_to_tensor([init_state]))[0][0]
 
-	non_goal_states = [s for s in states if not option.is_init_true(s)]
-	
-	nxs = [s.data[0] for s in non_goal_states]
-	nys = [s.data[1] for s in non_goal_states]
-	nzs = [np.linalg.norm(s.data[3:5]) for s in non_goal_states]
+	non_goal_states = [s for s in states if option.is_init_true(s)]
 
 	cmap = matplotlib.cm.get_cmap('Blues')
 	values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in non_goal_states]
-	normalize = matplotlib.colors.Normalize(vmin=min(values), vmax=option.threshold_value)
+	normalize = matplotlib.colors.Normalize(vmin=option.threshold_value, vmax=max(values))
 	colors = [cmap(normalize(v)) for v in values]
+
+	nxs = [s.data[0] for s in non_goal_states]
+	nys = [s.data[1] for s in non_goal_states]
+	nzs = [init_value - value for value in values]
 
 	# print('nxs=', nxs)
 	# print('nys=', nys)
@@ -309,38 +309,39 @@ def plot_covering_options(option, replay_buffer, n_samples=1000, experiment_name
 	ax2d.scatter(np.asarray(nxs), np.asarray(nys), c=np.asarray(colors))
 	ax3d.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
 
-	goal_states = [s for s in states if option.is_init_true(s)]
+	goal_states = [s for s in states if not option.is_init_true(s)]
 	goal_values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in goal_states]
-	best_goal_state = goal_states.pop(np.argmax(goal_values))
-	
+
+	best_goal_i = np.argmax(goal_values)
+	best_goal_state = goal_states.pop(best_goal_i)
+	best_goal_value = goal_values.pop(best_goal_i)
+
 	gxs = [s.data[0] for s in goal_states]
 	gys = [s.data[1] for s in goal_states]
-	gzs = [np.linalg.norm(s.data[3:5]) for s in goal_states]
+	gzs = [init_value - gvalue for gvalue in goal_values]
 
 	ax2d.scatter(gxs, gys, c="red")
-	ax2d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], c="green", s = [300])
+	ax2d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], c="black", s = [300])
 	ax3d.scatter(gxs, gys, gzs, c="red")
-	ax3d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [np.linalg.norm(best_goal_state.data[3:5])],c="green", s = [400])
+	ax3d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [init_value - best_goal_value], c="black", s = [400])
 
 	low_bound_x, up_bound_x = -3, 11
-	low_bound_y, up_bound_y = -3, 11
+	# low_bound_y, up_bound_y = -3, 11
 
 	ax2d.set_xlim((low_bound_x, up_bound_x))
+	# ax2d.set_ylim((low_bound_y, up_bound_y))
 	ax3d.set_xlim((low_bound_x, up_bound_x))
-	ax2d.set_ylim((low_bound_y, up_bound_y))
-	ax3d.set_ylim((low_bound_y, up_bound_y))
-	#plt.xlim((low_bound_x, up_bound_x))
-	#plt.ylim((low_bound_y, up_bound_y))
+	# ax3d.set_ylim((low_bound_y, up_bound_y))
 
 	ax2d.set_xlabel("x")
 	ax2d.set_ylabel("y")
 	ax3d.set_xlabel("x")
 	ax3d.set_ylabel("y")
-	#plt.xlabel("x")
-	#plt.ylabel("y")
-	
+
 	name = option.name
 	threshold = option.threshold
-	fig.suptitle("Covering Options with threshold {} and buffer size {}".format(threshold, len(replay_buffer)))
+	beta = option.beta
+	fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {len(replay_buffer)},\n and beta {beta:.4f}")
+	ax3d.set_title("f(s_0) - f(s) vs (x, y)-position")
 	plt.savefig("initiation_set_plots/{}/{}_covering-options-{}_threshold.png".format(experiment_name, name, threshold))
 	plt.close()
