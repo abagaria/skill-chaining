@@ -9,10 +9,12 @@ import imageio
 import seaborn as sns
 sns.set()
 from PIL import Image
+from tqdm import tqdm
 
 # Other imports.
 from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
+from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -63,19 +65,19 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
 
 def get_grid_states():
     ss = []
-    for x in np.arange(-2., 17., 1.):
-        for y in np.arange(-8., 8., 0.5):
-            s = PointMazeState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-                               theta=0., theta_dot=0., done=False, has_key=False)
+    for x in np.arange(-11., 11., 1.):
+        for y in np.arange(-11., 11., 0.5):
+            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0., 0.]),
+                               theta=0., theta_dot=0., done=False)
             ss.append(s)
     return ss
 
 def get_initiation_set_values(option, has_key):
     values = []
-    for x in np.arange(-2., 17., 1.):
-        for y in np.arange(-8., 8., 0.5):
-            s = PointMazeState(position=np.array([x, y]), velocity=np.array([0, 0]),
-                               theta=0, theta_dot=0, done=False, has_key=has_key)
+    for x in np.arange(-11., 11., 1.):
+        for y in np.arange(-11., 11., 0.5):
+            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0, 0]),
+                               theta=0, theta_dot=0, done=False)
             values.append(option.is_init_true(s))
 
     return values
@@ -149,8 +151,8 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
     # plt.xticks([])
     # plt.yticks([])
 
-    plt.xlim((-2, 17))
-    plt.ylim((-8, 8))
+    plt.xlim((-10, 10))
+    plt.ylim((-10, 10))
 
     plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
@@ -183,8 +185,8 @@ def plot_two_class_classifier(option, episode, experiment_name):
         # background_image = imageio.imread("four_room_domain.png")
         # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
-        plt.xlim((-2, 17))
-        plt.ylim((-8, 8))
+        plt.xlim((-10, 10))
+        plt.ylim((-10, 10))
 
         name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
         plt.title("{} Initiation Set".format(option.name))
@@ -329,3 +331,45 @@ def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experi
     file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}"
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
+
+def visualize_buffer(option, episode, seed, experiment_name):
+    buffer = option.solver.replay_buffer.memory
+    terminal_states = [transition[-2] for transition in buffer if transition[-1]]
+    terminal_start_states = [transition[0] for transition in buffer if transition[-1]]
+    non_terminal_states = [transition[0] for transition in buffer if transition[-1] == 0]
+    plt.figure()
+    plt.scatter([t[0] for t in non_terminal_states], [t[1] for t in non_terminal_states], alpha=0.1)
+    plt.scatter([t[0] for t in terminal_states], [t[1] for t in terminal_states], alpha=1.0)
+    plt.scatter([t[0] for t in terminal_start_states], [t[1] for t in terminal_start_states], alpha=1.0)
+    plt.title(f"{option.solver.name}s replay buffer with length {len(buffer)}")
+    file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}"
+    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    plt.close()
+
+def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    states = np.array([exp[0] for exp in replay_buffer.memory])
+    actions = np.array([exp[1] for exp in replay_buffer.memory])
+
+    # Chunk up the inputs so as to conserve GPU memory
+    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+    state_chunks = np.array_split(states, num_chunks, axis=0)
+    action_chunks = np.array_split(actions, num_chunks, axis=0)
+    qvalues = np.zeros((states.shape[0],))
+    current_idx = 0
+
+    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        current_chunk_size = len(state_chunk)
+        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+        current_idx += current_chunk_size
+
+    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+    plt.colorbar()
+    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    plt.close()
+
+    return qvalues.max()

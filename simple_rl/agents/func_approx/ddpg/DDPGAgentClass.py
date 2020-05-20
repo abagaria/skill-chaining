@@ -25,7 +25,7 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
                  batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="shaping",
-                 trained_options=[]):
+                 trained_options=[], evaluation_epsilon=0.1):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
@@ -33,6 +33,7 @@ class DDPGAgent(Agent):
         self.batch_size = batch_size
         self.exploration_method = exploration
         self.trained_options = trained_options
+        self.evaluation_epsilon = evaluation_epsilon
 
         self.seed = random.seed(seed)
         np.random.seed(seed)
@@ -176,9 +177,9 @@ class DDPGAgent(Agent):
 
     def update_epsilon(self):
         if "global" in self.name.lower():
-            self.epsilon = max(0., self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
+            self.epsilon = max(self.evaluation_epsilon, self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
         else:
-            self.epsilon = max(0., self.epsilon - OPTION_LINEAR_EPS_DECAY)
+            self.epsilon = max(self.evaluation_epsilon, self.epsilon - OPTION_LINEAR_EPS_DECAY)
 
     def get_value(self, state):
         action = self.actor.get_action(state)
