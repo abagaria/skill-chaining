@@ -79,13 +79,13 @@ class LeapWrapperMDP(GoalDirectedMDP):
             pdb.set_trace()
 
     def _reward_func(self, state, action):
-        next_state, reward, done, _ = self.env.step(action)
+        next_state, dense_reward, done, _ = self.env.step(action)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
-            return -0.1 * self.distance_from_goal(self.next_state)
-        return reward + 1.
+            return dense_reward
+        return 0 if self.is_goal_state(state) else -1
 
     def _transition_func(self, state, action):
         # References the next state calculated in the reward function
