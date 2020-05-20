@@ -413,7 +413,7 @@ class SkillChaining(object):
 			next_state (State): state we landed in after executing chosen action
 		"""
 		# KIRAN TRACE X
-		pdb.set_trace()
+		# pdb.set_trace()
 		selected_option = self.act(state)
 
 		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
@@ -706,7 +706,7 @@ class SkillChaining(object):
 				# triggered the termination condition of any such option
 				for untrained_option in self.untrained_options:
 					# KIRAN TRACE X
-					#pdb.set_trace()
+					pdb.set_trace()
 
 					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
 							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
