@@ -19,6 +19,7 @@ from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
 import multiworld
 import pdb
 
+
 class LeapWrapperMDP(GoalDirectedMDP):
     ''' Class for Leap Wrapper MDPs '''
 
@@ -29,23 +30,15 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         # Configure env
         multiworld.register_all_envs()
-        # Assuming that dsc works with gym environments
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
         self.goal_state = self.env._state_goal
+        pdb.set_trace()
 
         # Will this exist in all gym environments??
-        #self.threshold = self.env.indicator_threshold # Default is 0.06
-        self.threshold = 0.08
+        self.threshold = self.env.indicator_threshold # Default is 0.06
 
         # Not sure why we do a reset here
         self.reset()
-
-        self.current_target_events = [self.endeff_in_goal_pos, self.puck_in_goal_pos]
-        self.current_batched_target_events = [self.batched_endeff_in_goal_pos, self.batched_puck_in_goal_pos]
-
-        # Record the originals, because the currents may expand arbitrarily
-        self.original_target_events = [self.endeff_in_goal_pos, self.puck_in_goal_pos]
-        self.original_batched_target_events = [self.batched_endeff_in_goal_pos, self.batched_puck_in_goal_pos]
 
         salient_positions = [
             (self.goal_state, self.get_endeff_pos),
@@ -53,17 +46,17 @@ class LeapWrapperMDP(GoalDirectedMDP):
         ]
 
         action_dims = range(self.env.action_space.shape[0])
-        GoalDirectedMDP.__init__(self, 
-            action_dims, 
-            self._transition_func, 
-            self._reward_func, 
-            self.init_state,
-            salient_positions, 
-            False, 
-            goal_state= self.goal_state, 
-            goal_tolerance=self.env.indicator_threshold
-        )
-    
+        GoalDirectedMDP.__init__(self,
+                                 action_dims,
+                                 self._transition_func,
+                                 self._reward_func,
+                                 self.init_state,
+                                 salient_positions,
+                                 False,
+                                 goal_state=self.goal_state,
+                                 goal_tolerance=self.threshold
+                                 )
+
     @staticmethod
     def get_endeff_pos(state):
         return state.endeff_pos if isinstance(state, LeapWrapperState) else state[:3]
@@ -72,6 +65,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
     def get_puck_pos(state):
         return state.puck_pos if isinstance(state, LeapWrapperState) else state[3:]
 
+    @staticmethod
+    def get_state_pos(state):
+        return state.position if isinstance(state, LeapWrapperState) else state
+
     def _reward_func(self, state, action):
         next_state, reward, done, _ = self.env.step(action)
         if self.render:
@@ -79,7 +76,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
             # TODO: Ask Akhil about how/why this works
-            return -0.1 * np.linalg.norm(self.next_state - self.goal_state)
+            return -0.1 * self.distance_from_goal(state)
         return reward + 1.  # TODO: Changing the reward function to return 0 step penalty and 1 reward
 
     def _transition_func(self, state, action):
@@ -104,7 +101,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
     def is_goal_state(self, state):
         if isinstance(state, LeapWrapperState):
             return state.is_terminal()
-        return np.linalg.norm(state - self.goal_state) < self.threshold
+        return self.distance_from_goal(state) < self.threshold
+
+    def distance_from_goal(self, state):
+        return np.linalg.norm(self.get_state_pos(state) - self.get_state_pos(self.goal_state))
 
     @staticmethod
     def state_space_size():
