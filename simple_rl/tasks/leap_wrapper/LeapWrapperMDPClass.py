@@ -58,11 +58,25 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
     @staticmethod
     def get_endeff_pos(state):
-        return state.endeff_pos if isinstance(state, LeapWrapperState) else state[:3]
+        if isinstance(state, LeapWrapperState):
+            return state.endeff_pos
+        elif state.ndim == 2:
+            return state[:, :3]
+        elif state.ndim == 1:
+            return state[:3]
+        else:
+            pdb.set_trace()
 
     @staticmethod
     def get_puck_pos(state):
-        return state.puck_pos if isinstance(state, LeapWrapperState) else state[3:]
+        if isinstance(state, LeapWrapperState):
+            return state.endeff_pos
+        elif state.ndim == 2:
+            return state[:, 3:]
+        elif state.ndim == 1:
+            return state[3:]
+        else:
+            pdb.set_trace()
 
     def _reward_func(self, state, action):
         next_state, reward, done, _ = self.env.step(action)
