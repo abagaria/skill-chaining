@@ -5,11 +5,16 @@ import ipdb
 
 
 class SalientEvent(object):
-    def __init__(self, target_state, event_idx, tolerance=0.6, intersection_event=False):
+    def __init__(self, target_state, event_idx, tolerance=0.6, intersection_event=False, get_relevant_position=None):
         self.target_state = target_state
         self.event_idx = event_idx
         self.tolerance = tolerance
         self.intersection_event = intersection_event
+
+        if get_relevant_position is None:
+            self.get_relevant_position = self._get_position
+        else:
+            self.get_relevant_position = get_relevant_position
 
         assert isinstance(event_idx, int)
         assert isinstance(tolerance, float)
@@ -32,8 +37,8 @@ class SalientEvent(object):
 
     def __eq__(self, other):
         def _state_eq(s1, s2):
-            s1 = self._get_position(s1)
-            s2 = self._get_position(s2)
+            s1 = self.get_relevant_position(s1)
+            s2 = self.get_relevant_position(s2)
             return (s1 == s2).all()
 
         if not isinstance(other, SalientEvent):
@@ -47,13 +52,13 @@ class SalientEvent(object):
         return self.event_idx
 
     def is_init_true(self, state):
-        position = self._get_position(state)
-        target_position = self._get_position(self.target_state)
+        position = self.get_relevant_position(state)
+        target_position = self.get_relevant_position(self.target_state)
         return np.linalg.norm(position - target_position) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
-        goal_position = self._get_position(self.target_state)
+        goal_position = self.get_relevant_position(self.target_state)
         in_goal_position = distance.cdist(position_matrix, goal_position[None, :]) <= self.tolerance
         return in_goal_position.squeeze(1)
 
@@ -98,3 +103,4 @@ class UnionSalientEvent(SalientEvent):
         inits1 = self.event1.batched_is_init_true(position_matrix)
         inits2 = self.event2.batched_is_init_true(position_matrix)
         return np.logical_or(inits1, inits2)
+
