@@ -32,7 +32,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
         self.goal_state = self.env._state_goal
-        pdb.set_trace()
 
         # Will this exist in all gym environments??
         self.threshold = self.env.indicator_threshold # Default is 0.06
@@ -65,10 +64,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
     def get_puck_pos(state):
         return state.puck_pos if isinstance(state, LeapWrapperState) else state[3:]
 
-    @staticmethod
-    def get_state_pos(state):
-        return state.position if isinstance(state, LeapWrapperState) else state
-
     def _reward_func(self, state, action):
         next_state, reward, done, _ = self.env.step(action)
         if self.render:
@@ -76,7 +71,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
             # TODO: Ask Akhil about how/why this works
-            return -0.1 * self.distance_from_goal(state)
+            return -0.1 * self.distance_from_goal(self.next_state)
         return reward + 1.  # TODO: Changing the reward function to return 0 step penalty and 1 reward
 
     def _transition_func(self, state, action):
@@ -104,7 +99,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         return self.distance_from_goal(state) < self.threshold
 
     def distance_from_goal(self, state):
-        return np.linalg.norm(self.get_state_pos(state) - self.get_state_pos(self.goal_state))
+        state_pos = state.position if isinstance(state, LeapWrapperState) else state
+        return np.linalg.norm(state_pos - self.goal_state)
 
     @staticmethod
     def state_space_size():
