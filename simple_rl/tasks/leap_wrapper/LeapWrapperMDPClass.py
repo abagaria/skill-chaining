@@ -70,7 +70,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
     @staticmethod
     def get_puck_pos(state):
         if isinstance(state, LeapWrapperState):
-            return state.endeff_pos
+            return state.puck_pos
         elif state.ndim == 2:
             return state[:, 3:]
         elif state.ndim == 1:
