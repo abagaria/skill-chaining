@@ -34,27 +34,19 @@ def hms_to_s(hms_array):
 	h, m, s = hms_array
 	return s + (m * 60) + (h * 3600)
 
-def main():
-	# test_data = load_data('runs/(cs2951x) maze_old_continuous_learning_2/run_1_all_data/num_options_history.pkl')
-	# last_option, idx = 0, None
-	# for i,  option in enumerate(test_data):
-	# 	if option > last_option:
-	# 		last_option, idx = option, i
-	
-	# print(last_option, idx)
-	# test_data = load_data('runs/(cs2951x) maze_chain_break_nu_0.6/run_1_all_data/num_options_history.pkl')
-	# print(test_data)
+def runtime_stats(runtimes):
+	# convert to seconds
+	total_runtimes = []
+	for runtime in runtimes:
+		total_runtimes.append(hms_to_s(runtime))
+	total_runtimes = np.array(total_runtimes)
 
-	# test_obj = ClassTest(1, [1,2,3])
-	# get_skill_chain()
+	# return stats in hh:mm:ss format
+	mean = datetime.timedelta(seconds=np.mean(total_runtimes))
+	std = datetime.timedelta(seconds=np.std(total_runtimes))
+	return mean, std
 
-	# print(np.linspace(34, 40, 6, dtype=int))
-
-	# if True:
-	# 	pass
-	# else:
-	# 	print(False)
-
+def compute_runtimes():
 	olds = np.array([[2, 36,49],
 					[0, 56, 50],
 					[1, 10, 24],
@@ -77,15 +69,27 @@ def main():
 					   [1, 35, 38],
 					   [0, 44, 53]])
 
-	# convert to seconds
-	total_old, total_robust = [], []
-	for old, robust in zip(olds, robusts):
-		total_old.append(hms_to_s(old))
-		total_robust.append(hms_to_s(robust))
-	total_old, total_robust = np.array(total_old), np.array(total_robust)
+	old_mean, old_std = runtime_stats(olds)
+	robust_mean, robust_std = runtime_stats(robusts)
 
-	print("OLD: {} +- {}".format(datetime.timedelta(seconds=np.mean(total_old)), datetime.timedelta(seconds=np.std(total_old))))
-	print("ROBUST: {} +- {}".format(datetime.timedelta(seconds=np.mean(total_robust)), datetime.timedelta(seconds=np.std(total_robust))))
+	print("OLD: {} +- {}".format(old_mean, old_std))
+	print("ROBUST: {} +- {}".format(robust_mean, robust_std))
+
+def main():
+	# test_data = load_data('runs/(cs2951x) maze_old_continuous_learning_2/run_1_all_data/num_options_history.pkl')
+	# last_option, idx = 0, None
+	# for i,  option in enumerate(test_data):
+	# 	if option > last_option:
+	# 		last_option, idx = option, i
+	
+	# print(last_option, idx)
+	
+	test_data = load_data('/home/mjs/Projects/skill-chaining/saved_runs/final_option_1_ddpg_agent_replay_buffer.pkl')
+	print(test_data)
+
+
+	# compute_runtimes()
+	
 
 
 if __name__ == "__main__":

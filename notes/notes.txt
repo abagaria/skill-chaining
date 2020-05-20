@@ -29,7 +29,7 @@ Run
 
 Bugs
 ====
-	[ ] Treasure Game:
+	[ ] Tunning for Treasure Game:
 		- seed=0, steps=8000:
 			* 3400 steps: reaches gold coin
 			* 7700 steps: reaches goal
@@ -80,88 +80,6 @@ Bugs
 			
 			- use make sure anything passed to is_term_true(state) is a np.array 
 
-	[ ] 1st option has init state and never learns more options using probabilistc methods
-		- Q: maybe the init set of the goal policy option is too large at first but then is refined 
-		down but if an option is created early then this will break?
-		
-		- Akhil: buff len too large, try smaller buffer
-
-		- Hyperparameters
-
-			episodes=100
-			steps=2000
-			subgoal_reward=300
-			buffer_len=20
-			num_sub_goal_hits=1
-			nu=0.5
-			seed=0
-		
-		- test run
-
-			python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) predict()" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5 --episodic_plots=True
-			python3 simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="maze" --experiment_name="(debug) prob_init" --episodes=300 --steps=1000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda:0" --num_subgoal_hits=1 --nu=0.5 --episodic_plots=True
-
-		- Testing:
-			[o] set nu=0.7: only created 1 option
-			[o] set num_sub_goal_hits=5, nu=0.7: only created 1 option
-			[x] init=opt clf, terminate=parent init: more options have been created!
-			[o] init=prob(opt clf) and terminate=parent init: creating 1 option
-				-> issue is with proba init?
-			[x] (1) init=opt clf, terminate=pes clf: more options have been created!
-			[x] (2) init=opt clf, terminate=pes clf: more options have beem created!
-				-> confirmed that proba init is the issue and not term
-			[x/o] set dsc seed=1, init=prob(opt clf), terminate=pes clf: two options created but fairly near init state
-			[o] set dsc seed=2, init=prob(opt clf), terminate=pes clf: only created 1 option
-			[o] set dsc seed=3, init=prob(opt clf), terminate=pes clf: goal option only created
-			[o] set dsc seed=4, init=prob(opt clf), terminate=pes clf: 1 option created but goal option has init state
-			[o] set dsc seed=4, init=prob(opt clf), terminate=pes clf, num_sub_goal_hits=3: 1 option created, goal option and option 1 has init state
-				-> increasing gestation period doesn't help
-				-> overall, proba init is the issue across diff seeds
-				-> need to figure out the main difference
-			
-			Q: what's the difference between using opt_clf.predict() and opt_clf.predict_proba()?
-				- opt_clf.predict(): returns TRUE if classifier at a given state is POS
-				- opt_clf.predict_proba(): returns TRUE if probability of classifier of POS predicted state is higher than a random probability distribution
-
-			[o] seed=1, a) init=opt_clf.predict(), terminate=pes_clf.predict(), b) init=opt_clf.predict_proba(), terminate=pes_clf.predict():
-				- both a) and b) have goal option takes up top half, option 1 has init state
-				-> bad seed?
-			[x] seed=0; a) init=opt_clf.predict(), terminate=pes_clf.predict(), b) init=opt_clf.predict_proba(), terminate=pes_clf.predict():
-				- a) more options created that spread the domain! 
-				- b) only created option 1
-			
-				- both a) and b) goal option are reletively the same
-				- option 1 for a) is bottom right while for b) it is bottom left (around init state)
-
-			Q: could using probabilistc init be only working for an option around init state? Why?
-
-			* Seeding for prob init might have been wrong but fixed now
-
-			[o] seed=0, init=prob(opt clf), term=pes clf, added batch term, updated batch init in DQN:
-				- still only creates 1 option but is top right and not in init state
-				-> is there a different bug in creating options?
-			[o] (1) seed=0, init=prob(opt clf), term=pes clf, setting seed before: only created 1 option in init state 
-			[o] (2) seed=0, init=prob(opt clf), term=pes clf, setting seed before: only created 1 option in init state
-
-			Q: what does the first option look like when created? why is it only being created around the initial state?
-
-			[o] seed=0, init=prob(opt clf), term=pes clf:
-				- when created, only successful trajectories collected are around initial state.
-				-> why?
-
-			[o] seed=1, init=prob(opt clf), term=pes clf:
-				- again, successful trajectories are only around initial state
-				-> maybe look into how trajectories are collected per option?
-
-			[o] seed=2, init=prob(opt clf), term=pes clf:
-				- probability values are very low most likely due to the fact that there are so little
-				positive samples but this is expected
-				-> how would this affect only creating an option around the initial state?
-			
-			Q: when first option is created, why are all the successful trajectories around the initial state with prob init
-			   but when predict is used, they aren't?
-				- Somehow, is_init_true() is affecting the samples being collected during gestation
-
 Structure
 =========
 	{Class}::{Method}
@@ -207,5 +125,59 @@ Hyperparameter search
 
 	Search
 	---------------
-	- pes_nu: 0.5, 0.6, 0.7, 0.8
+	- pes_nu: 0.1 - 0.9
+
+Future Work
+===========
+
+* Why an increase of variance with continuous learning?
+
+	- Map chain execution when rewards took a hit 
+
+		(cs2951x) maze_pes_nu_0.3_with_chainfix/run_1.log
+
+			Episode 290	Score: -420.00	Average Score: -611.30	Duration: 612.30 steps	GO Eps: 0.00
+			Current Skill Chain: [option_1, option_3, option_2, option_5, option_4, option_6, option_7]
+				option_2 execution successful
+				option_3 execution successful
+				option_2 execution successful
+				option_1 execution successful
+		
+			Episode 291	Score: -655.00	Average Score: -626.50	Duration: 627.50 steps	GO Eps: 0.00
+			Current Skill Chain: [option_1, option_3, option_2, option_5, option_4, option_6, option_7]
+				option_3 execution successful
+				option_3 execution successful
+				option_3 execution successful
+				option_3 execution successful
+				global_option execution successful
+
+			Episode 292	Score: -73.00	Average Score: -563.00	Duration: 564.00 steps	GO Eps: 0.00
+			Current Skill Chain: [option_1, option_3, option_2, option_5, option_4, option_6, option_7]
+				option_6 execution successful
+
+			Episode 293	Score: -912.00	Average Score: -584.30	Duration: 585.30 steps	GO Eps: 0.00
+			Current Skill Chain: [option_1, option_3, option_2, option_5, option_4, option_6, option_7]
+				option_4 execution successful
+				option_3 execution successful
+				option_3 execution successful
+				option_3 execution successful
+				option_1 execution successful
+
+			Episode 294	Score: -2000.00	Average Score: -714.70	Duration: 715.60 steps	GO Eps: 0.00
+			Current Skill Chain: [option_1, option_3, option_2, option_5, option_4, option_6, option_7]
+				option_7 execution successful
+				option_6 execution successful
+				option_4 execution successful
+
+			Episode 295	Score: -1099.00	Average Score: -755.20	Duration: 756.10 steps	GO Eps: 0.00
+			Current Skill Chain: [option_1, option_3, option_2, option_5, option_4, option_6, option_7]
+				option_6 execution successful
+				option_6 execution successful
+				option_3 execution successful
+				option_3 execution successful
+				option_1 execution successful
+
+* Exploration epsilon schedule needs to be more dynamic to domain
+
+* How do chain fix options hold up to longer horizon tasks (i.e. treasure game)?
 

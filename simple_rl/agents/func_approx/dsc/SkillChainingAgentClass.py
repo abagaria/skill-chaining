@@ -205,6 +205,7 @@ class SkillChaining(object):
 		self.goal_xy = np.array(self.mdp.goal_position)
 		self.start_xy = np.array(self.start_state[:2])
 		self.options_chain_breaks = {}
+		self.trajectory_data = {}
 
 		# TODO: add environment image for plotting
 		if "maze" in self.mdp.env_name:
@@ -374,6 +375,23 @@ class SkillChaining(object):
 
 		return selected_option
 
+	# TODO: utilites
+	def log_trajectories(self, episode, idx, name, option_transitions):
+		# NOTE: option_transitions (list): list of (s, a, r, s') tuples
+		
+		# Extract x, y positions from s'
+		transitions = [row[-1][:2]for row in option_transitions]
+		
+		traj = []
+		for i in range(len(transitions)):
+			x, y = transitions[i]
+			traj.append([idx, name, x, y])
+	
+		if episode not in self.trajectory_data:
+			self.trajectory_data[episode] = traj
+		else:
+			self.trajectory_data[episode] = self.trajectory_data[episode] + traj 
+
 	def take_action(self, state, step_number, episode_option_executions, episode=None):
 		"""
 		Either take a primitive action from `state` or execute a closed-loop option policy.
@@ -410,6 +428,12 @@ class SkillChaining(object):
 		if self.writer is not None:
 			self.writer.add_scalar("{}_q_value".format(selected_option.name),
 								   sampled_q_value, selected_option.num_executions)
+
+		# TODO: log trajectories
+		self.log_trajectories(episode,
+							  selected_option.option_idx,
+							  selected_option.name, 
+							  option_transitions)
 
 		return option_transitions, option_reward, next_state, len(option_transitions)
 
@@ -759,6 +783,46 @@ class SkillChaining(object):
 		print("|-> Figure {}/all_options_{}.png saved!".format(path, saved_eps))
 
 	# TODO: utilities
+	def plot_trajectory(self, x_mesh, y_mesh, trajectory_data, episode, experiment_name, rgb_color_palette, alpha=1, img_name=None, img_alpha=1, goal=None, start=None):
+		# Create plotting dir (if not created)
+		path = '{}/plots/trajectories'.format(experiment_name)
+		Path(path).mkdir(exist_ok=True)
+
+		if img_name != None:
+			back_img = plt.imread(img_name)
+			plt.imshow(back_img, extent=[x_mesh.min(), x_mesh.max(), y_mesh.min(), y_mesh.max()], alpha=img_alpha)
+
+		patches = []
+		
+		g = plt.scatter(goal[0], goal[1], marker="*", color="y", s=80, path_effects=[pe.Stroke(linewidth=1, foreground='k'), pe.Normal()], label="Goal")
+		patches.append(g)
+		s = plt.scatter(start[0], start[1], marker="X", color="k", label="Start")
+		patches.append(s)
+
+		colors = [mc.to_hex(rgb) for rgb in rgb_color_palette]
+
+		# Plot trajectories
+		seen_options = []
+		for option_idx, option_name, x, y in trajectory_data[episode]:
+			dot = plt.scatter(x, y, color=colors[option_idx], alpha=alpha, label=option_name)
+			if option_name not in seen_options:
+				patches.append(dot)
+			seen_options.append(option_name)
+
+		plt.xticks(())
+		plt.yticks(())
+		plt.title("Agent Trajectory")
+		plt.legend(handles=patches, 
+				   bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+		
+		# Save plots
+		plt.savefig("{}/trajectory_{}.png".format(path, episode), bbox_inches='tight', edgecolor='black', format='png', quality=100)
+		plt.close()
+
+		# TODO: remove
+		print("|-> Figure {}/trajectory_{}.png saved!".format(path, episode))
+
+	# TODO: utilities
 	def plot_learning_curves(self, experiment_name, data):
 		# Create plotting dir (if not created)
 		path = '{}/plots/learning_curves'.format(experiment_name)
@@ -805,6 +869,7 @@ class SkillChaining(object):
 		all_data['temporal_full_chain_breaks'] = self.temporal_full_chain_breaks
 		all_data['goal_xy'] = self.goal_xy
 		all_data['start_xy'] = self.start_xy
+		all_data['trajectory_data'] = self.trajectory_data
 
 		for var_name, data in all_data.items():
 			with open(data_dir + '/' + var_name + '.pkl', 'wb+') as f:
@@ -834,20 +899,34 @@ class SkillChaining(object):
 		rgb_color_palette = sns.color_palette('deep')
 
 		# plot all options' boundaries
-		self.plot_multi_boundaries(x_mesh=self.x_mesh,
-									y_mesh=self.y_mesh,
-									option_data=self.option_data,
-									rgb_color_palette=rgb_color_palette,
-									experiment_name=self.log_dir,
-									alpha=0.7,
-									plot_eps=episode,
-									img_name='images/point_maze_domain.png',
-									img_alpha=0.9,
-									goal=self.goal_xy,
-									start=self.start_xy)
+		# self.plot_multi_boundaries(x_mesh=self.x_mesh,
+		# 							y_mesh=self.y_mesh,
+		# 							option_data=self.option_data,
+		# 							rgb_color_palette=rgb_color_palette,
+		# 							experiment_name=self.log_dir,
+		# 							alpha=0.7,
+		# 							plot_eps=episode,
+		# 							img_name='images/point_maze_domain.png',
+		# 							img_alpha=0.9,
+		# 							goal=self.goal_xy,
+		# 							start=self.start_xy)
 		
 		# plot learning curves
 		self.plot_learning_curves(self.log_dir, per_episode_scores)
+
+		# plot trajectories
+		rgb_color_palette = [(0,0,0)] + rgb_color_palette
+		self.plot_trajectory(x_mesh=self.x_mesh,
+							 y_mesh=self.y_mesh,
+							 trajectory_data=self.trajectory_data,
+							 episode=episode,
+							 experiment_name=self.log_dir,
+							 rgb_color_palette=rgb_color_palette,
+							 alpha=0.8,
+							 img_name='images/point_maze_domain.png',
+							 img_alpha=0.9, 
+							 goal=self.goal_xy,
+							 start=self.start_xy)
 
 	# TODO: utilities
 	def update_options_episode(self, episode):

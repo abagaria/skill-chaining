@@ -340,7 +340,6 @@ class Option(object):
 
 			# otherwise, goal or gobal option
 			return self.overall_mdp.batched_is_goal_state(state_matrix)
-			
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -600,9 +599,8 @@ class Option(object):
 				# Note: We are not using the option augmented subgoal reward while making off-policy updates to global DQN
 				assert mdp.is_primitive_action(action), "Option solver should be over primitive actions: {}".format(action)
 
-				# TODO: use DQN act
 				if self.name != "global_option":
-					if self.discrete_actions:
+					if self.discrete_actions:	# TODO: use DQN act
 						self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), -1)
 					else:
 						self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
@@ -615,7 +613,7 @@ class Option(object):
 					# else:
 					# 	self.global_solver.update_epsilon()
 
-					# self.global_solver.update_epsilon()
+					self.global_solver.update_epsilon()
 
 				self.solver.update_epsilon()
 				option_transitions.append((state, action, reward, next_state))
