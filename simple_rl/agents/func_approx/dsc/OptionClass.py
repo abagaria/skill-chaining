@@ -301,21 +301,6 @@ class Option(object):
 				if self.init_salient_event is not None:
 					return self.init_salient_event(state_matrix)
 
-				pdb.set_trace() # Just making sure that we dont come here
-
-				# When we create intersection salient events, then we treat the union of all salient
-				# events as the joint initiation set of the backward options
-				salients = [event(state_matrix) for event in self.overall_mdp.get_current_salient_events()]
-
-				if len(salients) > 1:
-					gestation_inits = np.logical_or.reduce(tuple(salients))
-					assert gestation_inits.shape == (state_matrix.shape[0],), gestation_inits.shape
-					return gestation_inits
-				elif len(salients) == 1:
-					return salients[0]
-				elif len(salients) == 0:
-					return np.zeros((state_matrix.shape[0]))
-
 			return np.ones((state_matrix.shape[0]))
 		position_matrix = state_matrix[:, :2]
 		return self.initiation_classifier.predict(position_matrix) == 1
@@ -350,10 +335,6 @@ class Option(object):
 				if self.init_salient_event is not None:
 					return self.init_salient_event(ground_state)
 
-				# Intersection salient event
-				pdb.set_trace()
-				salients = [event(ground_state) for event in self.overall_mdp.get_current_salient_events()]
-				return any(salients)
 			return True
 
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]

@@ -5,7 +5,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
-from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 
 
@@ -157,7 +157,17 @@ class UCBActionSelectionAgent(object):
         return filtered_options
 
     def _filter_candidate_events(self):
-        return self.events
+        """ Given the full set of candidate events in the MDP, we only want to pick those that have
+            some chains targeting it. """
+        def _is_chain_eligible(skill_chain, salient):
+            return skill_chain.target_salient_event == salient and not skill_chain.is_backward_chain
+
+        filtered_events = []
+        for event in self.events:  # type: SalientEvent
+            targeting_chains = [chain for chain in self.chains if _is_chain_eligible(chain, event)]
+            if any([chain.is_chain_completed(self.chains) for chain in targeting_chains]):
+                filtered_events.append(event)
+        return filtered_events
 
     def _get_candidate_nodes(self):
         candidate_options = self._filter_candidate_options()

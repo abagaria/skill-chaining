@@ -503,11 +503,6 @@ class SkillChaining(object):
 		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
 		return self.mdp.get_current_target_events()
 
-	def get_chained_salient_events(self):
-		chained_salient_events = [chain.target_salient_event for chain in self.chains if chain.chained_till_start_state()]
-		chained_salient_events = list(set(chained_salient_events))
-		return chained_salient_events
-
 	def manage_skill_chain_to_start_state(self, option):
 		"""
 		When we complete creating a skill-chain targeting a salient event,
@@ -669,7 +664,7 @@ class SkillChaining(object):
 
 		for event in self.mdp.get_all_target_events_ever():  # type: SalientEvent
 			event_chains = [chain for chain in self.chains if chain.target_salient_event == event and
-							chain.chained_till_start_state() and not chain.is_backward_chain]
+							chain.is_chain_completed(self.chains) and not chain.is_backward_chain]
 			if event != option_target_event and \
 					len(event_chains) > 0 and \
 					SkillChain.detect_intersection_between_option_and_event(option, event):
@@ -704,7 +699,7 @@ class SkillChaining(object):
 		chain1, chain2 = intersecting_chains[0], intersecting_chains[1]      # type: SkillChain
 
 		# Find the chain that chains until the start state of the MDP
-		long_chain = chain1 if chain1.chained_till_start_state() else chain2
+		long_chain = chain1 if chain1.is_chain_completed(self.chains) else chain2
 
 		# Find the chain that chains until the region of intersection
 		short_chain = chain1 if long_chain == chain2 else chain2
