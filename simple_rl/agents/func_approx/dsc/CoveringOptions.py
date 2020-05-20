@@ -15,7 +15,7 @@ class CoveringOptions(Option):
 
     def __init__(self, replay_buffer, obs_dim, feature=None, threshold=0.95, num_units=200, num_training_steps=1000,
                  actor_learning_rate=0.0001, critic_learning_rate=0.0001, batch_size=64, option_idx=None,
-                 chain_id=1, name="covering-options"):
+                 chain_id=1, name="covering-options", beta=0.0):
         self.obs_dim = obs_dim
         self.threshold = threshold
         self.num_units = num_units
@@ -24,6 +24,7 @@ class CoveringOptions(Option):
         self.chain_id = chain_id
         self.option_idx = option_idx
         self.name = name
+        self.beta = beta
 
         # SkillChainingClass expects all options to have these attributes
         self.children = []
@@ -41,10 +42,10 @@ class CoveringOptions(Option):
             indim = self.feature.num_features()
 
         self.initiation_classifier = SpectrumNetwork(obs_dim=indim, training_steps=self.num_training_steps,
-                                                     n_units=self.num_units, conv=False, name=self.name + "-spectrum")
+                                                     n_units=self.num_units, conv=False, name=self.name + "-spectrum", beta=beta)
 
         self.initiation_classifier.initialize()
-        
+
         replay_buffer = self.convert_states(replay_buffer)
 
         self.train(replay_buffer)
@@ -86,7 +87,7 @@ class CoveringOptions(Option):
             new_next_state[2:] = 0
             new_rb.add(new_state, action, reward, new_next_state, terminal)
         return new_rb
-    
+
     def train(self, replay_buffer):
         for _ in range(self.num_training_steps):
             s, a, r, s2, t = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
@@ -167,7 +168,6 @@ class SpectrumNetwork():
 
         self.n_units = n_units
 
-        # self.beta = 1000000.0
         self.beta = beta
         self.delta = 0.05
         # self.delta = delta
