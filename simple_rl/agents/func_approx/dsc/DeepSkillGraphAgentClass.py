@@ -2,11 +2,12 @@ import ipdb
 import argparse
 import random
 from copy import deepcopy
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillGraphPlanningAgent
 from simple_rl.agents.func_approx.dsc.utils import *
-from simple_rl.mdp import MDP, State
-
+from simple_rl.mdp import State
+from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 
 
 class DeepSkillGraphAgent(object):
@@ -15,7 +16,7 @@ class DeepSkillGraphAgent(object):
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
         Args:
-            mdp (MDP)
+            mdp (GoalDirectedMDP)
             dsc_agent (SkillChaining)
             planning_agent (SkillGraphPlanningAgent)
             experiment_name (str)
@@ -36,11 +37,10 @@ class DeepSkillGraphAgent(object):
             state (State)
 
         Returns:
-            goal_state (SalientEvent)
+            target_event (SalientEvent)
         """
         # TODO: Use the current_salient_events in the future so that we prioritize new events coming in
-        current_salient_events = self.mdp.get_current_target_events()
-        all_salient_events_ever = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        candidate_salient_events = self.generate_candidate_salient_events()
 
         # When you have finished chaining all the salient events, keep cycling between salient
         # events to continue improving your existing skills until there is a new salient event in town
@@ -48,7 +48,7 @@ class DeepSkillGraphAgent(object):
         target_event = None
 
         while target_event is None and num_tries < 100:
-            target_event = random.sample(all_salient_events_ever, k=1)[0]
+            target_event = random.sample(candidate_salient_events, k=1)[0]
 
             # If you are already at the target_event, then re-sample
             if target_event(state):
@@ -87,6 +87,25 @@ class DeepSkillGraphAgent(object):
 
         return successes
 
+    def generate_candidate_salient_events(self):
+        # TODO: This doesn't work yet because you also have to add the forward options back to the list `untrained_options`
+        if self.are_all_original_salient_events_forward_chained():
+            self.dsc_agent.create_backward_options = True
+            self.dsc_agent.learn_backward_options_offline = True
+            return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+
+        self.dsc_agent.create_backward_options = False
+        self.dsc_agent.learn_backward_options_offline = False
+        return self.mdp.get_all_target_events_ever()
+
+    def are_all_original_salient_events_forward_chained(self):
+        original_salient_events = self.mdp.get_original_target_events()
+        for event in original_salient_events:  # type: SalientEvent
+            forward_chains = [chain for chain in self.dsc_agent.chains if chain.target_salient_event == event and not chain.is_backward_chain]
+            if any([not chain.is_chain_completed(self.dsc_agent.chains) for chain in forward_chains]):
+                return False
+        return True
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -118,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
     parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
     parser.add_argument("--create_backward_options", action="store_true", default=False)
+    parser.add_argument("--learn_backward_options_offline", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -182,11 +202,12 @@ if __name__ == "__main__":
                             event_intersection_salience=args.use_event_intersection_salience,
                             pretrain_option_policies=args.pretrain_option_policies,
                             create_backward_options=args.create_backward_options,
+                            learn_backward_options_offline=args.learn_backward_options_offline,
                             dense_reward=args.dense_reward,
                             experiment_name=args.experiment_name)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
-    assert args.use_option_intersection_salience ^ args.use_event_intersection_salience
+    # assert args.use_option_intersection_salience ^ args.use_event_intersection_salience
 
     planner = SkillGraphPlanningAgent(mdp=overall_mdp, chainer=chainer, experiment_name=args.experiment_name, seed=args.seed, initialize_graph=False)
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp, dsc_agent=chainer, planning_agent=planner, experiment_name=args.experiment_name, seed=args.seed)

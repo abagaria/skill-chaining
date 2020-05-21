@@ -25,7 +25,7 @@ class Option(object):
 				 dense_reward=False, enable_timeout=True, timeout=250, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, max_num_children=3,
 				 init_salient_event=None, target_salient_event=None,
-				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
+				 gestation_init_predicates=[], is_backward_option=False, solver_type="td3",
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -683,9 +683,9 @@ class Option(object):
 
 				print(f"Triggered termination condition for {self}")
 
-				if self.parent is None and self.is_term_true(state):
-					print(f"[{self}] Adding {state.position} to {self.target_salient_event}'s trigger points")
-					self.target_salient_event.trigger_points.append(state)
+				if self.parent is None and self.is_term_true(next_state):
+					print(f"[{self}] Adding {next_state.position} to {self.target_salient_event}'s trigger points")
+					self.target_salient_event.trigger_points.append(next_state)
 
 				states_so_far.append(next_state)  # We want the terminal state to be part of the initiation classifier
 				if self.train(trajectory_so_far, states_so_far, episode):
