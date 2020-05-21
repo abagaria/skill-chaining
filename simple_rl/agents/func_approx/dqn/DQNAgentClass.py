@@ -227,6 +227,7 @@ class DQNAgent(Agent):
         Agent.__init__(self, name, range(action_size), GAMMA)
 
     def get_impossible_option_idx(self, state):
+        pdb.set_trace()
 
         # Arg-max only over actions that can be executed from the current state
         # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
