@@ -93,6 +93,9 @@ class SalientEvent(object):
             return all([option.is_init_true(s) for s in self.trigger_points])
         return False
 
+    def get_target_position(self):
+        return self._get_position(self.target_state)
+
     @staticmethod
     def _get_position(state):
         position = state.position if isinstance(state, State) else state[:2]
@@ -132,24 +135,26 @@ class LearnedSalientEvent(SalientEvent):
 
 
 class DCOSalientEvent(SalientEvent):
-    def __init__(self, covering_option, event_idx, replay_buffer, tolerance=1., intersection_event=False):
+    def __init__(self, covering_option, event_idx, replay_buffer, is_low, tolerance=2.0, intersection_event=False):
         self.covering_option = covering_option
+        self.is_low = is_low
 
-        self.states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
-        goal_states = [s for s in self.states if not covering_option.is_init_true(s)]
-        goal_values = [covering_option.initiation_classifier(covering_option.states_to_tensor([s]))[0][0] for s in
-                       goal_states]
-        self.buffer_size = len(replay_buffer)
+        assert len(replay_buffer), "replay_buffer was empty"
+        states = replay_buffer.sample(len(replay_buffer), get_tensor=False)[0]
+        values = covering_option.initiation_classifier(states).flatten()
 
-        # Pick the highest probability state from the covering option's termination set
-        # target_state = goal_states[np.argmin(goal_values)]
-        target_state = random.choice(goal_states)
-        target_state = self._get_position(target_state) if covering_option.use_xy_prior else target_state
-
-        print(f"Created covering option targeting {target_state}")
+        target_state = states[np.argmin(values) if is_low else np.argmax(values)]
 
         SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx,
                               tolerance=tolerance, intersection_event=intersection_event)
 
+    def __eq__(self, other):
+        if not isinstance(other, SalientEvent):
+            return False
+        return self is other
+
     def __repr__(self):
         return f"DCOSalientEvent {self.event_idx} targeting {self.target_state}"
+
+    def __hash__(self):
+        return self.event_idx

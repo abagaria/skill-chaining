@@ -5,7 +5,7 @@ from simple_rl.mdp.StateClass import State
 import numpy as np
 import time
 import matplotlib
-matplotlib.use('TkAgg')   
+# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt # NOTE: for debugging
 
 COLORS = {

@@ -12,7 +12,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class PointReacherMDP(MDP):
-    def __init__(self, seed, use_hard_coded_events=False, color_str="", dense_reward=False, render=False):
+    def __init__(self, seed, color_str="", dense_reward=False, render=False, use_hard_coded_events=False):
         self.env_name = "point_reacher"
         self.seed = seed
         self.dense_reward = dense_reward
