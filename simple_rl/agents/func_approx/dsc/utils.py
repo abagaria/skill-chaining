@@ -343,5 +343,5 @@ def plot_covering_options(option, init_state, replay_buffer, n_samples=1000, exp
 	beta = option.beta
 	fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {len(replay_buffer)},\n and beta {beta:.4f}")
 	ax3d.set_title("f(s_0) - f(s) vs (x, y)-position")
-	plt.savefig("initiation_set_plots/{}/{}_covering-options-{}_threshold.png".format(experiment_name, name, threshold))
+	plt.savefig("initiation_set_plots/{}/{}-{}_threshold.png".format(experiment_name, name, threshold))
 	plt.close()

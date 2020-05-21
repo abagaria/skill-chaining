@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
 
-threshold=$1
-PLOT_DIR="threshold_${threshold}_plots"
+threshold=${1:-0.1}
+num_runs=${2:-5}
+exp_name=${3:-dco_test}
 
-no_times=${2:-5}
+SRC_DIR="initiation_set_plots/${exp_name}/"
+DST_DIR="threshold_${threshold}_plots/"
 
-mkdir -p $PLOT_DIR
+mkdir -p "$DST_DIR"
 
-for ((i=0; i < $no_times; i++)); do
-  python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py --env="point-maze" --experiment_name="sc_opt_pes_test" --episodes=20 --steps=2000 --use_smdp_update=True --option_timeout=True --subgoal_reward=300. --buffer_len=20 --device="cuda" --num_subgoal_hits=3 --threshold=$threshold
-  mv "initiation_set_plots/sc_opt_pes_test/covering-options-0_covering-options-${threshold}_threshold.png" "${PLOT_DIR}/covering_options_${threshold}_${i}.png"
+for ((i = 0; i < num_runs; i++)); do
+  python3 -u simple_rl/agents/func_approx/dsc/SkillChainingAgentClass.py \
+    --experiment_name="$exp_name" \
+    --device="cuda" \
+    --env="point-maze" \
+    --episodes=20 \
+    --steps=2000 \
+    --subgoal_reward=300.0 \
+    --option_timeout=True \
+    --num_subgoal_hits=3 \
+    --buffer_len=20 \
+    --use_smdp_update=True \
+    --threshold="$threshold" \
+    || exit
+
+  mv "${SRC_DIR}"/covering-options*"${threshold}"_threshold*.png "${DST_DIR}" || exit
 done
