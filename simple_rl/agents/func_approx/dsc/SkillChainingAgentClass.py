@@ -228,6 +228,7 @@ class SkillChaining(object):
 		return children
 
 	def create_child_option(self, parent_option):
+		pdb.set_trace()
 
 		# Don't create a child option if you already include the init state of the MDP
 		# Also enforce the max branching factor of our skill tree
@@ -706,7 +707,7 @@ class SkillChaining(object):
 				# triggered the termination condition of any such option
 				for untrained_option in self.untrained_options:
 					# KIRAN TRACE X
-					pdb.set_trace()
+					# pdb.set_trace()
 
 					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
 							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
