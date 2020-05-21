@@ -103,6 +103,7 @@ class SkillChaining(object):
 		# Once we hit its termination condition N times, we will start learning its initiation set
 		# Once we have learned its initiation set, we will create its child option
 		for i, salient_event in enumerate(self.mdp.get_original_target_events()):
+			pdb.set_trace()
 			goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{i + 1}', global_solver=self.global_option.solver,
 								 lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 								 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
