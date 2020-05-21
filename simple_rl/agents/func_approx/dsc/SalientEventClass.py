@@ -115,3 +115,25 @@ class LearnedSalientEvent(SalientEvent):
         classifier = OneClassSVM(nu=0.01, gamma="scale")
         classifier.fit(positions)
         return classifier
+
+
+class DCOSalientEvent(SalientEvent):
+    def __init__(self, covering_option, event_idx, tolerance=0.6, intersection_event=False):
+        self.covering_option = covering_option
+
+        SalientEvent.__init__(self, target_state=None, event_idx=event_idx,
+                              tolerance=tolerance, intersection_event=intersection_event)
+
+    def is_init_true(self, state):
+        return self.covering_option.is_init_true(state)
+
+    def batched_is_init_true(self, position_matrix):
+        return self.covering_option.is_init_true(position_matrix)
+
+    def __eq__(self, other):
+        if not isinstance(other, SalientEvent):
+            return False
+        return self is other
+
+    def __repr__(self):
+        return f"DCOSalientEvent with event_idx={self.event_idx}"

@@ -6,11 +6,12 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillGraphPlanningAgent
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
-
+from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent, DCOSalientEvent
 
 
 class DeepSkillGraphAgent(object):
-    def __init__(self, mdp, dsc_agent, planning_agent, experiment_name, seed):
+    def __init__(self, mdp, dsc_agent, planning_agent, experiment_name, seed, salient_event_freq, use_hard_coded_event):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -26,8 +27,12 @@ class DeepSkillGraphAgent(object):
         self.planning_agent = planning_agent
         self.experiment_name = experiment_name
         self.seed = seed
+        self.salient_event_freq = salient_event_freq
+        self.use_hard_coded_event = use_hard_coded_event
 
         self.known_options = []
+
+        self.generated_salient_events = []
 
     def select_goal_salient_event(self, state):
         """
@@ -60,10 +65,29 @@ class DeepSkillGraphAgent(object):
         print(f"Deep skill graphs target event: {target_event}")
         return target_event
 
+    def discover_new_salient_event(self, replay_buffer):
+        # currently threshold and beta are hardcoded
+        event_idx = len(self.mdp.all_salient_events_ever) + 1
+        c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+                                    num_training_steps=1000,
+                                    #chain_id=len(self.chains) + 1,
+                                    option_idx=event_idx,
+                                    name=f"covering-options-{event_idx}_0.1",
+                                    threshold=0.1,
+                                    beta=0.1)
+
+        salient_event = DCOSalientEvent(c_option, event_idx)
+        self.generated_salient_events.append(salient_event)
+        self.mdp.add_new_target_event(salient_event)
+
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
 
         for episode in range(episodes):
+
+            if episode and not episode % self.salient_event_freq:
+                self.discover_new_salient_event(self.dsc_agent.global_option.solver.replay_buffer)
+
             step_number = 0
             self.mdp.reset()
             print(f"[DeepSkillGraphAgentClass] Episode {episode}: Resetting MDP to start state")
@@ -116,12 +140,14 @@ if __name__ == "__main__":
     parser.add_argument("--use_start_state_salience", action="store_true", default=False)
     parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
+    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=1)
+    parser.add_argument("--use_hard_coded_event", type=bool, help="Whether to use hard-coded salient events", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
         from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
 
-        overall_mdp = PointReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
+        overall_mdp = PointReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render, use_hard_coded_event=args.use_hard_coded_event)
         state_dim = 6
         action_dim = 2
     elif "reacher" in args.env.lower():
@@ -178,6 +204,18 @@ if __name__ == "__main__":
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
     assert args.use_option_intersection_salience ^ args.use_event_intersection_salience
 
-    planner = SkillGraphPlanningAgent(mdp=overall_mdp, chainer=chainer, experiment_name=args.experiment_name, seed=args.seed, initialize_graph=False)
-    dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp, dsc_agent=chainer, planning_agent=planner, experiment_name=args.experiment_name, seed=args.seed)
+    planner = SkillGraphPlanningAgent(mdp=overall_mdp,
+                                      chainer=chainer,
+                                      experiment_name=args.experiment_name,
+                                      seed=args.seed,
+                                      initialize_graph=False)
+
+    dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
+                                    dsc_agent=chainer,
+                                    planning_agent=planner,
+                                    experiment_name=args.experiment_name,
+                                    seed=args.seed,
+                                    salient_event_freq=args.salient_event_freq,
+                                    use_hard_coded_event=args.use_hard_coded_event)
+
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

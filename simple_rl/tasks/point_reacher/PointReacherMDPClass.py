@@ -12,7 +12,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class PointReacherMDP(MDP):
-    def __init__(self, seed, color_str="", dense_reward=False, render=False):
+    def __init__(self, seed, color_str="", dense_reward=False, render=False, use_hard_coded_event=False):
         self.env_name = "point_reacher"
         self.seed = seed
         self.dense_reward = dense_reward
@@ -35,7 +35,9 @@ class PointReacherMDP(MDP):
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.reset()
 
-        self.salient_positions = [np.array((-9, +9)), np.array((+9, +9))]
+        self.salient_positions = []
+        if use_hard_coded_event:
+            self.salient_positions = [np.array((-9, +9)), np.array((+9, +9))]
                                   # np.array((+9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
@@ -91,7 +93,7 @@ class PointReacherMDP(MDP):
         return self.all_salient_events_ever
 
     def add_new_target_event(self, new_event):
-        ipdb.set_trace()
+        #ipdb.set_trace()
         if new_event not in self.current_salient_events:
             self.current_salient_events.append(new_event)
 
