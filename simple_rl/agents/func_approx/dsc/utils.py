@@ -241,13 +241,14 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
     plt.savefig("value_function_plots/{}/DQN_SMDP_Updates.png".format(experiment_name))
     plt.close()
 
-def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name=""):
+def visualize_next_state_reward_heat_map(option, episode=None, experiment_name=""):
+    solver = option.solver
     next_states = [experience[3] for experience in solver.replay_buffer]
-    rewards = [experience[2] for experience in solver.replay_buffer]
+    rewards = np.array([experience[2] for experience in solver.replay_buffer])
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
 
-    plt.scatter(x, y, None, c=rewards, cmap=plt.cm.coolwarm)
+    plt.scatter(x, y, None, c=rewards.squeeze(), cmap=plt.cm.coolwarm)
     plt.colorbar()
     plt.xlabel("x")
     plt.ylabel("y")
@@ -255,7 +256,7 @@ def visualize_next_state_reward_heat_map(solver, episode=None, experiment_name="
     plt.xlim((-3, 11))
     plt.ylim((-3, 11))
 
-    name = solver.name if episode is None else solver.name + "_{}_{}".format(experiment_name, episode)
+    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
     plt.close()
 
