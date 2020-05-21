@@ -335,6 +335,7 @@ class Option(object):
 		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
+		pdb.set_trace()
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
 
@@ -345,10 +346,8 @@ class Option(object):
 		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
 		elif self.name == "goal_option_1":
-			pdb.set_trace()
 			return self.overall_mdp.get_original_target_events()[0](ground_state)
 		elif self.name == "goal_option_2":
-			pdb.set_trace()
 			return self.overall_mdp.get_original_target_events()[1](ground_state)
 		else:
 			assert len(self.intersecting_options) > 0, "{}, {}".format(self, self.intersecting_options)
