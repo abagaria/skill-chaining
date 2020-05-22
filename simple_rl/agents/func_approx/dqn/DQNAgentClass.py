@@ -280,8 +280,6 @@ class DQNAgent(Agent):
         if random.random() > epsilon:
             return np.argmax(action_values)
 
-        pdb.set_trace()
-
         all_option_idx = list(range(len(self.trained_options))) if len(self.trained_options) > 0 else self.actions
         possible_option_idx = list(set(all_option_idx).difference(impossible_option_idx))
         randomly_chosen_option = random.choice(possible_option_idx)
