@@ -335,7 +335,6 @@ class Option(object):
 		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
-		pdb.set_trace()
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
 
