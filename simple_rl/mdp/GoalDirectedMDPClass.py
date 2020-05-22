@@ -23,19 +23,19 @@ class GoalDirectedMDP(MDP):
 
     def _initialize_salient_events(self):
         # Set the current target events in the MDP
-        self.current_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1]) for i, x in
+        self.current_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1], tolerance=0.08) for i, x in
                                        enumerate(self.salient_positions)]
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained
         # options
-        self.original_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1]) for i, x in
+        self.original_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1], tolerance=0.08) for i, x in
                                         enumerate(self.salient_positions)]
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
+        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, tolerance=0.08)
 
         # Keep track of all the salient events ever created in this MDP
-        self.all_salient_events_ever = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1]) for i, x in
+        self.all_salient_events_ever = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1], tolerance=0.08) for i, x in
                                         enumerate(self.salient_positions)]
 
     def get_current_target_events(self):
