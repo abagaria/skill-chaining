@@ -209,6 +209,7 @@ class Option(object):
 		if self.num_goal_hits < (self.num_subgoal_hits_required + self.initiation_period):
 			return "initiation"
 		if self.num_goal_hits >= (self.num_subgoal_hits_required + self.initiation_period):
+			pdb.set_trace()
 			return "initiation_done"
 		return "trained"
 
