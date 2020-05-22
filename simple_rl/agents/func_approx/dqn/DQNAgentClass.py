@@ -245,7 +245,6 @@ class DQNAgent(Agent):
             impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
 
             if impossible:
-                pdb.set_trace()
                 impossible_option_idx.append(idx)
 
         return impossible_option_idx
