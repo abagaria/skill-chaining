@@ -21,6 +21,7 @@ class StateSalientEvent(BaseSalientEvent):
         assert isinstance(tolerance, float)
 
         BaseSalientEvent.__init__(
+            self,
             is_init_true=self.is_init_true,
             event_idx=event_idx,
             batched_is_init_true=self.batched_is_init_true,
