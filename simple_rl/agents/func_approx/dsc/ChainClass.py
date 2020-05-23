@@ -28,7 +28,6 @@ class SkillChain(object):
         self.mdp_start_states = mdp_start_states
         self.init_salient_event = init_salient_event  # TODO: USE THIS IN PLACE OF START STATES
         self.target_salient_event = target_salient_event
-        self.target_position = target_salient_event.target_state
         self.chain_id = chain_id
         self.intersecting_options = intersecting_options
 

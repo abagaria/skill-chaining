@@ -5,13 +5,12 @@ import pdb
 
 
 class BaseSalientEvent(object):
-    def __init__(self, is_init_true, event_idx, batched_is_init_true=None, name=None, intersection_event=False, target_state=None):
+    def __init__(self, is_init_true, event_idx, batched_is_init_true=None, name=None, intersection_event=False):
         self._is_init_true = is_init_true
         self._batched_is_init_true = batched_is_init_true
         self.event_idx = event_idx
         self.intersection_event = intersection_event
         self.name = name
-        self.target_state = None
 
         assert isinstance(event_idx, int)
 

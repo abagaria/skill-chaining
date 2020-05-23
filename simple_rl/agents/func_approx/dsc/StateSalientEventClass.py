@@ -11,6 +11,7 @@ class StateSalientEvent(BaseSalientEvent):
                  intersection_event=False, get_relevant_position=None):
         self.tolerance = tolerance
         self.name = name
+        self.target_state = target_state
 
         if get_relevant_position is None:
             self.get_relevant_position = self._get_position
@@ -24,8 +25,7 @@ class StateSalientEvent(BaseSalientEvent):
             is_init_true=self.is_init_true,
             event_idx=event_idx,
             batched_is_init_true=self.batched_is_init_true,
-            intersection_event=intersection_event,
-            target_state=target_state
+            intersection_event=intersection_event
         )
 
     def __eq__(self, other):
