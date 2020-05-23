@@ -9,7 +9,6 @@ import pdb
 class StateSalientEvent(BaseSalientEvent):
     def __init__(self, target_state, event_idx, name='', tolerance=0.6,
                  intersection_event=False, get_relevant_position=None):
-        self.target_state = target_state
         self.tolerance = tolerance
         self.name = name
 
@@ -25,7 +24,8 @@ class StateSalientEvent(BaseSalientEvent):
             is_init_true=self.is_init_true,
             event_idx=event_idx,
             batched_is_init_true=self.batched_is_init_true,
-            intersection_event=intersection_event
+            intersection_event=intersection_event,
+            target_state=target_state
         )
 
     def __eq__(self, other):
