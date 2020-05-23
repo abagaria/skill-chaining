@@ -1,14 +1,16 @@
 import numpy as np
 from scipy.spatial import distance
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from copy import deepcopy
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
+from simple_rl.agents.func_approx.dsc.StateSalientEventClass import StateSalientEvent
 from simple_rl.mdp import MDP, State
 
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state,
-                 salient_positions, task_agnostic, goal_state=None, goal_tolerance=0.6):
+                 salient_events, task_agnostic, goal_state=None, goal_tolerance=0.6):
 
-        self.salient_positions = salient_positions
+        self._salient_events = salient_events
         self.task_agnostic = task_agnostic
         self.goal_tolerance = goal_tolerance
         self.goal_state = goal_state
@@ -23,20 +25,17 @@ class GoalDirectedMDP(MDP):
 
     def _initialize_salient_events(self):
         # Set the current target events in the MDP
-        self.current_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1], tolerance=0.08) for i, x in
-                                       enumerate(self.salient_positions)]
+        self.current_salient_events = deepcopy(self._salient_events)
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained
         # options
-        self.original_salient_events = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1], tolerance=0.08) for i, x in
-                                        enumerate(self.salient_positions)]
+        self.original_salient_events = deepcopy(self._salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, tolerance=0.08)
+        self.start_state_salient_event = StateSalientEvent(target_state=self.init_state.position, event_idx=0, tolerance=0.08)
 
         # Keep track of all the salient events ever created in this MDP
-        self.all_salient_events_ever = [SalientEvent(x[0], event_idx=i + 1, get_relevant_position=x[1], tolerance=0.08) for i, x in
-                                        enumerate(self.salient_positions)]
+        self.all_salient_events_ever = deepcopy(self._salient_events)
 
     def get_current_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """
@@ -84,7 +83,7 @@ class GoalDirectedMDP(MDP):
         Returns:
 
         """
-        for salient_event in self.get_current_target_events():  # type: SalientEvent
+        for salient_event in self.get_current_target_events():  # type: BaseSalientEvent
             satisfied_salience = self.should_remove_salient_event_from_mdp(salient_event, chains)
             if satisfied_salience and (salient_event in self.current_salient_events):
                 self.current_salient_events.remove(salient_event)

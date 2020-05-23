@@ -9,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
 from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
@@ -133,7 +133,7 @@ class SkillGraphPlanningAgent(object):
             created_new_event = False
         else:
             event_indices = [event.event_idx for event in all_salient_events]
-            target_salient_event = SalientEvent(goal_state, event_idx=max(event_indices) + 1)
+            target_salient_event = BaseSalientEvent(goal_state, event_idx=max(event_indices) + 1)
             self.mdp.add_new_target_event(target_salient_event)
             created_new_event = True
 
@@ -156,7 +156,7 @@ class SkillGraphPlanningAgent(object):
         Args:
             state (State)
             goal_state (State)
-            goal_salient_event (SalientEvent)
+            goal_salient_event (BaseSalientEvent)
             target_option (Option)
             salient_event_inside_graph (bool): Whether the salient event is inside the known part of the graph
 
@@ -187,7 +187,7 @@ class SkillGraphPlanningAgent(object):
         """
 
         Args:
-            goal_salient_event (SalientEvent): The salient event induced by the goal_state
+            goal_salient_event (BaseSalientEvent): The salient event induced by the goal_state
             target_option (Option): The option to get to in the known part of the graph
             goal_event_inside_graph (bool): Whether the `goal_salient_event` is inside the graph
             episode (int): The current episode number
@@ -218,7 +218,7 @@ class SkillGraphPlanningAgent(object):
             num_steps (int)
             inside_graph (bool)
             new_option (Option): If `inside_graph`, execute this option to get to the goal
-            goal_salient_event (SalientEvent)
+            goal_salient_event (BaseSalientEvent)
 
         Returns:
             next_state (State)
@@ -389,7 +389,7 @@ class SkillGraphPlanningAgent(object):
         to get to a target-option selected by our bandit algorithm.
         Args:
             goal_state (State)
-            goal_salient_event (SalientEvent)
+            goal_salient_event (BaseSalientEvent)
             backward_direction (bool)
 
         Returns:
@@ -434,7 +434,7 @@ class SkillGraphPlanningAgent(object):
            replay buffer (but using the new option's option-reward function).
         Args:
             train_goal_option (Option)
-            target_salient_event (SalientEvent)
+            target_salient_event (BaseSalientEvent)
 
         Returns:
             new_option (Option)
@@ -577,7 +577,7 @@ class SkillGraphPlanningAgent(object):
 
     def modify_executed_option_edge_weight(self, selected_option):
         if selected_option in self.plan_graph.option_nodes:  # type: Option
-            for child_option in selected_option.children:  # type: Option or SalientEvent
+            for child_option in selected_option.children:  # type: Option or BaseSalientEvent
                 if child_option is not None:
                     # TODO: We want to do a moving average filter so as to not wipe off the optimism
 
@@ -585,7 +585,7 @@ class SkillGraphPlanningAgent(object):
                         child_option_success_rate = child_option.get_option_success_rate()
                         self.plan_graph.set_edge_weight(child_option, selected_option,
                                                         weight=1. / child_option_success_rate)
-                    elif isinstance(child_option, SalientEvent):
+                    elif isinstance(child_option, BaseSalientEvent):
                         self.plan_graph.set_edge_weight(child_option, selected_option, weight=0.)
                     else:
                         raise ValueError(child_option, type(child_option))

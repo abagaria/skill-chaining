@@ -1,7 +1,7 @@
 import pdb
 import numpy as np
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class SkillChain(object):
@@ -14,8 +14,8 @@ class SkillChain(object):
         Args:
             start_states (list): List of states at which chaining stops
             mdp_start_states (list): list of MDP start states, if distinct from `start_states`
-            init_salient_event (SalientEvent): f: s -> {0, 1} based on start salience
-            target_salient_event (SalientEvent): f: s -> {0, 1} based on target salience
+            init_salient_event (BaseSalientEvent): f: s -> {0, 1} based on start salience
+            target_salient_event (BaseSalientEvent): f: s -> {0, 1} based on target salience
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
             intersecting_options (list): List of options whose initiation sets overlap

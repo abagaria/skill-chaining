@@ -24,7 +24,7 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class SkillChaining(object):
@@ -255,7 +255,7 @@ class SkillChaining(object):
 		is_backward_option = self.chains[parent_option.chain_id - 1].is_backward_chain
 		gestation_init_salient_event = None
 		if is_backward_option:
-			gestation_init_salient_event = parent_option.init_salient_event  # type: SalientEvent
+			gestation_init_salient_event = parent_option.init_salient_event  # type: BaseSalientEvent
 
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
@@ -546,9 +546,9 @@ class SkillChaining(object):
 		"""
 		Create a skill chain that takes you from target_event to start_event
 		Args:
-			start_event (SalientEvent): Chain will continue until this is covered. This is also the
+			start_event (BaseSalientEvent): Chain will continue until this is covered. This is also the
 										default initiation set for backward options
-			target_event (SalientEvent): Chain will try to hit this event
+			target_event (BaseSalientEvent): Chain will try to hit this event
 			intersecting_options (list)
 
 		"""
@@ -606,7 +606,7 @@ class SkillChaining(object):
 				target_state = common_states[np.random.choice(range(common_states.shape[0])), :]
 				all_salient_events = list(set(self.mdp.get_current_target_events() + self.mdp.get_original_target_events()))
 				all_salient_event_idx = [event.event_idx for event in all_salient_events]
-				intersection_salient_event = SalientEvent(target_state, event_idx=max(all_salient_event_idx) + 1, intersection_event=True)
+				intersection_salient_event = BaseSalientEvent(target_state, event_idx=max(all_salient_event_idx) + 1, intersection_event=True)
 				self.mdp.add_new_target_event(intersection_salient_event)
 
 				# Create the following skill-chains:
@@ -630,7 +630,7 @@ class SkillChaining(object):
 		Args:
 			intersecting_chains:
 			intersecting_options:
-			intersection_salient_event (SalientEvent)
+			intersection_salient_event (BaseSalientEvent)
 
 		Returns:
 

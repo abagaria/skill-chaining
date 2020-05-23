@@ -8,7 +8,7 @@ from scipy.spatial import distance
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
 from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class PointReacherMDP(MDP):
@@ -39,13 +39,13 @@ class PointReacherMDP(MDP):
                                   # np.array((+9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
-        self.current_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
+        self.current_salient_events = [BaseSalientEvent(pos, event_idx=i + 1) for i, pos in enumerate(self.salient_positions)]
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
+        self.original_salient_events = [BaseSalientEvent(pos, event_idx=i + 1) for i, pos in enumerate(self.salient_positions)]
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
+        self.start_state_salient_event = BaseSalientEvent(target_state=self.init_state.position, event_idx=0)
 
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
 

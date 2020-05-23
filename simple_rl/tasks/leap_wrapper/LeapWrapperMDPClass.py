@@ -12,6 +12,9 @@ from scipy.spatial import distance
 
 # Other imports.
 import gym
+
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
+from simple_rl.agents.func_approx.dsc.StateSalientEventClass import StateSalientEvent
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
 
@@ -32,6 +35,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
         self.goal_state = self.env._state_goal
+        pdb.set_trace()
 
         # Will this exist in all gym environments??
         self.threshold = self.env.indicator_threshold # Default is 0.06
@@ -39,9 +43,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Not sure why we do a reset here
         self.reset()
 
-        salient_positions = [
-            (self.goal_state, self.get_endeff_pos),
-            (self.goal_state, self.get_puck_pos)
+        salient_events = [
+            StateSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold, get_relevant_position=self.get_endeff_pos),
+            StateSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold, get_relevant_position=self.get_puck_pos),
+            BaseSalientEvent(self.hand_touching_puck, 3, name='Hand touching puck')
         ]
 
         action_dims = range(self.env.action_space.shape[0])
@@ -50,11 +55,18 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  self._transition_func,
                                  self._reward_func,
                                  self.init_state,
-                                 salient_positions,
+                                 salient_events,
                                  False,
                                  goal_state=self.goal_state,
                                  goal_tolerance=self.threshold
                                  )
+
+    @staticmethod
+    def _hand_touching_puck(state):
+        endeff_pos = state.get_endeff_pos(state)
+        init_puck_z = 0.02
+        puck_pos = state.get_puck_pos(state).append()
+
 
     @staticmethod
     def get_endeff_pos(state):

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class GraphSearch(object):
@@ -22,7 +22,7 @@ class GraphSearch(object):
             #  Keep track of the options and the salient events separately in the graph
             if isinstance(node, Option):
                 self.option_nodes.append(node)
-            elif isinstance(node, SalientEvent):
+            elif isinstance(node, BaseSalientEvent):
                 self.salient_nodes.append(node)
             else:
                 raise IOError(f"Got {node} of type {type(node)}, but expected either Option or SalientEvent")
@@ -111,8 +111,8 @@ class GraphSearch(object):
 
         start_options, goal_options = self._get_start_nodes_and_goal_nodes(start_state, goal_state)
 
-        for start_option in start_options:  # type: Option or SalientEvent
-            for goal_option in goal_options:  # type: Option or SalientEvent
+        for start_option in start_options:  # type: Option or BaseSalientEvent
+            for goal_option in goal_options:  # type: Option or BaseSalientEvent
                 if self.does_path_exist_between_nodes(start_option, goal_option):
                     return True
         return False
@@ -137,8 +137,8 @@ class GraphSearch(object):
         start_options, goal_options = self._get_start_nodes_and_goal_nodes(start_state, goal_state)
 
         # Get the shortest paths between all pairs of start and goal options
-        for start_option in start_options:  # type: Option or SalientEvent
-            for goal_option in goal_options:  # type: Option or SalientEvent
+        for start_option in start_options:  # type: Option or BaseSalientEvent
+            for goal_option in goal_options:  # type: Option or BaseSalientEvent
                 if shortest_paths.has_path(self.plan_graph, start_option, goal_option):
                     path, path_length = self.get_shortest_path_between_nodes(start_option, goal_option)
 
@@ -198,7 +198,7 @@ class GraphSearch(object):
             return start_options, goal_options
 
     def _get_salient_node_for_state(self, state):
-        for salient_node in self.salient_nodes:  # type: SalientEvent
+        for salient_node in self.salient_nodes:  # type: BaseSalientEvent
             if salient_node(state):
                 return salient_node
         return None

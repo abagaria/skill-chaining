@@ -14,7 +14,7 @@ from scipy.spatial import distance
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.dsc.utils import Experience
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class Option(object):
@@ -43,8 +43,8 @@ class Option(object):
 			timeout (int)
 			chain_id (int)
 			initialize_everywhere (bool)
-			init_salient_event (SalientEvent)
-			target_salient_event (SalientEvent)
+			init_salient_event (BaseSalientEvent)
+			target_salient_event (BaseSalientEvent)
 			gestation_init_predicates (list)
 			is_backward_option (bool)
 			generate_plots (bool)
