@@ -7,10 +7,9 @@ import pdb
 
 
 class StateSalientEvent(BaseSalientEvent):
-    def __init__(self, target_state, event_idx, name='', tolerance=0.6,
+    def __init__(self, target_state, event_idx, name=None, tolerance=0.6,
                  intersection_event=False, get_relevant_position=None):
         self.tolerance = tolerance
-        self.name = name
         self.target_state = target_state
 
         if get_relevant_position is None:
@@ -22,6 +21,7 @@ class StateSalientEvent(BaseSalientEvent):
 
         BaseSalientEvent.__init__(
             self,
+            name=name,
             is_init_true=self.is_init_true,
             event_idx=event_idx,
             batched_is_init_true=self.batched_is_init_true,
@@ -60,4 +60,8 @@ class StateSalientEvent(BaseSalientEvent):
         return position
 
     def __repr__(self):
-        return f"SalientEvent targeting {self.target_state} {self.name}"
+        if self.name is not None:
+            return f"SalientEvent targeting {self.target_state} {self.name}"
+        else:
+            return f"SalientEvent targeting {self.target_state}"
+
