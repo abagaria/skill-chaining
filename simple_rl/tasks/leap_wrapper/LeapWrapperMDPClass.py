@@ -31,8 +31,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.dense_reward = dense_reward
         self.render = render
 
-        self.all_distances_between_puck_and_arm = []
-
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
@@ -69,9 +67,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
-        self.all_distances_between_puck_and_arm.append(np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)))
-        print(np.min(self.all_distances_between_puck_and_arm))
-        print(len(self.all_distances_between_puck_and_arm))
         if self.dense_reward:
             return dense_reward
         return 0 if self.is_goal_state(state) else -1
@@ -156,4 +151,6 @@ def is_hand_touching_puck(state):
     endeff_pos = get_endeff_pos(state)[:2]
     puck_pos = get_puck_pos(state)
     touch_distance = np.linalg.norm(endeff_pos - puck_pos)
+    if touch_distance < touch_threshold:
+        pdb.set_trace()
     return touch_distance < touch_threshold
