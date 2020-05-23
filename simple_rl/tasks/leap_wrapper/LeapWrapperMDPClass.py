@@ -67,6 +67,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
+        pdb.set_trace()
         if self.dense_reward:
             return dense_reward
         return 0 if self.is_goal_state(state) else -1
