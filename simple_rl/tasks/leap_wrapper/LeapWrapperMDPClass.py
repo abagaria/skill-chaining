@@ -71,6 +71,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.next_state = self._get_state(next_state, done)
         self.all_distances_between_puck_and_arm.append(np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)))
         print(np.min(self.all_distances_between_puck_and_arm))
+        print(len(self.all_distances_between_puck_and_arm))
         if self.dense_reward:
             return dense_reward
         return 0 if self.is_goal_state(state) else -1
