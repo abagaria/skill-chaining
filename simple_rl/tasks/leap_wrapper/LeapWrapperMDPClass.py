@@ -64,10 +64,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
     def _reward_func(self, state, action):
         next_state, dense_reward, done, _ = self.env.step(action)
-        print(np.linalg.norm(get_endeff_pos(next_state)[:2] - get_puck_pos(next_state)))
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
+        print(np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)))
         if self.dense_reward:
             return dense_reward
         return 0 if self.is_goal_state(state) else -1
