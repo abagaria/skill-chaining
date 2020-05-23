@@ -143,6 +143,7 @@ def get_puck_pos(state):
     else:
         pdb.set_trace()
 
+stored_distances = []
 
 def is_hand_touching_puck(state):
     touch_threshold = 0.07
@@ -151,6 +152,8 @@ def is_hand_touching_puck(state):
     endeff_pos = get_endeff_pos(state)[:2]
     puck_pos = get_puck_pos(state)
     touch_distance = np.linalg.norm(endeff_pos - puck_pos)
+    stored_distances.append(touch_distance)
+    print("current: " + touch_distance + "min: " + min(stored_distances) + "length: " + len(stored_distances))
     if touch_distance < touch_threshold:
         pdb.set_trace()
     return touch_distance < touch_threshold
