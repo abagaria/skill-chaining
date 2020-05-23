@@ -34,19 +34,20 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
-        self.goal_state = self.env._state_goal
-        pdb.set_trace()
+        self.goal_state = self.env.get_goal['state_desired_goal']
 
         # Will this exist in all gym environments??
-        self.threshold = self.env.indicator_threshold # Default is 0.06
+        self.threshold = self.env.indicator_threshold  # Default is 0.06
 
         # Not sure why we do a reset here
         self.reset()
 
         salient_events = [
-            StateSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold, get_relevant_position=self.get_endeff_pos),
-            StateSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold, get_relevant_position=self.get_puck_pos),
-            BaseSalientEvent(self.hand_touching_puck, 3, name='Hand touching puck')
+            StateSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
+                              get_relevant_position=self.get_endeff_pos),
+            StateSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold,
+                              get_relevant_position=self.get_puck_pos),
+            BaseSalientEvent(self.is_hand_touching_puck, 3, name='Hand touching puck')
         ]
 
         action_dims = range(self.env.action_space.shape[0])
@@ -60,13 +61,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  goal_state=self.goal_state,
                                  goal_tolerance=self.threshold
                                  )
-
-    @staticmethod
-    def _hand_touching_puck(state):
-        endeff_pos = state.get_endeff_pos(state)
-        init_puck_z = 0.02
-        puck_pos = state.get_puck_pos(state).append()
-
 
     @staticmethod
     def get_endeff_pos(state):
@@ -90,8 +84,19 @@ class LeapWrapperMDP(GoalDirectedMDP):
         else:
             pdb.set_trace()
 
+    @staticmethod
+    def is_hand_touching_puck(state):
+        touch_threshold = 0.06
+        # ignoring z-dimension. Although the arm position has three dimensions,
+        # it can only move in the x or y dimension
+        endeff_pos = state.get_endeff_pos(state)[:2]
+        puck_pos = state.get_puck_pos(state)
+        touch_distance = np.linalg.norm(endeff_pos - puck_pos)
+        return touch_distance < touch_threshold
+
     def _reward_func(self, state, action):
         next_state, dense_reward, done, _ = self.env.step(action)
+        pdb.set_trace()
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
