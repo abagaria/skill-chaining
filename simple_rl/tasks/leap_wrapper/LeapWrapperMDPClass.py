@@ -31,6 +31,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.dense_reward = dense_reward
         self.render = render
 
+        self.all_distances_between_puck_and_arm = []
+
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
@@ -63,12 +65,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  )
 
     def _reward_func(self, state, action):
-        pdb.set_trace()
         next_state, dense_reward, done, _ = self.env.step(action)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
-        print(np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)))
+        self.all_distances_between_puck_and_arm.append(np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)))
+        print(np.min(self.all_distances_between_puck_and_arm))
         if self.dense_reward:
             return dense_reward
         return 0 if self.is_goal_state(state) else -1
