@@ -677,6 +677,7 @@ class SkillChaining(object):
 		for episode in range(starting_episode, starting_episode + num_episodes):
 
 			self.mdp.reset()
+			pdb.set_trace()
 			score = 0.
 			step_number = 0
 
