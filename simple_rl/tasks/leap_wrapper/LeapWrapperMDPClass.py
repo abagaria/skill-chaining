@@ -44,10 +44,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         salient_events = [
             StateSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
-                              get_relevant_position=self.get_endeff_pos),
+                              get_relevant_position=get_endeff_pos),
             StateSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold,
-                              get_relevant_position=self.get_puck_pos),
-            BaseSalientEvent(self.is_hand_touching_puck, 3, name='Hand touching puck')
+                              get_relevant_position=get_puck_pos),
+            BaseSalientEvent(is_hand_touching_puck, 3, name='Hand touching puck')
         ]
 
         action_dims = range(self.env.action_space.shape[0])
@@ -61,38 +61,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  goal_state=self.goal_state,
                                  goal_tolerance=self.threshold
                                  )
-
-    @staticmethod
-    def get_endeff_pos(state):
-        if isinstance(state, LeapWrapperState):
-            return state.endeff_pos
-        elif state.ndim == 2:
-            return state[:, :3]
-        elif state.ndim == 1:
-            return state[:3]
-        else:
-            pdb.set_trace()
-
-    @staticmethod
-    def get_puck_pos(state):
-        if isinstance(state, LeapWrapperState):
-            return state.puck_pos
-        elif state.ndim == 2:
-            return state[:, 3:]
-        elif state.ndim == 1:
-            return state[3:]
-        else:
-            pdb.set_trace()
-
-    @staticmethod
-    def is_hand_touching_puck(state):
-        touch_threshold = 0.06
-        # ignoring z-dimension. Although the arm position has three dimensions,
-        # it can only move in the x or y dimension
-        endeff_pos = state.get_endeff_pos(state)[:2]
-        puck_pos = state.get_puck_pos(state)
-        touch_distance = np.linalg.norm(endeff_pos - puck_pos)
-        return touch_distance < touch_threshold
 
     def _reward_func(self, state, action):
         next_state, dense_reward, done, _ = self.env.step(action)
@@ -153,3 +121,35 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
     def __str__(self):
         return self.env_name
+
+
+def get_endeff_pos(state):
+    if isinstance(state, LeapWrapperState):
+        return state.endeff_pos
+    elif state.ndim == 2:
+        return state[:, :3]
+    elif state.ndim == 1:
+        return state[:3]
+    else:
+        pdb.set_trace()
+
+
+def get_puck_pos(state):
+    if isinstance(state, LeapWrapperState):
+        return state.puck_pos
+    elif state.ndim == 2:
+        return state[:, 3:]
+    elif state.ndim == 1:
+        return state[3:]
+    else:
+        pdb.set_trace()
+
+
+def is_hand_touching_puck(state):
+    touch_threshold = 0.06
+    # ignoring z-dimension. Although the arm position has three dimensions,
+    # it can only move in the x or y dimension
+    endeff_pos = get_endeff_pos(state)[:2]
+    puck_pos = get_puck_pos(state)
+    touch_distance = np.linalg.norm(endeff_pos - puck_pos)
+    return touch_distance < touch_threshold
