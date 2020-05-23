@@ -145,8 +145,7 @@ def get_puck_pos(state):
 
 
 def is_hand_touching_puck(state):
-    print('hello')
-    touch_threshold = 1
+    touch_threshold = 0.07
     # ignoring z-dimension. Although the arm position has three dimensions,
     # it can only move in the x or y dimension
     endeff_pos = get_endeff_pos(state)[:2]
