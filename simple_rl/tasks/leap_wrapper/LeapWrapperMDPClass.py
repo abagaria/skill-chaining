@@ -82,6 +82,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         obs = np.copy(observation)
         endeff_pos = obs[:3]
         puck_pos = obs[3:]
+        pdb.set_trace()
 
         state = LeapWrapperState(endeff_pos, puck_pos, done)
         return state

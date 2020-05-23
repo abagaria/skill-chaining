@@ -623,8 +623,6 @@ class Option(object):
 				print("Executing {}".format(self.name))
 
 			self.option_start_states.append(start_state)
-			pdb.set_trace()
-
 			while not self.is_term_true(state) and not state.is_terminal() and \
 					step_number < self.max_steps and num_steps < self.timeout:
 
