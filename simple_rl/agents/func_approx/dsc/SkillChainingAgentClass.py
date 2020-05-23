@@ -739,6 +739,7 @@ class SkillChaining(object):
 						#plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 
 						# We fix the learned option's initiation set and remove it from the list of target events
+						pdb.set_trace()
 						self.untrained_options.remove(untrained_option)
 
 						new_options = self.create_children_options(untrained_option)
