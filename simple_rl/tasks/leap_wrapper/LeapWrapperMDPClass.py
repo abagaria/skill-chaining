@@ -47,7 +47,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         puck_init_state = self.init_state[3:]
         hand_at_puck_state = np.zeros(5)
         hand_at_puck_state[:2] = puck_init_state
-        hand_at_puck_state[3] = 0.2
+        hand_at_puck_state[3] = 0.02
 
         salient_events = [
             BaseSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
@@ -57,16 +57,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
             BaseSalientEvent(hand_at_puck_state, 3, name='Hand touching puck', tolerance=self.threshold,
                               get_relevant_position=get_endeff_pos)
         ]
-
-    
-def is_hand_touching_puck(state):
-    touch_threshold = 0.1
-    # ignoring z-dimension. Although the arm position has three dimensions,
-    # it can only move in the x or y dimension
-    endeff_pos = get_endeff_pos(state)[:2]
-    puck_pos = get_puck_pos(state)
-    touch_distance = np.linalg.norm(endeff_pos - puck_pos)
-    return touch_distance < touch_threshold
 
         action_dims = range(self.env.action_space.shape[0])
         GoalDirectedMDP.__init__(self,
