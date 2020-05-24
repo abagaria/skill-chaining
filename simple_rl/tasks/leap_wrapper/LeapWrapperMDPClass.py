@@ -76,12 +76,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
             self.env.render()
         self.next_state = self._get_state(next_state, done)
 
-        # #  Delete later
-        # diff = self.next_state.puck_pos - state.puck_pos
-        # if diff[0] > 0.00001 or diff[1] > 0.00001:
-        #     dist = np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)[:2])
-        #     self.memory.append(dist)
-        #     print("num episodes", len(self.memory), "max dist", round(max(self.memory), 2), "curr dist", round(dist, 2))
+        #  Delete later
+        diff = self.next_state.endeff_pos - state.endeff_pos
+        if diff[2] > 0:
+            pdb.set_trace()
+            self.memory.append(diff[2])
+            print("num episodes", len(self.memory), "max dist", round(max(self.memory), 2), "curr dist", round(dist, 2))
 
         if self.dense_reward:
             return dense_reward

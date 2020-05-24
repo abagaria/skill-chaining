@@ -325,6 +325,7 @@ class Option(object):
 				# Intersection salient event
 				salients = [event(ground_state) for event in self.overall_mdp.get_current_salient_events()]
 				return any(salients)
+			
 			return True
 
 		# TODO: Kshitij deleted
