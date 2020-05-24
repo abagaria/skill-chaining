@@ -27,15 +27,20 @@ class GoalDirectedMDP(MDP):
                                        enumerate(self.salient_positions)]
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_salient_events = [SalientEvent(pos, event_idx=i + 1) for i, pos in
-                                        enumerate(self.salient_positions)]
+        self.original_salient_events = [event for event in self.current_salient_events]
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
         self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
 
         # Keep track of all the salient events ever created in this MDP
-        self.all_salient_events_ever = [SalientEvent(pos, event_idx=i + 1) for i, pos in
-                                        enumerate(self.salient_positions)]
+        self.all_salient_events_ever = [event for event in self.current_salient_events]
+
+        # Make sure that we didn't create multiple copies of the same events
+        self._ensure_all_events_are_the_same()
+
+    def _ensure_all_events_are_the_same(self):
+        for e1, e2, e3 in zip(self.current_salient_events, self.original_salient_events, self.all_salient_events_ever):
+            assert id(e1) == id(e2) == id(e3)
 
     def get_current_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """

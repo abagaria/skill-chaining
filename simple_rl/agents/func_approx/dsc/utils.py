@@ -351,6 +351,10 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
 
     # Chunk up the inputs so as to conserve GPU memory
     num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+
+    if num_chunks == 0:
+        return 0.
+
     state_chunks = np.array_split(states, num_chunks, axis=0)
     action_chunks = np.array_split(actions, num_chunks, axis=0)
     qvalues = np.zeros((states.shape[0],))

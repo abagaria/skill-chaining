@@ -229,7 +229,6 @@ class SkillGraphPlanningAgent(object):
         # is still in the process of creating the backward chain, `inside_graph` will be true,
         # but no `new_option` would have been created
         if inside_graph and new_option is not None:
-            ipdb.set_trace()  # TODO: I don't expect this to be called at train-time
             step_number = self.perform_option_rollout(option=new_option,
                                                       episode=episode,
                                                       step=num_steps,
@@ -244,7 +243,8 @@ class SkillGraphPlanningAgent(object):
                                                                                  step_number=num_steps,
                                                                                  interrupt_handle=goal_salient_event)
             print(f"============== Returned from DSC runloop having learned {newly_created_options}")
-            self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state, goal_salient_event)
+            self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state,
+                                                       goal_salient_event, jumped_off_the_graph=True)
 
         return deepcopy(self.mdp.cur_state), step_number
 
@@ -257,7 +257,6 @@ class SkillGraphPlanningAgent(object):
                                                                          step_number=step,
                                                                          eval_mode=eval_mode)
 
-        print(f"Going to manage skill chains after rolling out {option}")
         new_options = self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
                                                                            executed_option=option,
                                                                            created_options=[],
@@ -267,22 +266,26 @@ class SkillGraphPlanningAgent(object):
         # With off-policy triggers, you can trigger the termination condition of an option w/o rolling it out
         self.manage_options_learned_during_rollout(newly_created_options=new_options,
                                                    pre_rollout_state=state_before_rollout,
-                                                   goal_salient_event=goal_salient_event)
+                                                   goal_salient_event=goal_salient_event,
+                                                   jumped_off_the_graph=False)
 
         # Modify the edge weight associated with the executed option
         self.modify_executed_option_edge_weight(option)
 
         return step + len(option_transitions)
 
-    def manage_options_learned_during_rollout(self, newly_created_options, pre_rollout_state, goal_salient_event):
+    def manage_options_learned_during_rollout(self, newly_created_options, pre_rollout_state,
+                                              goal_salient_event, jumped_off_the_graph):
 
         # TODO: Adding new options is not enough - we also have to create their children
         for newly_created_option in newly_created_options:  # type: Option
             self.add_newly_created_option_to_plan_graph(newly_created_option)
 
-        self.manage_bandits_after_dsc_rollout(pre_rollout_state, newly_created_options, goal_salient_event)
+        self.manage_bandits_after_dsc_rollout(pre_rollout_state, newly_created_options,
+                                              goal_salient_event, jumped_off_the_graph=jumped_off_the_graph)
 
-    def manage_bandits_after_dsc_rollout(self, pre_rollout_state, newly_created_options, goal_salient_event):
+    def manage_bandits_after_dsc_rollout(self, pre_rollout_state, newly_created_options,
+                                         goal_salient_event, jumped_off_the_graph):
         """
         If new options were created during the DSC rollout, we have to inform all the bandits about that.
         Furthermore, we need to update the value of the option from which we ended up exiting the graph.
@@ -291,6 +294,7 @@ class SkillGraphPlanningAgent(object):
             pre_rollout_state (State)
             newly_created_options (list)
             goal_salient_event (SalientEvent)
+            jumped_off_the_graph (bool)
 
         Returns:
 
@@ -301,7 +305,7 @@ class SkillGraphPlanningAgent(object):
             # the bandit agents about this option so that they can compute the value of falling off the graph from it
             self.update_bandits_with_new_option(newly_created_option)
 
-        if goal_salient_event in self.bandit_agents.keys():
+        if goal_salient_event in self.bandit_agents.keys() and jumped_off_the_graph:
             used_bandit = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
 
             jumping_off_options = [option for option in self.get_options_in_known_part_of_the_graph()
@@ -360,16 +364,16 @@ class SkillGraphPlanningAgent(object):
         if newly_created_option.parent is None:
             print(f"Case 3: Adding edge from {newly_created_option} to {target_salient_event}")
             self.plan_graph.add_edge(newly_created_option, target_salient_event, edge_weight=1.)
+
         # Case 2: Leaf option
-        elif chain.is_chain_completed(self.chainer.chains) and is_leaf_node:
+        if chain.is_chain_completed(self.chainer.chains) and is_leaf_node:
             print(f"Case 2: Adding edge from {init_salient_event} to {newly_created_option}")
             self.plan_graph.add_edge(init_salient_event, newly_created_option, edge_weight=0.)
-            if newly_created_option.parent is not None:
-                self.plan_graph.add_edge(newly_created_option, newly_created_option.parent, edge_weight=1.)
+
         # Case 1: Nominal case
-        else:
+        if newly_created_option.parent is not None:
             print(f"Case 1: Adding edge from {newly_created_option} to {newly_created_option.parent}")
-            self.plan_graph.add_edge(newly_created_option, newly_created_option.parent)
+            self.plan_graph.add_edge(newly_created_option, newly_created_option.parent, edge_weight=1.)
 
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph, goal_salient_event, episode_number, step_number):
 
@@ -555,9 +559,15 @@ class SkillGraphPlanningAgent(object):
             new_option (Option)
         """
 
+        def _get_start_state_for_new_chain(in_graph_option):
+            for s, a, r, sp, done in in_graph_option.solver.replay_buffer:
+                if done:
+                    return sp
+            return np.array((0, 0))
+
         # Create a new chain
         init_salient_event = train_goal_option.is_init_true  # TODO: Create a Salient Event out of this
-        start_state = train_goal_option.terminal_states[0]
+        start_state = _get_start_state_for_new_chain(train_goal_option)
         chain_id = max([chain.chain_id for chain in self.chainer.chains]) + 1
         new_forward_chain = SkillChain(start_states=[start_state], mdp_start_states=[self.mdp.init_state],
                                        init_salient_event=init_salient_event,
@@ -586,6 +596,8 @@ class SkillGraphPlanningAgent(object):
                                       dense_reward=self.chainer.dense_reward,
                                       initialize_everywhere=train_goal_option.initialize_everywhere,
                                       max_num_children=train_goal_option.max_num_children,
+                                      use_warmup_phase=self.chainer.use_warmup_phase,
+                                      update_global_solver=self.chainer.update_global_solver,
                                       is_backward_option=False,
                                       init_salient_event=train_goal_option.init_salient_event,
                                       target_salient_event=target_salient_event)
@@ -661,6 +673,8 @@ class SkillGraphPlanningAgent(object):
                                       dense_reward=self.chainer.dense_reward,
                                       initialize_everywhere=self.chainer.trained_options[1].initialize_everywhere,
                                       max_num_children=self.chainer.trained_options[1].max_num_children,
+                                      use_warmup_phase=self.chainer.use_warmup_phase,
+                                      update_global_solver=self.chainer.update_global_solver,
                                       is_backward_option=False,
                                       init_salient_event=init_salient_event,
                                       target_salient_event=target_salient_event,
@@ -736,6 +750,13 @@ class SkillGraphPlanningAgent(object):
             return selected_option
         return None
 
+    def is_state_inside_graph(self, state):
+        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed(self.chainer.chains)]
+        for chain in completed_chains:  # type: SkillChain
+            if chain.state_in_chain(state):
+                return True
+        return False
+
     def perform_test_rollouts(self, num_rollouts):
         """ Perform test rollouts to collect statistics on option success rates.
             We can then use those success rates to set edge weights in our
@@ -755,10 +776,12 @@ class SkillGraphPlanningAgent(object):
             start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             self.mdp.set_xy(start_position)
 
-    def measure_success(self, goal_state, start_state=None):
+    def measure_success(self, goal_state, start_state=None, starting_episode=0, num_episodes=100):
         successes = 0
-        for episode in range(100):
-            step_number, reached_goal = self.planning_run_loop(start_episode=episode,
+        self.chainer.create_backward_options = False
+        self.chainer.learn_backward_options_offline = False  # TODO: Need a better way to say that we should not create back options at test time
+        for episode in range(num_episodes):
+            step_number, reached_goal = self.planning_run_loop(start_episode=starting_episode+episode,
                                                                goal_state=goal_state,
                                                                start_state=start_state,
                                                                to_reset=True)

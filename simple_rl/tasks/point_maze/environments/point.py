@@ -40,7 +40,8 @@ class PointEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     return self.step(a)
 
   def step(self, action):
-    # action[0] = 0.2 * action[0]
+    # action[0] = 0.20 * action[0]
+    # action[1] = 0.25 * action[1]
     qpos = np.copy(self.physics.data.qpos)
     qpos[2] += action[1]
     ori = qpos[2]

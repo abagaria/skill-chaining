@@ -66,7 +66,7 @@ class ReplayBuffer(object):
         return self.buffer_size
 
     def __len__(self):
-        return self.num_exp
+        return len(self.memory)
 
     def __getitem__(self, i):
         return self.memory[i]

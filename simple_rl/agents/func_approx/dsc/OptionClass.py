@@ -12,6 +12,7 @@ from scipy.spatial import distance
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
+from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
@@ -22,14 +23,14 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=250, initiation_period=5, option_idx=None,
+				 dense_reward=False, enable_timeout=True, timeout=150, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, max_num_children=3,
-				 init_salient_event=None, target_salient_event=None,
-				 gestation_init_predicates=[], is_backward_option=False, solver_type="td3",
+				 init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
+				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
 				 generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
-			overall_mdp (MDP)
+			overall_mdp (GoalDirectedMDP)
 			name (str)
 			global_solver (DDPGAgent)
 			lr_actor (float)
@@ -47,6 +48,8 @@ class Option(object):
 			initialize_everywhere (bool)
 			init_salient_event (SalientEvent)
 			target_salient_event (SalientEvent)
+			update_global_solver (bool)
+			use_warmup_phase (bool)
 			gestation_init_predicates (list)
 			is_backward_option (bool)
 			generate_plots (bool)
@@ -68,6 +71,8 @@ class Option(object):
 		self.initialize_everywhere = initialize_everywhere
 		self.init_salient_event = init_salient_event
 		self.target_salient_event = target_salient_event
+		self.update_global_solver = update_global_solver
+		self.use_warmup_phase = use_warmup_phase
 		self.gestation_init_predicates = gestation_init_predicates
 		self.overall_mdp = overall_mdp
 		self.device = device
@@ -112,6 +117,7 @@ class Option(object):
 		self.buffer_length = buffer_length
 		self.last_episode_term_triggered = -1
 		self.nu = 0.01
+		self.pretrained_option_policy = False
 
 		self.final_transitions = []
 		self.terminal_states = []
@@ -142,10 +148,10 @@ class Option(object):
 	def act(self, state, eval_mode, warmup_phase):
 		""" Epsilon greedy action selection when in training mode. """
 
-		if warmup_phase:
+		if warmup_phase and self.use_warmup_phase:
 			return self.overall_mdp.env.action_space.sample()
 
-		if random.random() < 0.25 and not eval_mode:
+		if random.random() < 0.1 and not eval_mode:
 			return self.overall_mdp.env.action_space.sample()
 		return self.solver.act(state.features(), evaluation_mode=eval_mode)
 
@@ -154,7 +160,8 @@ class Option(object):
 			self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device,
 										   self.lr_actor, self.lr_critic, self.ddpg_batch_size, name="global_option")
 		elif self.solver_type == "td3":
-			self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size, max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
+			self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
+									 max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
 
 		else:
 			raise NotImplementedError(self.solver_type)
@@ -186,14 +193,22 @@ class Option(object):
 			return None
 
 		sampled_state = None
-		while sampled_state is None:
+		num_tries = 0
+
+		while sampled_state is None and num_tries < 50:
 			if isinstance(self.solver, DDPGAgent):
-				sampled_experience = random.choice(self.solver.replay_buffer.memory)
+				if len(self.solver.replay_buffer) > 0:
+					sampled_experience = random.choice(self.solver.replay_buffer.memory)
+				elif len(self.experience_buffer) > 0:
+					sampled_experience = random.choice(self.experience_buffer)
+				else:
+					continue
 				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
 			elif isinstance(self.solver, TD3):
 				sampled_idx = random.randint(0, len(self.solver.replay_buffer) - 1)
 				sampled_experience = self.solver.replay_buffer[sampled_idx]
 				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
+			num_tries += 1
 		return sampled_state
 
 	def get_sibling_options(self):
@@ -253,19 +268,23 @@ class Option(object):
 	def initialize_with_global_solver(self, reset_option_buffer=True):
 		"""" Initialize option policy - unrestricted support because not checking if I_o(s) is true. """
 		# Not using off_policy_update() because we have numpy arrays not state objects here
-		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer, desc=f"Initializing {self.name} policy"):
-			if self.is_term_true(state):
-				continue
-			if self.is_term_true(next_state):
-				self.solver.step(state, action, self.subgoal_reward, next_state, True)
-			else:
-				subgoal_reward = self.get_subgoal_reward(next_state)
-				self.solver.step(state, action, subgoal_reward, next_state, done)
+		if not self.pretrained_option_policy:  # Make sure that we only do this once
+			for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer,
+																desc=f"Initializing {self.name} policy"):
+				if self.is_term_true(state):
+					continue
+				if self.is_term_true(next_state):
+					self.solver.step(state, action, self.subgoal_reward, next_state, True)
+				else:
+					subgoal_reward = self.get_subgoal_reward(next_state)
+					self.solver.step(state, action, subgoal_reward, next_state, done)
 
-		# To keep the support of the option policy restricted to the initiation region
-		# of the option, we can clear the option's replay buffer after we have pre-trained its policy
-		if reset_option_buffer:
-			self.solver.replay_buffer.clear()
+			# To keep the support of the option policy restricted to the initiation region
+			# of the option, we can clear the option's replay buffer after we have pre-trained its policy
+			if reset_option_buffer:
+				self.solver.replay_buffer.clear()
+
+			self.pretrained_option_policy = True
 
 	def initialize_option_solver_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
 
@@ -497,9 +516,8 @@ class Option(object):
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		if self.chain_id < 3:
-			self.initialize_with_global_solver()
-			self.solver.epsilon = self.global_solver.epsilon
+		self.initialize_with_global_solver()
+		self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
 		experience_buffer = list(itertools.chain.from_iterable(self.experience_buffer))
@@ -630,9 +648,9 @@ class Option(object):
 				if not warmup_phase:
 					self.update_option_solver(state, action, reward, next_state)
 
-				# if self.name != "global_option":
-				# 	self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-				# 	self.global_solver.update_epsilon()
+				if self.name != "global_option" and self.update_global_solver:
+					self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+					self.global_solver.update_epsilon()
 
 				self.solver.update_epsilon()
 				option_transitions.append((state, action, reward, next_state))

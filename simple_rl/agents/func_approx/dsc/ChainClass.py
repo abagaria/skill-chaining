@@ -192,10 +192,22 @@ class SkillChain(object):
         return self.target_predicate(state)
 
     def is_chain_completed(self, chains):
+        """
+        Either we are chained till the start state or we are chained till another event
+        which already has some chaining targeting it. The reason we only check for
+        intersection with chained events is that we want to before we re-wire the current
+        chain, we want to be sure that we have a way to trigger its salient event.
+        Args:
+            chains (list)
+
+        Returns:
+            is_completed (bool)
+        """
         is_intersecting_another_chain = False
         if self.option_intersection_salience or self.event_intersection_salience:
             other_chains = [chain for chain in chains if chain != self]
-            is_intersecting_another_chain = any([self.is_intersecting(chain) for chain in other_chains])
+            is_intersecting_another_chain = any([self.is_intersecting(chain) and chain.is_chain_completed(other_chains)
+                                                 for chain in other_chains])
         return self.chained_till_start_state() or is_intersecting_another_chain
 
     def chained_till_start_state(self):

@@ -35,22 +35,30 @@ class PointReacherMDP(MDP):
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.reset()
 
-        self.salient_positions = [np.array((-9, +9)), np.array((+9, +9))]
-                                  # np.array((+9, -9)), np.array((-9, -9))]
+        self._determine_x_y_lims()
+
+        self.salient_positions = [np.array((-9, +9)), np.array((+9, +9)),
+                                  np.array((+9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
         self.current_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
+        self.original_salient_events = [event for event in self.current_salient_events]
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
         self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
 
         # Keep track of all the salient events ever created in this MDP
-        self.all_salient_events_ever = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
+        self.all_salient_events_ever = [event for event in self.current_salient_events]
+
+        self._ensure_all_events_are_the_same()
 
         MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
+
+    def _ensure_all_events_are_the_same(self):
+        for e1, e2, e3 in zip(self.current_salient_events, self.original_salient_events, self.all_salient_events_ever):
+            assert id(e1) == id(e2) == id(e3)
 
     def _reward_func(self, state, action):
         next_state, reward, done, _ = self.env.step(action)
@@ -91,7 +99,6 @@ class PointReacherMDP(MDP):
         return self.all_salient_events_ever
 
     def add_new_target_event(self, new_event):
-        ipdb.set_trace()
         if new_event not in self.current_salient_events:
             self.current_salient_events.append(new_event)
 
@@ -134,7 +141,6 @@ class PointReacherMDP(MDP):
         for salient_event in self.get_current_target_events():  # type: SalientEvent
             satisfied_salience = self.should_remove_salient_event_from_mdp(salient_event, chains)
             if satisfied_salience and (salient_event in self.current_salient_events):
-                ipdb.set_trace()
                 self.current_salient_events.remove(salient_event)
 
     @staticmethod
@@ -176,3 +182,21 @@ class PointReacherMDP(MDP):
 
     def __str__(self):
         return self.env_name
+
+    def get_init_positions(self):
+        return [self.init_state.position]
+
+    def _determine_x_y_lims(self):
+        self.xlims = (-12, 12)
+        self.ylims = (-12, 12)
+
+    def get_x_y_low_lims(self):
+        return self.xlims[0], self.ylims[0]
+
+    def get_x_y_high_lims(self):
+        return self.xlims[1], self.ylims[1]
+
+    def sample_random_state(self):
+        low = np.array((self.xlims[0], self.ylims[0]))
+        high = np.array((self.xlims[1], self.ylims[1]))
+        return np.random.uniform(low=low, high=high)

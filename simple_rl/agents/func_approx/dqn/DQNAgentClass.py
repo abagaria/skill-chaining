@@ -28,7 +28,7 @@ from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.four_room.FourRoomMDPClass import FourRoomMDP
 
 ## Hyperparameters
-BUFFER_SIZE = int(1e6)  # replay buffer size
+BUFFER_SIZE = int(3e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters

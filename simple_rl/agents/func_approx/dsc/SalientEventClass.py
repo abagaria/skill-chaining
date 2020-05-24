@@ -44,11 +44,12 @@ class SalientEvent(object):
             return False
 
         return _state_eq(self.target_state, other.target_state) and \
-               self.tolerance == other.tolerance and \
-               self.event_idx == other.event_idx
+               self.tolerance == other.tolerance # and \
+               # self.event_idx == other.event_idx
 
     def __hash__(self):
-        return self.event_idx
+        target_state = self._get_position(self.target_state)
+        return hash(tuple(target_state))
 
     def is_init_true(self, state):
         position = self._get_position(state)

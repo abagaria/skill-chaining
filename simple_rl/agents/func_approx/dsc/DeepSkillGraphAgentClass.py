@@ -4,6 +4,7 @@ import random
 from copy import deepcopy
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
+from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillGraphPlanningAgent
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import State
@@ -87,15 +88,16 @@ class DeepSkillGraphAgent(object):
 
         return successes
 
-    def generate_candidate_salient_events(self):
+    def generate_candidate_salient_events(self):  # TODO: This logic only needs to happen once
         # TODO: This doesn't work yet because you also have to add the forward options back to the list `untrained_options`
-        if self.are_all_original_salient_events_forward_chained():
-            self.dsc_agent.create_backward_options = True
-            self.dsc_agent.learn_backward_options_offline = True
+        if self.are_all_original_salient_events_forward_chained() \
+            and not self.dsc_agent.create_backward_options \
+            and not self.dsc_agent.learn_backward_options_offline:
+
+            self.set_off_learning_backward_options()
+
             return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
 
-        self.dsc_agent.create_backward_options = False
-        self.dsc_agent.learn_backward_options_offline = False
         return self.mdp.get_all_target_events_ever()
 
     def are_all_original_salient_events_forward_chained(self):
@@ -106,6 +108,28 @@ class DeepSkillGraphAgent(object):
                 return False
         return True
 
+    def set_off_learning_backward_options(self):
+        self.dsc_agent.create_backward_options = True
+        self.dsc_agent.learn_backward_options_offline = True
+
+        # TODO: Experimental - Add the forward options back to list so that it goes into the backward-option creation portion
+        # No, you just need to call manage_chain_till_start_state or something for the leaf option of every chain
+        for chain in self.dsc_agent.chains:
+            leaf_option = chain.get_leaf_nodes_from_skill_chain()[0]
+
+            if leaf_option is not None:
+
+                trained_back_options = []
+
+                if self.dsc_agent.start_state_salience:
+                    trained_back_options += self.dsc_agent.manage_skill_chain_to_start_state(leaf_option)
+                if self.dsc_agent.event_intersection_salience:
+                    trained_back_options += self.dsc_agent.manage_intersection_between_option_and_events(leaf_option)
+                if self.dsc_agent.option_intersection_salience:
+                    raise NotImplementedError("Option intersection salience")
+
+                for newly_created_option in trained_back_options:  # type: Option
+                    self.planning_agent.add_newly_created_option_to_plan_graph(newly_created_option)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -138,6 +162,8 @@ if __name__ == "__main__":
     parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
     parser.add_argument("--create_backward_options", action="store_true", default=False)
     parser.add_argument("--learn_backward_options_offline", action="store_true", default=False)
+    parser.add_argument("--use_warmup_phase", action="store_true", default=False)
+    parser.add_argument("--update_global_solver", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -149,6 +175,11 @@ if __name__ == "__main__":
     elif args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
+    elif args.env == "d4rl-point-maze":
+        from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+        overall_mdp = D4RLPointMazeMDP(seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
     elif "reacher" in args.env.lower():
@@ -204,6 +235,8 @@ if __name__ == "__main__":
                             create_backward_options=args.create_backward_options,
                             learn_backward_options_offline=args.learn_backward_options_offline,
                             dense_reward=args.dense_reward,
+                            update_global_solver=args.update_global_solver,
+                            use_warmup_phase=args.use_warmup_phase,
                             experiment_name=args.experiment_name)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])

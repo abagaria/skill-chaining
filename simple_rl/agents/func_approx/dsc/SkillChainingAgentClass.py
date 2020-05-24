@@ -33,7 +33,8 @@ class SkillChaining(object):
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
 				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
 				 pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
-				 dense_reward=False, log_dir="", seed=0, tensor_log=False, experiment_name=""):
+				 update_global_solver=False, use_warmup_phase=False, dense_reward=False,
+				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -56,6 +57,8 @@ class SkillChaining(object):
 			pretrain_option_policies (bool): Whether to pre-train option policies with the global option
 			create_backward_options (bool): Whether to spend time learning back options for skill graphs
 			learn_backward_options_offline (bool): Whether to learn initiation sets for back option or reuse forward ones
+			update_global_solver (bool): Whether to learn a global option policy (this can increase wall clock time in ant)
+			use_warmup_phase (bool): If true, then option will act randomly during its gestation period
 			dense_reward (bool): Whether DSC will use dense rewards to train option policies
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
@@ -84,6 +87,8 @@ class SkillChaining(object):
 		self.pretrain_option_policies = pretrain_option_policies
 		self.create_backward_options = create_backward_options
 		self.learn_backward_options_offline = learn_backward_options_offline
+		self.update_global_solver = update_global_solver
+		self.use_warmup_phase = use_warmup_phase
 		self.experiment_name = experiment_name
 
 		tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
@@ -103,6 +108,7 @@ class SkillChaining(object):
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
+									use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
 									dense_reward=self.dense_reward, chain_id=None, is_backward_option=False, option_idx=0)
 
 		self.trained_options = [self.global_option]
@@ -125,6 +131,7 @@ class SkillChaining(object):
 								 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 								 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 								 dense_reward=self.dense_reward, chain_id=i+1, max_num_children=1,
+								 use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
 								 target_salient_event=salient_event, option_idx=i+1)
 			self.untrained_options.append(goal_option)
 
@@ -297,6 +304,8 @@ class SkillChaining(object):
 									  max_num_children=parent_option.max_num_children,
 									  is_backward_option=is_backward_option,
 									  init_salient_event=gestation_init_salient_event,
+									  use_warmup_phase=self.use_warmup_phase,
+									  update_global_solver=self.update_global_solver,
 									  initiation_period=parent_option.initiation_period)
 
 		new_untrained_option_id = id(new_untrained_option)
@@ -326,7 +335,11 @@ class SkillChaining(object):
 			raw_rewards = [tt[2] for tt in transitions]
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
-		selected_option = self.trained_options[action]  # type: Option
+		try:
+			selected_option = self.trained_options[action]  # type: Option
+		except:
+			ipdb.set_trace()
+
 		for i, transition in enumerate(option_transitions):
 			start_state = transition[0]
 			if selected_option.is_init_true(start_state):
@@ -426,7 +439,8 @@ class SkillChaining(object):
 
 		"""
 		if untrained_option != executed_option:
-			if untrained_option.trigger_termination_condition_off_policy(option_transitions, episode_number):
+			if untrained_option.trigger_termination_condition_off_policy(option_transitions, episode_number) \
+					and untrained_option.get_training_phase() == "initiation_done":
 				print(f"Triggered final termination condition for {untrained_option} while executing {executed_option}")
 
 	def act(self, state, train_mode=True):
@@ -550,6 +564,8 @@ class SkillChaining(object):
 									 initialize_everywhere=True, max_num_children=1,
 									 writer=self.writer, device=self.device,
 									 dense_reward=self.dense_reward,
+									 use_warmup_phase=self.use_warmup_phase,
+									 update_global_solver=self.update_global_solver,
 									 is_backward_option=True,
 									 init_salient_event=back_chain.init_salient_event,
 									 target_salient_event=back_chain.target_salient_event)
@@ -571,6 +587,9 @@ class SkillChaining(object):
 				back_option.initialize_with_global_solver()
 
 			self.augment_agent_with_new_option(back_option, 0.)
+
+			if back_chain.is_chain_completed(self.chains):
+				break
 
 		# Detect if the newly constructed backward chain is dangling
 		# If it is, then we need to learn more options to complete that backward chain
@@ -638,6 +657,7 @@ class SkillChaining(object):
 								enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
 								initialize_everywhere=True, max_num_children=1,
 								writer=self.writer, device=self.device, dense_reward=self.dense_reward,
+								use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
 								is_backward_option=True,
 								init_salient_event=init_salient_event,
 								target_salient_event=target_salient_event)
@@ -686,6 +706,8 @@ class SkillChaining(object):
 											  enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
 											  initialize_everywhere=True, max_num_children=1,
 											  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
+											  use_warmup_phase=self.use_warmup_phase,
+											  update_global_solver=self.update_global_solver,
 											  is_backward_option=True,
 											  init_salient_event=start_event,
 											  target_salient_event=target_event)
@@ -784,6 +806,8 @@ class SkillChaining(object):
 				back_chain = self.create_backward_skill_chain(start_event=option_chain.target_salient_event,
 															  target_event=event,
 															  create_root_option=(not self.learn_backward_options_offline))
+
+				option_chain.has_backward_chain = True
 
 				if self.learn_backward_options_offline:
 					learned_back_options = self.create_all_backward_options_offline(forward_chain=option_chain,
@@ -885,7 +909,7 @@ class SkillChaining(object):
 		"""
 		if untrained_option.get_training_phase() == "initiation_done":
 			# Debug visualization
-			plot_two_class_classifier(untrained_option, episode, self.experiment_name)
+			# plot_two_class_classifier(untrained_option, episode, self.experiment_name)
 
 			# We fix the learned option's initiation set and remove it from the list of target events
 			self.untrained_options.remove(untrained_option)

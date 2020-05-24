@@ -29,7 +29,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
                              np.array((8, 8)),
                              np.array((4, 8)),
                              np.array((0, 8))]
-
+        self.dataset = self.env.get_dataset()
         self._determine_x_y_lims()
 
         GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
@@ -94,7 +94,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # --------------------------------
 
     def _determine_x_y_lims(self):
-        dataset = self.env.get_dataset()
+        dataset = self.dataset
         observations = dataset["observations"]
         x = [obs[0] for obs in observations]
         y = [obs[1] for obs in observations]
@@ -108,3 +108,12 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
 
     def get_x_y_high_lims(self):
         return self.xlims[1], self.ylims[1]
+
+    # ---------------------------------
+    # Used during testing only
+    # ---------------------------------
+
+    def sample_random_state(self, num_samples):
+        data = self.dataset
+        idx = np.random.choice(data.shape[0], size=num_samples)
+        return data[idx, :]
