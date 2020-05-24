@@ -76,9 +76,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.next_state = self._get_state(next_state, done)
 
         #  Delete later
+        if state.endeff_pos[2] == 0.02:
+            pdb.set_trace()
         diff = self.next_state.endeff_pos - state.endeff_pos
         if diff[2] > 0:
-            pdb.set_trace()
             self.memory.append(diff[2])
             print("num episodes", len(self.memory), "max dist", round(max(self.memory), 3), "curr dist", round(diff[2], 3))
 
