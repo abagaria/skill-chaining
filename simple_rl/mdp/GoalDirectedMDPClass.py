@@ -2,7 +2,6 @@ import numpy as np
 from scipy.spatial import distance
 from copy import deepcopy
 from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
-from simple_rl.agents.func_approx.dsc.StateSalientEventClass import StateSalientEvent
 from simple_rl.mdp import MDP, State
 
 
@@ -32,7 +31,7 @@ class GoalDirectedMDP(MDP):
         self.original_salient_events = deepcopy(self._salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = StateSalientEvent(target_state=self.init_state.position, event_idx=0, tolerance=0.08)
+        self.start_state_salient_event = BaseSalientEvent(target_state=self.init_state.position, event_idx=0, tolerance=0.08)
 
         # Keep track of all the salient events ever created in this MDP
         self.all_salient_events_ever = deepcopy(self._salient_events)

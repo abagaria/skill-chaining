@@ -14,7 +14,6 @@ from scipy.spatial import distance
 import gym
 
 from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
-from simple_rl.agents.func_approx.dsc.StateSalientEventClass import StateSalientEvent
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
 
@@ -36,6 +35,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
+        self.init_state = self.env.init_state
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
         # Will this exist in all gym environments??
@@ -44,13 +44,29 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Not sure why we do a reset here
         self.reset()
 
+        puck_init_state = self.init_state[3:]
+        hand_at_puck_state = np.zeros(5)
+        hand_at_puck_state[:2] = puck_init_state
+        hand_at_puck_state[3] = 0.2
+
         salient_events = [
-            StateSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
+            BaseSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
                               get_relevant_position=get_endeff_pos),
-            StateSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold,
+            BaseSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold,
                               get_relevant_position=get_puck_pos),
-            BaseSalientEvent(is_hand_touching_puck, 3, name='Hand touching puck')
+            BaseSalientEvent(hand_at_puck_state, 3, name='Hand touching puck', tolerance=self.threshold,
+                              get_relevant_position=get_endeff_pos)
         ]
+
+    
+def is_hand_touching_puck(state):
+    touch_threshold = 0.1
+    # ignoring z-dimension. Although the arm position has three dimensions,
+    # it can only move in the x or y dimension
+    endeff_pos = get_endeff_pos(state)[:2]
+    puck_pos = get_puck_pos(state)
+    touch_distance = np.linalg.norm(endeff_pos - puck_pos)
+    return touch_distance < touch_threshold
 
         action_dims = range(self.env.action_space.shape[0])
         GoalDirectedMDP.__init__(self,
@@ -152,13 +168,3 @@ def get_puck_pos(state):
         return state[3:]
     else:
         pdb.set_trace()
-
-
-def is_hand_touching_puck(state):
-    touch_threshold = 0.1
-    # ignoring z-dimension. Although the arm position has three dimensions,
-    # it can only move in the x or y dimension
-    endeff_pos = get_endeff_pos(state)[:2]
-    puck_pos = get_puck_pos(state)
-    touch_distance = np.linalg.norm(endeff_pos - puck_pos)
-    return touch_distance < touch_threshold

@@ -543,7 +543,7 @@ class SkillChaining(object):
 		"""
 		Create a skill chain that takes you from target_event to start_event
 		Args:
-			start_event (BaseSalientEvent): Chain will continue until this is covered. This is also the
+			start_event (): Chain will continue until this is covered. This is also the
 										default initiation set for backward options
 			target_event (BaseSalientEvent): Chain will try to hit this event
 			intersecting_options (list)
