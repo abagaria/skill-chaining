@@ -325,7 +325,7 @@ class Option(object):
 				# Intersection salient event
 				salients = [event(ground_state) for event in self.overall_mdp.get_current_salient_events()]
 				return any(salients)
-			
+
 			return True
 
 		# TODO: Kshitij deleted
@@ -620,6 +620,7 @@ class Option(object):
 			visited_states = []
 
 			if self.name != "global_option":
+				pdb.set_trace()
 				print("Executing {}".format(self.name))
 
 			self.option_start_states.append(start_state)
