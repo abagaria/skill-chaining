@@ -78,11 +78,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         #  Delete later
         if state.endeff_pos[2] == 0.02:
             pdb.set_trace()
-        diff = self.next_state.endeff_pos - state.endeff_pos
-        if diff[2] > 0:
-            self.memory.append(diff[2])
-            print("num episodes", len(self.memory), "max dist", round(max(self.memory), 3), "curr dist", round(diff[2], 3))
-
         if self.dense_reward:
             return dense_reward
         return 0 if self.is_goal_state(state) else -1
