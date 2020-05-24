@@ -35,13 +35,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
-        self.init_state = self.env.init_state
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
         # Will this exist in all gym environments??
         self.threshold = self.env.indicator_threshold  # Default is 0.06
 
-        # Not sure why we do a reset here
+        # Sets the initial state
         self.reset()
 
         puck_init_state = self.init_state[3:]
