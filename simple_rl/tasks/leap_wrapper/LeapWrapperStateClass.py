@@ -36,5 +36,6 @@ class LeapWrapperState(State):
                                                                                                         self.puck_pos[1],
                                                                                                         self.is_terminal())
 
+
     def __repr__(self):
         return str(self)
