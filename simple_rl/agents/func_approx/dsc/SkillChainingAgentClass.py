@@ -102,7 +102,6 @@ class SkillChaining(object):
 		# Once we pick this option, we will use its internal DDPG solver to take primitive actions until termination
 		# Once we hit its termination condition N times, we will start learning its initiation set
 		# Once we have learned its initiation set, we will create its child option
-		pdb.set_trace()
 		for i, salient_event in enumerate(self.mdp.get_original_target_events()):
 			goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{i + 1}', global_solver=self.global_option.solver,
 								 lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
@@ -229,7 +228,6 @@ class SkillChaining(object):
 		return children
 
 	def create_child_option(self, parent_option):
-		pdb.set_trace()
 
 		# Don't create a child option if you already include the init state of the MDP
 		# Also enforce the max branching factor of our skill tree
@@ -414,8 +412,6 @@ class SkillChaining(object):
 			reward (float): sum of all rewards accumulated while executing chosen action
 			next_state (State): state we landed in after executing chosen action
 		"""
-		# KIRAN TRACE X
-		# pdb.set_trace()
 		selected_option = self.act(state)
 
 		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
@@ -691,8 +687,6 @@ class SkillChaining(object):
 
 			while step_number < num_steps:
 				experiences, reward, state, steps = self.take_action(state, episode, step_number)
-				# KIRAN TRACE #
-				#pdb.set_trace()
 				score += reward
 				step_number += steps
 				for experience in experiences:
@@ -707,8 +701,6 @@ class SkillChaining(object):
 				# We must iterate through all such options and check if the current transition
 				# triggered the termination condition of any such option
 				for untrained_option in self.untrained_options:
-					# KIRAN TRACE X
-					# pdb.set_trace()
 
 					if untrained_option.is_term_true(state) and (not uo_episode_terminated) and \
 							self.max_num_options > 0 and untrained_option.get_training_phase() == "gestation" and \
@@ -740,7 +732,6 @@ class SkillChaining(object):
 						#plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 
 						# We fix the learned option's initiation set and remove it from the list of target events
-						pdb.set_trace()
 						self.untrained_options.remove(untrained_option)
 
 						new_options = self.create_children_options(untrained_option)
