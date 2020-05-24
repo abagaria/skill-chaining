@@ -74,7 +74,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         diff = self.next_state.puck_pos - state.puck_pos
         if diff[0] > 0.00001 or diff[1] > 0.00001:
             self.memory.append(np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)[:2]))
-            print(len(self.memory), max(self.memory), self.next_state)
+            print(len(self.memory), round(max(self.memory), 2), self.next_state)
 
         if self.dense_reward:
             return dense_reward
