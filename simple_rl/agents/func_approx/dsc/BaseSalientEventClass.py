@@ -20,6 +20,18 @@ class BaseSalientEvent(object):
 
         assert isinstance(tolerance, float)
 
+    def __call__(self, states):
+        """
+        Args:
+            states: this can either be an array representing a single state, or an array
+                    representing a batch of states or a State object
+        Returns:
+            is_satisfied: bool or bool array depending on the shape of states.
+        """
+        if isinstance(states, State) or len(states.shape) == 1:
+            return self.is_init_true(states)
+        return self.batched_is_init_true(states)
+
     def __eq__(self, other):
         if isinstance(other, BaseSalientEvent):
             return self.event_idx == other.event_idx
