@@ -60,8 +60,6 @@ class DeepSkillGraphAgent(object):
                 target_event = None
 
             num_tries += 1
-
-
         print(f"Deep skill graphs target event: {target_event}")
         return target_event
 
@@ -70,15 +68,20 @@ class DeepSkillGraphAgent(object):
         event_idx = len(self.mdp.all_salient_events_ever) + 1
         c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                     num_training_steps=1000,
-                                    #chain_id=len(self.chains) + 1,
                                     option_idx=event_idx,
                                     name=f"covering-options-{event_idx}_0.1",
                                     threshold=0.1,
                                     beta=0.1)
+        plot_covering_options(c_option, self.mdp.init_state, replay_buffer=self.dsc_agent.global_option.solver.replay_buffer,
+									  experiment_name=args.experiment_name)
 
-        salient_event = DCOSalientEvent(c_option, event_idx)
+
+        salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer)
         self.generated_salient_events.append(salient_event)
+        print(self.mdp.all_salient_events_ever)
         self.mdp.add_new_target_event(salient_event)
+        print(self.mdp.all_salient_events_ever)
+        
 
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
@@ -96,13 +99,22 @@ class DeepSkillGraphAgent(object):
             while step_number < num_steps:
                 goal_salient_event = self.select_goal_salient_event(state)
 
-                step_number, success = self.planning_agent.planning_run_loop(start_episode=episode,
-                                                                             goal_state=goal_salient_event.target_state,
-                                                                             goal_salient_event=goal_salient_event,
-                                                                             step_number=step_number,
-                                                                             to_reset=False)
-
-                state = deepcopy(self.mdp.cur_state)
+                if goal_salient_event:
+                    step_number, success = self.planning_agent.planning_run_loop(start_episode=episode,
+                                                                                goal_state=goal_salient_event.target_state,
+                                                                                goal_salient_event=goal_salient_event,
+                                                                                step_number=step_number,
+                                                                                to_reset=False)
+                    state = deepcopy(self.mdp.cur_state)
+                else:
+                    state = deepcopy(self.mdp.cur_state)
+                    action = self.mdp.env.action_space.sample()
+                    reward, next_state = self.mdp.execute_agent_action(action)
+                    done = self.mdp.is_goal_state(next_state)
+                    
+                    self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
+                    step_number += 1
+                    success = False
 
                 if success:
                     print(f"[DeepSkillGraphAgentClass] successfully reached {goal_salient_event}")
@@ -140,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_start_state_salience", action="store_true", default=False)
     parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
-    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=1)
+    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=5)
     parser.add_argument("--use_hard_coded_event", type=bool, help="Whether to use hard-coded salient events", default=False)
     args = parser.parse_args()
 
