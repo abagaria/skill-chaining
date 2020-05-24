@@ -75,7 +75,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if diff[0] > 0.00001 or diff[1] > 0.00001:
             dist = np.linalg.norm(get_endeff_pos(self.next_state)[:2] - get_puck_pos(self.next_state)[:2])
             self.memory.append(dist)
-            print("num episodes", len(self.memory), "max dist", round(max(self.memory), 2), "curr dist", round(dist))
+            print("num episodes", len(self.memory), "max dist", round(max(self.memory), 2), "curr dist", round(dist, 2))
 
         if self.dense_reward:
             return dense_reward
