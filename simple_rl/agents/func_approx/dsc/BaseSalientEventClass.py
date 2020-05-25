@@ -42,10 +42,10 @@ class BaseSalientEvent(object):
         return self.event_idx
 
     def is_init_true(self, state):
-        if self.event_idx == 3:
-            pdb.set_trace()
         position = self.get_relevant_position(state)
         target_position = self.get_relevant_position(self.target_state)
+        if self.event_idx == 3 and np.linalg.norm(position - target_position) <= 0.1:
+            pdb.set_trace()
         return np.linalg.norm(position - target_position) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
