@@ -42,6 +42,7 @@ class BaseSalientEvent(object):
         return self.event_idx
 
     def is_init_true(self, state):
+        pdb.set_trace()
         position = self.get_relevant_position(state)
         target_position = self.get_relevant_position(self.target_state)
         return np.linalg.norm(position - target_position) <= self.tolerance

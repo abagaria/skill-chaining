@@ -51,11 +51,11 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         salient_events = [
             BaseSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
-                              get_relevant_position=get_endeff_pos),
+                             get_relevant_position=get_endeff_pos),
             BaseSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold,
-                              get_relevant_position=get_puck_pos),
+                             get_relevant_position=get_puck_pos),
             BaseSalientEvent(hand_at_puck_state, 3, name='Hand touching puck', tolerance=self.threshold,
-                              get_relevant_position=get_endeff_pos)
+                             get_relevant_position=get_xy_endeff_pos)
         ]
 
         action_dims = range(self.env.action_space.shape[0])
@@ -141,6 +141,17 @@ def get_endeff_pos(state):
         return state[:, :3]
     elif state.ndim == 1:
         return state[:3]
+    else:
+        pdb.set_trace()
+
+
+def get_xy_endeff_pos(state):
+    if isinstance(state, LeapWrapperState):
+        return state.endeff_pos[:2]
+    elif state.ndim == 2:
+        return state[:, :2]
+    elif state.ndim == 1:
+        return state[:2]
     else:
         pdb.set_trace()
 
