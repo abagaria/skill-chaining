@@ -47,7 +47,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         hand_at_puck_state = np.zeros(5)
         hand_at_puck_state[:2] = puck_init_state
         hand_at_puck_state[2] = 0.02
-        print(hand_at_puck_state)
 
         salient_events = [
             BaseSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
@@ -75,10 +74,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
-
-        #  Delete later
-        if state.endeff_pos[2] == 0.02:
-            pdb.set_trace()
         if self.dense_reward:
             return dense_reward
         return 0 if self.is_goal_state(state) else -1
