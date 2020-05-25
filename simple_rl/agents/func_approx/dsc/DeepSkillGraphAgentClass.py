@@ -67,13 +67,13 @@ class DeepSkillGraphAgent(object):
         # currently threshold and beta are hardcoded
         event_idx = len(self.mdp.all_salient_events_ever) + 1
         c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-                                    num_training_steps=1000,
-                                    option_idx=event_idx,
-                                    name=f"covering-options-{event_idx}_0.1",
-                                    threshold=0.1,
-                                    beta=0.1)
+                                   num_training_steps=1000,
+                                   option_idx=event_idx,
+                                   name=f"covering-options-{event_idx}_0.1",
+                                   threshold=0.1,
+                                   beta=0.1)
         plot_covering_options(c_option, self.mdp.init_state, replay_buffer=self.dsc_agent.global_option.solver.replay_buffer,
-									  experiment_name=args.experiment_name)
+                              experiment_name=args.experiment_name)
 
 
         salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer)
@@ -81,7 +81,7 @@ class DeepSkillGraphAgent(object):
         print(self.mdp.all_salient_events_ever)
         self.mdp.add_new_target_event(salient_event)
         print(self.mdp.all_salient_events_ever)
-        
+
 
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
@@ -111,7 +111,7 @@ class DeepSkillGraphAgent(object):
                     action = self.mdp.env.action_space.sample()
                     reward, next_state = self.mdp.execute_agent_action(action)
                     done = self.mdp.is_goal_state(next_state)
-                    
+
                     self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
                     step_number += 1
                     success = False

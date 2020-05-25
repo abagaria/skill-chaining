@@ -15,13 +15,12 @@ class CoveringOptions(Option):
 
     def __init__(self, replay_buffer, obs_dim, feature=None, threshold=0.95, num_units=200, num_training_steps=1000,
                  actor_learning_rate=0.0001, critic_learning_rate=0.0001, batch_size=64, option_idx=None,
-                 chain_id=1, name="covering-options", beta=0.0):
+                 name="covering-options", beta=0.0):
         self.obs_dim = obs_dim
         self.threshold = threshold
         self.num_units = num_units
         self.num_training_steps = num_training_steps
         self.batch_size = batch_size
-        self.chain_id = chain_id
         self.option_idx = option_idx
         self.name = name
         self.beta = beta

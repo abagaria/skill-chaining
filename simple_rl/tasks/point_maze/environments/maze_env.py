@@ -28,7 +28,7 @@ from scipy.spatial import distance
 from simple_rl.tasks.point_maze.environments import maze_env_utils
 
 # Directory that contains mujoco xml files.
-MODEL_DIR = os.path.join(os.path.expanduser("~/Documents/Research"), 'skill-chaining/simple_rl/tasks/point_maze/environments/assets')
+MODEL_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
 
 class MazeEnv(gym.Env):

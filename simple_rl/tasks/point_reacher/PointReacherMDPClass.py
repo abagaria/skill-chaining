@@ -93,7 +93,7 @@ class PointReacherMDP(MDP):
         return self.all_salient_events_ever
 
     def add_new_target_event(self, new_event):
-        #ipdb.set_trace()
+        # ipdb.set_trace()
         if new_event not in self.current_salient_events:
             self.current_salient_events.append(new_event)
 
