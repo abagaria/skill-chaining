@@ -72,16 +72,12 @@ class DeepSkillGraphAgent(object):
                                    name=f"covering-options-{event_idx}_0.1",
                                    threshold=0.1,
                                    beta=0.1)
-        plot_covering_options(c_option, self.mdp.init_state, replay_buffer=self.dsc_agent.global_option.solver.replay_buffer,
-                              experiment_name=args.experiment_name)
-
 
         salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer)
-        self.generated_salient_events.append(salient_event)
-        print(self.mdp.all_salient_events_ever)
-        self.mdp.add_new_target_event(salient_event)
-        print(self.mdp.all_salient_events_ever)
+        plot_dco_salient_event(salient_event, self.mdp.init_state, experiment_name=args.experiment_name)
 
+        self.generated_salient_events.append(salient_event)
+        self.mdp.add_new_target_event(salient_event)
 
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
