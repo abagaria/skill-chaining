@@ -46,7 +46,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         puck_init_state = self.init_state[3:]
         hand_at_puck_state = np.zeros(5)
         hand_at_puck_state[:2] = puck_init_state
-        hand_at_puck_state[3] = 0.02
+        hand_at_puck_state[2] = 0.02
         print(hand_at_puck_state)
 
         salient_events = [
