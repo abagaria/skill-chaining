@@ -116,3 +116,26 @@ class LearnedSalientEvent(SalientEvent):
         classifier = OneClassSVM(nu=0.01, gamma="scale")
         classifier.fit(positions)
         return classifier
+
+
+class DCOSalientEvent(SalientEvent):
+    def __init__(self, covering_option, event_idx, replay_buffer, tolerance=0.6, intersection_event=False):
+        self.covering_option = covering_option
+
+        self.states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
+        goal_states = [s for s in self.states if not covering_option.is_init_true(s)]
+        goal_values = [covering_option.initiation_classifier(covering_option.states_to_tensor([s]))[0][0] for s in
+                       goal_states]
+        self.buffer_size = len(replay_buffer)
+
+        # Pick the highest probability state from the covering option's termination set
+        target_state = goal_states[np.argmin(goal_values)]
+        target_state = self._get_position(target_state) if covering_option.use_xy_prior else target_state
+
+        print(f"Created covering option targeting {target_state}")
+
+        SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx,
+                              tolerance=tolerance, intersection_event=intersection_event)
+
+    def __repr__(self):
+        return f"DCOSalientEvent {self.event_idx} targeting {self.target_state}"

@@ -145,7 +145,7 @@ class SkillChaining(object):
 										   exploration_strategy="shaping")
 
 		# Keep track of which chain each created option belongs to
-		s0 =self.mdp.get_init_positions()
+		s0 = self.mdp.get_init_positions()
 		self.s0 = s0
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
 		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
@@ -161,28 +161,6 @@ class SkillChaining(object):
 		self.current_option_idx = 1
 		self.current_intersecting_chains = []
 
-		# This is our temporally extended exploration option
-		# We use it to drive the agent towards unseen parts of the state-space
-		# The temporally extended nature of the option allows the agent to solve the "option sink" problem
-		# Note that we use a smaller timeout for this option so as to permit creating new options after it
-		# target_predicate = lambda s: goal_option_1.is_term_true(s) or goal_option_2.is_term_true(s)
-		# batched_target_predicate = lambda s: np.logical_or(goal_option_1.batched_is_term_true(s),
-		# 												   goal_option_2.batched_is_term_true(s))
-		# exploration_option = Option(overall_mdp=self.mdp, name="exploration_option", global_solver=self.global_option.solver,
-		# 							lr_actor=self.global_option.solver.actor_learning_rate,
-		# 							lr_critic=self.global_option.solver.critic_learning_rate,
-		# 							buffer_length=self.global_option.buffer_length,
-		# 							ddpg_batch_size=self.global_option.solver.batch_size,
-		# 							num_subgoal_hits_required=self.num_subgoal_hits_required,
-		# 							subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
-		# 							enable_timeout=self.enable_option_timeout, classifier_type=self.classifier_type,
-		# 							generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-		# 							dense_reward=self.dense_reward, chain_id=None, timeout=30,
-		# 							init_predicate=target_predicate, batched_init_predicate=batched_target_predicate)
-
-		# # Add the exploration option to the policy over options
-		# self._augment_agent_with_new_option(exploration_option, 0.)
-
 		# If initialize_everywhere is True, also add to trained_options
 		for option in self.untrained_options:  # type: Option
 			if option.initialize_everywhere:
@@ -194,6 +172,53 @@ class SkillChaining(object):
 		self.option_rewards = defaultdict(lambda : [])
 		self.option_qvalues = defaultdict(lambda : [])
 		self.num_options_history = []
+
+	def create_chain_targeting_new_salient_event(self, salient_event):
+		"""
+		Given a new `salient_event`, create an option and the corresponding skill chain targeting it.
+
+		Args:
+			salient_event (SalientEvent)
+
+		Returns:
+			skill_chain (SkillChain)
+		"""
+		chain_id = len(self.chains) + 1
+		init_salient_event = self.mdp.get_start_state_salient_event()
+		goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}',
+							 global_solver=self.global_option.solver,
+							 lr_actor=self.global_option.solver.actor_learning_rate,
+							 lr_critic=self.global_option.solver.critic_learning_rate,
+							 ddpg_batch_size=self.global_option.solver.batch_size,
+							 subgoal_reward=self.subgoal_reward,
+							 buffer_length=self.buffer_length,
+							 classifier_type=self.classifier_type,
+							 num_subgoal_hits_required=self.num_subgoal_hits_required,
+							 seed=self.seed, parent=None, max_steps=self.max_steps,
+							 enable_timeout=self.enable_option_timeout,
+							 chain_id=chain_id,
+							 initialize_everywhere=True, max_num_children=1,
+							 writer=self.writer, device=self.device,
+							 dense_reward=self.dense_reward,
+							 use_warmup_phase=self.use_warmup_phase,
+							 update_global_solver=self.update_global_solver,
+							 is_backward_option=False,
+							 init_salient_event=init_salient_event,
+							 target_salient_event=salient_event)
+		self.untrained_options.append(goal_option)
+
+		new_chain = SkillChain(start_states=self.s0, options=[], chain_id=chain_id,
+							   intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
+							   target_salient_event=salient_event,
+							   init_salient_event=init_salient_event,
+							   option_intersection_salience=self.option_intersection_salience,
+							   event_intersection_salience=self.event_intersection_salience)
+		self.add_skill_chain(new_chain)
+
+		if goal_option.initialize_everywhere:
+			self.augment_agent_with_new_option(goal_option, 0.)
+
+		return new_chain
 
 	def add_skill_chain(self, new_chain):
 		if new_chain not in self.chains:
@@ -234,10 +259,21 @@ class SkillChaining(object):
 		starts_chained = [option.is_init_true(state) for state in start_states]
 		return all(starts_chained)
 
-	def state_in_any_option(self, state):
-		for option in self.trained_options[1:]:
-			if option.is_init_true(state):
-				return True
+	def state_in_any_completed_option(self, state):
+		"""
+		Is the input `state` is inside the initiation classifier of an option whose initiation
+		we are already done learning.
+
+		Args:
+			state (State)
+
+		Returns:
+			is_inside (bool)
+		"""
+		for option in self.trained_options[1:]:  # type: Option
+			if option.get_training_phase() == "initiation_done" and option.initiation_classifier is not None:
+				if option.is_init_true(state):
+					return True
 		return False
 
 	def should_create_children_options(self, parent_option):
@@ -909,7 +945,7 @@ class SkillChaining(object):
 		"""
 		if untrained_option.get_training_phase() == "initiation_done":
 			# Debug visualization
-			# plot_two_class_classifier(untrained_option, episode, self.experiment_name)
+			plot_two_class_classifier(untrained_option, episode, self.experiment_name)
 
 			# We fix the learned option's initiation set and remove it from the list of target events
 			self.untrained_options.remove(untrained_option)

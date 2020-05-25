@@ -516,7 +516,7 @@ class Option(object):
 
 	def initialize_option_policy(self):
 		# Initialize the local DDPG solver with the weights of the global option's DDPG solver
-		self.initialize_with_global_solver()
+		# self.initialize_with_global_solver()
 		self.solver.epsilon = self.global_solver.epsilon
 
 		# Fitted Q-iteration on the experiences that led to triggering the current option's termination condition
@@ -645,7 +645,7 @@ class Option(object):
 				action = self.act(state, eval_mode=eval_mode, warmup_phase=warmup_phase)
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
-				if not warmup_phase:
+				if not warmup_phase or (self.name == "global_option" and self.update_global_solver):
 					self.update_option_solver(state, action, reward, next_state)
 
 				if self.name != "global_option" and self.update_global_solver:

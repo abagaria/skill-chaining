@@ -3,6 +3,7 @@ import pdb
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
+import matplotlib
 import time
 import torch
 import imageio
@@ -11,6 +12,7 @@ sns.set()
 from PIL import Image
 from tqdm import tqdm
 import os
+from mpl_toolkits.mplot3d import Axes3D
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -67,8 +69,8 @@ def get_grid_states(mdp):
     ss = []
     x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim, 0.5):
-        for y in np.arange(y_low_lim, y_high_lim, 0.5):
+    for x in np.arange(x_low_lim, x_high_lim, 1):
+        for y in np.arange(y_low_lim, y_high_lim, 1):
             ss.append(np.array((x, y)))
     return ss
 
@@ -77,8 +79,8 @@ def get_initiation_set_values(option):
     values = []
     x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim, 0.5):
-        for y in np.arange(y_low_lim, y_high_lim, 0.5):
+    for x in np.arange(x_low_lim, x_high_lim, 1):
+        for y in np.arange(y_low_lim, y_high_lim, 1):
             values.append(option.is_init_true(np.array((x, y))))
 
     return values
@@ -385,3 +387,138 @@ def create_log_dir(experiment_name):
     else:
         print("Successfully created the directory %s " % path)
     return path
+
+def plot_covering_options(option, init_state, replay_buffer, episode, rejected, n_samples=1000, experiment_name=""):
+    fig = plt.figure(figsize=(8.0, 10.0))
+    ax2d = fig.add_subplot(2, 1, 1)
+    ax3d = fig.add_subplot(2, 1, 2, projection='3d')
+
+    states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
+    init_value = option.initiation_classifier(option.states_to_tensor([init_state]))[0][0]
+
+    non_goal_states = [s for s in states if option.is_init_true(s)]
+
+    cmap = matplotlib.cm.get_cmap('Blues')
+    values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in non_goal_states]
+    normalize = matplotlib.colors.Normalize(vmin=option.threshold_value, vmax=max(values))
+    colors = [cmap(normalize(v)) for v in values]
+
+    nxs = [s.data[0] for s in non_goal_states]
+    nys = [s.data[1] for s in non_goal_states]
+    nzs = [init_value - value for value in values]
+
+    # print('nxs=', nxs)
+    # print('nys=', nys)
+    # print('colors=', colors)
+    ax2d.scatter(np.asarray(nxs), np.asarray(nys), c=np.asarray(colors))
+    ax3d.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
+
+    goal_states = [s for s in states if not option.is_init_true(s)]
+    goal_values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in goal_states]
+
+    best_goal_i = np.argmin(goal_values)
+    best_goal_state = goal_states.pop(best_goal_i)
+    best_goal_value = goal_values.pop(best_goal_i)
+
+    gxs = [s.data[0] for s in goal_states]
+    gys = [s.data[1] for s in goal_states]
+    gzs = [init_value - gvalue for gvalue in goal_values]
+
+    ax2d.scatter(gxs, gys, c="red")
+    ax2d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], c="black", s = [300])
+    ax3d.scatter(gxs, gys, gzs, c="red")
+    ax3d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [init_value - best_goal_value], c="black", s = [400])
+
+    low_bound_x, up_bound_x = -11, 11
+    # low_bound_y, up_bound_y = -3, 11
+
+    ax2d.set_xlim((low_bound_x, up_bound_x))
+    # ax2d.set_ylim((low_bound_y, up_bound_y))
+    ax3d.set_xlim((low_bound_x, up_bound_x))
+    # ax3d.set_ylim((low_bound_y, up_bound_y))
+
+    ax2d.set_xlabel("x")
+    ax2d.set_ylabel("y")
+    ax3d.set_xlabel("x")
+    ax3d.set_ylabel("y")
+
+    name = option.name
+    threshold = option.threshold
+    beta = option.beta
+    fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {len(replay_buffer)},\n and beta {beta:.4f}")
+    ax3d.set_title("f(s_0) - f(s) vs (x, y)-position")
+    plt.savefig("initiation_set_plots/{}/{}-{}_threshold-episode_{}-rejected_{}.png".format(experiment_name,
+                                                                                            name,
+                                                                                            threshold,
+                                                                                            episode,
+                                                                                            rejected))
+    plt.close()
+
+
+def plot_dco_salient_event(salient_event, init_state, episode, rejected, experiment_name=""):
+    option = salient_event.covering_option
+    fig = plt.figure(figsize=(8.0, 10.0))
+    ax2d = fig.add_subplot(2, 1, 1)
+    ax3d = fig.add_subplot(2, 1, 2, projection='3d')
+
+    states = salient_event.states
+    init_value = option.initiation_classifier(option.states_to_tensor([init_state]))[0][0]
+
+    non_goal_states = [s for s in states if option.is_init_true(s)]
+
+    cmap = matplotlib.cm.get_cmap('Blues')
+    values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in non_goal_states]
+    normalize = matplotlib.colors.Normalize(vmin=option.threshold_value, vmax=max(values))
+    colors = [cmap(normalize(v)) for v in values]
+
+    nxs = [s.data[0] for s in non_goal_states]
+    nys = [s.data[1] for s in non_goal_states]
+    nzs = [init_value - value for value in values]
+
+    # print('nxs=', nxs)
+    # print('nys=', nys)
+    # print('colors=', colors)
+    ax2d.scatter(np.asarray(nxs), np.asarray(nys), c=np.asarray(colors))
+    ax3d.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
+
+    goal_states = [s for s in states if not option.is_init_true(s)]
+    goal_values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in goal_states]
+
+    best_goal_i = np.argmin(goal_values)
+    best_goal_state = goal_states.pop(best_goal_i)
+    best_goal_value = goal_values.pop(best_goal_i)
+
+    gxs = [s.data[0] for s in goal_states]
+    gys = [s.data[1] for s in goal_states]
+    gzs = [init_value - gvalue for gvalue in goal_values]
+
+    ax2d.scatter(gxs, gys, c="red")
+    ax2d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], c="black", s = [300])
+    ax3d.scatter(gxs, gys, gzs, c="red")
+    ax3d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [init_value - best_goal_value], c="black", s = [400])
+
+    # low_bound_x, up_bound_x = -11, 11
+    # low_bound_y, up_bound_y = -3, 11
+
+    # ax2d.set_xlim((low_bound_x, up_bound_x))
+    # ax2d.set_ylim((low_bound_y, up_bound_y))
+    # ax3d.set_xlim((low_bound_x, up_bound_x))
+    # ax3d.set_ylim((low_bound_y, up_bound_y))
+
+    ax2d.set_xlabel("x")
+    ax2d.set_ylabel("y")
+    ax3d.set_xlabel("x")
+    ax3d.set_ylabel("y")
+
+    name = option.name
+    threshold = option.threshold
+    buffer_size = salient_event.buffer_size
+    beta = option.beta
+    fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {buffer_size},\n and beta {beta:.4f} @ Episode {episode}")
+    ax3d.set_title("f(s_0) - f(s) vs (x, y)-position")
+    plt.savefig("initiation_set_plots/{}/{}-{}_threshold-episode_{}-rejected_{}.png".format(experiment_name,
+                                                                                            name,
+                                                                                            threshold,
+                                                                                            episode,
+                                                                                            rejected))
+    plt.close()

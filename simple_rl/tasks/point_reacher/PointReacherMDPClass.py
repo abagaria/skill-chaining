@@ -12,11 +12,12 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class PointReacherMDP(MDP):
-    def __init__(self, seed, color_str="", dense_reward=False, render=False):
+    def __init__(self, seed, use_hard_coded_events=False, color_str="", dense_reward=False, render=False):
         self.env_name = "point_reacher"
         self.seed = seed
         self.dense_reward = dense_reward
         self.render = render
+        self.use_hard_coded_events = use_hard_coded_events
 
         random.seed(seed)
         np.random.seed(seed)
@@ -37,8 +38,10 @@ class PointReacherMDP(MDP):
 
         self._determine_x_y_lims()
 
-        self.salient_positions = [np.array((-9, +9)), np.array((+9, +9)),
-                                  np.array((+9, -9)), np.array((-9, -9))]
+        self.salient_positions = []
+        if use_hard_coded_events:
+            self.salient_positions = [np.array((-9, +9)), np.array((+9, +9)),
+                                      np.array((+9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
         self.current_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]

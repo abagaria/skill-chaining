@@ -28,7 +28,7 @@ from scipy.spatial import distance
 from simple_rl.tasks.point_maze.environments import maze_env_utils
 
 # Directory that contains mujoco xml files.
-MODEL_DIR = os.path.join(os.path.expanduser("~"), 'skill-chaining/simple_rl/tasks/point_maze/environments/assets')
+MODEL_DIR = os.path.join(os.getcwd(), 'simple_rl/tasks/point_maze/environments/assets')
 
 
 class MazeEnv(gym.Env):
@@ -94,11 +94,13 @@ class MazeEnv(gym.Env):
       height_offset = height * size_scaling
       torso = tree.find(".//body[@name='torso']")
       torso.set('pos', '0 0 %.2f' % (0.75 + height_offset))
-    if self.blocks:
-      # If there are movable blocks, change simulation settings to perform
-      # better contact detection.
-      default = tree.find(".//default")
-      default.find('.//geom').set('solimp', '.995 .995 .01')
+    # if self.blocks:
+
+    # Akhil: This was being used only if there were movable blocks in the maze,
+    # but I noticed that in *some* mazes, the agent goes through the wall.
+    # These lines are supposed to enable better collision detection.
+    default = tree.find(".//default")
+    default.find('.//geom').set('solimp', '.995 .995 .01')
 
     self.movable_blocks = []
     for i in range(len(structure)):
