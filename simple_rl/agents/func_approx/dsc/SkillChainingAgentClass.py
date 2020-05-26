@@ -288,8 +288,8 @@ class SkillChaining(object):
 
     def make_off_policy_updates_for_options(self, state, action, reward, next_state):
         for option in self.trained_options:  # type: Option
-            option.off_policy_update(state, action, reward, next_state) \
- \
+            option.off_policy_update(state, action, reward, next_state)
+
     def make_smdp_update(self, state, action, total_discounted_reward, next_state, option_transitions):
         """
 		Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
