@@ -1,5 +1,7 @@
 # Python imports.
 import pdb
+
+import ipdb
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
@@ -189,6 +191,8 @@ def plot_two_class_classifier(option, episode, experiment_name):
         plt.ylim((-10, 10))
 
         name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+        ipdb.set_trace()
+
         plt.title("{} Initiation Set".format(option.name))
         plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier_{}.png".format(experiment_name, name, has_key, option.seed))
         plt.close()

@@ -289,7 +289,7 @@ class Option(object):
 			return self.parent.batched_is_init_true(state_matrix)
 
 		# Extract the relevant dimensions from the state matrix (x, y)
-		# TODO: Kshitij deleted this to get his code running
+		# TODO: Kshitij deleted
 		# state_matrix = state_matrix[:, :2]
 
 		if self.target_salient_event is not None:
