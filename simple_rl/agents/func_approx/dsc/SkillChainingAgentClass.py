@@ -709,6 +709,7 @@ class SkillChaining(object):
 						print("\rTriggered termination condition of ", untrained_option)
 						uo_episode_terminated = True
 						if untrained_option.train(experience_buffer, state_buffer, episode):
+							ipdb.set_trace()
 
 							# If the option can be initiated from anywhere, it has already been added to
 							# the list of actions available to the agent (so that it may be executed before
