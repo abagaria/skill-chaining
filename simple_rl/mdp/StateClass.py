@@ -3,6 +3,7 @@ import numpy as np
 
 ''' StateClass.py: Contains the State Class. '''
 
+
 class State(object):
     ''' Abstract State class '''
 
@@ -28,7 +29,7 @@ class State(object):
         return len(self.features())
 
     def is_terminal(self):
-    	return self._is_terminal
+        return self._is_terminal
 
     def set_terminal(self, is_term=True):
         self._is_terminal = is_term

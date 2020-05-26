@@ -26,9 +26,7 @@ class LeapWrapperState(State):
         features = [endeff_pos[0], endeff_pos[1], endeff_pos[2], puck_pos[0], puck_pos[1]]
 
         # must be np.ndarray
-        self.position = np.zeros(5)
-        self.position[:3] = endeff_pos
-        self.position[3:] = puck_pos
+        self.position = np.array(features)
 
         State.__init__(self, data=features, is_terminal=done)
     
