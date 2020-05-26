@@ -55,7 +55,8 @@ class BaseSalientEvent(object):
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
+        # TODO: need extensible way to get relevant state from array for newly created options
+        position = state.position if isinstance(state, State) else state
         assert isinstance(position, np.ndarray), type(position)
         return position
 
