@@ -805,7 +805,7 @@ class SkillChaining(object):
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
         if self.generate_plots and episode % 10 == 0 and episode > 0:
-
+            ipdb.set_trace()
             visualize_best_option_to_take(self.agent_over_options, episode, self.seed, args.experiment_name)
 
             for option in self.trained_options:
