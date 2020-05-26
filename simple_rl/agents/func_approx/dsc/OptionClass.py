@@ -256,7 +256,8 @@ class Option(object):
 
 		if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
 			if self.backward_option:
-				state_matrix = state_matrix[:, :2]
+				# TODO: Kshitij deleted
+				# state_matrix = state_matrix[:, :2]
 
 				# When we treat the start state as a salient event, we pass in the
 				# init predicate that we are going to use during gestation
