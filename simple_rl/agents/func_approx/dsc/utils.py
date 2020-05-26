@@ -331,7 +331,6 @@ def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experi
     options = policy_over_options_dqn.get_best_actions_batched(states_tensor).cpu().numpy()
     x = [s[0] for s in states]
     y = [s[1] for s in states]
-    ipdb.set_trace()
     plt.scatter(x, y, c=options, cmap=plt.cm.Dark2)
     plt.colorbar()
     file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}"
