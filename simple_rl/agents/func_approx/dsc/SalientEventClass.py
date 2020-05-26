@@ -118,13 +118,12 @@ class LearnedSalientEvent(SalientEvent):
 
 
 class DCOSalientEvent(SalientEvent):
-    def __init__(self, covering_option, event_idx, replay_buffer, tolerance=0.6, intersection_event=False):
+    def __init__(self, covering_option, event_idx, replay_buffer, tolerance=1.0, intersection_event=False):
         self.covering_option = covering_option
 
-        self.states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
-        goal_states = [s for s in self.states if not covering_option.is_init_true(s)]
-        goal_values = [covering_option.initiation_classifier(covering_option.states_to_tensor([s]))[0][0] for s in goal_states]
-        self.buffer_size = len(replay_buffer)
+        states, _, _, _, _ = replay_buffer.sample(len(replay_buffer))
+        goal_states = [s for s in states if not covering_option.is_init_true(s)]
+        goal_values = covering_option.initiation_classifier(covering_option.states_to_tensor(goal_states)).flatten()
 
         SalientEvent.__init__(self, target_state=goal_states[np.argmin(goal_values)], event_idx=event_idx,
                               tolerance=tolerance, intersection_event=intersection_event)
@@ -132,10 +131,10 @@ class DCOSalientEvent(SalientEvent):
     def is_init_true(self, state):
         # TODO: Find the highest prob point then use a euclidean ball using tolerance given
         # Set initiation condition of this salient event to be the termination condition of the learned covering option
-        return not self.covering_option.is_init_true(state)
+        return not self.covering_option.is_init_true(state) and SalientEvent.is_init_true(self, state)
 
     def batched_is_init_true(self, position_matrix):
-        return self.covering_option.batched_is_init_true(position_matrix)
+        return np.logical_and(np.logical_not(self.covering_option.batched_is_init_true(position_matrix)), SalientEvent.batched_is_init_true(self, position_matrix))
 
     def __eq__(self, other):
         if not isinstance(other, SalientEvent):

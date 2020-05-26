@@ -74,7 +74,7 @@ class DeepSkillGraphAgent(object):
                                    beta=0.1)
 
         salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer)
-        plot_dco_salient_event(salient_event, self.mdp.init_state, experiment_name=args.experiment_name)
+        plot_dco_salient_event(salient_event, self.mdp.init_state, replay_buffer, experiment_name=args.experiment_name)
 
         self.generated_salient_events.append(salient_event)
         self.mdp.add_new_target_event(salient_event)
@@ -84,7 +84,7 @@ class DeepSkillGraphAgent(object):
 
         for episode in range(episodes):
 
-            if episode and not episode % self.salient_event_freq:
+            if not (episode + 1) % self.salient_event_freq:
                 self.discover_new_salient_event(self.dsc_agent.global_option.solver.replay_buffer)
 
             step_number = 0
