@@ -4,11 +4,7 @@ https://github.com/vitchyr/multiworld
 """
 
 # Python imports.
-import random
-import sys
-import os
 import numpy as np
-from scipy.spatial import distance
 
 # Other imports.
 import gym
@@ -70,6 +66,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  )
 
     def _reward_func(self, state, action):
+        pdb.set_trace()
         next_state, dense_reward, done, _ = self.env.step(action)
         if self.render:
             self.env.render()

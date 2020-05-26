@@ -317,6 +317,7 @@ def visualize_ddpg_replay_buffer(solver, episode, seed, experiment_name):
     states_tensor = torch.from_numpy(states).float().to(solver.device)
     actions_tensor = torch.from_numpy(actions).float().to(solver.device)
     qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
+    ipdb.set_trace()
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
     file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
@@ -330,11 +331,13 @@ def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experi
     options = policy_over_options_dqn.get_best_actions_batched(states_tensor).cpu().numpy()
     x = [s[0] for s in states]
     y = [s[1] for s in states]
+    ipdb.set_trace()
     plt.scatter(x, y, c=options, cmap=plt.cm.Dark2)
     plt.colorbar()
     file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}"
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
+
 
 def visualize_buffer(option, episode, seed, experiment_name):
     buffer = option.solver.replay_buffer.memory
@@ -349,6 +352,7 @@ def visualize_buffer(option, episode, seed, experiment_name):
     file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}"
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
+
 
 def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
