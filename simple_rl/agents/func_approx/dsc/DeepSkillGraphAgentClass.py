@@ -11,7 +11,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, Lea
 
 
 class DeepSkillGraphAgent(object):
-    def __init__(self, mdp, dsc_agent, planning_agent, experiment_name, seed, salient_event_freq, use_hard_coded_event, use_smdp_replay_buffer):
+    def __init__(self, mdp, dsc_agent, planning_agent, experiment_name, seed, threshold, salient_event_freq, use_hard_coded_event, use_smdp_replay_buffer):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -27,6 +27,7 @@ class DeepSkillGraphAgent(object):
         self.planning_agent = planning_agent
         self.experiment_name = experiment_name
         self.seed = seed
+        self.threshold = threshold
         self.salient_event_freq = salient_event_freq
         self.use_hard_coded_event = use_hard_coded_event
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
@@ -70,8 +71,8 @@ class DeepSkillGraphAgent(object):
         c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                    num_training_steps=1000,
                                    option_idx=event_idx,
-                                   name=f"covering-options-{event_idx}_0.1",
-                                   threshold=0.1,
+                                   name=f"covering-options-{event_idx}_threshold-{self.threshold}",
+                                   threshold=self.threshold,
                                    beta=0.1)
 
         low_salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer, is_low=True)
@@ -161,6 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_start_state_salience", action="store_true", default=False)
     parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
+    parser.add_argument("--threshold", type=int, help="Threshold determining size of termination set", default=0.1)
     parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=5)
     parser.add_argument("--use_hard_coded_event", type=bool, help="Whether to use hard-coded salient events", default=False)
     parser.add_argument("--use_smdp_replay_buffer", type=bool, help="Whether to use a replay buffer that has options", default=False)
@@ -237,6 +239,7 @@ if __name__ == "__main__":
                                     planning_agent=planner,
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
+                                    threshold=args.threshold,
                                     salient_event_freq=args.salient_event_freq,
                                     use_hard_coded_event=args.use_hard_coded_event,
                                     use_smdp_replay_buffer=args.use_smdp_replay_buffer)
