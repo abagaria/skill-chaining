@@ -122,24 +122,20 @@ class DCOSalientEvent(SalientEvent):
         self.covering_option = covering_option
         self.is_low = is_low
 
-        states = replay_buffer.sample(len(replay_buffer))[0]
+        assert len(replay_buffer), "replay_buffer was empty"
+        states = replay_buffer.sample(len(replay_buffer), get_tensor=False)[0]
+        values = covering_option.initiation_classifier(states).flatten()
 
-        goal_states = [s for s in states if not covering_option.is_init_true(s, is_low)]
+        target_state = states[np.argmin(values) if is_low else np.argmax(values)]
 
-        goal_values = covering_option.initiation_classifier(covering_option.states_to_tensor(goal_states)).flatten()
-
-        if is_low:
-            target_state = goal_states[np.argmin(goal_values)]
-        else:
-            target_state = goal_states[np.argmax(goal_values)]
         SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx,
                               tolerance=tolerance, intersection_event=intersection_event)
 
     def is_init_true(self, state):
-        return not self.covering_option.is_init_true(state, self.is_low) and SalientEvent.is_init_true(self, state)
+        return self.covering_option.is_term_true(state, self.is_low) and SalientEvent.is_init_true(self, state)
 
     def batched_is_init_true(self, position_matrix):
-        return np.logical_and(np.logical_not(self.covering_option.batched_is_init_true(position_matrix, self.is_low)), SalientEvent.batched_is_init_true(self, position_matrix))
+        return self.covering_option.batched_is_term_true(position_matrix, self.is_low) & SalientEvent.batched_is_init_true(self, position_matrix)
 
     def __eq__(self, other):
         if not isinstance(other, SalientEvent):
