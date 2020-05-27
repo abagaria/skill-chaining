@@ -1,4 +1,5 @@
 import tensorflow as tf
+import torch
 import numpy as np
 import random
 import tflearn
@@ -6,7 +7,8 @@ import os
 from numpy.linalg import norm
 
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
-from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
+from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer as DDPG_Replay_Buffer
+from simple_rl.agents.func_approx.dqn.DQNAgentClass import ReplayBuffer as DQN_Replay_Buffer
 from simple_rl.mdp.StateClass import State
 
 class CoveringOptions(Option):
@@ -49,7 +51,7 @@ class CoveringOptions(Option):
 
         self.train(replay_buffer)
 
-        self.threshold_value = self.sample_f_val(replay_buffer)
+        self.low_threshold_value, self.high_threshold_value = self.sample_f_val(replay_buffer)
 
         # Parameters to be set to child options.
         # We don't use them for covering options.
@@ -77,19 +79,31 @@ class CoveringOptions(Option):
 
     def convert_states(self, replay_buffer):
         # This function converts all the states recorded in the replay buffer's memory to only have x and y
-        new_rb = ReplayBuffer(replay_buffer.buffer_size, replay_buffer.name, replay_buffer.seed)
+        if isinstance(replay_buffer, DDPG_Replay_Buffer):  
+            new_rb = DDPG_Replay_Buffer(replay_buffer.buffer_size, replay_buffer.name, replay_buffer.seed)
+        elif isinstance(replay_buffer, DQN_Replay_Buffer):
+            new_rb = DQN_Replay_Buffer(replay_buffer.action_size, replay_buffer.buffer_size, replay_buffer.batch_size, replay_buffer.seed, replay_buffer.device)
+        
         for old_exp in replay_buffer.memory:
-            state, action, reward, next_state, terminal = old_exp
+            state, action, reward, next_state, terminal = old_exp[:5]
+            
             new_state = np.copy(state)
             new_state[2:] = 0
             new_next_state = np.copy(next_state)
             new_next_state[2:] = 0
-            new_rb.add(new_state, action, reward, new_next_state, terminal)
+
+            if isinstance(replay_buffer, DDPG_Replay_Buffer):  
+                new_rb.add(new_state, action, reward, new_next_state, terminal)
+            elif isinstance(replay_buffer, DQN_Replay_Buffer):
+                new_rb.add(new_state, action, reward, new_next_state, terminal, old_exp[5])
         return new_rb
 
     def train(self, replay_buffer):
         for _ in range(self.num_training_steps):
-            s, a, r, s2, t = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
+            if isinstance(replay_buffer, DDPG_Replay_Buffer):  
+                s, a, r, s2, t = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
+            elif isinstance(replay_buffer, DQN_Replay_Buffer):
+                s, a, r, s2, t, _ = replay_buffer.sample(min(self.batch_size, len(replay_buffer)), get_tensor=False)
 
             if not isinstance(s, np.ndarray):
                 s = s.cpu().numpy()
@@ -109,14 +123,20 @@ class CoveringOptions(Option):
 
             self.initiation_classifier.train(obs, next_f_value)
 
-    def is_init_true(self, ground_state):
+    def is_init_true(self, ground_state, is_low):
         s = self.states_to_tensor([ground_state])
         # print('s=', s)
         # print('s=', type(s))
-        return self.initiation_classifier(s) > self.threshold_value
+        if is_low:
+            return self.initiation_classifier(s) > self.low_threshold_value
+        else:
+            return self.initiation_classifier(s) < self.high_threshold_value
 
-    def batched_is_init_true(self, state_matrix):
-        x = self.initiation_classifier(state_matrix) > self.threshold_value
+    def batched_is_init_true(self, state_matrix, is_low):
+        if is_low:
+            x = self.initiation_classifier(state_matrix) > self.low_threshold_value
+        else:
+            x = self.initiation_classifier(state_matrix) < self.high_threshold_value
         return x.flatten()
 
     def is_term_true(self, ground_state):
@@ -130,7 +150,7 @@ class CoveringOptions(Option):
         # n_samples = buf_size
 
         # s = [experience_buffer.memory[i][0] for i in range(len(experience_buffer.memory))]
-        s, _, _, _, _ = experience_buffer.sample(n_samples)
+        s = experience_buffer.sample(n_samples)[0]
         if not isinstance(s, np.ndarray):
             s = s.cpu().numpy()
         obs = self.states_to_tensor(s)
@@ -148,11 +168,13 @@ class CoveringOptions(Option):
         # print('len(s)=', len(s))
         # print('f_value=', len(f_values))
 
-        init_th = f_srt[int(n_samples * self.threshold)]
+        low_threshold = f_srt[int(n_samples * self.threshold)]
+        high_threshold = f_srt[int(n_samples * (1 - self.threshold))]
 
-        print('init_th =', init_th)
+        print('low_threshold =', low_threshold)
+        print('high_threshold =', high_threshold)
 
-        return init_th
+        return low_threshold, high_threshold
 
 
 class SpectrumNetwork():
@@ -235,6 +257,7 @@ class SpectrumNetwork():
         # print('type(obs)=', type(obs))
         # print('type(next_f_value)=', type(next_f_value))
 
+        
         obs = [np.asarray(s) for s in obs]
 
         self.sess.run(self.optimize, feed_dict={

@@ -493,6 +493,8 @@ class ReplayBuffer:
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
         self.seed = random.seed(seed)
         self.device = device
+        self.buffer_size = buffer_size
+        self.name = ''
 
         self.positive_transitions = []
 
@@ -510,7 +512,7 @@ class ReplayBuffer:
         e = self.experience(state, action, reward, next_state, done, num_steps)
         self.memory.append(e)
 
-    def sample(self, batch_size=None):
+    def sample(self, batch_size=None, get_tensor=True):
         """Randomly sample a batch of experiences from memory."""
         size = self.batch_size if batch_size is None else batch_size
         experiences = random.sample(self.memory, k=size)
@@ -519,12 +521,20 @@ class ReplayBuffer:
         num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])
         self.positive_transitions.append(num_positive_transitions)
 
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(self.device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(self.device)
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(self.device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
-        steps = torch.from_numpy(np.vstack([e.num_steps for e in experiences if e is not None])).float().to(self.device)
+        states = np.vstack([e.state for e in experiences if e is not None])
+        actions = np.vstack([e.action for e in experiences if e is not None])
+        rewards = np.vstack([e.reward for e in experiences if e is not None])
+        next_states = np.vstack([e.next_state for e in experiences if e is not None])
+        dones = np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)
+        steps = np.vstack([e.num_steps for e in experiences if e is not None])
+        
+        if get_tensor:
+            states = torch.from_numpy(states).float().to(self.device)
+            actions = torch.from_numpy(actions).long().to(self.device)
+            rewards = torch.from_numpy(rewards).float().to(self.device)
+            next_states = torch.from_numpy(next_states).float().to(self.device)
+            dones = torch.from_numpy(dones).float().to(self.device)
+            steps = torch.from_numpy(steps).float().to(self.device)
 
         return states, actions, rewards, next_states, dones, steps
 

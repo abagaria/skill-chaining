@@ -11,7 +11,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, Lea
 
 
 class DeepSkillGraphAgent(object):
-    def __init__(self, mdp, dsc_agent, planning_agent, experiment_name, seed, salient_event_freq, use_hard_coded_event):
+    def __init__(self, mdp, dsc_agent, planning_agent, experiment_name, seed, salient_event_freq, use_hard_coded_event, use_smdp_replay_buffer):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -29,6 +29,7 @@ class DeepSkillGraphAgent(object):
         self.seed = seed
         self.salient_event_freq = salient_event_freq
         self.use_hard_coded_event = use_hard_coded_event
+        self.use_smdp_replay_buffer = use_smdp_replay_buffer
 
         self.known_options = []
 
@@ -73,19 +74,30 @@ class DeepSkillGraphAgent(object):
                                    threshold=0.1,
                                    beta=0.1)
 
-        salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer)
-        plot_dco_salient_event(salient_event, self.mdp.init_state, replay_buffer, experiment_name=args.experiment_name)
+        low_salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer, is_low=True)
+        plot_dco_salient_event(low_salient_event, self.mdp.init_state, replay_buffer, is_low=True, experiment_name=args.experiment_name)
+        self.generated_salient_events.append(low_salient_event)
+        self.mdp.add_new_target_event(low_salient_event)
 
-        self.generated_salient_events.append(salient_event)
-        self.mdp.add_new_target_event(salient_event)
+        high_salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer, is_low=False)
+        plot_dco_salient_event(high_salient_event, self.mdp.init_state, replay_buffer, is_low=False, experiment_name=args.experiment_name)
+        self.generated_salient_events.append(high_salient_event)
+        self.mdp.add_new_target_event(high_salient_event)
 
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
+        if self.use_smdp_replay_buffer:
+            replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
+        else:
+            replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
 
         for episode in range(episodes):
 
             if not (episode + 1) % self.salient_event_freq:
+                
+                # self.discover_new_salient_event(replay_buffer)
                 self.discover_new_salient_event(self.dsc_agent.global_option.solver.replay_buffer)
+                self.discover_new_salient_event(self.dsc_agent.agent_over_options.replay_buffer)
 
             step_number = 0
             self.mdp.reset()
@@ -109,6 +121,7 @@ class DeepSkillGraphAgent(object):
                     done = self.mdp.is_goal_state(next_state)
 
                     self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
+                    self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(), done, 1)
                     step_number += 1
                     success = False
 
@@ -150,6 +163,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
     parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=5)
     parser.add_argument("--use_hard_coded_event", type=bool, help="Whether to use hard-coded salient events", default=False)
+    parser.add_argument("--use_smdp_replay_buffer", type=bool, help="Whether to use a replay buffer that has options", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -224,6 +238,7 @@ if __name__ == "__main__":
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     salient_event_freq=args.salient_event_freq,
-                                    use_hard_coded_event=args.use_hard_coded_event)
+                                    use_hard_coded_event=args.use_hard_coded_event,
+                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer)
 
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

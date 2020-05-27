@@ -22,6 +22,7 @@ for ((i = 0; i < num_runs; i++)); do
     --buffer_len=20 \
     --use_smdp_update=True \
     --use_option_intersection_salience \
+    --use_smdp_replay_buffer=True \
     || exit
 
     # --threshold="$threshold" \

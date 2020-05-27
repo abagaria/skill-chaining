@@ -386,20 +386,23 @@ def create_log_dir(experiment_name):
         print("Successfully created the directory %s " % path)
     return path
 
-def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_name=""):
+def plot_dco_salient_event(salient_event, init_state, replay_buffer, is_low, experiment_name=""):
     option = salient_event.covering_option
     fig = plt.figure(figsize=(8.0, 10.0))
     ax2d = fig.add_subplot(2, 1, 1)
     ax3d = fig.add_subplot(2, 1, 2, projection='3d')
 
-    states, _, _, _, _ = replay_buffer.sample(min(4000, len(replay_buffer)))
+    states = replay_buffer.sample(min(4000, len(replay_buffer)))[0]
     init_value = option.initiation_classifier(option.states_to_tensor([init_state]))[0][0]
 
-    non_goal_states = [s for s in states if option.is_init_true(s)]
+    non_goal_states = [s for s in states if option.is_init_true(s, is_low)]
 
     cmap = matplotlib.cm.get_cmap('Blues')
     values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in non_goal_states]
-    normalize = matplotlib.colors.Normalize(vmin=option.threshold_value, vmax=max(values))
+    if is_low:
+        normalize = matplotlib.colors.Normalize(vmin=option.low_threshold_value, vmax=max(values))
+    else:
+        normalize = matplotlib.colors.Normalize(vmin=min(values), vmax=option.high_threshold_value)
     colors = [cmap(normalize(v)) for v in values]
 
     nxs = [s.data[0] for s in non_goal_states]
@@ -413,7 +416,7 @@ def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_
     ax3d.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
 
     # salient event initiation set is a subset of the covering option termination set
-    option_term_states = [s for s in states if not option.is_init_true(s)]
+    option_term_states = [s for s in states if not option.is_init_true(s, is_low)]
     event_init_states = [s for s in option_term_states if salient_event.is_init_true(s)]
     event_init_values = option.initiation_classifier(option.states_to_tensor(event_init_states)).flatten()
     event_not_init_states = [s for s in option_term_states if not salient_event.is_init_true(s)]
@@ -457,5 +460,5 @@ def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_
     beta = option.beta
     fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {len(replay_buffer)},\n and beta {beta:.4f}")
     ax3d.set_title("f(s_0) - f(s) vs (x, y)-position")
-    plt.savefig("initiation_set_plots/{}/{}-{}_threshold.png".format(experiment_name, name, threshold))
+    plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
     plt.close()
