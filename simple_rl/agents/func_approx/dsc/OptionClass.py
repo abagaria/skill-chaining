@@ -345,8 +345,7 @@ class Option(object):
 		if self.target_salient_event is not None:
 			return self.target_salient_event(ground_state)
 
-		if self.name == "goal_option_3":
-			ipdb.set_trace()
+		ipdb.set_trace()
 
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
