@@ -71,7 +71,8 @@ class ReplayBuffer(object):
     def __getitem__(self, i):
         return self.memory[i]
 
-    def sample(self, batch_size=BATCH_SIZE):
+    # get_tensor is here for compatability with DQNAgentClass.ReplayBuffer::sample
+    def sample(self, batch_size=BATCH_SIZE, get_tensor=True):
         if self.num_exp < batch_size:
             batch = random.sample(self.memory, self.num_exp)
         else:
