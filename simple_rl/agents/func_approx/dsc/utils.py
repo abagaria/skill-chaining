@@ -386,13 +386,12 @@ def create_log_dir(experiment_name):
         print("Successfully created the directory %s " % path)
     return path
 
-def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_name=""):
+def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     option = salient_event.covering_option
     is_low = salient_event.is_low
 
-    fig = plt.figure(figsize=(8.0, 10.0))
-    ax2d = fig.add_subplot(2, 1, 1)
-    ax3d = fig.add_subplot(2, 1, 2, projection='3d')
+    fig = plt.figure()
+    ax3d = fig.add_subplot(1, 1, 1, projection='3d')
 
     states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
 
@@ -410,11 +409,7 @@ def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_
     normalize = matplotlib.colors.Normalize(vmin=min(option_init_values), vmax=max(option_init_values))
     colors = [cmap(normalize(v)) for v in option_init_values]
 
-    nxs, nys = option_init_states[:, 0], option_init_states[:, 1]
-    nzs = init_value - option_init_values
-
-    ax2d.scatter(nxs, nys, c=colors)
-    ax3d.scatter(nxs, nys, nzs, c=colors)
+    ax3d.scatter(option_init_states[:, 0], option_init_states[:, 1], init_value - option_init_values, c=colors)
 
     # salient event initiation set is a subset of the covering option termination set
     event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
@@ -422,31 +417,17 @@ def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_
     event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
     event_not_init_values = option.initiation_classifier(event_not_init_states).flatten()
 
-    gxs, gys = event_not_init_states[:, 0], event_not_init_states[:, 1]
-    gzs = init_value - event_not_init_values
+    ax3d.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], init_value - event_not_init_values, c="orange")
+    ax3d.scatter(event_init_states[:, 0], event_init_states[:, 1], init_value - event_init_values, c="green")
 
-    ax2d.scatter(gxs, gys, c="orange")
-    ax3d.scatter(gxs, gys, gzs, c="orange")
-
-    gxs, gys = event_init_states[:, 0], event_init_states[:, 1]
-    gzs = init_value - event_init_values
-
-    ax2d.scatter(gxs, gys, c="green")
-    ax3d.scatter(gxs, gys, gzs, c="green")
-
-    ax2d.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
     ax3d.scatter([target_state[0]], [target_state[1]], [init_value - target_value], c="black", s=[400])
 
     low_bound_x, up_bound_x = -11, 11
     # low_bound_y, up_bound_y = -3, 11
 
-    ax2d.set_xlim((low_bound_x, up_bound_x))
-    # ax2d.set_ylim((low_bound_y, up_bound_y))
     ax3d.set_xlim((low_bound_x, up_bound_x))
     # ax3d.set_ylim((low_bound_y, up_bound_y))
 
-    ax2d.set_xlabel("x")
-    ax2d.set_ylabel("y")
     ax3d.set_xlabel("x")
     ax3d.set_ylabel("y")
 
@@ -455,5 +436,51 @@ def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_
     beta = option.beta
     fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {len(replay_buffer)},\n and beta {beta:.4f}")
     ax3d.set_title("f(s_0) - f(s) vs (x, y)-position")
+    plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
+    plt.close()
+
+def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_name=""):
+    option = salient_event.covering_option
+    is_low = salient_event.is_low
+
+    fig = plt.figure()
+    ax2d = fig.add_subplot(1, 1, 1)
+
+    states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
+
+    target_state = salient_event.target_state
+
+    option_term = option.batched_is_term_true(states, is_low)
+    option_init_states, option_term_states = states[~option_term], states[option_term]
+    option_init_values = option.initiation_classifier(option_init_states).flatten()
+
+    cmap = matplotlib.cm.get_cmap('Blues')
+    normalize = matplotlib.colors.Normalize(vmin=min(option_init_values), vmax=max(option_init_values))
+    colors = [cmap(normalize(v)) for v in option_init_values]
+
+    ax2d.scatter(option_init_states[:, 0], option_init_states[:, 1], c=colors)
+
+    # salient event initiation set is a subset of the covering option termination set
+    event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
+    event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
+
+    ax2d.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], c="orange")
+    ax2d.scatter(event_init_states[:, 0], event_init_states[:, 1], c="green")
+
+    ax2d.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
+
+    low_bound_x, up_bound_x = -11, 11
+    # low_bound_y, up_bound_y = -3, 11
+
+    ax2d.set_xlim((low_bound_x, up_bound_x))
+    # ax2d.set_ylim((low_bound_y, up_bound_y))
+
+    ax2d.set_xlabel("x")
+    ax2d.set_ylabel("y")
+
+    name = option.name
+    threshold = option.threshold
+    beta = option.beta
+    fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {len(replay_buffer)},\n and beta {beta:.4f}")
     plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
     plt.close()
