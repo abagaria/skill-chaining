@@ -625,6 +625,7 @@ class Option(object):
 			visited_states = []
 
 			if self.name != "global_option":
+				ipdb.set_trace()
 				print("Executing {}".format(self.name))
 
 			self.option_start_states.append(start_state)
