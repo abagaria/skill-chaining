@@ -15,7 +15,7 @@ from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_p
 
 
 class SkillGraphPlanningAgent(object):
-    def __init__(self, mdp, chainer, initialize_graph, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, pretrain_option_policies, initialize_graph, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -24,12 +24,14 @@ class SkillGraphPlanningAgent(object):
         Args:
             mdp (PointReacherMDP)
             chainer (SkillChaining)
+            pretrain_option_policies (bool)
             initialize_graph (bool)
             experiment_name (str)
             seed (int)
         """
         self.mdp = mdp
         self.chainer = chainer
+        self.pretrain_option_policies = pretrain_option_policies
         self.initialize_graph = initialize_graph
         self.experiment_name = experiment_name
         self.seed = seed
@@ -210,7 +212,8 @@ class SkillGraphPlanningAgent(object):
 
         return new_option
 
-    def execute_actions_to_reach_goal(self, episode, num_steps, inside_graph, new_option=None, goal_salient_event=None):
+    def execute_actions_to_reach_goal(self, episode, num_steps, inside_graph,
+                                      new_option=None, goal_salient_event=None, eval_mode=False):
         """
 
         Args:
@@ -219,6 +222,7 @@ class SkillGraphPlanningAgent(object):
             inside_graph (bool)
             new_option (Option): If `inside_graph`, execute this option to get to the goal
             goal_salient_event (SalientEvent)
+            eval_mode (bool)
 
         Returns:
             next_state (State)
@@ -233,16 +237,22 @@ class SkillGraphPlanningAgent(object):
                                                       episode=episode,
                                                       step=num_steps,
                                                       goal_salient_event=goal_salient_event,
-                                                      eval_mode=False)
+                                                      eval_mode=eval_mode)
 
         else:
             dsc_run_loop_budget = self.chainer.max_steps - num_steps
             pre_rollout_state = deepcopy(self.mdp.cur_state)
+
             print(f"About to rollout DSC for {dsc_run_loop_budget} steps with interrupt handle {goal_salient_event}")
+
+            # Deliberately did not add `eval_mode` to the DSC rollout b/c we usually do this when we
+            # want to fall off the graph, and it is always good to do some exploration when outside the graph
             score, step_number, newly_created_options = self.chainer.dsc_rollout(episode_number=episode,
                                                                                  step_number=num_steps,
                                                                                  interrupt_handle=goal_salient_event)
-            print(f"============== Returned from DSC runloop having learned {newly_created_options}")
+
+            print(f"Returned from DSC runloop having learned {newly_created_options}")
+
             self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state,
                                                        goal_salient_event, jumped_off_the_graph=True)
 
@@ -375,7 +385,8 @@ class SkillGraphPlanningAgent(object):
             print(f"Case 1: Adding edge from {newly_created_option} to {newly_created_option.parent}")
             self.plan_graph.add_edge(newly_created_option, newly_created_option.parent, edge_weight=1.)
 
-    def planner_rollout(self, *, state, goal_state, target_option, inside_graph, goal_salient_event, episode_number, step_number):
+    def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
+                                 goal_salient_event, episode_number, step_number, eval_mode):
 
         should_terminate_run_loop = False
 
@@ -386,7 +397,7 @@ class SkillGraphPlanningAgent(object):
             step_number = self.perform_option_rollout(option=selected_option,
                                                       episode=episode_number,
                                                       step=step_number,
-                                                      eval_mode=False,
+                                                      eval_mode=eval_mode,
                                                       goal_salient_event=goal_salient_event)
 
             state = deepcopy(self.mdp.cur_state)
@@ -405,13 +416,18 @@ class SkillGraphPlanningAgent(object):
                     new_option = self.create_goal_option(goal_salient_event, target_option, inside_graph, episode_number)  # type: Option
 
                 print("[SkillGraphPlanning] Handing control to DSC inside the planning run loop")
-                state, step_number = self.execute_actions_to_reach_goal(episode_number, step_number, inside_graph, new_option, goal_salient_event)
+                state, step_number = self.execute_actions_to_reach_goal(episode_number,
+                                                                        step_number,
+                                                                        inside_graph,
+                                                                        new_option,
+                                                                        goal_salient_event,
+                                                                        eval_mode=eval_mode)
 
         return step_number, goal_salient_event(state)
 
 
     def planning_run_loop(self, *, start_episode, goal_state, to_reset,
-                          step_number=0, start_state=None, goal_salient_event=None):
+                          step_number=0, start_state=None, goal_salient_event=None, eval_mode=False):
         """
         This is a test-time run loop that uses planning to select options when it can.
         Args:
@@ -421,6 +437,7 @@ class SkillGraphPlanningAgent(object):
             step_number (int)
             start_state (State)
             goal_salient_event (SalientEvent)
+            eval_mode (bool)
 
         Returns:
             executed_options (list)
@@ -447,13 +464,14 @@ class SkillGraphPlanningAgent(object):
             print(f"Handing control to DSC - already_at_target_option {already_at_target_option} \t empty_graph: {self.is_plan_graph_empty()}")
             state, step_number = self.execute_actions_to_reach_goal(episode, step_number,
                                                                     inside_graph, new_option=None,
-                                                                    goal_salient_event=goal_salient_event)
+                                                                    goal_salient_event=goal_salient_event,
+                                                                    eval_mode=eval_mode)
 
             return step_number, goal_salient_event(state)
 
         step_number, success = self.planner_rollout(state=state, goal_state=goal_state, target_option=target_option,
                                                     inside_graph=inside_graph, goal_salient_event=goal_salient_event,
-                                                    episode_number=episode, step_number=step_number)
+                                                    episode_number=episode, step_number=step_number, eval_mode=eval_mode)
 
         return step_number, success
 
@@ -613,8 +631,9 @@ class SkillGraphPlanningAgent(object):
         print(f"Set {new_untrained_option}'s training phase to {new_untrained_option.get_training_phase()}")
 
         # Augment the DSC agent with the new option and pre-train it's policy
-        new_untrained_option.initialize_with_global_solver()
-        new_untrained_option.solver.epsilon = train_goal_option.solver.epsilon
+        if self.pretrain_option_policies:
+            new_untrained_option.initialize_with_global_solver()
+            new_untrained_option.solver.epsilon = train_goal_option.solver.epsilon
         self.chainer.augment_agent_with_new_option(new_untrained_option, 0.)
 
         # Add to the plan graph
@@ -683,28 +702,29 @@ class SkillGraphPlanningAgent(object):
         print(f"Created {new_untrained_option} targeting {target_salient_event}")
 
         # Augment the DSC agent with the new option and pre-train it's policy
-        new_untrained_option.initialize_with_global_solver()
-
-        # Check if the value function diverges - if it does, then retry. If it still does,
-        # then initialize to random weights and use that
-        max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                       self.experiment_name,
-                                                       replay_buffer=self.chainer.global_option.solver.replay_buffer)
-        if max_q_value > 500:
-            print("=" * 80)
-            print(f"{new_untrained_option} VF diverged")
-            print("=" * 80)
-            new_untrained_option.reset_option_solver()
+        if self.pretrain_option_policies:
             new_untrained_option.initialize_with_global_solver()
+
+            # Check if the value function diverges - if it does, then retry. If it still does,
+            # then initialize to random weights and use that
             max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
                                                            self.experiment_name,
                                                            replay_buffer=self.chainer.global_option.solver.replay_buffer)
             if max_q_value > 500:
                 print("=" * 80)
-                print(f"{new_untrained_option} VF diverged AGAIN")
-                print("Just initializing to random weights")
+                print(f"{new_untrained_option} VF diverged")
                 print("=" * 80)
                 new_untrained_option.reset_option_solver()
+                new_untrained_option.initialize_with_global_solver()
+                max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
+                                                               self.experiment_name,
+                                                               replay_buffer=self.chainer.global_option.solver.replay_buffer)
+                if max_q_value > 500:
+                    print("=" * 80)
+                    print(f"{new_untrained_option} VF diverged AGAIN")
+                    print("Just initializing to random weights")
+                    print("=" * 80)
+                    new_untrained_option.reset_option_solver()
 
         self.chainer.untrained_options.append(new_untrained_option)
         self.chainer.augment_agent_with_new_option(new_untrained_option, 0.)
@@ -726,8 +746,9 @@ class SkillGraphPlanningAgent(object):
             assert child_option is not None
             if isinstance(child_option, Option):
                 child_option_success_rate = child_option.get_option_success_rate()
+                weight = 1. / child_option_success_rate if child_option_success_rate > 0 else 0.
                 self.plan_graph.set_edge_weight(child_option, selected_option,
-                                                weight=1. / child_option_success_rate)
+                                                weight=1. / weight)
             elif isinstance(child_option, SalientEvent):
                 self.plan_graph.set_edge_weight(child_option, selected_option, weight=0.)
             else:
@@ -784,7 +805,8 @@ class SkillGraphPlanningAgent(object):
             step_number, reached_goal = self.planning_run_loop(start_episode=starting_episode+episode,
                                                                goal_state=goal_state,
                                                                start_state=start_state,
-                                                               to_reset=True)
+                                                               to_reset=True,
+                                                               eval_mode=True)
             if reached_goal:
                 successes += 1
         return successes

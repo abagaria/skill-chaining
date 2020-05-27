@@ -39,11 +39,15 @@ class PointEnv(mujoco_env.MujocoEnv, utils.EzPickle):
   def _step(self, a):
     return self.step(a)
 
+  @staticmethod
+  def _wrap(phases):
+    return (phases + np.pi) % (2 * np.pi) - np.pi
+
   def step(self, action):
     # action[0] = 0.20 * action[0]
     # action[1] = 0.25 * action[1]
     qpos = np.copy(self.physics.data.qpos)
-    qpos[2] += action[1]
+    qpos[2] = self._wrap(qpos[2] + action[1])
     ori = qpos[2]
     # compute increment in each direction
     dx = math.cos(ori) * action[0]
@@ -71,8 +75,8 @@ class PointEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.physics.data.qvel.flat[:3]])
 
   def reset_model(self):
-    qpos = self.init_qpos + self.np_random.uniform(
-        size=self.physics.model.nq, low=-.1, high=.1)
+    qpos = self.init_qpos #+ self.np_random.uniform(
+        # size=self.physics.model.nq, low=-.1, high=.1)
     qvel = self.init_qvel + self.np_random.randn(self.physics.model.nv) * .1
 
     # Set everything other than point to original position and 0 velocity.

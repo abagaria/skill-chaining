@@ -255,8 +255,12 @@ def visualize_next_state_reward_heat_map(option, episode=None, experiment_name="
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("Replay Buffer Reward Heat Map")
-    plt.xlim((-3, 11))
-    plt.ylim((-3, 11))
+
+    x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
 
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
@@ -493,9 +497,10 @@ def plot_dco_salient_event(salient_event, init_state, episode, rejected, experim
     gzs = [init_value - gvalue for gvalue in goal_values]
 
     ax2d.scatter(gxs, gys, c="red")
-    ax2d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], c="black", s = [300])
+    # ax2d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], c="black", s = [300])
+    ax2d.scatter([salient_event.target_state[0]], [salient_event.target_state[1]], c="black", s=[300])
     ax3d.scatter(gxs, gys, gzs, c="red")
-    ax3d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [init_value - best_goal_value], c="black", s = [400])
+    # ax3d.scatter([best_goal_state.data[0]], [best_goal_state.data[1]], [init_value - best_goal_value], c="black", s = [400])
 
     # low_bound_x, up_bound_x = -11, 11
     # low_bound_y, up_bound_y = -3, 11
@@ -521,4 +526,35 @@ def plot_dco_salient_event(salient_event, init_state, episode, rejected, experim
                                                                                             threshold,
                                                                                             episode,
                                                                                             rejected))
+    plt.close()
+
+
+def plot_effect_sets(options):
+    plt.figure()
+    for option in options:
+        states = option.effect_set
+        x = [state.position[0] for state in states]
+        y = [state.position[1] for state in states]
+        sns.kdeplot(x, y, shade=True)
+    plt.show()
+
+
+def visualize_graph(chains, episode, experiment_name):
+    sns.set_style("white")
+
+    def _plot_event_pair(event1, event2):
+        x = [event1.target_state[0], event2.target_state[0]]
+        y = [event1.target_state[1], event2.target_state[1]]
+        plt.plot(x, y, "o-", c="black")
+
+    plt.figure()
+
+    forward_chains = [chain for chain in chains if not chain.is_backward_chain]
+
+    for chain in forward_chains:
+        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
+
+    plt.xticks([]); plt.yticks([])
+
+    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{episode}.png")
     plt.close()

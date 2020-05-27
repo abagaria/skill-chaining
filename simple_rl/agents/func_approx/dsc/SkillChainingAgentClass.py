@@ -140,7 +140,7 @@ class SkillChaining(object):
 		# We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
 		# options, this agent will predict Q-values for them as well
 		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
-										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=1.0, tensor_log=tensor_log,
+										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=0.1, tensor_log=tensor_log,
 										   use_double_dqn=True, writer=self.writer, device=self.device,
 										   exploration_strategy="shaping")
 
@@ -793,11 +793,11 @@ class SkillChaining(object):
 				self.create_backward_skill_chain(start_event=chain2.target_salient_event,
 												 target_event=intersection_salient_event)
 				self.create_backward_skill_chain(start_event=intersection_salient_event,
-												 target_event=self.mdp.get_start_state_salient_event())
+												 target_event=self.mdp.get_start_state_salient_event())  # TODO: This has to be the init_salient_event of the long_chain
 
 				self.rewire_intersecting_chains(intersecting_chains, intersecting_options, intersection_salient_event)
 
-	def  manage_intersection_between_option_and_events(self, option):
+	def manage_intersection_between_option_and_events(self, option):
 		"""
 		`option`'s initiation set completely contains the given `event`.
 		Create an intersection learned salient event and then target it with a skill chain

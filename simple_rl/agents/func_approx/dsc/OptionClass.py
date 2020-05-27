@@ -23,7 +23,7 @@ class Option(object):
 
 	def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
 				 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-				 dense_reward=False, enable_timeout=True, timeout=150, initiation_period=5, option_idx=None,
+				 dense_reward=False, enable_timeout=True, timeout=200, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, max_num_children=3,
 				 init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
 				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
@@ -145,14 +145,20 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
+	def _get_epsilon_greedy_epsilon(self):
+		if "point" in self.overall_mdp.env_name:
+			return 0.1
+		elif "ant" in self.overall_mdp.env_name:
+			return 0.25
+
 	def act(self, state, eval_mode, warmup_phase):
 		""" Epsilon greedy action selection when in training mode. """
 
 		if warmup_phase and self.use_warmup_phase:
-			return self.overall_mdp.env.action_space.sample()
+			return self.overall_mdp.sample_random_action()
 
-		if random.random() < 0.1 and not eval_mode:
-			return self.overall_mdp.env.action_space.sample()
+		if random.random() < self._get_epsilon_greedy_epsilon() and not eval_mode:
+			return self.overall_mdp.sample_random_action()
 		return self.solver.act(state.features(), evaluation_mode=eval_mode)
 
 	def reset_global_solver(self):
@@ -686,7 +692,14 @@ class Option(object):
 		raise Warning("Wanted to execute {}, but initiation condition not met".format(self))
 
 	def is_eligible_for_off_policy_triggers(self):
-		return self.get_training_phase() != "initiation_done" and not self.backward_option
+		if "point" in self.overall_mdp.env_name:
+			eligible_phase = self.get_training_phase() == "gestation"
+		elif "ant" in self.overall_mdp.env_name:
+			eligible_phase = self.get_training_phase() != "initiation_done"
+		else:
+			raise NotImplementedError(self.overall_mdp)
+
+		return eligible_phase and not self.backward_option
 
 	def trigger_termination_condition_off_policy(self, trajectory, episode):
 		trajectory_so_far = []

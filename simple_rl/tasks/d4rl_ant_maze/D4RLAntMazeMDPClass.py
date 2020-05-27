@@ -117,3 +117,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         data = self.dataset
         idx = np.random.choice(data.shape[0], size=num_samples)
         return data[idx, :]
+
+    def sample_random_action(self):
+        size = (self.action_space_size(),)
+        return np.random.uniform(-1., 1., size=size)

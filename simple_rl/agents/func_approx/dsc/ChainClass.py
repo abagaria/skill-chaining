@@ -39,6 +39,8 @@ class SkillChain(object):
         self.option_intersection_salience = option_intersection_salience
         self.event_intersection_salience = event_intersection_salience
 
+        self._is_deemed_completed = False
+
         if target_salient_event is None and len(intersecting_options) > 0:
             self.target_predicate = lambda s: all([option.is_init_true(s) for option in intersecting_options])
 
@@ -91,29 +93,7 @@ class SkillChain(object):
             should_create (bool): return True if there is some start_state that is
                                   not inside any of the options in the current chain
         """
-        # Continue if not all the start states have been covered by the options in the current chain
-        start_state_in_chain = self.chained_till_start_state()
-
-        required_to_chain_until_intersection = self.option_intersection_salience or self.event_intersection_salience
-
-        if self.is_backward_chain or not required_to_chain_until_intersection:
-            return not start_state_in_chain
-
-        # For forward chains, continue until chain intersections have been found yet
-        chain_itersects_another = any([self.is_intersecting(chain) for chain in chains])
-
-        # If chain intersects another, check if at least some other chain has
-        # chained all the way back to the start states of the MDP
-        mdp_chained = False
-        for chain in chains:  # type: SkillChain
-            if chain.chain_id != self.chain_id:
-                mdp_start_states_in_chain = all([chain.state_in_chain(s) for s in self.mdp_start_states])
-                if mdp_start_states_in_chain:
-                    mdp_chained = True
-
-        # If the chains do not intersect, continue until the MDP is chained
-        stop_condition = start_state_in_chain or (chain_itersects_another and mdp_chained)
-        return not stop_condition
+        return not self.is_chain_completed(chains)
 
     @staticmethod
     def detect_intersection_between_options(my_option, other_option):
@@ -203,12 +183,20 @@ class SkillChain(object):
         Returns:
             is_completed (bool)
         """
+        if self._is_deemed_completed:
+            return True
+
         is_intersecting_another_chain = False
         if self.option_intersection_salience or self.event_intersection_salience:
             other_chains = [chain for chain in chains if chain != self]
             is_intersecting_another_chain = any([self.is_intersecting(chain) and chain.is_chain_completed(other_chains)
                                                  for chain in other_chains])
-        return self.chained_till_start_state() or is_intersecting_another_chain
+        completed = self.chained_till_start_state() or is_intersecting_another_chain
+
+        if completed:
+            self._is_deemed_completed = True
+
+        return completed
 
     def chained_till_start_state(self):
         start_state_in_chain = all([self.state_in_chain(s) for s in self.start_states])
@@ -221,7 +209,7 @@ class SkillChain(object):
                 tell me if the event is a subset of the option's initiation set. """
             if o.get_training_phase() == "initiation_done":
                 if len(e.trigger_points) > 0: # Be careful: all([]) = True
-                    return all([o.is_init_true(s) for s in e.trigger_points])
+                    return all([o.is_init_true(s) for s in e.trigger_points])  # TODO: Batch this
                 return o.is_init_true(e.target_state)
             return False
 

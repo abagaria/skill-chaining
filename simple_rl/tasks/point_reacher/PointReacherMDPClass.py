@@ -69,7 +69,7 @@ class PointReacherMDP(MDP):
             self.env.render()
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
-            raise NotImplementedError("Dense rewards for point-reacher")
+            return -1.
         return reward + 1  # TODO: Changing the reward function to return 0 step penalty and 1 reward
 
     def _transition_func(self, state, action):
@@ -190,8 +190,8 @@ class PointReacherMDP(MDP):
         return [self.init_state.position]
 
     def _determine_x_y_lims(self):
-        self.xlims = (-12, 12)
-        self.ylims = (-12, 12)
+        self.xlims = (-10, 10)
+        self.ylims = (-10, 10)
 
     def get_x_y_low_lims(self):
         return self.xlims[0], self.ylims[0]
@@ -200,6 +200,11 @@ class PointReacherMDP(MDP):
         return self.xlims[1], self.ylims[1]
 
     def sample_random_state(self):
+        """ This function only samples a random position from the MDP. """
         low = np.array((self.xlims[0], self.ylims[0]))
         high = np.array((self.xlims[1], self.ylims[1]))
         return np.random.uniform(low=low, high=high)
+
+    def sample_random_action(self):
+        size = (self.action_space_size(),)
+        return np.random.uniform(-1., 1., size=size)

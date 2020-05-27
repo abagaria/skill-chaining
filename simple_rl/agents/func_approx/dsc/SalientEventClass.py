@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from simple_rl.mdp.StateClass import State
 from scipy.spatial import distance
@@ -119,7 +120,7 @@ class LearnedSalientEvent(SalientEvent):
 
 
 class DCOSalientEvent(SalientEvent):
-    def __init__(self, covering_option, event_idx, replay_buffer, tolerance=0.6, intersection_event=False):
+    def __init__(self, covering_option, event_idx, replay_buffer, tolerance=1., intersection_event=False):
         self.covering_option = covering_option
 
         self.states, _, _, _, _ = replay_buffer.sample(min(2000, len(replay_buffer)))
@@ -129,7 +130,8 @@ class DCOSalientEvent(SalientEvent):
         self.buffer_size = len(replay_buffer)
 
         # Pick the highest probability state from the covering option's termination set
-        target_state = goal_states[np.argmin(goal_values)]
+        # target_state = goal_states[np.argmin(goal_values)]
+        target_state = random.choice(goal_states)
         target_state = self._get_position(target_state) if covering_option.use_xy_prior else target_state
 
         print(f"Created covering option targeting {target_state}")
