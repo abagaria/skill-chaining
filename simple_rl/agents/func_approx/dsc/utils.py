@@ -439,7 +439,7 @@ def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
     plt.close()
 
-def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_name=""):
+def plot_dco_salient_event(salient_event, replay_buffer, experiment_name=""):
     option = salient_event.covering_option
     is_low = salient_event.is_low
 
