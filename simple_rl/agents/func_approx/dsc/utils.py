@@ -386,61 +386,56 @@ def create_log_dir(experiment_name):
         print("Successfully created the directory %s " % path)
     return path
 
-def plot_dco_salient_event(salient_event, init_state, replay_buffer, is_low, experiment_name=""):
+def plot_dco_salient_event(salient_event, init_state, replay_buffer, experiment_name=""):
     option = salient_event.covering_option
+    is_low = salient_event.is_low
+
     fig = plt.figure(figsize=(8.0, 10.0))
     ax2d = fig.add_subplot(2, 1, 1)
     ax3d = fig.add_subplot(2, 1, 2, projection='3d')
 
-    states = replay_buffer.sample(min(4000, len(replay_buffer)))[0]
-    init_value = option.initiation_classifier(option.states_to_tensor([init_state]))[0][0]
+    states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
 
-    non_goal_states = [s for s in states if option.is_init_true(s, is_low)]
+    init_state, = option.states_to_tensor([init_state])
+    init_value, = option.initiation_classifier([init_state]).flatten()
+
+    target_state = salient_event.target_state
+    target_value, = option.initiation_classifier([target_state]).flatten()
+
+    option_term = option.batched_is_term_true(states, is_low)
+    option_init_states, option_term_states = states[~option_term], states[option_term]
+    option_init_values = option.initiation_classifier(option_init_states).flatten()
 
     cmap = matplotlib.cm.get_cmap('Blues')
-    values = [option.initiation_classifier(option.states_to_tensor([s]))[0][0] for s in non_goal_states]
-    if is_low:
-        normalize = matplotlib.colors.Normalize(vmin=option.low_threshold_value, vmax=max(values))
-    else:
-        normalize = matplotlib.colors.Normalize(vmin=min(values), vmax=option.high_threshold_value)
-    colors = [cmap(normalize(v)) for v in values]
+    normalize = matplotlib.colors.Normalize(vmin=min(option_init_values), vmax=max(option_init_values))
+    colors = [cmap(normalize(v)) for v in option_init_values]
 
-    nxs = [s.data[0] for s in non_goal_states]
-    nys = [s.data[1] for s in non_goal_states]
-    nzs = [init_value - value for value in values]
+    nxs, nys = option_init_states[:, 0], option_init_states[:, 1]
+    nzs = init_value - option_init_values
 
-    # print('nxs=', nxs)
-    # print('nys=', nys)
-    # print('colors=', colors)
-    ax2d.scatter(np.asarray(nxs), np.asarray(nys), c=np.asarray(colors))
-    ax3d.scatter(np.asarray(nxs), np.asarray(nys), np.asarray(nzs), c=np.asarray(colors))
+    ax2d.scatter(nxs, nys, c=colors)
+    ax3d.scatter(nxs, nys, nzs, c=colors)
 
     # salient event initiation set is a subset of the covering option termination set
-    option_term_states = [s for s in states if not option.is_init_true(s, is_low)]
-    event_init_states = [s for s in option_term_states if salient_event.is_init_true(s)]
-    event_init_values = option.initiation_classifier(option.states_to_tensor(event_init_states)).flatten()
-    event_not_init_states = [s for s in option_term_states if not salient_event.is_init_true(s)]
-    event_not_init_values = option.initiation_classifier(option.states_to_tensor(event_not_init_states)).flatten()
+    event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
+    event_init_values = option.initiation_classifier(event_init_states).flatten()
+    event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
+    event_not_init_values = option.initiation_classifier(event_not_init_states).flatten()
 
-    gxs = [s.data[0] for s in event_not_init_states]
-    gys = [s.data[1] for s in event_not_init_states]
-    gzs = [init_value - gvalue for gvalue in event_not_init_values]
+    gxs, gys = event_not_init_states[:, 0], event_not_init_states[:, 1]
+    gzs = init_value - event_not_init_values
 
     ax2d.scatter(gxs, gys, c="orange")
     ax3d.scatter(gxs, gys, gzs, c="orange")
 
-    gxs = [s.data[0] for s in event_init_states]
-    gys = [s.data[1] for s in event_init_states]
-    gzs = [init_value - gvalue for gvalue in event_init_values]
+    gxs, gys = event_init_states[:, 0], event_init_states[:, 1]
+    gzs = init_value - event_init_values
 
     ax2d.scatter(gxs, gys, c="green")
     ax3d.scatter(gxs, gys, gzs, c="green")
 
-    target_state = salient_event.target_state
-    target_value = option.initiation_classifier(option.states_to_tensor([target_state]))[0][0]
-
-    ax2d.scatter([target_state.data[0]], [target_state.data[1]], c="black", s = [300])
-    ax3d.scatter([target_state.data[0]], [target_state.data[1]], [init_value - target_value], c="black", s = [400])
+    ax2d.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
+    ax3d.scatter([target_state[0]], [target_state[1]], [init_value - target_value], c="black", s=[400])
 
     low_bound_x, up_bound_x = -11, 11
     # low_bound_y, up_bound_y = -3, 11

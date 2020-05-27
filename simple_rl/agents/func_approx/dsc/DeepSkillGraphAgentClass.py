@@ -76,12 +76,12 @@ class DeepSkillGraphAgent(object):
                                    beta=0.1)
 
         low_salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer, is_low=True)
-        plot_dco_salient_event(low_salient_event, self.mdp.init_state, replay_buffer, is_low=True, experiment_name=args.experiment_name)
+        plot_dco_salient_event(low_salient_event, self.mdp.init_state, replay_buffer, experiment_name=args.experiment_name)
         self.generated_salient_events.append(low_salient_event)
         self.mdp.add_new_target_event(low_salient_event)
 
         high_salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer, is_low=False)
-        plot_dco_salient_event(high_salient_event, self.mdp.init_state, replay_buffer, is_low=False, experiment_name=args.experiment_name)
+        plot_dco_salient_event(high_salient_event, self.mdp.init_state, replay_buffer, experiment_name=args.experiment_name)
         self.generated_salient_events.append(high_salient_event)
         self.mdp.add_new_target_event(high_salient_event)
 
