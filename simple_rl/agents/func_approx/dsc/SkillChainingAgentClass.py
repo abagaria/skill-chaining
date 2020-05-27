@@ -331,12 +331,12 @@ class SkillChaining(object):
 
     def augment_agent_with_new_option(self, newly_trained_option, init_q_value):
         """
-		Train the current untrained option and initialize a new one to target.
-		Add the newly_trained_option as a new node to the Q-function over options
-		Args:
-			newly_trained_option (Option)
-			init_q_value (float): if given use this, else compute init_q optimistically
-		"""
+        Train the current untrained option and initialize a new one to target.
+        Add the newly_trained_option as a new node to the Q-function over options
+        Args:
+            newly_trained_option (Option)
+            init_q_value (float): if given use this, else compute init_q optimistically
+        """
         # Add the trained option to the action set of the global solver
         if newly_trained_option not in self.trained_options:
             self.trained_options.append(newly_trained_option)
@@ -404,17 +404,17 @@ class SkillChaining(object):
 
     def take_action(self, state, episode_number, step_number):
         """
-		Either take a primitive action from `state` or execute a closed-loop option policy.
-		Args:
-			state (State)
-			episode_number (int)
-			step_number (int): which iteration of the control loop we are on
+        Either take a primitive action from `state` or execute a closed-loop option policy.
+        Args:
+            state (State)
+            episode_number (int)
+            step_number (int): which iteration of the control loop we are on
 
-		Returns:
-			experiences (list): list of (s, a, r, s') tuples
-			reward (float): sum of all rewards accumulated while executing chosen action
-			next_state (State): state we landed in after executing chosen action
-		"""
+        Returns:
+            experiences (list): list of (s, a, r, s') tuples
+            reward (float): sum of all rewards accumulated while executing chosen action
+            next_state (State): state we landed in after executing chosen action
+        """
         selected_option = self.act(state)
 
         # TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
@@ -428,6 +428,9 @@ class SkillChaining(object):
 
         option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, episode_number,
                                                                                       step_number)
+
+        if selected_option.get_training_phase() is "initiation_done":
+            plot_two_class_classifier(selected_option, episode_number, args.experiment_name)
 
         option_reward = self.get_reward_from_experiences(option_transitions)
         next_state = self.get_next_state_from_experiences(option_transitions)
@@ -630,15 +633,13 @@ class SkillChaining(object):
 
     def rewire_intersecting_chains(self, intersecting_chains, intersecting_options, intersection_salient_event):
         """
+        Args:
+            intersecting_chains:
+            intersecting_options:
+            intersection_salient_event (BaseSalientEvent)
 
-		Args:
-			intersecting_chains:
-			intersecting_options:
-			intersection_salient_event (BaseSalientEvent)
-
-		Returns:
-
-		"""
+        Returns:
+            """
         assert len(intersecting_options) == 2, intersecting_options
         assert len(intersecting_chains) == 2, intersecting_chains
 

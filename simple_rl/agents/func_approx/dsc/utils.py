@@ -131,8 +131,8 @@ def make_meshgrid(x, y, h=.02):
                          np.arange(y_min, y_max, h))
     return xx, yy
 
-def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
 
+def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
     colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
 
     plt.figure(figsize=(8.0, 5.0))
