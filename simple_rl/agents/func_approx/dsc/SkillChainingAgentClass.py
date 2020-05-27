@@ -719,7 +719,6 @@ class SkillChaining(object):
                         print("\rTriggered termination condition of ", untrained_option)
                         uo_episode_terminated = True
                         if untrained_option.train(experience_buffer, state_buffer, episode):
-                            ipdb.set_trace()
 
                             # If the option can be initiated from anywhere, it has already been added to
                             # the list of actions available to the agent (so that it may be executed before
@@ -806,7 +805,6 @@ class SkillChaining(object):
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
         if self.generate_plots and episode % 10 == 0 and episode > 0:
-            ipdb.set_trace()
             visualize_best_option_to_take(self.agent_over_options, episode, self.seed, args.experiment_name)
 
             for option in self.trained_options:

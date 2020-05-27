@@ -191,7 +191,6 @@ def plot_two_class_classifier(option, episode, experiment_name):
         plt.ylim((-10, 10))
 
         name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-        ipdb.set_trace()
 
         plt.title("{} Initiation Set".format(option.name))
         plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier_{}.png".format(experiment_name, name, has_key, option.seed))
@@ -317,7 +316,6 @@ def visualize_ddpg_replay_buffer(solver, episode, seed, experiment_name):
     states_tensor = torch.from_numpy(states).float().to(solver.device)
     actions_tensor = torch.from_numpy(actions).float().to(solver.device)
     qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
-    ipdb.set_trace()
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
     file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
