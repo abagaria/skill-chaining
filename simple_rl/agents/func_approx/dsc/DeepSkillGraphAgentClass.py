@@ -87,18 +87,23 @@ class DeepSkillGraphAgent(object):
 
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
-        if self.use_smdp_replay_buffer:
-            replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
-        else:
-            replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
+        # if self.use_smdp_replay_buffer:
+        #     replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
+        # else:
+        #     replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
 
         for episode in range(episodes):
 
             if not (episode + 1) % self.salient_event_freq:
-                
-                # self.discover_new_salient_event(replay_buffer)
-                self.discover_new_salient_event(self.dsc_agent.global_option.solver.replay_buffer)
-                self.discover_new_salient_event(self.dsc_agent.agent_over_options.replay_buffer)
+
+                # if len(replay_buffer):
+                #     self.discover_new_salient_event(replay_buffer)
+                global_replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
+                smdp_replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
+                if len(global_replay_buffer):
+                    self.discover_new_salient_event(global_replay_buffer)
+                if len(smdp_replay_buffer):
+                    self.discover_new_salient_event(smdp_replay_buffer)
 
             step_number = 0
             self.mdp.reset()
