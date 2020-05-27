@@ -109,24 +109,26 @@ class CoveringOptions(Option):
             self.initiation_classifier.train(obs, next_f_value)
 
     def is_init_true(self, ground_state, is_low):
-        s = self.states_to_tensor([ground_state])
-        # print('s=', s)
-        # print('s=', type(s))
-        if is_low:
-            return self.initiation_classifier(s) > self.low_threshold_value
-        else:
-            return self.initiation_classifier(s) < self.high_threshold_value
+        return ~self.is_term_true(ground_state, is_low)
 
     def batched_is_init_true(self, state_matrix, is_low):
-        if is_low:
-            x = self.initiation_classifier(state_matrix) > self.low_threshold_value
-        else:
-            x = self.initiation_classifier(state_matrix) < self.high_threshold_value
-        return x.flatten()
+        return ~self.batched_is_term_true(state_matrix, is_low)
 
-    def is_term_true(self, ground_state):
-        # TODO: set termination condition the same as the initiation condition.
-        return self.is_init_true(ground_state)
+    def is_term_true(self, ground_state, is_low):
+        s = self.states_to_tensor([ground_state])
+        f_value = self.initiation_classifier(s)
+        if is_low:
+            return f_value < self.low_threshold_value
+        else:
+            return f_value > self.high_threshold_value
+
+    def batched_is_term_true(self, state_matrix, is_low):
+        f_values = self.initiation_classifier(state_matrix)
+        if is_low:
+            is_term = f_values < self.low_threshold_value
+        else:
+            is_term = f_values > self.high_threshold_value
+        return is_term.flatten()
 
     def sample_f_val(self, experience_buffer):
         buf_size = len(experience_buffer)
