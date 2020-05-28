@@ -46,7 +46,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         puck_intermediate_2 = np.concatenate((hand_init, [-0.07, 0.6]))
         puck_intermediate_3 = np.concatenate((hand_init, [-0.11, 0.6]))
         puck_goal = np.concatenate((hand_init, self.goal_state[3:]))
-        print(puck_intermediate_1, puck_intermediate_2, puck_goal)
 
         salient_events = [
             BaseSalientEvent(puck_intermediate_1, 1, name='Puck to goal 1/4',

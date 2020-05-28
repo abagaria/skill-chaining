@@ -345,6 +345,7 @@ class Option(object):
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
+		# TODO: Delete these two cases if they are never hit
 		elif self.name == "goal_option_1":
 			ipdb.set_trace()
 			return self.overall_mdp.get_original_target_events()[0](ground_state)
