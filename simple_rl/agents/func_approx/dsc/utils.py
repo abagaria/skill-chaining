@@ -118,6 +118,7 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 
 
 def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, option, episode, experiment_name, negative_examples=None):
+    print(f"Plotting initiation set of {option.name}")
     axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
     axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_z']
