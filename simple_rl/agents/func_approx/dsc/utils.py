@@ -131,6 +131,9 @@ def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, opt
     if axis_labels is not None:
         plt.xlabel(axis_labels[x_idx])
         plt.ylabel(axis_labels[y_idx])
+    if option.target_salient_event is not None:
+        target = option.target_salient_event.target_state
+        plt.scatter(target[x_idx], target[y_idx], c="black", marker="x", s=30)
     file_name = f"{option.name}_{axis_labels[x_idx]}_{axis_labels[y_idx]}_{episode}_{option.seed}_{which_classifier}"
     plt.title(f"{option.name} {which_classifier} Initiation Set")
     plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}.png")
