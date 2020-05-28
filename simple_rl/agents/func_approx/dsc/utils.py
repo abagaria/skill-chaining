@@ -74,15 +74,6 @@ def get_grid_states():
             ss.append(s)
     return ss
 
-def get_initiation_set_values(option, has_key):
-    values = []
-    for x in np.arange(-11., 11., 1.):
-        for y in np.arange(-11., 11., 0.5):
-            s = PointReacherState(position=np.array([x, y]), velocity=np.array([0, 0]),
-                               theta=0, theta_dot=0, done=False)
-            values.append(option.is_init_true(s))
-
-    return values
 
 def get_values(solver, init_values=False):
     values = []
@@ -108,6 +99,7 @@ def get_values(solver, init_values=False):
 
     return values
 
+
 def render_sampled_value_function(solver, episode=None, experiment_name=""):
     states = get_grid_states()
     values = get_values(solver)
@@ -124,22 +116,17 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
     plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
     plt.close()
 
-def make_meshgrid(x, y, h=.02):
-    x_min, x_max = x.min() - 1, x.max() + 1
-    y_min, y_max = y.min() - 1, y.max() + 1
-    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                         np.arange(y_min, y_max, h))
-    return xx, yy
-
 
 def plot_one_class_initiation_classifier(option, episode, experiment_name):
+    def _plot_by_state_features(x_idx, y_idx, data):
+        ipdb.set_trace()
+        plt.scatter(data[:, x_idx], data[:, y_idx], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+        file_name = f"{option.name}_{episode}_{option.seed}"
+        plt.title(f"{option.name} One Class Initiation Set")
+        plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_one_class.png")
+        plt.close()
     positive_examples = option.construct_feature_matrix(option.positive_examples)
-    ipdb.set_trace()
-    plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
-    file_name = f"{option.name}_{episode}_{option.seed}"
-    plt.title(f"{option.name} One Class Initiation Set")
-    plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_one_class.png")
-    plt.close()
+    _plot_by_state_features(0, 1, positive_examples)
 
 
 def plot_two_class_classifier(option, episode, experiment_name):

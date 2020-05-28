@@ -1,7 +1,7 @@
 import numpy as np
 from simple_rl.mdp.StateClass import State
 from scipy.spatial import distance
-import pdb
+import ipdb
 
 
 class BaseSalientEvent(object):
@@ -46,6 +46,7 @@ class BaseSalientEvent(object):
     def is_init_true(self, state):
         position = self.get_relevant_position(state)
         target_position = self.get_relevant_position(self.target_state)
+        ipdb.set_trace()
         return np.linalg.norm(position - target_position) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
