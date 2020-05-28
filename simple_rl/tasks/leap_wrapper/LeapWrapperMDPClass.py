@@ -56,7 +56,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         ]
 
         action_dims = range(self.env.action_space.shape[0])
-        ipdb.set_trace()
         GoalDirectedMDP.__init__(self,
                                  action_dims,
                                  self._transition_func,

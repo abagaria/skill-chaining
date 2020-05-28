@@ -292,14 +292,14 @@ class SkillChaining(object):
 
     def make_smdp_update(self, state, action, total_discounted_reward, next_state, option_transitions):
         """
-		Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
-		Args:
-			state (State): state from which we started option execution
-			action (int): option taken by the global solver
-			total_discounted_reward (float): cumulative reward from the overall SMDP update
-			next_state (State): state we landed in after executing the option
-			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
-		"""
+        Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
+        Args:
+            state (State): state from which we started option execution
+            action (int): option taken by the global solver
+            total_discounted_reward (float): cumulative reward from the overall SMDP update
+            next_state (State): state we landed in after executing the option
+            option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
+        """
 
         def get_reward(transitions):
             gamma = self.global_option.solver.gamma
@@ -429,9 +429,6 @@ class SkillChaining(object):
         option_transitions, discounted_reward = selected_option.execute_option_in_mdp(self.mdp, episode_number,
                                                                                       step_number)
 
-        if selected_option.get_training_phase() is "initiation_done":
-            plot_two_class_classifier(selected_option, episode_number, args.experiment_name)
-
         option_reward = self.get_reward_from_experiences(option_transitions)
         next_state = self.get_next_state_from_experiences(option_transitions)
 
@@ -473,7 +470,8 @@ class SkillChaining(object):
         return any([chain.should_continue_chaining(self.chains) for chain in self.chains])
 
     def get_intersecting_options(self):
-        """ Iterate through all the skill chains and return all pairs of options that have intersecting initiation sets. """
+        """ Iterate through all the skill chains and return all pairs of options that have intersecting initiation
+        sets. """
         intersecting_pairs = []
         for chain in self.chains:  # type: SkillChain
             intersecting_options = chain.detect_intersection_with_other_chains(self.chains)
@@ -497,12 +495,11 @@ class SkillChaining(object):
 
     def manage_skill_chain_to_start_state(self, option):
         """
-		When we complete creating a skill-chain targeting a salient event,
-		we want to create a new skill chain that goes in the opposite direction.
-		Args:
-			option (Option)
-
-		"""
+        When we complete creating a skill-chain targeting a salient event,
+        we want to create a new skill chain that goes in the opposite direction.
+        Args:
+            option (Option)
+        """
         chain = self.chains[option.chain_id - 1]  # type: SkillChain
         assert not chain.is_backward_chain, "Only applicable for forward chains"
         if chain.chained_till_start_state() and not chain.has_backward_chain:
@@ -510,7 +507,7 @@ class SkillChaining(object):
 
             # 1. The new skill chain will chain back until it covers `start_states`
             # 2. The options in this new backward chain will use `start_predicate` as the
-            #	 default initiation set during gestation
+            # default initiation set during gestation
             start_states = [chain.target_salient_event.target_state]
             init_salient_event = chain.target_salient_event
 
@@ -549,14 +546,13 @@ class SkillChaining(object):
 
     def create_backward_skill_chain(self, start_event, target_event, intersecting_options=[]):
         """
-		Create a skill chain that takes you from target_event to start_event
-		Args:
-			start_event (): Chain will continue until this is covered. This is also the
-										default initiation set for backward options
-			target_event (BaseSalientEvent): Chain will try to hit this event
-			intersecting_options (list)
-
-		"""
+        Create a skill chain that takes you from target_event to start_event
+        Args:
+            start_event (): Chain will continue until this is covered. This is also the
+                            default initiation set for backward options
+            target_event (BaseSalientEvent): Chain will try to hit this event
+            intersecting_options (list)
+        """
         back_chain = SkillChain(start_states=[start_event.target_state],
                                 mdp_start_states=self.s0,
                                 target_salient_event=target_event,
@@ -590,10 +586,10 @@ class SkillChaining(object):
 
     def manage_intersecting_skill_chains(self):
         """
-		When two forward chains intersect, we want to create a new chain that goes from
-		their target salient events to the region of intersection.
+        When two forward chains intersect, we want to create a new chain that goes from
+        their target salient events to the region of intersection.
 
-		"""
+        """
         intersecting_options = self.get_intersecting_options()
 
         if intersecting_options:
@@ -655,9 +651,11 @@ class SkillChaining(object):
         short_chain.init_salient_event = intersection_salient_event
 
         print(
-            f"Set {short_chain}'s init event to {short_chain.init_salient_event}, while keeping {long_chain}'s init event as {long_chain.init_salient_event}")
+            f"Set {short_chain}'s init event to {short_chain.init_salient_event}, while keeping {long_chain}'s init "
+            f"event as {long_chain.init_salient_event}")
 
-    # Split the long chain into 2 parts: one that goes TO the intersection event and the other that goes to target_event
+        # Split the long chain into 2 parts: one that goes TO the intersection event and the other that goes to target_event
+
     # The split will occur at the intersection option that is part of the long chain
     # option1, option2 = intersecting_options[0], intersecting_options[1]  # type: Option
 
@@ -726,20 +724,10 @@ class SkillChaining(object):
                             if not untrained_option.initialize_everywhere:
                                 self.augment_agent_with_new_option(untrained_option, self.init_q)
 
-                            # Visualize option you just learned
-                            if untrained_option.classifier_type == "ocsvm":
-                                plot_one_class_initiation_classifier(untrained_option, episode, args.experiment_name)
-                            else:
-                                plot_two_class_classifier(untrained_option, episode, args.experiment_name)
-
                     # In the skill-graph setting, we have to check if the current option's chain
                     # is still accepting new options
                     if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done" \
                             and self.chains[untrained_option.chain_id - 1].should_continue_chaining(self.chains):
-
-                        # Debug visualization
-                        # Commented out because it assumes we're in point maze - Kiran
-                        # plot_two_class_classifier(untrained_option, episode, args.experiment_name)
 
                         # We fix the learned option's initiation set and remove it from the list of target events
                         self.untrained_options.remove(untrained_option)
@@ -811,6 +799,11 @@ class SkillChaining(object):
                 make_chunked_value_function_plot(option.solver, episode, self.seed, args.experiment_name)
                 visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, args.experiment_name)
                 visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, args.experiment_name)
+                if option.get_training_phase() == 'initiation_done' or option.get_training_phase() == 'initiation':
+                    if option.classifier_type == "ocsvm":
+                        plot_one_class_initiation_classifier(option, episode, args.experiment_name)
+                    else:
+                        plot_two_class_classifier(option, episode, args.experiment_name)
 
         for trained_option in self.trained_options:  # type: Option
             self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
@@ -827,7 +820,7 @@ class SkillChaining(object):
         training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
         training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
         validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
-        num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
+        num_option_history_file_name = "sc_pretrained_{}_num_options_per_episode_{}.pkl".format(pretrained, self.seed)
 
         if self.log_dir:
             training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
@@ -867,10 +860,10 @@ class SkillChaining(object):
 
     def trained_forward_pass(self, render=True):
         """
-		Called when skill chaining has finished training: execute options when possible and then atomic actions
-		Returns:
-			overall_reward (float): score accumulated over the course of the episode.
-		"""
+        Called when skill chaining has finished training: execute options when possible and then atomic actions
+        Returns:
+            overall_reward (float): score accumulated over the course of the episode.
+        """
         self.mdp.reset()
         state = deepcopy(self.mdp.init_state)
         overall_reward = 0.
@@ -906,7 +899,7 @@ def create_log_dir(experiment_name):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--experiment_name", type=str, help="Experiment Name", default="sc")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
     parser.add_argument("--pretrained", type=bool, help="whether or not to load pretrained options", default=False)

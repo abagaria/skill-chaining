@@ -132,72 +132,28 @@ def make_meshgrid(x, y, h=.02):
     return xx, yy
 
 
-def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
-    colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
-
-    plt.figure(figsize=(8.0, 5.0))
-    X = option.construct_feature_matrix(option.positive_examples)
-    X0, X1 = X[:, 0], X[:, 1]
-    xx, yy = make_meshgrid(X0, X1)
-    Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
-    Z1 = Z1.reshape(xx.shape)
-
-    color = colors[option.option_idx % len(colors)]
-    plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
-
-    plot_all_trajectories_in_initiation_data(option.positive_examples)
-
-    # background_image = imageio.imread("emaze_domain.png")
-    # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 18.])
-    #
-    # plt.xticks([])
-    # plt.yticks([])
-
-    plt.xlim((-10, 10))
-    plt.ylim((-10, 10))
-
-    plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
-    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-    plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
+def plot_one_class_initiation_classifier(option, episode, experiment_name):
+    positive_examples = option.construct_feature_matrix(option.positive_examples)
+    ipdb.set_trace()
+    plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+    file_name = f"{option.name}_{episode}_{option.seed}"
+    plt.title(f"{option.name} One Class Initiation Set")
+    plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_one_class.png")
     plt.close()
 
 
 def plot_two_class_classifier(option, episode, experiment_name):
-    def generate_plot(has_key):
-        states = get_grid_states()
-        values = get_initiation_set_values(option, has_key=has_key)
+    # Plot trajectories
+    positive_examples = option.construct_feature_matrix(option.positive_examples)
+    negative_examples = option.construct_feature_matrix(option.negative_examples)
+    plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+    if negative_examples.shape[0] > 0:
+        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+    file_name = f"{option.name}_{episode}_{option.seed}"
+    plt.title(f"{option.name} Two Class Initiation Set")
+    plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_two_class.png")
+    plt.close()
 
-        x = np.array([state.position[0] for state in states])
-        y = np.array([state.position[1] for state in states])
-        xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
-        xx, yy = np.meshgrid(xi, yi)
-        rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
-        zz = rbf(xx, yy)
-        plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.bwr)
-        plt.colorbar()
-
-        # Plot trajectories
-        positive_examples = option.construct_feature_matrix(option.positive_examples)
-        negative_examples = option.construct_feature_matrix(option.negative_examples)
-        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
-
-        if negative_examples.shape[0] > 0:
-            plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
-
-        # background_image = imageio.imread("four_room_domain.png")
-        # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
-
-        plt.xlim((-10, 10))
-        plt.ylim((-10, 10))
-
-        name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-
-        plt.title("{} Initiation Set".format(option.name))
-        plt.savefig("initiation_set_plots/{}/{}_has_key_{}_initiation_classifier_{}.png".format(experiment_name, name, has_key, option.seed))
-        plt.close()
-
-    generate_plot(has_key=True)
-    # generate_plot(has_key=False)
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
     goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))
