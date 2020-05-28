@@ -74,6 +74,13 @@ class SkillChain(object):
         return False
 
     def get_option_for_state(self, state):
+
+        if self.target_salient_event(state) and len(self.options) > 0:
+            goal_option = self.options[0]
+            assert goal_option.parent is None
+            assert goal_option.is_term_true(state)
+            return goal_option
+
         for option in self.options:  # type: Option
             if option.initiation_classifier is not None and \
                     option.is_init_true(state):

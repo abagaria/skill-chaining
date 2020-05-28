@@ -517,6 +517,8 @@ class SkillGraphPlanningAgent(object):
 
         # Select the option (options created earlier have a higher priority)
         options_with_goal_state = [chain.get_option_for_state(goal_state) for chain in chains_with_goal_state]
+        options_with_goal_state = [option for option in options_with_goal_state if option is not None]
+
         if len(options_with_goal_state) > 0:  # TODO: How to pick an option from this list of feasible choices?
             target_option = options_with_goal_state[0]
             return target_option
