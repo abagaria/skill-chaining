@@ -118,7 +118,6 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 
 
 def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, option, episode, experiment_name, negative_examples=None):
-    ipdb.set_trace()
     axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
     axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_z']
@@ -141,12 +140,14 @@ def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, opt
 def plot_one_class_initiation_classifier(option, episode, experiment_name):
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     _plot_initiation_sets(0, 1, positive_examples, "One Class", option, episode, experiment_name)
+    _plot_initiation_sets(3, 4, positive_examples, "One Class", option, episode, experiment_name)
 
 
 def plot_two_class_classifier(option, episode, experiment_name):
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
     _plot_initiation_sets(0, 1, positive_examples, "Two Class", option, episode, experiment_name, negative_examples)
+    _plot_initiation_sets(3, 4, positive_examples, "Two Class", option, episode, experiment_name, negative_examples)
 
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
