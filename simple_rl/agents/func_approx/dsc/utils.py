@@ -120,7 +120,7 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 def plot_one_class_initiation_classifier(option, episode, experiment_name):
     def _plot_by_state_features(x_idx, y_idx, data):
         ipdb.set_trace()
-        plt.scatter(data[:, x_idx], data[:, y_idx], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+        plt.scatter(data[:, x_idx], data[:, y_idx], label="positive", c="blue", alpha=0.3)
         file_name = f"{option.name}_{episode}_{option.seed}"
         plt.title(f"{option.name} One Class Initiation Set")
         plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_one_class.png")
@@ -130,12 +130,15 @@ def plot_one_class_initiation_classifier(option, episode, experiment_name):
 
 
 def plot_two_class_classifier(option, episode, experiment_name):
+    positive_color = "blue"
+    negative_color = "red"
     # Plot trajectories
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
-    plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+    plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", c=positive_color, alpha=0.3)
     if negative_examples.shape[0] > 0:
-        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", c=negative_color, alpha=0.3)
+        plt.legend()
     file_name = f"{option.name}_{episode}_{option.seed}"
     plt.title(f"{option.name} Two Class Initiation Set")
     plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_two_class.png")

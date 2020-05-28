@@ -685,6 +685,7 @@ class Option(object):
 			# if self.is_valid_init_data(positive_states):
 			positive_examples = [state.features() for state in positive_states]
 			self.positive_examples.append(positive_examples)
+			ipdb.set_trace()
 
 		elif num_steps == self.timeout and self.get_training_phase() == "initiation":
 			negative_examples = [start_state.position]
