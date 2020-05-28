@@ -6,12 +6,13 @@ import pdb
 
 class BaseSalientEvent(object):
     def __init__(self, target_state, event_idx, name=None, tolerance=0.6,
-            intersection_event=False, get_relevant_position=None):
-            
+                 intersection_event=False, get_relevant_position=None):
+
         self.event_idx = event_idx
         self.tolerance = tolerance
         self.target_state = target_state
         self.name = name
+        self.intersection_event = intersection_event
 
         if get_relevant_position is None:
             self.get_relevant_position = self._get_position
@@ -19,6 +20,7 @@ class BaseSalientEvent(object):
             self.get_relevant_position = get_relevant_position
 
         assert isinstance(tolerance, float)
+        assert isinstance(target_state, np.ndarray), type(target_state)
 
     def __call__(self, states):
         """

@@ -20,7 +20,7 @@ import pdb
 
 
 class LeapWrapperMDP(GoalDirectedMDP):
-    ''' Class for Leap Wrapper MDPs '''
+    """ Class for Leap Wrapper MDPs """
 
     def __init__(self, dense_reward=False, render=False):
         self.env_name = "sawyer"
@@ -31,7 +31,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         # Configure env
         multiworld.register_all_envs()
-        self.env = gym.make('SawyerPushAndReachArenaEnv-v0')
+        self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=False)
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
         # Will this exist in all gym environments??
@@ -40,21 +40,23 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Sets the initial state
         self.reset()
 
-        puck_init_state = self.init_state[3:]
-        hand_at_puck_state = np.zeros(5)
-        hand_at_puck_state[:2] = puck_init_state
-        hand_at_puck_state[2] = 0.02
+        # hand_init is ignored by the base salient event - just using it as a placeholder. Could be [0,0,0]
+        hand_init = self.init_state[:3]
+        puck_intermediate_1 = np.concat(hand_init, [-0.05, 0.6])
+        puck_intermediate_2 = np.concat(hand_init, [-0.1, 0.6])
+        puck_goal = np.concat(hand_init, self.goal_state[3:])
 
         salient_events = [
-            BaseSalientEvent(self.goal_state, 1, name='End Effector to goal', tolerance=self.threshold,
-                             get_relevant_position=get_endeff_pos),
-            BaseSalientEvent(self.goal_state, 2, name='Puck to goal', tolerance=self.threshold,
-                             get_relevant_position=get_puck_pos),
-            BaseSalientEvent(hand_at_puck_state, 3, name='Hand touching puck', tolerance=self.threshold,
-                             get_relevant_position=get_xy_endeff_pos)
+            BaseSalientEvent(puck_intermediate_1, 1, name='Puck to goal 1/3',
+                             tolerance=self.threshold, get_relevant_position=get_puck_pos),
+            BaseSalientEvent(puck_intermediate_2, 2, name='Puck to goal 2/3',
+                             tolerance=self.threshold, get_relevant_position=get_puck_pos),
+            BaseSalientEvent(puck_goal, 2, name='Puck to goal 3/3',
+                             tolerance=self.threshold, get_relevant_position=get_puck_pos)
         ]
 
         action_dims = range(self.env.action_space.shape[0])
+        ipdb.set_trace()
         GoalDirectedMDP.__init__(self,
                                  action_dims,
                                  self._transition_func,
@@ -67,13 +69,11 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  )
 
     def _reward_func(self, state, action):
-        next_state, dense_reward, done, _ = self.env.step(action)
+        assert isinstance(action, np.ndarray), type(action)
+        next_state, reward, done, _ = self.env.step(action)
         if self.render:
             self.env.render()
-        self.next_state = self._get_state(next_state, done)
-        if self.dense_reward:
-            return dense_reward
-        return 0 if self.is_goal_state(state) else -1
+        return reward
 
     def _transition_func(self, state, action):
         # References the next state calculated in the reward function
@@ -97,7 +97,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
     def is_goal_state(self, state):
         if isinstance(state, LeapWrapperState):
             return state.is_terminal()
-        return self.distance_from_goal(state) < self.threshold
+        return self.env.is_goal_state(state)
 
     def distance_from_goal(self, state):
         state_pos = state.position if isinstance(state, LeapWrapperState) else state
