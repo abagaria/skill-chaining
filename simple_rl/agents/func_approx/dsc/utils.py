@@ -1,6 +1,5 @@
 # Python imports.
-import pdb
-
+import os
 import ipdb
 import numpy as np
 import scipy.interpolate
@@ -122,7 +121,6 @@ def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, opt
     axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
     axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
-    ipdb.set_trace()
     plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.3)
     if negative_examples is not None:
         plt.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.3)
@@ -334,3 +332,15 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
     plt.close()
 
     return qvalues.max()
+
+
+def rotate_file_name(file_path):
+    if os.path.isdir(file_path):
+        suffix = 1
+        file_path += "_" + str(suffix)
+        while os.path.isdir(file_path):
+            suffix += 1
+            file_path = file_path[:-1] + str(suffix)
+        return file_path
+    else:
+        return file_path
