@@ -439,14 +439,9 @@ def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
     plt.close()
 
-def plot_dco_salient_event(salient_event, replay_buffer, experiment_name=""):
+def plot_dco_salient_event(ax, salient_event, states):
     option = salient_event.covering_option
     is_low = salient_event.is_low
-
-    fig = plt.figure()
-    ax2d = fig.add_subplot(1, 1, 1)
-
-    states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
 
     target_state = salient_event.target_state
 
@@ -458,29 +453,51 @@ def plot_dco_salient_event(salient_event, replay_buffer, experiment_name=""):
     normalize = matplotlib.colors.Normalize(vmin=min(option_init_values), vmax=max(option_init_values))
     colors = [cmap(normalize(v)) for v in option_init_values]
 
-    ax2d.scatter(option_init_states[:, 0], option_init_states[:, 1], c=colors)
+    ax.scatter(option_init_states[:, 0], option_init_states[:, 1], c=colors)
 
     # salient event initiation set is a subset of the covering option termination set
     event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
     event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
 
-    ax2d.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], c="orange")
-    ax2d.scatter(event_init_states[:, 0], event_init_states[:, 1], c="green")
+    ax.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], c="orange")
+    ax.scatter(event_init_states[:, 0], event_init_states[:, 1], c="green")
 
-    ax2d.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
+    ax.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
 
     low_bound_x, up_bound_x = -11, 11
     # low_bound_y, up_bound_y = -3, 11
 
-    ax2d.set_xlim((low_bound_x, up_bound_x))
-    # ax2d.set_ylim((low_bound_y, up_bound_y))
+    ax.set_xlim((low_bound_x, up_bound_x))
+    # ax.set_ylim((low_bound_y, up_bound_y))
 
-    ax2d.set_xlabel("x")
-    ax2d.set_ylabel("y")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
 
+def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, experiment_name=""):
+    fig, axs = plt.subplots(2, figsize=(8, 10))
+
+    states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
+    plot_dco_salient_event(axs[0], low_event, states)
+    plot_dco_salient_event(axs[1], high_event, states)
+
+    # global_states = np.array(global_buffer.sample(min(4000, len(global_buffer)), get_tensor=False)[0])
+    # plot_dco_salient_event(axs[0, 0], global_low_event, global_states)
+    # plot_dco_salient_event(axs[1, 0], global_high_event, global_states)
+
+    # smdp_states = np.array(smdp_buffer.sample(min(4000, len(smdp_buffer)), get_tensor=False)[0])
+    # plot_dco_salient_event(axs[0, 1], smdp_low_event, smdp_states)
+    # plot_dco_salient_event(axs[1, 1], smdp_high_event, smdp_states)
+
+    option = low_event.covering_option
     name = option.name
     threshold = option.threshold
     beta = option.beta
-    fig.suptitle(f"Covering Options with threshold {threshold}, buffer size {len(replay_buffer)},\n and beta {beta:.4f}")
-    plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
+
+    axs[0].set_title(f"Min (replay buffer of size {len(replay_buffer)})")
+    axs[1].set_title(f"Max (replay buffer of size {len(replay_buffer)})")
+    # axs[0, 1].set_title(f"SMDP Min (replay buffer of size {len(smdp_buffer)})")
+    # axs[1, 1].set_title(f"SMDP Max (replay buffer of size {len(smdp_buffer)})")
+
+    fig.suptitle(f"Salient events with threshold={threshold} and beta={beta:.4f}")
+    plt.savefig("initiation_set_plots/{}/{}_{}_threshold.png".format(experiment_name, name, threshold))
     plt.close()

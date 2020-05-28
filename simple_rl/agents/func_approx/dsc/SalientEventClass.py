@@ -118,7 +118,7 @@ class LearnedSalientEvent(SalientEvent):
 
 
 class DCOSalientEvent(SalientEvent):
-    def __init__(self, covering_option, event_idx, replay_buffer, is_low, tolerance=1.0, intersection_event=False):
+    def __init__(self, covering_option, event_idx, replay_buffer, is_low, tolerance=2.0, intersection_event=False):
         self.covering_option = covering_option
         self.is_low = is_low
 

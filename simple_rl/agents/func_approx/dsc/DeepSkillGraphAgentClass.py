@@ -68,42 +68,46 @@ class DeepSkillGraphAgent(object):
     def discover_new_salient_event(self, replay_buffer):
         # currently threshold and beta are hardcoded
         event_idx = len(self.mdp.all_salient_events_ever) + 1
+        buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
         c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                    num_training_steps=1000,
                                    option_idx=event_idx,
-                                   name=f"covering-options-{event_idx}_threshold-{self.threshold}",
+                                   name=f"covering-options-{event_idx}_{buffer_type}_threshold-{self.threshold}",
                                    threshold=self.threshold,
                                    beta=0.1)
 
         low_salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer, is_low=True)
-        plot_dco_salient_event(low_salient_event, replay_buffer, experiment_name=args.experiment_name)
+        # plot_dco_salient_event(low_salient_event, replay_buffer, experiment_name=args.experiment_name)
         self.generated_salient_events.append(low_salient_event)
         self.mdp.add_new_target_event(low_salient_event)
 
         high_salient_event = DCOSalientEvent(c_option, event_idx, replay_buffer, is_low=False)
-        plot_dco_salient_event(high_salient_event, replay_buffer, experiment_name=args.experiment_name)
+        # plot_dco_salient_event(high_salient_event, replay_buffer, experiment_name=args.experiment_name)
         self.generated_salient_events.append(high_salient_event)
         self.mdp.add_new_target_event(high_salient_event)
 
+        return low_salient_event, high_salient_event
+
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
-        # if self.use_smdp_replay_buffer:
-        #     replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
-        # else:
-        #     replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
+        if self.use_smdp_replay_buffer:
+            replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
+        else:
+            replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
 
         for episode in range(episodes):
 
             if not (episode + 1) % self.salient_event_freq:
 
-                # if len(replay_buffer):
-                #     self.discover_new_salient_event(replay_buffer)
-                global_replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
-                smdp_replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
-                if len(global_replay_buffer):
-                    self.discover_new_salient_event(global_replay_buffer)
-                if len(smdp_replay_buffer):
-                    self.discover_new_salient_event(smdp_replay_buffer)
+                low_event, high_event = self.discover_new_salient_event(replay_buffer)
+                # global_replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
+                # smdp_replay_buffer = self.dsc_agent.agent_over_options.replay_buffer
+                # # if len(global_replay_buffer):
+                # global_low_event, global_high_event = self.discover_new_salient_event(global_replay_buffer)
+                # # if len(smdp_replay_buffer):
+                # smdp_low_event, smdp_high_event = self.discover_new_salient_event(smdp_replay_buffer)
+
+                plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, self.experiment_name)
 
             step_number = 0
             self.mdp.reset()
