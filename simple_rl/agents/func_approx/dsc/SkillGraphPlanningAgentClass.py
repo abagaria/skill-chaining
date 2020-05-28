@@ -15,7 +15,7 @@ from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_p
 
 
 class SkillGraphPlanningAgent(object):
-    def __init__(self, *, mdp, chainer, pretrain_option_policies, initialize_graph, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, pretrain_option_policies, initialize_graph, use_ucb, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -26,6 +26,7 @@ class SkillGraphPlanningAgent(object):
             chainer (SkillChaining)
             pretrain_option_policies (bool)
             initialize_graph (bool)
+            use_ucb (bool)
             experiment_name (str)
             seed (int)
         """
@@ -33,6 +34,7 @@ class SkillGraphPlanningAgent(object):
         self.chainer = chainer
         self.pretrain_option_policies = pretrain_option_policies
         self.initialize_graph = initialize_graph
+        self.use_ucb = use_ucb
         self.experiment_name = experiment_name
         self.seed = seed
 
@@ -74,6 +76,13 @@ class SkillGraphPlanningAgent(object):
                 return admissible_options[0]  # type: Option
             return None
 
+        def _get_revised_goal_state(inside_target):
+            if isinstance(inside_target, Option):
+                return inside_target.sample_state()
+            if isinstance(inside_target, SalientEvent):
+                return inside_target.target_state
+            return None
+
         if self.plan_graph.does_path_exist(start_state, goal_state):
             plan = self.plan_graph.get_path_to_execute(start_state, goal_state)
             if len(plan) > 0:
@@ -82,7 +91,7 @@ class SkillGraphPlanningAgent(object):
                     return selected_option
 
         # If the goal state is outside the graph, we want to use the planner to get to the `target_option`
-        revised_goal_state = target_option.sample_state()
+        revised_goal_state = _get_revised_goal_state(target_option)
         if revised_goal_state is not None and not inside_graph:
             if self.plan_graph.does_path_exist(start_state, revised_goal_state):
                 plan = self.plan_graph.get_path_to_execute(start_state, revised_goal_state)
@@ -141,7 +150,7 @@ class SkillGraphPlanningAgent(object):
             target_salient_event = _create_new_salient_event()
         return target_salient_event
 
-    def should_planning_run_loop_terminate(self, state, goal_state, goal_salient_event, target_option, salient_event_inside_graph):
+    def should_planning_run_loop_terminate(self, state, goal_state, goal_salient_event, inside_target, salient_event_inside_graph):
         """
         There are 3 possible cases:
         1. When the goal_state is a salient event we already know how to get to:
@@ -159,7 +168,7 @@ class SkillGraphPlanningAgent(object):
             state (State)
             goal_state (State)
             goal_salient_event (SalientEvent)
-            target_option (Option)
+            inside_target (Option or SalientEvent): Target event inside the graph (can be option or salient-event)
             salient_event_inside_graph (bool): Whether the salient event is inside the known part of the graph
 
         Returns:
@@ -174,14 +183,14 @@ class SkillGraphPlanningAgent(object):
         if salient_event_inside_graph:
             if self.is_state_in_known_salient_event(goal_state):
                 return goal_salient_event(state)
-            return target_option.is_init_true(state)
+            return inside_target.is_init_true(state)
 
         # -- When the target event is outside the graph, we want to terminate when we reach the
         # -- option which we have chosen to fall off the graph from.
         # -- The small caveat is that random actions could have taken us to the test-goal, in
         # -- which case we should also terminate.
         else:
-            reached_jumping_off_point = target_option.is_init_true(state)
+            reached_jumping_off_point = inside_target.is_init_true(state)
             magically_reached_goal = goal_salient_event(state)
             return reached_jumping_off_point or magically_reached_goal
 
@@ -202,6 +211,8 @@ class SkillGraphPlanningAgent(object):
                                   option from anywhere.
         """
         if goal_event_inside_graph:
+            if not isinstance(target_option, Option):
+                ipdb.set_trace()
             new_option = self.create_goal_option_inside_graph(target_option, goal_salient_event)
         else:
             new_option = self.create_goal_option_outside_graph(goal_salient_event)
@@ -291,8 +302,9 @@ class SkillGraphPlanningAgent(object):
         for newly_created_option in newly_created_options:  # type: Option
             self.add_newly_created_option_to_plan_graph(newly_created_option)
 
-        self.manage_bandits_after_dsc_rollout(pre_rollout_state, newly_created_options,
-                                              goal_salient_event, jumped_off_the_graph=jumped_off_the_graph)
+        if self.use_ucb:
+            self.manage_bandits_after_dsc_rollout(pre_rollout_state, newly_created_options,
+                                                  goal_salient_event, jumped_off_the_graph=jumped_off_the_graph)
 
     def manage_bandits_after_dsc_rollout(self, pre_rollout_state, newly_created_options,
                                          goal_salient_event, jumped_off_the_graph):
@@ -309,6 +321,8 @@ class SkillGraphPlanningAgent(object):
         Returns:
 
         """
+        assert self.use_ucb
+
         for newly_created_option in newly_created_options:  # type: Option
 
             # If the newly created option is part of a completed chain, then we should tell all
@@ -336,6 +350,7 @@ class SkillGraphPlanningAgent(object):
 
         """
         assert new_option.get_training_phase() == "initiation_done"
+        assert self.use_ucb
         for salient_event in self.bandit_agents:  # type: SalientEvent
             if not new_option.backward_option:  # TODO: Adding condition for implementation ease for now
                 bandit = self.bandit_agents[salient_event]
@@ -457,11 +472,11 @@ class SkillGraphPlanningAgent(object):
         target_option, inside_graph = self.get_target_option(goal_state, goal_salient_event, backward_direction=False)
 
         # If your goal is outside the graph and you are already at the target option, run skill chaining.
-        already_at_target_option = self.is_at_target_option(target_option, state) and not inside_graph
-        no_planning_possible = self.is_plan_graph_empty() or already_at_target_option
+        already_at_target = self.is_at_target_inside_graph(target_option, state) and not inside_graph
+        no_planning_possible = self.is_plan_graph_empty() or already_at_target
 
         if no_planning_possible:
-            print(f"Handing control to DSC - already_at_target_option {already_at_target_option} \t empty_graph: {self.is_plan_graph_empty()}")
+            print(f"Handing control to DSC - already_at_target_option {already_at_target} \t empty_graph: {self.is_plan_graph_empty()}")
             state, step_number = self.execute_actions_to_reach_goal(episode, step_number,
                                                                     inside_graph, new_option=None,
                                                                     goal_salient_event=goal_salient_event,
@@ -528,7 +543,7 @@ class SkillGraphPlanningAgent(object):
         if inside_target_option is not None:
             return inside_target_option, True
 
-        if goal_salient_event not in self.bandit_agents:
+        if self.use_ucb and goal_salient_event not in self.bandit_agents:
             candidate_options = self.get_options_in_known_part_of_the_graph()
             candidate_options = [option for option in candidate_options if not option.backward_option]  # TODO: This only makes sense if you start at s0
             self.bandit_agents[goal_salient_event] = UCBActionSelectionAgent(goal_state=goal_state,
@@ -551,12 +566,34 @@ class SkillGraphPlanningAgent(object):
         known_options = list(itertools.chain.from_iterable(known_options))
         return known_options
 
+    def get_events_in_known_part_of_the_graph(self):
+        def _chain_contains_event(c, e):
+            return c.target_salient_event == e or c.init_salient_event == e
+
+        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed(self.chainer.chains)]
+        known_events = self.plan_graph.salient_nodes
+        known_events_inside_graph = []
+        for event in known_events:  # type: SalientEvent
+            if any([_chain_contains_event(chain, event) for chain in completed_chains]):
+                known_events_inside_graph.append(event)
+        return list(set(known_events_inside_graph))
+
     def is_plan_graph_empty(self):
         return len(self.get_options_in_known_part_of_the_graph()) == 0
 
-    def is_at_target_option(self, target_option, state):
-        if target_option is not None:
-            return target_option.is_init_true(state)
+    def is_at_target_inside_graph(self, target, state):
+        """
+
+        Args:
+            target (SalientEvent or Option)
+            state (State)
+
+        Returns:
+            at_target (bool)
+        """
+        if target is not None:
+            assert isinstance(target, (Option, SalientEvent))
+            return target.is_init_true(state)
         return False
 
     def create_goal_option_inside_graph(self, train_goal_option, target_salient_event):
@@ -764,11 +801,27 @@ class SkillGraphPlanningAgent(object):
                 _modify_edge_weight_of_root_option(selected_option)
 
     def choose_option_to_fall_off_graph_from(self, goal_salient_event):
-        if not self.is_plan_graph_empty():
+        def _ucb_choose_option_to_fall_off_graph_from():
             bandit_agent = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
             selected_option = bandit_agent.act()  # type: Option
-            print(f"Chose {selected_option} to fall off the graph from")
+            print(f"[UCB-Node-Selection] Chose {selected_option} to fall off the graph from")
             return selected_option
+
+        def _distance_choose_event_too_fall_off_graph_from():
+            candidate_events = self.get_events_in_known_part_of_the_graph()
+            candidate_events = [event for event in candidate_events if event != goal_salient_event]
+            distances = [np.linalg.norm(event.target_state - goal_salient_event.target_state) for event in candidate_events]
+            selected_idx = np.argmin(distances)
+            selected_idx = distances[0] if isinstance(distances, np.ndarray) else selected_idx
+            selected_event = candidate_events[selected_idx]
+            print(f"[Distance-Node-Selection] Chose {selected_event} to fall off the graph from")
+            return selected_event
+
+        if not self.is_plan_graph_empty():
+            if self.use_ucb:
+                return _ucb_choose_option_to_fall_off_graph_from()
+            return _distance_choose_event_too_fall_off_graph_from()
+
         return None
 
     def is_state_inside_graph(self, state):

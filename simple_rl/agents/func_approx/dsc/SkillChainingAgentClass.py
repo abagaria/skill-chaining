@@ -417,7 +417,7 @@ class SkillChaining(object):
 			self.chains[chain_idx].options.append(newly_trained_option)
 
 		# Set the option_idx for the newly added option
-		newly_trained_option.option_idx = self.current_option_idx
+		newly_trained_option.option_idx = len(self.trained_options) - 1
 		self.current_option_idx += 1
 
 		# Augment the global DQN with the newly trained option

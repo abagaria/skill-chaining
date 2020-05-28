@@ -197,10 +197,10 @@ class DeepSkillGraphAgent(object):
         return False
 
     def generate_candidate_salient_events(self):  # TODO: This needs to happen multiple times, not just once
-        # if self.should_set_off_learning_backward_options():
-        #     self.set_off_learning_backward_options()
-        #
-        #     return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        if self.should_set_off_learning_backward_options():
+            self.set_off_learning_backward_options()
+
+            return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
 
         return self.mdp.get_all_target_events_ever()
 
@@ -295,6 +295,7 @@ if __name__ == "__main__":
     parser.add_argument("--dco_use_xy_prior", action="store_true", default=False)
     parser.add_argument("--plot_rejected_events", action="store_true", default=False)
     parser.add_argument("--use_dco", action="store_true", default=False)
+    parser.add_argument("--use_ucb", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -382,7 +383,8 @@ if __name__ == "__main__":
                                       experiment_name=args.experiment_name,
                                       seed=args.seed,
                                       initialize_graph=False,
-                                      pretrain_option_policies=args.pretrain_option_policies)
+                                      pretrain_option_policies=args.pretrain_option_policies,
+                                      use_ucb=args.use_ucb)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
                                     dsc_agent=chainer,
