@@ -117,32 +117,36 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
     plt.close()
 
 
+def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, option, episode, experiment_name, negative_examples=None):
+    ipdb.set_trace()
+    axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
+    axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
+    axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_z']
+    plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="blue", alpha=0.3)
+    if negative_examples is not None:
+        plt.scatter(negative_examples[:, x_idx], negative_examples[:, x_idx], label="negative", c="red", alpha=0.3)
+        plt.legend()
+    if axis_low is not None and axis_high is not None:
+        plt.xlim(axis_low[x_idx], axis_high[x_idx])
+        plt.xlim(axis_low[y_idx], axis_high[y_idx])
+    if axis_labels is not None:
+        plt.xlabel(axis_labels[x_idx])
+        plt.ylabel(axis_labels[y_idx])
+    file_name = f"{option.name}_{axis_labels[x_idx]}_{axis_labels[y_idx]}_{episode}_{option.seed}_{which_classifier}"
+    plt.title(f"{option.name} {which_classifier} Initiation Set")
+    plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}.png")
+    plt.close()
+
+
 def plot_one_class_initiation_classifier(option, episode, experiment_name):
-    def _plot_by_state_features(x_idx, y_idx, data):
-        ipdb.set_trace()
-        plt.scatter(data[:, x_idx], data[:, y_idx], label="positive", c="blue", alpha=0.3)
-        file_name = f"{option.name}_{episode}_{option.seed}"
-        plt.title(f"{option.name} One Class Initiation Set")
-        plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_one_class.png")
-        plt.close()
     positive_examples = option.construct_feature_matrix(option.positive_examples)
-    _plot_by_state_features(0, 1, positive_examples)
+    _plot_initiation_sets(0, 1, positive_examples, "One Class", option, episode, experiment_name)
 
 
 def plot_two_class_classifier(option, episode, experiment_name):
-    positive_color = "blue"
-    negative_color = "red"
-    # Plot trajectories
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
-    plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", c=positive_color, alpha=0.3)
-    if negative_examples.shape[0] > 0:
-        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", c=negative_color, alpha=0.3)
-        plt.legend()
-    file_name = f"{option.name}_{episode}_{option.seed}"
-    plt.title(f"{option.name} Two Class Initiation Set")
-    plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}_two_class.png")
-    plt.close()
+    _plot_initiation_sets(0, 1, positive_examples, "Two Class", option, episode, experiment_name, negative_examples)
 
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
