@@ -1,6 +1,4 @@
 # Python imports
-from copy import deepcopy
-
 import numpy as np
 
 # Local imports
@@ -8,8 +6,9 @@ from simple_rl.mdp.StateClass import State
 
 ''' GymStateClass.py: Contains a State class for Gym. '''
 
+
 class LeapWrapperState(State):
-    ''' Gym State class '''
+    """ Gym State class """
 
     def __init__(self, endeff_pos, puck_pos, done):
         """
@@ -28,15 +27,15 @@ class LeapWrapperState(State):
         self.position = np.array(features)
 
         State.__init__(self, data=features, is_terminal=done)
-    
-    def __str__(self):
-        return "hand_xpos: {}\thand_ypos: {}\thand_zpos: {}\tpuck_xpos: {}\tpuck_ypos: {}\tterminal: {}\n".format(self.endeff_pos[0],
-                                                                                                        self.endeff_pos[1],
-                                                                                                        self.endeff_pos[2],
-                                                                                                        self.puck_pos[0],
-                                                                                                        self.puck_pos[1],
-                                                                                                        self.is_terminal())
 
+    def __str__(self):
+        return "hand_xpos: {}\thand_ypos: {}\thand_zpos: {}\tpuck_xpos: {}\tpuck_ypos: {}\tterminal: {}\n" \
+            .format(self.endeff_pos[0],
+                    self.endeff_pos[1],
+                    self.endeff_pos[2],
+                    self.puck_pos[0],
+                    self.puck_pos[1],
+                    self.is_terminal())
 
     def __repr__(self):
         return str(self)

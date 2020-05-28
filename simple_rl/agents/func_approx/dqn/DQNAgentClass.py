@@ -267,7 +267,7 @@ class DQNAgent(Agent):
         with torch.no_grad():
             action_values = self.policy_network(state)
         self.policy_network.train()
-        if(len(action_values) > 3):
+        if len(action_values) > 3:
             pdb.set_trace()
 
         impossible_option_idx = self.get_impossible_option_idx(state)

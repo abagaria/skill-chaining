@@ -123,9 +123,9 @@ def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, opt
     axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
     ipdb.set_trace()
-    plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="blue", alpha=0.3)
+    plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.3)
     if negative_examples is not None:
-        plt.scatter(negative_examples[:, x_idx], negative_examples[:, x_idx], label="negative", c="red", alpha=0.3)
+        plt.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.3)
         plt.legend()
     if axis_low is not None and axis_high is not None:
         plt.xlim(axis_low[x_idx], axis_high[x_idx])
