@@ -42,9 +42,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         # hand_init is ignored by the base salient event - just using it as a placeholder. Could be [0,0,0]
         hand_init = self.init_state[:3]
-        puck_intermediate_1 = np.concat(hand_init, [-0.05, 0.6])
-        puck_intermediate_2 = np.concat(hand_init, [-0.1, 0.6])
-        puck_goal = np.concat(hand_init, self.goal_state[3:])
+        puck_intermediate_1 = np.concatenate((hand_init, [-0.05, 0.6]))
+        puck_intermediate_2 = np.concatenate((hand_init, [-0.1, 0.6]))
+        puck_goal = np.concatenate((hand_init, self.goal_state[3:]))
+        print(puck_intermediate_1, puck_intermediate_2, puck_goal)
 
         salient_events = [
             BaseSalientEvent(puck_intermediate_1, 1, name='Puck to goal 1/3',
