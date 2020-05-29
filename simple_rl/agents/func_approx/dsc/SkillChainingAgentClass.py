@@ -899,7 +899,7 @@ def create_log_dir(experiment_name):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment_name", type=str, help="Experiment Name", default="skill_chaining")
+    parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
     parser.add_argument("--pretrained", type=bool, help="whether or not to load pretrained options", default=False)
@@ -966,13 +966,19 @@ if __name__ == '__main__':
         overall_mdp.env.seed(args.seed)
 
     # Create folders for saving various things
-    # file_path = rotate_file_name(f"saved_runs/{args.experiment_name}")
     logdir = create_log_dir(args.experiment_name)
     create_log_dir("saved_runs")
     create_log_dir("value_function_plots")
     create_log_dir("initiation_set_plots")
     create_log_dir("value_function_plots/{}".format(args.experiment_name))
     create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
+
+    # file_path = rotate_file_name(f"saved_runs/{args.experiment_name}")
+    # logdir = create_log_dir(args.experiment_name)
+    # create_log_dir(f"{logdir}/initiation_set_plots")
+    # create_log_dir(f"{logdir}/value_function_plots")
+    # create_log_dir(f"{logdir}/saved_model")
+    # create_log_dir(f"{logdir}/scores")
 
     print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
     print("MDP InitState = ", overall_mdp.init_state)

@@ -118,23 +118,39 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
 
 def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, option, episode, experiment_name, negative_examples=None):
     print(f"Plotting initiation set of {option.name}")
+
+    # sawyer constants
     axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
     axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
+
+    # graphing constants
+    x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
+    x_low, x_high, y_low, y_high = axis_low[x_idx], axis_high[x_idx], axis_low[y_idx], axis_high[y_idx]
+
+    # plot positive and negative examples
     plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.3)
     if negative_examples is not None:
         plt.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.3)
         plt.legend()
-    if axis_low is not None and axis_high is not None:
-        plt.xlim(axis_low[x_idx], axis_high[x_idx])
-        plt.xlim(axis_low[y_idx], axis_high[y_idx])
-    if axis_labels is not None:
-        plt.xlabel(axis_labels[x_idx])
-        plt.ylabel(axis_labels[y_idx])
+
+    # plot option target state
     if option.target_salient_event is not None:
         target = option.target_salient_event.target_state
         plt.scatter(target[x_idx], target[y_idx], c="black", marker="x", s=30)
-    file_name = f"{option.name}_{axis_labels[x_idx]}_{axis_labels[y_idx]}_{episode}_{option.seed}_{which_classifier}"
+
+    # set axes labels
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+
+    # set axes ticks
+    plt.xlim(x_low, x_high)
+    plt.ylim(y_low, y_high)
+    plt.xticks(np.linspace(x_low, x_high, 5))
+    plt.yticks(np.linspace(y_low, y_high, 7))
+
+    # save plot as png
+    file_name = f"{option.name}_{x_label}_{y_label}_{episode}_{option.seed}_{which_classifier}"
     plt.title(f"{option.name} {which_classifier} Initiation Set")
     plt.savefig(f"initiation_set_plots/{experiment_name}/{file_name}.png")
     plt.close()
@@ -307,29 +323,32 @@ def visualize_buffer(option, episode, seed, experiment_name):
 
 def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([exp[0] for exp in replay_buffer.memory])
-    actions = np.array([exp[1] for exp in replay_buffer.memory])
 
-    # Chunk up the inputs so as to conserve GPU memory
-    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
-    state_chunks = np.array_split(states, num_chunks, axis=0)
-    action_chunks = np.array_split(actions, num_chunks, axis=0)
-    qvalues = np.zeros((states.shape[0],))
-    current_idx = 0
+    # If statement checks if option has just been made and hasn't been executed yet.
+    # We need to check because splitting into state and action chunks will error if the array is empty.
+    if len(replay_buffer.memory) > 0:
+        states = np.array([exp[0] for exp in replay_buffer.memory])
+        actions = np.array([exp[1] for exp in replay_buffer.memory])
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+        state_chunks = np.array_split(states, num_chunks, axis=0)
+        action_chunks = np.array_split(actions, num_chunks, axis=0)
+        qvalues = np.zeros((states.shape[0],))
+        current_idx = 0
 
-    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
-        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
-        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
-        current_chunk_size = len(state_chunk)
-        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
-        current_idx += current_chunk_size
+        for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+            state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+            action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+            current_chunk_size = len(state_chunk)
+            qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+            current_idx += current_chunk_size
 
-    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
-    plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
+        plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+        plt.colorbar()
+        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+        plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+        plt.close()
 
     return qvalues.max()
 
