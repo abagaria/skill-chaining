@@ -353,7 +353,7 @@ def make_chunked_value_function_plot(solver, episode, seed, logdir, chunk_size=1
 def create_log_dirs(directory_path):
     def _create_log_dir(path_name):
         try:
-            os.path.mkdirs(path_name)
+            os.makedirs(path_name)
         except OSError:
             print("Creation of the directory %s failed" % os.path.join(os.getcwd(), path_name))
         else:
