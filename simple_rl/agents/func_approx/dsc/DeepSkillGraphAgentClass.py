@@ -307,6 +307,13 @@ if __name__ == "__main__":
                                       use_hard_coded_events=args.use_hard_coded_events)
         state_dim = 6
         action_dim = 2
+    elif args.env == "ant-reacher":
+        from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
+        overall_mdp = AntReacherMDP(seed=args.seed,
+                                    render=args.render,
+                                    use_hard_coded_events=args.use_hard_coded_events)
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)

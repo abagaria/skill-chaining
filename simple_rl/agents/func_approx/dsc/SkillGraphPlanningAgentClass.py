@@ -400,6 +400,25 @@ class SkillGraphPlanningAgent(object):
             print(f"Case 1: Adding edge from {newly_created_option} to {newly_created_option.parent}")
             self.plan_graph.add_edge(newly_created_option, newly_created_option.parent, edge_weight=1.)
 
+        # Case 4: I did not consider this case before. But, you could also intersect with any other
+        # event in the MDP -- you might not rewire your chain because that event is not "completed/chained-to",
+        # but that still means that there should be an edge from it to the newly learned option
+        if self.chainer.event_intersection_salience or self.chainer.option_intersection_salience:
+            # 1. Get intersecting events
+            # 2. Add an edge from each intersecting event to the newly_created_option
+            events = [event for event in self.mdp.get_all_target_events_ever() if event != chain.target_salient_event]
+            intersecting_events = [event for event in events
+                                   if chain.detect_intersection_between_option_and_event(newly_created_option, event)]
+            for event in intersecting_events:  # type: SalientEvent
+                assert isinstance(event, SalientEvent)
+                print(f"Adding edge from {event} to {newly_created_option}")
+                self.plan_graph.add_edge(event, newly_created_option, edge_weight=0.)
+
+        elif self.chainer.option_intersection_salience:
+            # 1. Get intersecting options
+            # 2. Add an each from each intersecting option to the newly_created_option
+            raise NotImplementedError("Option intersections")
+
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
                                  goal_salient_event, episode_number, step_number, eval_mode):
 

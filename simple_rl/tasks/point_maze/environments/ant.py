@@ -18,6 +18,7 @@
 import math
 import numpy as np
 from gym import utils
+import mujoco_py
 from gym.envs.mujoco import mujoco_env
 
 
@@ -51,7 +52,13 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
   @property
   def physics(self):
-    return self.model
+    # Check mujoco version is greater than version 1.50 to call correct physics
+    # model containing PyMjData object for getting and setting position/velocity.
+    # Check https://github.com/openai/mujoco-py/issues/80 for updates to api.
+    if mujoco_py.get_version() >= '1.50':
+      return self.sim
+    else:
+      return self.model
 
   def _step(self, a):
     return self.step(a)
@@ -103,8 +110,8 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     return obs
 
   def reset_model(self):
-    qpos = self.init_qpos + self.np_random.uniform(
-        size=self.model.nq, low=-.1, high=.1)
+    qpos = self.init_qpos #+ self.np_random.uniform(
+        #size=self.model.nq, low=-.1, high=.1)
     qvel = self.init_qvel + self.np_random.randn(self.model.nv) * .1
 
     # Set everything other than ant to original position and 0 velocity.
@@ -118,7 +125,7 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
   def get_ori(self):
     ori = [0, 1, 0, 0]
-    rot = self.model.data.qpos[self.__class__.ORI_IND:self.__class__.ORI_IND + 4]  # take the quaternion
+    rot = self.physics.data.qpos[self.__class__.ORI_IND:self.__class__.ORI_IND + 4]  # take the quaternion
     ori = q_mult(q_mult(rot, ori), q_inv(rot))[1:3]  # project onto x-y plane
     ori = math.atan2(ori[1], ori[0])
     return ori
