@@ -18,7 +18,7 @@ from simple_rl.agents.func_approx.ddpg.model import Actor, Critic, OrnsteinUhlen
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.agents.func_approx.dsc.utils import visualize_next_state_reward_heat_map
+from simple_rl.agents.func_approx.dsc.utils import visualize_next_state_reward_heat_map, rotate_file_name, create_log_dirs
 from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
 
 
@@ -267,12 +267,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, help="random seed", default=0)
     args = parser.parse_args()
 
-    log_dir = create_log_dir(args.experiment_name)
-    create_log_dir("saved_runs")
-    create_log_dir("value_function_plots")
-    create_log_dir("initiation_set_plots")
-    create_log_dir("value_function_plots/{}".format(args.experiment_name))
-    create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
+    logdir = rotate_file_name(os.path.join("experiment_data", args.experiment_name))
+    create_log_dirs(logdir)
 
     if "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
@@ -302,8 +298,8 @@ if __name__ == "__main__":
     ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
-    save_model(ddpg_agent, episode_number=args.episodes, best=False)
-    save_all_scores(episodic_scores, episodic_durations, log_dir, args.seed)
+    save_model(ddpg_agent, args.episodes, logdir, best=False)
+    save_all_scores(episodic_scores, episodic_durations, logdir, args.seed)
 
     best_ep, best_agent = load_model(ddpg_agent)
     print("loaded {} from episode {}".format(best_agent.name, best_ep))

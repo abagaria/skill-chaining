@@ -793,17 +793,17 @@ class SkillChaining(object):
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
         if self.generate_plots and episode % 10 == 0 and episode > 0:
-            visualize_best_option_to_take(self.agent_over_options, episode, self.seed, args.experiment_name)
+            visualize_best_option_to_take(self.agent_over_options, episode, self.seed, self.log_dir)
 
             for option in self.trained_options:
-                make_chunked_value_function_plot(option.solver, episode, self.seed, args.experiment_name)
-                visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, args.experiment_name)
-                visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, args.experiment_name)
+                make_chunked_value_function_plot(option.solver, episode, self.seed, self.log_dir)
+                visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, self.log_dir)
+                visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, self.log_dir)
                 if option.get_training_phase() == 'initiation_done' or option.get_training_phase() == 'initiation':
                     if option.classifier_type == "ocsvm":
-                        plot_one_class_initiation_classifier(option, episode, args.experiment_name)
+                        plot_one_class_initiation_classifier(option, episode, self.log_dir)
                     else:
-                        plot_two_class_classifier(option, episode, args.experiment_name)
+                        plot_two_class_classifier(option, episode, self.log_dir)
 
         for trained_option in self.trained_options:  # type: Option
             self.num_option_executions[trained_option.name].append(episode_option_executions[trained_option.name])
@@ -813,20 +813,22 @@ class SkillChaining(object):
 
     def save_all_models(self):
         for option in self.trained_options:  # type: Option
-            save_model(option.solver, args.episodes, best=False)
+            save_model(option.solver, args.episodes, self.logdir, best=False)
 
     def save_all_scores(self, pretrained, scores, durations):
         print("\rSaving training and validation scores..")
+
         training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
         training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
         validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
         num_option_history_file_name = "sc_pretrained_{}_num_options_per_episode_{}.pkl".format(pretrained, self.seed)
 
         if self.log_dir:
-            training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
-            training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
-            validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
-            num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
+            directory_name = 'scores'
+            training_scores_file_name = os.path.join(self.log_dir, directory_name, training_scores_file_name)
+            training_durations_file_name = os.path.join(self.log_dir, directory_name, training_durations_file_name)
+            validation_scores_file_name = os.path.join(self.log_dir, directory_name, validation_scores_file_name)
+            num_option_history_file_name = os.path.join(self.log_dir, directory_name, num_option_history_file_name)
 
         with open(training_scores_file_name, "wb+") as _f:
             pickle.dump(scores, _f)
@@ -884,17 +886,6 @@ class SkillChaining(object):
             state = next_state
 
         return overall_reward, option_trajectories
-
-
-def create_log_dir(experiment_name):
-    path = os.path.join(os.getcwd(), experiment_name)
-    try:
-        os.mkdir(path)
-    except OSError:
-        print("Creation of the directory %s failed" % path)
-    else:
-        print("Successfully created the directory %s " % path)
-    return path
 
 
 if __name__ == '__main__':
@@ -966,19 +957,17 @@ if __name__ == '__main__':
         overall_mdp.env.seed(args.seed)
 
     # Create folders for saving various things
-    logdir = create_log_dir(args.experiment_name)
-    create_log_dir("saved_runs")
-    create_log_dir("value_function_plots")
-    create_log_dir("initiation_set_plots")
-    create_log_dir("value_function_plots/{}".format(args.experiment_name))
-    create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
-
-    # file_path = rotate_file_name(f"saved_runs/{args.experiment_name}")
     # logdir = create_log_dir(args.experiment_name)
-    # create_log_dir(f"{logdir}/initiation_set_plots")
-    # create_log_dir(f"{logdir}/value_function_plots")
-    # create_log_dir(f"{logdir}/saved_model")
-    # create_log_dir(f"{logdir}/scores")
+    # create_log_dir("saved_runs")
+    # create_log_dir("value_function_plots")
+    # create_log_dir("initiation_set_plots")
+    # create_log_dir("value_function_plots/{}".format(args.experiment_name))
+    # create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
+
+    # Appends a number to the end of the folder name if that folder name is already taken.
+    # This means new results will be stored in a separate folder from previous results
+    logdir = rotate_file_name(os.path.join("experiment_data", args.experiment_name))
+    create_log_dirs(logdir)
 
     print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
     print("MDP InitState = ", overall_mdp.init_state)

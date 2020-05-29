@@ -552,15 +552,19 @@ class SkillGraphPlanningAgent(object):
 
         # Check if the value function diverges - if it does, then retry. If it still does,
         # then initialize to random weights and use that
-        max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed, self.experiment_name)
+        # TODO: this is a temporary fix of passing the global replay buffer. Only doing this because the option's replay buffer is empty
+        # and calculating the max of that would throw an error
+        max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed, self.log_dir,
+                                                       replay_buffer=new_untrained_option.global_solver.replay_buffer)
         if max_q_value > 500:
             print("=" * 80)
             print(f"{new_untrained_option} VF diverged")
             print("=" * 80)
             self.reset_ddpg_solver(new_untrained_option)
             new_untrained_option.initialize_with_global_ddpg()
-            max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                           self.experiment_name)
+            # TODO: same error as above
+            max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed, self.experiment_name,
+                                                           replay_buffer=new_untrained_option.global_solver.replay_buffer)
             if max_q_value > 500:
                 print("=" * 80)
                 print(f"{new_untrained_option} VF diverged AGAIN")
