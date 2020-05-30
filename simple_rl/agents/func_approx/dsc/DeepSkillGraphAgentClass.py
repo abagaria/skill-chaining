@@ -134,7 +134,7 @@ class DeepSkillGraphAgent(object):
             target_state = self.mdp.sample_random_state()[:2]
             salient_event = SalientEvent(target_state=target_state,
                                          event_idx=event_idx,
-                                         tolerance=1.0,
+                                         tolerance=0.6,
                                          intersection_event=False)
             print(f"Generated {salient_event}")
 

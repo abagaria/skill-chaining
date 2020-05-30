@@ -538,8 +538,12 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
+kGraphIterationNumber = 0
 
-def visualize_graph(chains, episode, experiment_name):
+def visualize_graph(chains, experiment_name, plot_completed_events):
+
+    global kGraphIterationNumber
+
     sns.set_style("white")
 
     def _plot_event_pair(event1, event2):
@@ -549,12 +553,16 @@ def visualize_graph(chains, episode, experiment_name):
 
     plt.figure()
 
-    forward_chains = [chain for chain in chains if not chain.is_backward_chain]
+    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
+
+    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
 
     for chain in forward_chains:
         _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
 
     plt.xticks([]); plt.yticks([])
 
-    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{episode}.png")
+    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
     plt.close()
+
+    kGraphIterationNumber += 1

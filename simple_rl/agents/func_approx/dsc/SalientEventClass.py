@@ -15,9 +15,21 @@ class SalientEvent(object):
 
         # This is the union of the effect set of all the options targeting this salient event
         self.trigger_points = []
+        self._initialize_trigger_points()
 
         assert isinstance(event_idx, int)
         assert isinstance(tolerance, float)
+
+    def _initialize_trigger_points(self):
+        r = self.tolerance
+        d = r / np.sqrt(2)
+        target_position = self._get_position(self.target_state)
+        additive_constants = [np.array((r, 0)), np.array((0, r)),
+                              np.array((-r, 0)), np.array((0, -r)),
+                              np.array((d, d)), np.array((-d, -d)),
+                              np.array((-d, d)), np.array((d, -d))]
+        trigger_points = [target_position + constant for constant in additive_constants]
+        self.trigger_points = [self.target_state] + trigger_points
 
     def __call__(self, states):
         """

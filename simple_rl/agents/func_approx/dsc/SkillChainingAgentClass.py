@@ -145,11 +145,10 @@ class SkillChaining(object):
 										   exploration_strategy="shaping")
 
 		# Keep track of which chain each created option belongs to
-		s0 = self.mdp.get_init_positions()
-		self.s0 = s0
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
-		self.chains = [SkillChain(start_states=s0, options=[], chain_id=(i+1),
-		 			   			  intersecting_options=[], mdp_start_states=s0, is_backward_chain=False,
+		self.s0 = start_state_salient_event.trigger_points
+		self.chains = [SkillChain(start_states=self.s0, options=[], chain_id=(i+1),
+		 			   			  intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
 								  target_salient_event=salient_event, init_salient_event=start_state_salient_event,
 								  option_intersection_salience=option_intersection_salience,
 								  event_intersection_salience=event_intersection_salience)

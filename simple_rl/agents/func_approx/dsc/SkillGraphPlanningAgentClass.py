@@ -11,7 +11,7 @@ from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot
+from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
 
 
 class SkillGraphPlanningAgent(object):
@@ -390,8 +390,11 @@ class SkillGraphPlanningAgent(object):
             print(f"Case 3: Adding edge from {newly_created_option} to {target_salient_event}")
             self.plan_graph.add_edge(newly_created_option, target_salient_event, edge_weight=1.)
 
-        # Case 2: Leaf option
-        if chain.is_chain_completed(self.chainer.chains) and is_leaf_node:
+        # Case 2: Leaf option # TODO: Need to check intersection with the init_salient_event as well
+        if chain.is_chain_completed(self.chainer.chains) \
+            and is_leaf_node \
+                and chain.detect_intersection_between_option_and_event(newly_created_option, init_salient_event):
+
             print(f"Case 2: Adding edge from {init_salient_event} to {newly_created_option}")
             self.plan_graph.add_edge(init_salient_event, newly_created_option, edge_weight=0.)
 
@@ -418,6 +421,9 @@ class SkillGraphPlanningAgent(object):
             # 1. Get intersecting options
             # 2. Add an each from each intersecting option to the newly_created_option
             raise NotImplementedError("Option intersections")
+
+        if chain.is_chain_completed(self.chainer.chains):
+            visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
 
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
                                  goal_salient_event, episode_number, step_number, eval_mode):

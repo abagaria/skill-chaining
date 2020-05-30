@@ -51,7 +51,7 @@ class AntReacherMDP(GoalDirectedMDP):
                                  self.init_state,
                                  salient_positions,
                                  task_agnostic=True,
-                                 goal_tolerance=1.0)
+                                 goal_tolerance=0.6)
 
     def _reward_func(self, state, action):
 

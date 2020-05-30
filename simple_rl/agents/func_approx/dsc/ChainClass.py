@@ -1,7 +1,9 @@
-import pdb
+import ipdb
 import numpy as np
+import random
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.mdp.StateClass import State
 
 
 class SkillChain(object):
@@ -201,12 +203,34 @@ class SkillChain(object):
         completed = self.chained_till_start_state() or is_intersecting_another_chain
 
         if completed:
+            # Which salient event did intersect with to cause this change?
+            # Cause that is the salient event that we should rewire to
+
+            other_chains = [chain for chain in chains if chain != self]
+            intersecting_pairs = [self.get_intersecting_option_and_event(chain) for chain in other_chains
+                                  if chain.is_chain_completed(other_chains)]
+            intersecting_pairs = [pair for pair in intersecting_pairs if pair is not None]
+            intersecting_events = [pair[1] for pair in intersecting_pairs]
+            if len(intersecting_events) == 1:
+                event = intersecting_events[0]
+                self.init_salient_event = event  # Rewiring operation
+            elif len(intersecting_events) > 1:
+                # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
+                ipdb.set_trace()
+                target_states = [event.target_state for event in intersecting_events]
+                distances = [np.linalg.norm(s - self.target_position) for s in target_states]
+                best_idx = np.argmin(distances)
+                best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
+                closest_event = intersecting_events[best_idx]
+                self.init_salient_event = closest_event
+
             self._is_deemed_completed = True
 
         return completed
 
     def chained_till_start_state(self):
-        start_state_in_chain = all([self.state_in_chain(s) for s in self.start_states])
+        start_event_trigger_points = self.init_salient_event.trigger_points
+        start_state_in_chain = all([self.state_in_chain(s) for s in start_event_trigger_points])
         return start_state_in_chain
 
     def get_overlapping_options_and_events(self, chains):
@@ -238,5 +262,6 @@ class SkillChain(object):
 
     @staticmethod
     def get_position_matrix(states):
-        positions = [state.position for state in states]
+        to_position = lambda s: s.position if isinstance(s, State) else s[:2]
+        positions = [to_position(state) for state in states]
         return np.array(positions)
