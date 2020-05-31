@@ -9,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
 from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
 
@@ -199,6 +199,7 @@ class SkillGraphPlanningAgent(object):
 
         Args:
             goal_salient_event (SalientEvent): The salient event induced by the goal_state
+            target_option (Option): The option to get to in the known part of the graph
             target_option (Option): The option to get to in the known part of the graph
             goal_event_inside_graph (bool): Whether the `goal_salient_event` is inside the graph
             episode (int): The current episode number
@@ -641,17 +642,27 @@ class SkillGraphPlanningAgent(object):
             new_option (Option)
         """
 
+        ipdb.set_trace()
+
         def _get_start_state_for_new_chain(in_graph_option):
             for s, a, r, sp, done in in_graph_option.solver.replay_buffer:
                 if done:
                     return sp
             return np.array((0, 0))
 
-        # Create a new chain
-        init_salient_event = train_goal_option.is_init_true  # TODO: Create a Salient Event out of this
-        start_state = _get_start_state_for_new_chain(train_goal_option)
+        # Create a new salient event out of
+        if len(train_goal_option.children) > 0:
+            init_salient_option = train_goal_option.children[0]  # type: Option
+            event_idx = len(self.mdp.get_all_target_events_ever())
+            init_salient_event = DSCOptionSalientEvent(option=init_salient_option,
+                                                       event_idx=event_idx)
+            start_states = init_salient_option.effect_set
+        else:  # Leaf node
+            init_salient_event = self.chainer.chains[train_goal_option.chain_id-1].init_salient_event
+            start_states = [_get_start_state_for_new_chain(train_goal_option)]  # Why not use the effect set of the option?
+
         chain_id = max([chain.chain_id for chain in self.chainer.chains]) + 1
-        new_forward_chain = SkillChain(start_states=[start_state], mdp_start_states=[self.mdp.init_state],
+        new_forward_chain = SkillChain(start_states=start_states, mdp_start_states=[self.mdp.init_state],
                                        init_salient_event=init_salient_event,
                                        target_salient_event=target_salient_event, is_backward_chain=False,
                                        chain_id=chain_id, options=[], option_intersection_salience=False,
@@ -681,7 +692,7 @@ class SkillGraphPlanningAgent(object):
                                       use_warmup_phase=self.chainer.use_warmup_phase,
                                       update_global_solver=self.chainer.update_global_solver,
                                       is_backward_option=False,
-                                      init_salient_event=train_goal_option.init_salient_event,
+                                      init_salient_event=init_salient_event,
                                       target_salient_event=target_salient_event)
 
         print(f"Created {new_untrained_option} targeting {target_salient_event}")

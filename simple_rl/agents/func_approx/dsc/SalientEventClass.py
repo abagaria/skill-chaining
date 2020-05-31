@@ -24,10 +24,14 @@ class SalientEvent(object):
         r = self.tolerance
         d = r / np.sqrt(2)
         target_position = self._get_position(self.target_state)
-        additive_constants = [np.array((r, 0)), np.array((0, r)),
-                              np.array((-r, 0)), np.array((0, -r)),
-                              np.array((d, d)), np.array((-d, -d)),
-                              np.array((-d, d)), np.array((d, -d))]
+
+        if np.array_equal(self.target_state, np.array((0, 0))):
+            additive_constants = []
+        else:
+            additive_constants = [np.array((r, 0)), np.array((0, r)),
+                                  np.array((-r, 0)), np.array((0, -r)),
+                                  np.array((d, d)), np.array((-d, -d)),
+                                  np.array((-d, d)), np.array((d, -d))]
         trigger_points = [target_position + constant for constant in additive_constants]
         self.trigger_points = [self.target_state] + trigger_points
 
@@ -158,3 +162,43 @@ class DCOSalientEvent(SalientEvent):
 
     def __hash__(self):
         return self.event_idx
+
+class DSCOptionSalientEvent(SalientEvent):
+    def __init__(self, option, event_idx, tolerance=0.6):
+        """
+
+        Args:
+            option (Option)
+        """
+        self.option = option
+        self._initialize_trigger_points()
+
+        SalientEvent.__init__(self,
+                              target_state=None,
+                              event_idx=event_idx,
+                              tolerance=tolerance,
+                              intersection_event=False)
+
+    def _initialize_trigger_points(self):
+        self.trigger_points = self.option.effect_set
+
+    def is_init_true(self, state):
+        return self.option.is_init_true(state)
+
+    def batched_is_init_true(self, position_matrix):
+        self.option.batched_is_init_true(position_matrix)
+
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return self.event_idx
+
+    def __repr__(self):
+        return f"SalientEvent corresponding to {self.option}"
+
+    @staticmethod
+    def _get_position(state):
+        raise NotImplementedError("DSCOptionSalientEvent does not have a target state - it just wraps around an option")
+
+>>>>>>> bd6ee75... 1. Don't rewire (at least in the way we added in the prev commit) backward chains in ChainClass

@@ -14,7 +14,7 @@ from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq, use_hard_coded_events,
-                 use_dco, dco_use_xy_prior, experiment_name, seed, threshold, use_smdp_replay_buffer):
+                 use_dco, dco_use_xy_prior, allow_backward_options, experiment_name, seed, threshold, use_smdp_replay_buffer):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -26,6 +26,7 @@ class DeepSkillGraphAgent(object):
             use_hard_coded_events (bool)
             use_dco (bool)
             dco_use_xy_prior (bool)
+            allow_backward_options (bool)
             experiment_name (str)
             seed (int)
         """
@@ -36,6 +37,7 @@ class DeepSkillGraphAgent(object):
         self.use_hard_coded_events = use_hard_coded_events
         self.use_dco = use_dco
         self.dco_use_xy_prior = dco_use_xy_prior
+        self.allow_backward_options = allow_backward_options
         self.experiment_name = experiment_name
         self.seed = seed
         self.threshold = threshold
@@ -239,7 +241,7 @@ class DeepSkillGraphAgent(object):
         )
 
     def generate_candidate_salient_events(self):  # TODO: This needs to happen multiple times, not just once
-        if self.should_set_off_learning_backward_options():
+        if self.should_set_off_learning_backward_options() and self.allow_backward_options:
             self.set_off_learning_backward_options()
 
             return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
@@ -342,6 +344,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_ucb", action="store_true", default=False)
     parser.add_argument("--threshold", type=int, help="Threshold determining size of termination set", default=0.1)
     parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options", default=False)
+    parser.add_argument("--allow_backward_options", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -447,9 +450,9 @@ if __name__ == "__main__":
                                     use_hard_coded_events=args.use_hard_coded_events,
                                     use_dco=args.use_dco,
                                     dco_use_xy_prior=args.dco_use_xy_prior,
+                                    allow_backward_options=args.allow_backward_options,
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
                                     use_smdp_replay_buffer=args.use_smdp_replay_buffer)
-
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

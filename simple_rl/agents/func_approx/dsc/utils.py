@@ -10,6 +10,7 @@ import torch
 import imageio
 import seaborn as sns
 sns.set()
+sns.set_style("white")
 from PIL import Image
 from tqdm import tqdm
 import os
@@ -181,11 +182,11 @@ def plot_two_class_classifier(option, episode, experiment_name):
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
 
-    if positive_examples.shape[0] > 0:
-        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
-
-    if negative_examples.shape[0] > 0:
-        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+    # if positive_examples.shape[0] > 0:
+    #     plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+    #
+    # if negative_examples.shape[0] > 0:
+    #     plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
@@ -461,8 +462,6 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
 
     global kGraphIterationNumber
 
-    sns.set_style("white")
-
     def _plot_event_pair(event1, event2):
         x = [event1.target_state[0], event2.target_state[0]]
         y = [event1.target_state[1], event2.target_state[1]]
@@ -478,6 +477,12 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
         _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
 
     plt.xticks([]); plt.yticks([])
+
+    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
 
     plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
     plt.close()
@@ -548,3 +553,12 @@ def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, epis
     fig.suptitle(f"Salient events with threshold={threshold} and beta={beta:.4f}")
     plt.savefig("initiation_set_plots/{}/{}_threshold_{}-episode_{}-reject_({}, {}).png".format(experiment_name, name, threshold, episode, reject_low, reject_high))
     plt.close()
+
+def get_intersecting_events(source_chain, events):
+    """ events come from the plan_graph """
+    connecting_events = []
+    for event in events:
+        for option in source_chain.options:
+            if source_chain.detect_intersection_between_option_and_event(option, event):
+                connecting_events.append(event)
+    return connecting_events

@@ -206,22 +206,24 @@ class SkillChain(object):
             # Which salient event did intersect with to cause this change?
             # Cause that is the salient event that we should rewire to
 
-            other_chains = [chain for chain in chains if chain != self]
-            intersecting_pairs = [self.get_intersecting_option_and_event(chain) for chain in other_chains
-                                  if chain.is_chain_completed(other_chains)]
-            intersecting_pairs = [pair for pair in intersecting_pairs if pair is not None]
-            intersecting_events = [pair[1] for pair in intersecting_pairs]
-            if len(intersecting_events) == 1:
-                event = intersecting_events[0]
-                self.init_salient_event = event  # Rewiring operation
-            elif len(intersecting_events) > 1:
-                # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
-                target_states = [event.get_target_position() for event in intersecting_events]
-                distances = [np.linalg.norm(s - self.get_target_position()) for s in target_states]
-                best_idx = np.argmin(distances)
-                best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
-                closest_event = intersecting_events[best_idx]
-                self.init_salient_event = closest_event
+            if not self.is_backward_chain:
+                other_chains = [chain for chain in chains if chain != self]
+                intersecting_pairs = [self.get_intersecting_option_and_event(chain) for chain in other_chains
+                                      if chain.is_chain_completed(other_chains)]
+                intersecting_pairs = [pair for pair in intersecting_pairs if pair is not None]
+                intersecting_events = [pair[1] for pair in intersecting_pairs]
+                if len(intersecting_events) == 1:
+                    event = intersecting_events[0]
+                    self.init_salient_event = event  # Rewiring operation
+                elif len(intersecting_events) > 1:
+                    # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
+                    # ipdb.set_trace()  # TODO: This doesn't work for backward chains :(
+                    target_states = [event.target_state for event in intersecting_events]
+                    distances = [np.linalg.norm(s - self.target_position) for s in target_states]
+                    best_idx = np.argmin(distances)
+                    best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
+                    closest_event = intersecting_events[best_idx]
+                    self.init_salient_event = closest_event
 
             self._is_deemed_completed = True
 
