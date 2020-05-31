@@ -1,6 +1,8 @@
 # Python imports.
 from __future__ import print_function
 import random
+
+import ipdb
 import numpy as np
 import pdb
 from copy import deepcopy
@@ -16,7 +18,7 @@ from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class Option(object):
@@ -319,7 +321,8 @@ class Option(object):
 
 		if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
 			if self.backward_option:
-				state_matrix = state_matrix[:, :2]
+				# TODO: Kshitij deleted
+				# state_matrix = state_matrix[:, :2]
 
 				# When we treat the start state as a salient event, we pass in the
 				# init predicate that we are going to use during gestation
@@ -327,7 +330,10 @@ class Option(object):
 					return self.init_salient_event(state_matrix)
 
 			return np.ones((state_matrix.shape[0]))
-		position_matrix = state_matrix[:, :2]
+
+		# TODO: Kshitij deleted
+		# position_matrix = state_matrix[:, :2]
+		position_matrix = state_matrix[:, :]
 		return self.initiation_classifier.predict(position_matrix) == 1
 
 	def batched_is_term_true(self, state_matrix):
@@ -335,7 +341,8 @@ class Option(object):
 			return self.parent.batched_is_init_true(state_matrix)
 
 		# Extract the relevant dimensions from the state matrix (x, y)
-		state_matrix = state_matrix[:, :2]
+		# TODO: Kshitij deleted
+		# state_matrix = state_matrix[:, :2]
 
 		if self.target_salient_event is not None:
 			return self.target_salient_event(state_matrix)
@@ -362,7 +369,8 @@ class Option(object):
 
 			return True
 
-		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
+		# print('using svm for predicting if in initiation set.')
+		features = ground_state.features() if isinstance(ground_state, State) else ground_state[:5]
 		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
@@ -565,7 +573,7 @@ class Option(object):
 			return -1.
 
 		# Rewards based on position only
-		position_vector = state.features()[:2] if isinstance(state, State) else state[:2]
+		position_vector = state.features() if isinstance(state, State) else state[:5]
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
@@ -735,7 +743,7 @@ class Option(object):
 				positive_states = [start_state] + visited_states[-self.buffer_length:]
 
 			# if self.is_valid_init_data(positive_states):
-			positive_examples = [state.position for state in positive_states]
+			positive_examples = [state.features() for state in positive_states]
 			self.positive_examples.append(positive_examples)
 
 		elif num_steps == self.timeout and self.get_training_phase() == "initiation":

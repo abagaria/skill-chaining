@@ -27,6 +27,9 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.four_room.FourRoomMDPClass import FourRoomMDP
 
+# KIRAN EDITS
+import pdb
+
 ## Hyperparameters
 BUFFER_SIZE = int(3e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
@@ -264,6 +267,8 @@ class DQNAgent(Agent):
         with torch.no_grad():
             action_values = self.policy_network(state)
         self.policy_network.train()
+        if len(action_values) > 3:
+            pdb.set_trace()
 
         impossible_option_idx = self.get_impossible_option_idx(state)
 

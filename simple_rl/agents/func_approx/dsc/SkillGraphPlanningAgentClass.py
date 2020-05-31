@@ -9,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
 from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
 
@@ -198,7 +198,7 @@ class SkillGraphPlanningAgent(object):
         """
 
         Args:
-            goal_salient_event (SalientEvent): The salient event induced by the goal_state
+            goal_salient_event (BaseSalientEvent): The salient event induced by the goal_state
             target_option (Option): The option to get to in the known part of the graph
             goal_event_inside_graph (bool): Whether the `goal_salient_event` is inside the graph
             episode (int): The current episode number
@@ -558,7 +558,7 @@ class SkillGraphPlanningAgent(object):
         to get to a target-option selected by our bandit algorithm.
         Args:
             goal_state (State)
-            goal_salient_event (SalientEvent)
+            goal_salient_event (BaseSalientEvent)
             backward_direction (bool)
 
         Returns:
@@ -635,7 +635,7 @@ class SkillGraphPlanningAgent(object):
            replay buffer (but using the new option's option-reward function).
         Args:
             train_goal_option (Option)
-            target_salient_event (SalientEvent)
+            target_salient_event (BaseSalientEvent)
 
         Returns:
             new_option (Option)

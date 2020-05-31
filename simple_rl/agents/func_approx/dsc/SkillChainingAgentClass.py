@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import sys
+
 sys.path = [""] + sys.path
 
 from collections import deque, defaultdict
@@ -229,17 +230,17 @@ class SkillChaining(object):
 			a new_option in the backward chain, i.e, only add positives in the backward chain as
 			negative examples for the new_option.
 		"""
-		forward_option = not new_option.backward_option
-		if forward_option:
-			for option in self.trained_options[1:]:  # type: Option
-				new_option.negative_examples += option.positive_examples
-		else:
-			for option in self.trained_options[1:]:  # type: Option
-				if option.backward_option:
-					new_option.negative_examples += option.positive_examples
+        forward_option = not new_option.backward_option
+        if forward_option:
+            for option in self.trained_options[1:]:  # type: Option
+                new_option.negative_examples += option.positive_examples
+        else:
+            for option in self.trained_options[1:]:  # type: Option
+                if option.backward_option:
+                    new_option.negative_examples += option.positive_examples
 
-	def init_state_in_option(self, option):
-		"""
+    def init_state_in_option(self, option):
+        """
 		If the input `option` is part of a forward chain, we want to check if the start
 		state of the MDP is in its initiation set. If so, we will not create a child
 		option for the input `option`. If the input `option` is part of the backward

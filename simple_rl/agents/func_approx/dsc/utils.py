@@ -1,5 +1,6 @@
 # Python imports.
-import pdb
+import os
+import ipdb
 import numpy as np
 import scipy.interpolate
 import matplotlib
@@ -126,41 +127,44 @@ def get_initiation_set_values(option):
 #     plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
 #     plt.close()
 
-def make_meshgrid(x, y, h=.02):
-    x_min, x_max = x.min() - 1, x.max() + 1
-    y_min, y_max = y.min() - 1, y.max() + 1
-    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                         np.arange(y_min, y_max, h))
-    return xx, yy
 
-def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
+def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, option, episode, logdir, negative_examples=None):
+    print(f"Plotting initiation set of {option.name}")
 
-    colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
+    # sawyer constants
+    axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
+    axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
+    axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
 
-    plt.figure(figsize=(8.0, 5.0))
-    X = option.construct_feature_matrix(option.positive_examples)
-    X0, X1 = X[:, 0], X[:, 1]
-    xx, yy = make_meshgrid(X0, X1)
-    Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
-    Z1 = Z1.reshape(xx.shape)
+    # graphing constants
+    x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
+    x_low, x_high, y_low, y_high = axis_low[x_idx], axis_high[x_idx], axis_low[y_idx], axis_high[y_idx]
 
-    color = colors[option.option_idx % len(colors)]
-    plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
+    # plot positive and negative examples
+    plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
+    if negative_examples is not None:
+        plt.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.5,  s=50)
 
-    plot_all_trajectories_in_initiation_data(option.positive_examples)
+    # plot option's target state
+    if option.target_salient_event is not None:
+        target = option.target_salient_event.target_state
+        plt.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
 
-    # background_image = imageio.imread("emaze_domain.png")
-    # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 18.])
-    #
-    # plt.xticks([])
-    # plt.yticks([])
+    # set title and legend
+    plt.legend()
+    plt.title(f"{option.name} {which_classifier} Initiation Set")
 
-    plt.xlim((-10, 10))
-    plt.ylim((-10, 10))
+    # set axes
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.xlim(x_low, x_high)
+    plt.ylim(y_low, y_high)
+    plt.xticks(np.linspace(x_low, x_high, 5))
+    plt.yticks(np.linspace(y_low, y_high, 7))
 
-    plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
-    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-    plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
+    # save plot as png
+    file_name = f"{option.name}_{episode}_{x_label}_{y_label}_{option.seed}_{which_classifier}.png"
+    plt.savefig(os.path.join(logdir, "initiation_set_plots", file_name))
     plt.close()
 
 
@@ -220,6 +224,7 @@ def visualize_dqn_replay_buffer(solver, experiment_name=""):
     plt.title("# transitions = {}".format(len(solver.replay_buffer)))
     plt.savefig("value_function_plots/{}/{}_replay_buffer_analysis.png".format(experiment_name, solver.name))
     plt.close()
+
 
 def visualize_smdp_updates(global_solver, experiment_name=""):
     smdp_transitions = list(filter(lambda e: isinstance(e.action, int) and e.action > 0, global_solver.replay_buffer.memory))
@@ -285,34 +290,30 @@ def replay_trajectory(trajectory, dir_name):
         img.save("{}/frame{}.png".format(dir_name, i))
 
 
-def visualize_dqn_shaped_rewards(dqn_agent, option, episode, seed, experiment_name):
+def visualize_dqn_shaped_rewards(dqn_agent, option, episode, seed, logdir):
     next_states = np.array([exp.next_state for exp in dqn_agent.replay_buffer.memory])
     if option.should_target_with_bonus():
         shaped_rewards = 1.0 * option.batched_is_init_true(next_states)
-    else:
-        shaped_rewards = np.zeros_like(next_states[:, 0])
-    plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
-    plt.colorbar()
-    file_name = f"{option.name}_high_level_shaped_rewards_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
+        plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
+        plt.colorbar()
+        file_name = f"{option.name}_high_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
+        plt.close()
 
 
-def visualize_ddpg_shaped_rewards(global_option, other_option, episode, seed, experiment_name):
+def visualize_ddpg_shaped_rewards(global_option, other_option, episode, seed, logdir):
     ddpg_agent = global_option.solver
     next_states = np.array([exp[-2] for exp in ddpg_agent.replay_buffer])
     if other_option.should_target_with_bonus():
         shaped_rewards = 1. * other_option.batched_is_init_true(next_states)
-    else:
-        shaped_rewards = np.zeros_like(next_states[:, 0])
-    plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
-    plt.colorbar()
-    file_name = f"{other_option.name}_low_level_shaped_rewards_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
+        plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
+        plt.colorbar()
+        file_name = f"{other_option.name}_low_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
+        plt.close()
 
 
-def visualize_ddpg_replay_buffer(solver, episode, seed, experiment_name):
+def visualize_ddpg_replay_buffer(solver, episode, seed, logdir):
     states = np.array([exp[0] for exp in solver.replay_buffer.memory])
     actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
     states_tensor = torch.from_numpy(states).float().to(solver.device)
@@ -320,12 +321,12 @@ def visualize_ddpg_replay_buffer(solver, episode, seed, experiment_name):
     qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
+    plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
     plt.close()
 
 
-def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experiment_name):
+def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, logdir):
     states = np.array([exp.state for exp in policy_over_options_dqn.replay_buffer.memory])
     states_tensor = torch.from_numpy(states).float().to(policy_over_options_dqn.device)
     options = policy_over_options_dqn.get_best_actions_batched(states_tensor).cpu().numpy()
@@ -333,11 +334,12 @@ def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experi
     y = [s[1] for s in states]
     plt.scatter(x, y, c=options, cmap=plt.cm.Dark2)
     plt.colorbar()
-    file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}.png"
+    plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
     plt.close()
 
-def visualize_buffer(option, episode, seed, experiment_name):
+
+def visualize_buffer(option, episode, seed, logdir):
     buffer = option.solver.replay_buffer.memory
     terminal_states = [transition[-2] for transition in buffer if transition[-1]]
     terminal_start_states = [transition[0] for transition in buffer if transition[-1]]
@@ -347,11 +349,12 @@ def visualize_buffer(option, episode, seed, experiment_name):
     plt.scatter([t[0] for t in terminal_states], [t[1] for t in terminal_states], alpha=1.0)
     plt.scatter([t[0] for t in terminal_start_states], [t[1] for t in terminal_start_states], alpha=1.0)
     plt.title(f"{option.solver.name}s replay buffer with length {len(buffer)}")
-    file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}.png"
+    plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
     plt.close()
 
-def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
+
+def make_chunked_value_function_plot(solver, episode, seed, logdir, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
     states = np.array([exp[0] for exp in replay_buffer])
     actions = np.array([exp[1] for exp in replay_buffer])
@@ -375,11 +378,30 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
 
-    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
-    plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
+    # Checks if option has hasn't been executed yet. Making state and action chunks errors if the array is empty.
+    if len(replay_buffer.memory) > 0:
+        states = np.array([exp[0] for exp in replay_buffer.memory])
+        actions = np.array([exp[1] for exp in replay_buffer.memory])
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+        state_chunks = np.array_split(states, num_chunks, axis=0)
+        action_chunks = np.array_split(actions, num_chunks, axis=0)
+        qvalues = np.zeros((states.shape[0],))
+        current_idx = 0
+
+        for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+            state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+            action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+            current_chunk_size = len(state_chunk)
+            qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+            current_idx += current_chunk_size
+
+        plt.scatter(states[:, 0], states[:, 1], c=qvalues, alpha=0.4)
+        plt.colorbar()
+        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
+        plt.close()
 
     return qvalues.max()
 

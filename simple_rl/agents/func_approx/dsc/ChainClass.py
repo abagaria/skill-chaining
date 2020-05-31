@@ -17,8 +17,8 @@ class SkillChain(object):
         Args:
             start_states (list): List of states at which chaining stops
             mdp_start_states (list): list of MDP start states, if distinct from `start_states`
-            init_salient_event (SalientEvent): f: s -> {0, 1} based on start salience
-            target_salient_event (SalientEvent): f: s -> {0, 1} based on target salience
+            init_salient_event (BaseSalientEvent): f: s -> {0, 1} based on start salience
+            target_salient_event (BaseSalientEvent): f: s -> {0, 1} based on target salience
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
             intersecting_options (list): List of options whose initiation sets overlap
@@ -32,7 +32,6 @@ class SkillChain(object):
         self.mdp_start_states = mdp_start_states
         self.init_salient_event = init_salient_event  # TODO: USE THIS IN PLACE OF START STATES
         self.target_salient_event = target_salient_event
-        self.target_position = target_salient_event.target_state
         self.chain_id = chain_id
         self.intersecting_options = intersecting_options
 
