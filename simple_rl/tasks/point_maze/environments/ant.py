@@ -14,7 +14,8 @@
 # ==============================================================================
 
 """Wrapper for creating the ant environment in gym_mujoco."""
-
+import ipdb
+import random
 import math
 import numpy as np
 from gym import utils
@@ -45,10 +46,21 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     self._expose_body_comvels = expose_body_comvels
     self._body_com_indices = {}
     self._body_comvel_indices = {}
+
+    random.seed(0)
+
+    self._healthy_z_range = (0.2, 1.0)
     
     print("mujoco file_path = ", file_path)
     mujoco_env.MujocoEnv.__init__(self, file_path, 5)
     utils.EzPickle.__init__(self)
+
+  @property
+  def is_healthy(self):
+    state = self.state_vector()
+    min_z, max_z = self._healthy_z_range
+    is_healthy = (np.isfinite(state).all() and min_z <= state[2] <= max_z)
+    return is_healthy
 
   @property
   def physics(self):

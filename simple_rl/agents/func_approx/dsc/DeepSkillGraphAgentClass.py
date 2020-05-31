@@ -14,7 +14,7 @@ from simple_rl.agents.func_approx.dsc.CoveringOptionsAgentClass import CoveringO
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, use_hard_coded_event,
-                 use_dco, dco_use_xy_prior, experiment_name, seed):
+                 use_dco, dco_use_xy_prior, allow_backward_options, experiment_name, seed):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -26,6 +26,7 @@ class DeepSkillGraphAgent(object):
             use_hard_coded_event (bool)
             use_dco (bool)
             dco_use_xy_prior (bool)
+            allow_backward_options (bool)
             experiment_name (str)
             seed (int)
         """
@@ -36,6 +37,7 @@ class DeepSkillGraphAgent(object):
         self.use_hard_coded_event = use_hard_coded_event
         self.use_dco = use_dco
         self.dco_use_xy_prior = dco_use_xy_prior
+        self.allow_backward_options = allow_backward_options
         self.experiment_name = experiment_name
         self.seed = seed
 
@@ -197,7 +199,7 @@ class DeepSkillGraphAgent(object):
         return False
 
     def generate_candidate_salient_events(self):  # TODO: This needs to happen multiple times, not just once
-        if self.should_set_off_learning_backward_options():
+        if self.should_set_off_learning_backward_options() and self.allow_backward_options:
             self.set_off_learning_backward_options()
 
             return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
@@ -296,6 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--plot_rejected_events", action="store_true", default=False)
     parser.add_argument("--use_dco", action="store_true", default=False)
     parser.add_argument("--use_ucb", action="store_true", default=False)
+    parser.add_argument("--allow_backward_options", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -400,6 +403,7 @@ if __name__ == "__main__":
                                     use_hard_coded_event=args.use_hard_coded_events,
                                     use_dco=args.use_dco,
                                     dco_use_xy_prior=args.dco_use_xy_prior,
+                                    allow_backward_options=args.allow_backward_options,
                                     experiment_name=args.experiment_name,
                                     seed=args.seed)
 
