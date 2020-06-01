@@ -164,7 +164,7 @@ class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
     def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
-                 eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
+                 eps_start=0.1, tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
                  exploration_strategy="eps-greedy", state_rounding_decimals=1, use_position_only_for_exploration=False,
                  gradient_clip=None, evaluation_epsilon=0.05, writer=None):
         self.state_size = state_size
