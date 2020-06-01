@@ -42,18 +42,15 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         # endeff position is ignored by these salient events - just used when plotting initiation_sets
         hand_init_z = [self.init_state[2]]
-        puck_goal_1, puck_goal_2, puck_goal_3 = [-0.04, 0.6], [-0.08, 0.6], [-0.12, 0.6]
+        puck_goal_1, puck_goal_2 = [-0.03, 0.6], [-0.09, 0.6]
 
         salient_event_1 = np.concatenate((puck_goal_1, hand_init_z, puck_goal_1))
         salient_event_2 = np.concatenate((puck_goal_2, hand_init_z, puck_goal_2))
-        salient_event_3 = np.concatenate((puck_goal_3, hand_init_z, puck_goal_3))
 
         salient_events = [
             BaseSalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
                              tolerance=self.threshold, get_relevant_position=get_puck_pos),
             BaseSalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
-                             tolerance=self.threshold, get_relevant_position=get_puck_pos),
-            BaseSalientEvent(salient_event_3, 3, name='Puck to goal 3/3',
                              tolerance=self.threshold, get_relevant_position=get_puck_pos)
         ]
 

@@ -1,4 +1,5 @@
 # Python imports.
+import math
 import os
 import ipdb
 import numpy as np
@@ -8,6 +9,9 @@ import time
 import torch
 import imageio
 import seaborn as sns
+
+from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
+
 sns.set()
 from PIL import Image
 from tqdm import tqdm
@@ -16,6 +20,7 @@ from tqdm import tqdm
 from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
 from simple_rl.tasks.point_maze.PointMazeStateClass import PointMazeState
 from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
+
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -39,10 +44,10 @@ class Experience(object):
     def __ne__(self, other):
         return not self == other
 
+
 # ---------------
 # Plotting utils
 # ---------------
-
 def plot_trajectory(trajectory, color='k', marker="o"):
     for i, state in enumerate(trajectory):
         if isinstance(state, PointMazeState):
@@ -57,6 +62,7 @@ def plot_trajectory(trajectory, color='k', marker="o"):
         else:
             plt.scatter(x, y, c=color, alpha=float(i) / len(trajectory), marker=marker)
 
+
 def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
     possible_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
                        'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
@@ -64,12 +70,13 @@ def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
         color_idx = i % len(possible_colors)
         plot_trajectory(trajectory, color=possible_colors[color_idx], marker=marker)
 
+
 def get_grid_states():
     ss = []
     for x in np.arange(-11., 11., 1.):
         for y in np.arange(-11., 11., 0.5):
             s = PointReacherState(position=np.array([x, y]), velocity=np.array([0., 0.]),
-                               theta=0., theta_dot=0., done=False)
+                                  theta=0., theta_dot=0., done=False)
             ss.append(s)
     return ss
 
@@ -116,57 +123,84 @@ def render_sampled_value_function(solver, episode=None, experiment_name=""):
     plt.close()
 
 
-def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, option, episode, logdir, negative_examples=None):
-    print(f"Plotting initiation set of {option.name}")
+def make_meshgrid(x, y, h=.02):
+    x_min, x_max = x.min() - 1, x.max() + 1
+    y_min, y_max = y.min() - 1, y.max() + 1
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    return xx, yy
+
+
+def sampled_initiation_states(option, trajectories):
+    s = 0.02
+    box_low = np.amin(trajectories, 0)
+    box_high = np.amax(trajectories, 0)
+    mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
+    states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
+    return [state for state in states if option.is_init_true(state)]
+
+
+def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, two_class=False):
+    print(f"Plotting sampled initiation sets of {option.name}")
+    print(f"Plotting initiation set trajectories of {option.name}")
 
     # sawyer constants
-    axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
-    axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
+    x_low, x_high, y_low, y_high = -0.4, 0.4, 0.2, 1.
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
 
-    # graphing constants
-    x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
-    x_low, x_high, y_low, y_high = axis_low[x_idx], axis_high[x_idx], axis_low[y_idx], axis_high[y_idx]
+    # trajectories and sampled meshgrid for refined initiation sets
+    positive_examples = option.construct_feature_matrix(option.positive_examples)
+    negative_examples = option.construct_feature_matrix(option.negative_examples)
+    initiation_states = sampled_initiation_states(option, positive_examples)
 
-    # plot positive and negative examples
-    plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
-    if negative_examples is not None:
-        plt.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.5,  s=50)
+    fig, axs = plt.subplots(2, 2, sharex='all', sharey='all')
+    fig.set_size_inches(15, 13)
 
-    # plot option's target state
-    if option.target_salient_event is not None:
-        target = option.target_salient_event.target_state
-        plt.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
+    # doesn't matter which axis we set these for because sharey and sharex are true
+    axs[0, 0].set_xlim(x_low, x_high)
+    axs[0, 0].ylim(y_low, y_high)
+    axs[0, 0].set_xticks(np.linspace(x_low, x_high, 9))
+    axs[0, 0].yticks(np.linspace(y_low, y_high, 9))
 
-    # set title and legend
-    plt.legend()
-    plt.title(f"{option.name} {which_classifier} Initiation Set")
+    for i, x_idx, y_idx in enumerate(indices):
+        # graphing constants
+        trajectory_axis = axs[1, i]
+        sampled_axis = axs[0, i]
+        x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
 
-    # set axes
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.xlim(x_low, x_high)
-    plt.ylim(y_low, y_high)
-    plt.xticks(np.linspace(x_low, x_high, 5))
-    plt.yticks(np.linspace(y_low, y_high, 7))
+        # plot sampled initiation set
+        sampled_axis.hexbin(initiation_states[:, x_idx], initiation_states[:, y_idx], cmap=plt.cm.get_cmap("Blues"))
+
+        # plot positive and negative trajectories
+        trajectory_axis.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
+        if two_class and negative_examples.shape[0] > 0:
+            trajectory_axis.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.5, s=50)
+
+        # plot option's target state
+        if option.target_salient_event is not None:
+            target = option.target_salient_event.target_state
+            trajectory_axis.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
+            sampled_axis.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
+
+        # set title and legend
+        trajectory_axis.set_title(f"{option.name} {which_classifier} Initiation Set Trajectories")
+        sampled_axis.set_title(f"{option.name} {which_classifier} Initiation Set Sampled")
+
+        # set axes
+        trajectory_axis.set_xlabel(x_label)
+        trajectory_axis.set_ylabel(y_label)
 
     # save plot as png
-    file_name = f"{option.name}_{episode}_{x_label}_{y_label}_{option.seed}_{which_classifier}.png"
+    file_name = f"{option.name}_{episode}_{option.seed}_{which_classifier}.png"
     plt.savefig(os.path.join(logdir, "initiation_set_plots", file_name))
-    plt.close()
 
 
 def plot_one_class_initiation_classifier(option, episode, logdir):
-    positive_examples = option.construct_feature_matrix(option.positive_examples)
-    _plot_initiation_sets(0, 1, positive_examples, "One Class", option, episode, logdir)
-    _plot_initiation_sets(3, 4, positive_examples, "One Class", option, episode, logdir)
+    _plot_initiation_sets([(0, 1), (3, 4)], "One Class", option, episode, logdir)
 
 
 def plot_two_class_classifier(option, episode, logdir):
-    positive_examples = option.construct_feature_matrix(option.positive_examples)
-    negative_examples = option.construct_feature_matrix(option.negative_examples)
-    _plot_initiation_sets(0, 1, positive_examples, "Two Class", option, episode, logdir, negative_examples)
-    _plot_initiation_sets(3, 4, positive_examples, "Two Class", option, episode, logdir, negative_examples)
+    _plot_initiation_sets([(0, 1), (3, 4)], "Two Class", option, episode, logdir)
 
 
 def visualize_dqn_replay_buffer(solver, experiment_name=""):
@@ -333,7 +367,8 @@ def make_chunked_value_function_plot(solver, episode, seed, logdir, chunk_size=1
         qvalues = np.zeros((states.shape[0],))
         current_idx = 0
 
-        for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+        for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)),
+                                                              desc="Making VF plot"):  # type: (int, np.ndarray)
             state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
             action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
             chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)

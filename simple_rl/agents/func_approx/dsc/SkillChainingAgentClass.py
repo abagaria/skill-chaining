@@ -199,18 +199,18 @@ class SkillChaining(object):
 
     def init_state_in_option(self, option):
         """
-		If the input `option` is part of a forward chain, we want to check if the start
-		state of the MDP is in its initiation set. If so, we will not create a child
-		option for the input `option`. If the input `option` is part of the backward
-		chain, we want to check that ANY of the chain start states (usually existing
-		salient events and optionally the start state of the MDP) are if in its
-		initiation set classifier.
-		Args:
-			option (Option): We want to check if we want to create a child for this option
+        If the input `option` is part of a forward chain, we want to check if the start
+        state of the MDP is in its initiation set. If so, we will not create a child
+        option for the input `option`. If the input `option` is part of the backward
+        chain, we want to check that ANY of the chain start states (usually existing
+        salient events and optionally the start state of the MDP) are if in its
+        initiation set classifier.
+        Args:
+            option (Option): We want to check if we want to create a child for this option
 
-		Returns:
-			any_init_in_option (bool)
-		"""
+        Returns:
+            any_init_in_option (bool)
+        """
         start_states = self.chains[option.chain_id - 1].start_states
         starts_chained = [option.is_init_true(state) for state in start_states]
         return any(starts_chained)
@@ -261,6 +261,7 @@ class SkillChaining(object):
             gestation_init_salient_event = parent_option.init_salient_event  # type: BaseSalientEvent
 
         old_untrained_option_id = id(parent_option)
+        # doesn't need target_salient_event because targets the initiation set of the parent option
         new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
                                       lr_actor=parent_option.solver.actor_learning_rate,
                                       lr_critic=parent_option.solver.critic_learning_rate,
@@ -351,7 +352,7 @@ class SkillChaining(object):
         newly_trained_option.option_idx = self.current_option_idx
         self.current_option_idx += 1
 
-        # Augment the global DQN with the newly trained option
+        # Augment the global DQN with the newly trained option. Have to make a new DQN because there's no way to directly add a node to DQN.
         num_actions = len(self.trained_options)
         new_global_agent = DQNAgent(self.agent_over_options.state_size, num_actions, self.trained_options,
                                     seed=self.seed, name=self.agent_over_options.name,
@@ -432,7 +433,7 @@ class SkillChaining(object):
         option_reward = self.get_reward_from_experiences(option_transitions)
         next_state = self.get_next_state_from_experiences(option_transitions)
 
-        # If we triggered the untrained option's termination condition, add to its buffer of terminal transitions
+        # If we triggered an untrained option's termination condition, add to its buffer of terminal transitions
         for untrained_option in self.untrained_options:
             if untrained_option.is_term_true(next_state) and not untrained_option.is_term_true(state):
                 untrained_option.final_transitions.append((state, selected_option.option_idx))
@@ -792,15 +793,16 @@ class SkillChaining(object):
             self.validation_scores.append(eval_score)
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-        if self.generate_plots and episode % 10 == 0 and episode > 0:
+        if self.generate_plots and episode % 5 == 0 and episode > 0:
             visualize_best_option_to_take(self.agent_over_options, episode, self.seed, self.log_dir)
 
             for option in self.trained_options:
                 make_chunked_value_function_plot(option.solver, episode, self.seed, self.log_dir)
                 visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, self.log_dir)
                 visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, self.log_dir)
-                if option.get_training_phase() == 'initiation_done' or option.get_training_phase() == 'initiation':
-                    if option.classifier_type == "ocsvm":
+                if (option.get_training_phase() == 'initiation_done' or option.get_training_phase() == 'initiation') \
+                        and option.name is not "global_option" and len(option.positive_examples) > 0:
+                    if option.classifier_type is 'ocsvm':
                         plot_one_class_initiation_classifier(option, episode, self.log_dir)
                     else:
                         plot_two_class_classifier(option, episode, self.log_dir)

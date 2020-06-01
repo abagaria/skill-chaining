@@ -3,6 +3,7 @@ import random
 from collections import namedtuple, deque
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 sns.set()
 import pdb
 from copy import deepcopy
@@ -27,10 +28,7 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.tasks.four_room.FourRoomMDPClass import FourRoomMDP
 
-# KIRAN EDITS
-import pdb
-
-## Hyperparameters
+# Hyperparameters
 BUFFER_SIZE = int(1e6)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
@@ -39,6 +37,7 @@ LR = 1e-4  # learning rate
 UPDATE_EVERY = 1  # how often to update the network
 NUM_EPISODES = 3500
 NUM_STEPS = 10000
+
 
 class EpsilonSchedule:
     def __init__(self, eps_start, eps_end, eps_exp_decay, eps_linear_decay_length):
@@ -51,12 +50,14 @@ class EpsilonSchedule:
     def update_epsilon(self, current_epsilon, num_executions):
         pass
 
+
 class ConstantEpsilonSchedule(EpsilonSchedule):
     def __init__(self, eps_start):
         super(ConstantEpsilonSchedule, self).__init__(eps_start, eps_start, 1.0, 1.0)
 
     def update_epsilon(self, current_epsilon, num_executions):
         return self.eps_start
+
 
 class GlobalEpsilonSchedule(EpsilonSchedule):
     def __init__(self, eps_start):
@@ -72,6 +73,7 @@ class GlobalEpsilonSchedule(EpsilonSchedule):
             print("Global Epsilon schedule switching to exponential decay")
         return max(self.eps_end, self.eps_exp_decay * current_epsilon)
 
+
 class OptionEpsilonSchedule(EpsilonSchedule):
     def __init__(self, eps_start):
         EPS_END = 0.05
@@ -81,6 +83,7 @@ class OptionEpsilonSchedule(EpsilonSchedule):
 
     def update_epsilon(self, current_epsilon, num_executions):
         return max(self.eps_end, self.eps_exp_decay * current_epsilon)
+
 
 class QNetwork(nn.Module):
     """Actor (Policy) Model."""
@@ -126,7 +129,7 @@ class QNetwork(nn.Module):
         for local_param, global_param in zip(self.fc2.parameters(), bigger_net.fc2.parameters()):
             local_param.data.copy_(global_param)
 
-        num_original_actions = 4 # TODO: Assuming that we are in pinball domain
+        num_original_actions = 4  # TODO: Assuming that we are in pinball domain
         self.fc3.weight.data.copy_(bigger_net.fc3.weight[:num_original_actions, :])
         self.fc3.bias.data.copy_(bigger_net.fc3.bias[:num_original_actions])
 
@@ -155,6 +158,7 @@ class QNetwork(nn.Module):
         # self.fc3.weight[new_action_idx].data.copy_(torch.max(smaller_net.fc3.weight, dim=0)[0])
         # self.fc3.bias[new_action_idx].data.copy_(torch.max(smaller_net.fc3.bias, dim=0)[0])
         self.fc3.bias[new_action_idx].data.fill_(init_q_value)
+
 
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
@@ -208,7 +212,7 @@ class DQNAgent(Agent):
             self.epsilon = evaluation_epsilon
             self.num_executions = 0
             self.fitting_interval = 200  # every episode
-            self.sampled_bonus_for_action = defaultdict(lambda : [])
+            self.sampled_bonus_for_action = defaultdict(lambda: [])
         elif exploration_strategy == "shaping":
             self.epsilon_schedule = GlobalEpsilonSchedule(eps_start)
             self.epsilon = eps_start
@@ -336,7 +340,7 @@ class DQNAgent(Agent):
             states = states.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
 
-            for idx, option in enumerate(self.trained_options): # type: Option
+            for idx, option in enumerate(self.trained_options):  # type: Option
                 try:
                     inits = option.batched_is_init_true(states)
                     # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
@@ -479,6 +483,7 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
+
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
@@ -537,6 +542,7 @@ class ReplayBuffer:
         """Return the current size of internal memory."""
         return len(self.memory)
 
+
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
     last_10_scores = deque(maxlen=10)
@@ -571,6 +577,7 @@ def train(agent, mdp, episodes, steps):
             make_bonus_plot(agent, episode, args.experiment_name, args.seed)
     return per_episode_scores
 
+
 def test_forward_pass(dqn_agent, mdp):
     # load the weights from file
     mdp.reset()
@@ -587,6 +594,7 @@ def test_forward_pass(dqn_agent, mdp):
     mdp.render = False
     return overall_reward
 
+
 def save_all_scores(experiment_name, log_dir, seed, scores):
     print("\rSaving training and validation scores..")
     training_scores_file_name = "{}_{}_training_scores.pkl".format(experiment_name, seed)
@@ -597,6 +605,7 @@ def save_all_scores(experiment_name, log_dir, seed, scores):
     with open(training_scores_file_name, "wb+") as _f:
         pickle.dump(scores, _f)
 
+
 def create_log_dir(experiment_name):
     path = os.path.join(os.getcwd(), experiment_name)
     try:
@@ -606,6 +615,7 @@ def create_log_dir(experiment_name):
     else:
         print("Successfully created the directory %s " % path)
     return path
+
 
 def make_kde_plot(dqn_agent, episode, experiment_name, seed):
     sns.set_style("white")
@@ -620,6 +630,7 @@ def make_kde_plot(dqn_agent, episode, experiment_name, seed):
     plt.title("Probability density under density model # {}".format(episode))
     plt.savefig("kde_plots/{}/density_model_fit_number_{}_seed_{}.png".format(experiment_name, episode, seed))
     plt.close()
+
 
 def make_pseudo_count_plot(dqn_agent, episode, experiment_name, seed):
     sns.set_style("white")
@@ -636,6 +647,7 @@ def make_pseudo_count_plot(dqn_agent, episode, experiment_name, seed):
     plt.title("Pseudo-Counts under density model # {}".format(episode))
     plt.savefig("kde_plots/{}/pseudocounts_episode_{}_seed_{}.png".format(experiment_name, episode, seed))
     plt.close()
+
 
 def make_count_plot(dqn_agent, episode, experiment_name, seed):
     sns.set_style("white")
@@ -656,6 +668,7 @@ def make_count_plot(dqn_agent, episode, experiment_name, seed):
     plt.savefig("kde_plots/{}/counts_episode_{}_seed_{}.png".format(experiment_name, episode, seed))
     plt.close()
 
+
 def make_bonus_plot(dqn_agent, episode, experiment_name, seed):
     sns.set_style("white")
     s_a_bonus = dqn_agent.density_model.s_a_bonus
@@ -674,6 +687,7 @@ def make_bonus_plot(dqn_agent, episode, experiment_name, seed):
     plt.title("Bonus @ Episode # {}".format(episode))
     plt.savefig("kde_plots/{}/bonus_episode_{}_seed_{}.png".format(experiment_name, episode, seed))
     plt.close()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
