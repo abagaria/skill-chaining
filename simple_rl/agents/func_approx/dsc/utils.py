@@ -162,7 +162,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     axs[0, 0].set_xticks(np.linspace(x_low, x_high, 9))
     axs[0, 0].set_yticks(np.linspace(y_low, y_high, 9))
 
-    for i, x_idx, y_idx in enumerate(indices):
+    for i, (x_idx, y_idx) in enumerate(indices):
         # graphing constants
         trajectory_axis = axs[1, i]
         sampled_axis = axs[0, i]
