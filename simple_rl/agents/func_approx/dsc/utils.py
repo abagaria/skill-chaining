@@ -147,6 +147,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     # sawyer constants
     x_low, x_high, y_low, y_high = -0.4, 0.4, 0.2, 1.
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
+    titles = ['Endeff', 'Puck']
 
     # trajectories and sampled meshgrid for refined initiation sets
     positive_examples = option.construct_feature_matrix(option.positive_examples)
@@ -155,6 +156,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
 
     fig, axs = plt.subplots(2, 2, sharex='all', sharey='all')
     fig.set_size_inches(15, 13)
+    fig.suptitle(f"{option.name} {which_classifier} Initiation Set")
 
     # doesn't matter which axis we set these for because sharey and sharex are true
     axs[0, 0].set_xlim(x_low, x_high)
@@ -167,6 +169,8 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         trajectory_axis = axs[1, i]
         sampled_axis = axs[0, i]
         x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
+
+        ipdb.set_trace()
 
         # plot sampled initiation set
         sampled_axis.hexbin(initiation_states[:, x_idx], initiation_states[:, y_idx], cmap=plt.cm.get_cmap("Blues"))
@@ -183,17 +187,19 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
             sampled_axis.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
 
         # set title and legend
-        trajectory_axis.set_title(f"{option.name} {which_classifier} Initiation Set Trajectories")
-        sampled_axis.set_title(f"{option.name} {which_classifier} Initiation Set Sampled")
+        trajectory_axis.set_title(f"{titles[i]} Trajectories")
+        sampled_axis.set_title(f"{titles[i]} Mesh")
         if i == 1:
             trajectory_axis.legend()
 
         # set axes
         trajectory_axis.set_xlabel(x_label)
         trajectory_axis.set_ylabel(y_label)
+        sampled_axis.set_xlabel(x_label)
+        sampled_axis.set_ylabel(y_label)
 
     # save plot as png
-    file_name = f"{option.name}_{episode}_{option.seed}_{which_classifier}.png"
+    file_name = f"{option.name}_episode_{episode}_{option.seed}_{which_classifier}.png"
     plt.savefig(os.path.join(logdir, "initiation_set_plots", file_name))
 
 
@@ -412,7 +418,7 @@ def rotate_file_name(file_path):
         file_path += "_" + str(suffix)
         while os.path.isdir(file_path):
             suffix += 1
-            file_path = file_path.rsplit("_", 1)[0] + str(suffix)
+            file_path = file_path.rsplit("_", 1)[0] + "_" + str(suffix)
         return file_path
     else:
         return file_path
