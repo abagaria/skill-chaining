@@ -158,9 +158,9 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
 
     # doesn't matter which axis we set these for because sharey and sharex are true
     axs[0, 0].set_xlim(x_low, x_high)
-    axs[0, 0].ylim(y_low, y_high)
+    axs[0, 0].set_ylim(y_low, y_high)
     axs[0, 0].set_xticks(np.linspace(x_low, x_high, 9))
-    axs[0, 0].yticks(np.linspace(y_low, y_high, 9))
+    axs[0, 0].set_yticks(np.linspace(y_low, y_high, 9))
 
     for i, x_idx, y_idx in enumerate(indices):
         # graphing constants
