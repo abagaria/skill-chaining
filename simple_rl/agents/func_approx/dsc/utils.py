@@ -137,7 +137,7 @@ def sampled_initiation_states(option, trajectories):
     box_high = np.amax(trajectories, 0)
     mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
     states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
-    return [state for state in states if option.is_init_true(state)]
+    return np.array([state for state in states if option.is_init_true(state)])
 
 
 def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, two_class=False):
