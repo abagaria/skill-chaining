@@ -185,6 +185,8 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         # set title and legend
         trajectory_axis.set_title(f"{option.name} {which_classifier} Initiation Set Trajectories")
         sampled_axis.set_title(f"{option.name} {which_classifier} Initiation Set Sampled")
+        if i == 1:
+            trajectory_axis.legend()
 
         # set axes
         trajectory_axis.set_xlabel(x_label)
