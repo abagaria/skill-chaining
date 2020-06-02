@@ -173,10 +173,12 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         # plot sampled initiation set
         dims_to_delete = [i for i in range(5) if (i != x_idx and i != y_idx)]
         initiation_mesh = np.delete(initiation_states, dims_to_delete, 1)
-        _, z = np.unique(initiation_mesh, axis=0, return_counts=True)
         x, y = np.unique(initiation_mesh[:, 0]), np.unique(initiation_mesh[:, 1])
-        ipdb.set_trace()
-        sampled_axis.contourf(x, y, z.reshape(len(y), len(x)), cmap=plt.cm.get_cmap("Blues"))
+        # required for contour function
+        if len(x) >= 2 and len(y >= 2):
+            _, z = np.unique(initiation_mesh, axis=0, return_counts=True)
+            ipdb.set_trace()
+            sampled_axis.contourf(x, y, z.reshape(len(y), len(x)), cmap=plt.cm.get_cmap("Blues"))
 
         # plot positive and negative trajectories
         trajectory_axis.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
