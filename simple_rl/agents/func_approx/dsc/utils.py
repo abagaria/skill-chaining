@@ -175,7 +175,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         initiation_mesh = np.delete(initiation_states, dims_to_delete, 1)
         x, y = np.unique(initiation_mesh[:, 0]), np.unique(initiation_mesh[:, 1])
         # required for contour function
-        if len(x) >= 2 and len(y >= 2):
+        if len(x) >= 2 and len(y) >= 2:
             _, z = np.unique(initiation_mesh, axis=0, return_counts=True)
             ipdb.set_trace()
             sampled_axis.contourf(x, y, z.reshape(len(y), len(x)), cmap=plt.cm.get_cmap("Blues"))
