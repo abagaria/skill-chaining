@@ -137,7 +137,7 @@ def sampled_initiation_states(option, trajectories):
     box_high = np.amax(trajectories, 0)
     mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
     states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
-    return np.array([state for state in states if option.is_init_true(state)])
+    return np.array([state for state in states if option.is_init_true(state)]), option.batched_is_init_true(states)
 
 
 def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, two_class=False):
@@ -154,7 +154,14 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
                     coord = [x, y]
                     boxed_z[j, i] = z[unique_mesh.index(coord)] if coord in unique_mesh else 0.
             ax.contourf(x_unique, y_unique, boxed_z, cmap=plt.cm.get_cmap("Blues"))
-    # def _plot_scatter(states, ax):
+
+    def _plot_scatter(states, bool_initiation, ax):
+        x_y, unique_indices = np.unique(states, axis=0, return_index=True)
+        z = np.zeros(x_y.shape)
+        ipdb.set_trace()
+        for i, idx in enumerate(indices):
+            z[idx] += bool_initiation[i]
+        ax.scatter(x_y[:, 0], x_y[:, 1], z, cmap=plt.cm.get_cmap("Blues"))
 
 
     print(f"Plotting initiation sets of {option.name}")
@@ -166,7 +173,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     # trajectories and sampled meshgrid for refined initiation sets
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
-    initiation_states = sampled_initiation_states(option, positive_examples)
+    initiation_states, initiation_bool = sampled_initiation_states(option, positive_examples)
 
     fig, axs = plt.subplots(2, 2, sharex='all', sharey='all')
     fig.set_size_inches(15, 13)
@@ -185,8 +192,8 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
 
         # plot sampled initiation set
-        ipdb.set_trace()
-        _plot_contour(initiation_states[:, [x_idx, y_idx]], sampled_axis)
+        # _plot_contour(initiation_states[:, [x_idx, y_idx]], sampled_axis)
+        _plot_scatter(initiation_states[:, [x_idx, y_idx]], initiation_bool, sampled_axis)
 
         sampled_axis.set_xlabel(x_label)
         sampled_axis.set_ylabel(y_label)
