@@ -144,6 +144,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     # TODO: This is a total mess in terms of runtime, but I can't come up with a better solution
     def _plot_contour(mesh_data, ax):
         unique_mesh, z = np.unique(mesh_data, axis=0, return_counts=True)
+        unique_mesh = unique_mesh.tolist()
         x_unique = np.unique(unique_mesh[:, 0])
         y_unique = np.unique(unique_mesh[:, 1])
         if len(x_unique) >= 2 and len(y_unique) >= 2:
@@ -151,7 +152,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
             for i, x in enumerate(x_unique):
                 for j, y in enumerate(y_unique):
                     coord = [x, y]
-                    boxed_z[i, j] = unique_mesh.index(coord) if coord in unique_mesh else 0.
+                    boxed_z[i, j] = z[unique_mesh.index(coord)] if coord in unique_mesh else 0.
             ax.contourf(x_unique, y_unique, boxed_z, cmap=plt.cm.get_cmap("Blues"))
 
 
