@@ -44,7 +44,6 @@ class DDPGAgent(Agent):
         self.name = name
 
         self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
-        self.use_fixed_noise = use_fixed_noise
         self.actor = Actor(state_size, action_size, device=device)
         self.critic = Critic(state_size, action_size, device=device)
 
