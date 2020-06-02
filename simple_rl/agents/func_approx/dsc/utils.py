@@ -136,7 +136,9 @@ def sampled_initiation_states(option, trajectories):
     box_low = np.amin(trajectories, 0)
     box_high = np.amax(trajectories, 0)
     mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
-    states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
+    mesh = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
+    ipdb.set_trace()
+    center_points = mesh
     return np.array([state for state in states if option.is_init_true(state)])
 
 
@@ -156,7 +158,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
 
     fig, axs = plt.subplots(2, 2, sharex='all', sharey='all')
     fig.set_size_inches(15, 13)
-    fig.suptitle(f"{option.name} {which_classifier} Initiation Set")
+    fig.suptitle(f"{option.name} {which_classifier} Initiation Set", size=16)
 
     # doesn't matter which axis we set these for because sharey and sharex are true
     axs[0, 0].set_xlim(x_low, x_high)
@@ -173,7 +175,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         ipdb.set_trace()
 
         # plot sampled initiation set
-        sampled_axis.hexbin(initiation_states[:, x_idx], initiation_states[:, y_idx], cmap=plt.cm.get_cmap("Blues"))
+        sampled_axis.contourf(initiation_states[:, x_idx], initiation_states[:, y_idx], cmap=plt.cm.get_cmap("Blues"))
 
         # plot positive and negative trajectories
         trajectory_axis.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
