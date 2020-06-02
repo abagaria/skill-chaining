@@ -188,8 +188,9 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
 
         # plot sampled initiation set
-        # _plot_contour(initiation_states[:, [x_idx, y_idx]], sampled_axis)
-        _plot_scatter(initiation_states[:, [x_idx, y_idx]], sampled_axis)
+        if len(initiation_states) > 0:
+            # _plot_contour(initiation_states[:, [x_idx, y_idx]], sampled_axis)
+            _plot_scatter(initiation_states[:, [x_idx, y_idx]], sampled_axis)
 
         sampled_axis.set_xlabel(x_label)
         sampled_axis.set_ylabel(y_label)
