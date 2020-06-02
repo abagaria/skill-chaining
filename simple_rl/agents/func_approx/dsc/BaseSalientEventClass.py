@@ -5,7 +5,7 @@ import ipdb
 
 
 class BaseSalientEvent(object):
-    def __init__(self, target_state, event_idx, name=None, tolerance=0.06,
+    def __init__(self, target_state, event_idx, name=None, tolerance=0.03,
                  intersection_event=False, get_relevant_position=None):
 
         self.event_idx = event_idx
