@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 import argparse
-import pdb
+import ipdb
 
 # PyTorch imports.
 import torch
@@ -44,6 +44,7 @@ class DDPGAgent(Agent):
         self.name = name
 
         self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
+        self.use_fixed_noise = use_fixed_noise
         self.actor = Actor(state_size, action_size, device=device)
         self.critic = Critic(state_size, action_size, device=device)
 
@@ -85,6 +86,7 @@ class DDPGAgent(Agent):
         action = self.actor.get_action(state)
         noise = self.noise()
         if not evaluation_mode:
+            ipdb.set_trace()
             action += (noise * self.epsilon)
         action = np.clip(action, -1., 1.)
 

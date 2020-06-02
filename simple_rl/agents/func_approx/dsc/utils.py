@@ -137,8 +137,8 @@ def sampled_initiation_states(option, trajectories):
     box_high = np.amax(trajectories, 0)
     mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
     states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
-    return np.array([state for state in states if option.is_init_true(state)]), option.batched_is_init_true(states)
-
+    # return np.array([state for state in states if option.is_init_true(state)])
+    return states, option.batched_is_init_true(states)
 
 def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, two_class=False):
     # TODO: This is a total mess in terms of runtime, but I can't come up with a better solution
@@ -157,9 +157,9 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
 
     def _plot_scatter(states, bool_initiation, ax):
         x_y, unique_indices = np.unique(states, axis=0, return_index=True)
-        z = np.zeros(x_y.shape)
+        z = np.zeros(len(x_y))
         ipdb.set_trace()
-        for i, idx in enumerate(indices):
+        for i, idx in enumerate(unique_indices):
             z[idx] += bool_initiation[i]
         ax.scatter(x_y[:, 0], x_y[:, 1], z, cmap=plt.cm.get_cmap("Blues"))
 
