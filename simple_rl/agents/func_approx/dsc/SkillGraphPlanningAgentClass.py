@@ -121,7 +121,9 @@ class SkillGraphPlanningAgent(object):
         Returns:
             salient_event (SalientEvent or None)
         """
-        all_salient_events = self.plan_graph.salient_nodes
+
+        all_salient_events = self.plan_graph.plan_graph.nodes
+        all_salient_events = [event for event in all_salient_events if isinstance(event, SalientEvent)]
         satisfied_existing_salient_events = [event for event in all_salient_events if event(state)]
 
         # If the goal state falls within a known salient event, use that one,

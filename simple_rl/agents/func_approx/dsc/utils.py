@@ -18,6 +18,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -467,6 +468,8 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
         y = [event1.target_state[1], event2.target_state[1]]
         plt.plot(x, y, "o-", c="black")
 
+    sns.set_style("white")
+
     plt.figure()
 
     completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
@@ -559,6 +562,50 @@ def get_intersecting_events(source_chain, events):
     connecting_events = []
     for event in events:
         for option in source_chain.options:
-            if source_chain.detect_intersection_between_option_and_event(option, event):
+            if source_chain.detect_intersection_between_option_and_event(option, event) and \
+                    event != source_chain.init_salient_event:
                 connecting_events.append(event)
     return connecting_events
+
+
+def visualize_graph_with_all_edges(planner, chains, experiment_name,
+                                   plot_completed_events, background_img_fname="ant_maze_big_domain"):
+
+    global kGraphIterationNumber
+
+    def _plot_event_pair(event1, event2):
+        if event1.target_state is not None and event2.target_state is not None:
+            x = [event1.target_state[0], event2.target_state[0]]
+            y = [event1.target_state[1], event2.target_state[1]]
+            plt.plot(x, y, "o-", c="black")
+
+    sns.set_style("white")
+
+    plt.figure()
+
+    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
+
+    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
+    events = [event for event in planner.plan_graph.plan_graph.nodes if isinstance(event, SalientEvent)]
+
+    for chain in forward_chains:
+        intersecting_events = get_intersecting_events(chain, events)
+        for event in intersecting_events:
+            _plot_event_pair(chain.init_salient_event, event)
+        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
+
+    plt.xticks([]); plt.yticks([])
+
+    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
+
+    filename = os.path.join(os.getcwd(), f"{background_img_fname}.png")
+    if os.path.isfile(filename):
+        background_image = imageio.imread(filename)
+        plt.imshow(background_image, zorder=0, alpha=0.5, extent=[x_low_lim, x_high_lim, y_low_lim, y_high_lim])
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
+    plt.close()

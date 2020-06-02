@@ -84,9 +84,18 @@ def learning_curve(agent, mdp, episodes, episode_interval, randomize_start_state
     return all_runs
 
 
-def learning_curve_inside_graph(agent, mdp, episodes, episode_interval, randomize_start_states=False):
-    start_states = [sample_state_inside_graph(dsg_agent=agent) for _ in range(5)]
-    goal_states = [sample_state_inside_graph(dsg_agent=agent) for _ in range(5)]
+def learning_curve_inside_graph(agent, mdp, episodes, episode_interval, randomize_start_states=False,
+                                experiment_name="", num_runs=5):
+    start_states = [sample_state_inside_graph(dsg_agent=agent) for _ in range(num_runs)]
+    goal_states = [sample_state_inside_graph(dsg_agent=agent) for _ in range(num_runs)]
+
+    if randomize_start_states:
+        with open(f"{experiment_name}/lc_randomized_start_states_{randomize_start_states}_start_states.pkl",
+                  "wb+") as f:
+            pickle.dump(start_states, f)
+
+    with open(f"{experiment_name}/lc_randomized_start_states_{randomize_start_states}_goal_states.pkl", "wb+") as f:
+        pickle.dump(goal_states, f)
 
     if randomize_start_states:
         all_runs = learning_curve_with_start_states(agent, start_states, goal_states, episodes, episode_interval)

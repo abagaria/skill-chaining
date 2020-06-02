@@ -8,17 +8,22 @@ from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
 
 class D4RLPointMazeMDP(GoalDirectedMDP):
-    def __init__(self, seed, render=False):
-        self.env_name = "d4rl-point-maze"
+    def __init__(self, difficulty, use_hard_coded_events=False, seed=0, render=False):
+        assert difficulty in ("medium", "hard")
+
+        self.env_name = f"d4rl-{difficulty}-point-maze"
         self.seed = seed
         self.render = render
+        self.difficulty = difficulty
 
         random.seed(seed)
         np.random.seed(seed)
 
+        maze_id = 'd4rl-maze' if difficulty == "medium" else "d4rl-hard-maze"
+
         # Configure env
         gym_mujoco_kwargs = {
-            'maze_id': 'd4rl-maze',
+            'maze_id': maze_id,
             'n_bins': 0,
             'observe_blocks': False,
             'put_spin_near_agent': False,
@@ -29,17 +34,34 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.reset()
 
-        salient_positions = [np.array((6, 8)),
-                             np.array((5, -5)),
-                             np.array((-7.5, -5)),
-                             np.array((-8.5, 8))]
+        salient_positions = []
+        if use_hard_coded_events:
+            salient_positions = self._determine_salient_positions()
 
         self._determine_x_y_lims()
+        self.hard_coded_salient_positions = np.copy(salient_positions)
 
         GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
                                  self._transition_func,
                                  self._reward_func, self.init_state,
                                  salient_positions, task_agnostic=True, goal_tolerance=0.6)
+
+    def _determine_salient_positions(self):
+        if self.difficulty == "medium":
+            salient_positions = [np.array((6, 8)),
+                                 np.array((5, -5)),
+                                 np.array((-7.5, -5)),
+                                 np.array((-8.5, 8))]
+        elif self.difficulty == "hard":
+            salient_positions = [np.array((-15, -10)),
+                                 np.array((-15, +10)),
+                                 np.array((10, -10)),
+                                 np.array((10, 9)),
+                                 np.array((-6, +5))]
+        else:
+            raise NotImplementedError(self.difficulty)
+
+        return salient_positions
 
     def _reward_func(self, state, action):
         next_state, _, done, info = self.env.step(action)
@@ -103,8 +125,16 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         return self.env_name
 
     def _determine_x_y_lims(self):
-        xlow, xhigh = -10., 7.5
-        ylow, yhigh = -7.5, 10.
+
+        if self.difficulty == "medium":
+            xlow, xhigh = -10., 7.5
+            ylow, yhigh = -7.5, 10.
+        elif self.difficulty == "hard":
+            xlow, xhigh = -16, +12
+            ylow, yhigh = -10, +10
+        else:
+            raise NotImplementedError(self.difficulty)
+
         self.xlims = (xlow, xhigh)
         self.ylims = (ylow, yhigh)
 
@@ -113,3 +143,24 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
 
     def get_x_y_high_lims(self):
         return self.xlims[1], self.ylims[1]
+
+    def sample_random_state(self):
+        """ Rejection sampling from the set of feasible states in the maze. """
+        default_choices = self._determine_salient_positions()
+        num_tries = 0
+        rejected = True
+        while rejected and num_tries < 200:
+            low = np.array((self.xlims[0], self.ylims[0]))
+            high = np.array((self.xlims[1], self.ylims[1]))
+            sampled_point = np.random.uniform(low=low, high=high)
+            rejected = self.env._is_in_collision(sampled_point)
+            num_tries += 1
+
+            if not rejected:
+                return sampled_point
+
+        return random.choice(default_choices)
+
+    def sample_random_action(self):
+        size = (self.action_space_size(),)
+        return np.random.uniform(-1., 1., size=size)
