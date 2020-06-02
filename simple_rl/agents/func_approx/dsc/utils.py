@@ -136,9 +136,7 @@ def sampled_initiation_states(option, trajectories):
     box_low = np.amin(trajectories, 0)
     box_high = np.amax(trajectories, 0)
     mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
-    mesh = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
-    ipdb.set_trace()
-    center_points = mesh
+    states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
     return np.array([state for state in states if option.is_init_true(state)])
 
 
@@ -172,10 +170,13 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         sampled_axis = axs[0, i]
         x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
 
-        ipdb.set_trace()
-
         # plot sampled initiation set
-        sampled_axis.contourf(initiation_states[:, x_idx], initiation_states[:, y_idx], cmap=plt.cm.get_cmap("Blues"))
+        dims_to_delete = [i for i in range(5) if (i != x_idx and i != y_idx)]
+        initiation_mesh = np.delete(initiation_states, dims_to_delete, 1)
+        _, z = np.unique(initiation_mesh, axis=0, return_counts=True)
+        x, y = np.unique(initiation_mesh[:, 0]), np.unique(initiation_mesh[:, 1])
+        ipdb.set_trace()
+        sampled_axis.contourf(x, y, z.reshape(len(y), len(x)), cmap=plt.cm.get_cmap("Blues"))
 
         # plot positive and negative trajectories
         trajectory_axis.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
