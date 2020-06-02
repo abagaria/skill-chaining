@@ -132,18 +132,30 @@ def make_meshgrid(x, y, h=.02):
 
 
 def sampled_initiation_states(option, trajectories):
-    s = 0.02
+    s = 0.01
     box_low = np.amin(trajectories, 0)
     box_high = np.amax(trajectories, 0)
     mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
     states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
-    return np.array([state for state in states if option.is_init_true(state)]), mesh
+    return np.array([state for state in states if option.is_init_true(state)])
 
 
 def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, two_class=False):
-    print(f"Plotting sampled initiation sets of {option.name}")
-    print(f"Plotting initiation set trajectories of {option.name}")
+    # TODO: This is a total mess in terms of runtime, but I can't come up with a better solution
+    def _plot_contour(mesh_data, ax):
+        unique_mesh, z = np.unique(mesh_data, axis=0, return_counts=True)
+        x_unique = np.unique(unique_mesh[:, 0])
+        y_unique = np.unique(unique_mesh[:, 1])
+        if len(x_unique) >= 2 and len(y_unique) >= 2:
+            boxed_z = np.zeros((len(x_unique), len(y_unique)))
+            for i, x in enumerate(x_unique):
+                for j, y in enumerate(y_unique):
+                    coord = [x, y]
+                    boxed_z[i, j] = unique_mesh.index(coord) if coord in unique_mesh else 0.
+            ax.contourf(x_unique, y_unique, boxed_z, cmap=plt.cm.get_cmap("Blues"))
 
+
+    print(f"Plotting initiation sets of {option.name}")
     # sawyer constants
     x_low, x_high, y_low, y_high = -0.4, 0.4, 0.2, 1.
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
@@ -152,7 +164,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     # trajectories and sampled meshgrid for refined initiation sets
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
-    initiation_states, mesh = sampled_initiation_states(option, positive_examples)
+    initiation_states = sampled_initiation_states(option, positive_examples)
 
     fig, axs = plt.subplots(2, 2, sharex='all', sharey='all')
     fig.set_size_inches(15, 13)
@@ -171,14 +183,10 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
 
         # plot sampled initiation set
-        dims_to_delete = [i for i in range(5) if (i != x_idx and i != y_idx)]
-        initiation_mesh = np.delete(initiation_states, dims_to_delete, 1)
-        x, y = np.unique(initiation_mesh[:, 0]), np.unique(initiation_mesh[:, 1])
-        ipdb.set_trace()
-        # required for contour function
-        if len(x) >= 2 and len(y) >= 2:
-            _, z = np.unique(initiation_mesh, axis=0, return_counts=True)
-            sampled_axis.contourf(x, y, z.reshape(len(y), len(x)), cmap=plt.cm.get_cmap("Blues"))
+        _plot_contour(initiation_states[:, [x_idx, y_idx]], sampled_axis)
+        sampled_axis.set_xlabel(x_label)
+        sampled_axis.set_ylabel(y_label)
+        sampled_axis.set_title(titles[i])
 
         # plot positive and negative trajectories
         trajectory_axis.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
@@ -193,15 +201,14 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
 
         # set title and legend
         trajectory_axis.set_title(f"{titles[i]} Trajectories")
-        sampled_axis.set_title(f"{titles[i]} Mesh")
+
         if i == 1:
             trajectory_axis.legend()
 
         # set axes
         trajectory_axis.set_xlabel(x_label)
         trajectory_axis.set_ylabel(y_label)
-        sampled_axis.set_xlabel(x_label)
-        sampled_axis.set_ylabel(y_label)
+
 
     # save plot as png
     file_name = f"{option.name}_episode_{episode}_{option.seed}_{which_classifier}.png"
