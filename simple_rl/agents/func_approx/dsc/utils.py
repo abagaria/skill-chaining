@@ -148,11 +148,11 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         y_unique = np.unique(unique_mesh[:, 1])
         if len(x_unique) >= 2 and len(y_unique) >= 2:
             unique_mesh = unique_mesh.tolist()
-            boxed_z = np.zeros((len(x_unique), len(y_unique)))
+            boxed_z = np.zeros((len(y_unique), len(x_unique)))
             for i, x in enumerate(x_unique):
                 for j, y in enumerate(y_unique):
                     coord = [x, y]
-                    boxed_z[i, j] = z[unique_mesh.index(coord)] if coord in unique_mesh else 0.
+                    boxed_z[j, i] = z[unique_mesh.index(coord)] if coord in unique_mesh else 0.
             ax.contourf(x_unique, y_unique, boxed_z, cmap=plt.cm.get_cmap("Blues"))
 
 
