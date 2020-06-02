@@ -89,7 +89,7 @@ class DDPGAgent(Agent):
         action = self.actor.get_action(state)
         self.i += 1
         self.record.append(action)
-        if self.i % 100:
+        if self.i % 100 == 0:
             print(np.max(self.record, axis=0), np.mean(self.record, axis=0))
             ipdb.set_trace()
         action = self.add_noise_to_action(action, evaluation_mode)
