@@ -154,6 +154,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
                     coord = [x, y]
                     boxed_z[j, i] = z[unique_mesh.index(coord)] if coord in unique_mesh else 0.
             ax.contourf(x_unique, y_unique, boxed_z, cmap=plt.cm.get_cmap("Blues"))
+    # def _plot_scatter(states, ax):
 
 
     print(f"Plotting initiation sets of {option.name}")
@@ -184,10 +185,12 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
 
         # plot sampled initiation set
+        ipdb.set_trace()
         _plot_contour(initiation_states[:, [x_idx, y_idx]], sampled_axis)
+
         sampled_axis.set_xlabel(x_label)
         sampled_axis.set_ylabel(y_label)
-        sampled_axis.set_title(titles[i])
+        sampled_axis.set_title(f"{titles[i]} Detailed Trajectories")
 
         # plot positive and negative trajectories
         trajectory_axis.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
@@ -403,7 +406,7 @@ def make_chunked_value_function_plot(solver, episode, seed, logdir, chunk_size=1
         plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
         plt.close()
 
-        return np.max(qvalues)
+        # return np.max(qvalues)
 
 
 def create_log_dirs(directory_path):
