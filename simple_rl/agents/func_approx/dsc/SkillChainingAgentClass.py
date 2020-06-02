@@ -793,13 +793,13 @@ class SkillChaining(object):
             self.validation_scores.append(eval_score)
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-        if self.generate_plots and episode % 1 == 0 and episode > 0:
+        if self.generate_plots and episode % 50 == 0 and episode > 0:
             visualize_best_option_to_take(self.agent_over_options, episode, self.seed, self.log_dir)
 
             for option in self.trained_options:
-                # make_chunked_value_function_plot(option.solver, episode, self.seed, self.log_dir)
-                # visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, self.log_dir)
-                # visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, self.log_dir)
+                make_chunked_value_function_plot(option.solver, episode, self.seed, self.log_dir)
+                visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, self.log_dir)
+                visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, self.log_dir)
                 if (option.get_training_phase() == 'initiation_done' or option.get_training_phase() == 'initiation') \
                         and option.name is not "global_option" and len(option.positive_examples) > 0:
                     if option.classifier_type is 'ocsvm':
