@@ -266,14 +266,15 @@ class DQNAgent(Agent):
         self.num_executions += 1
         epsilon = self.epsilon if train_mode else self.evaluation_epsilon
 
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        torch_state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
-            action_values = self.policy_network(state)
+            action_values = self.policy_network(torch_state)
         self.policy_network.train()
         if len(action_values) > 3:
             pdb.set_trace()
 
+        # need to use np_state and not torch_state here because torch loses floating point precision when rounding
         impossible_option_idx = self.get_impossible_option_idx(state)
 
         for impossible_idx in impossible_option_idx:
