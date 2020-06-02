@@ -177,7 +177,6 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         # required for contour function
         if len(x) >= 2 and len(y) >= 2:
             _, z = np.unique(initiation_mesh, axis=0, return_counts=True)
-            ipdb.set_trace()
             sampled_axis.contourf(x, y, z.reshape(len(y), len(x)), cmap=plt.cm.get_cmap("Blues"))
 
         # plot positive and negative trajectories
