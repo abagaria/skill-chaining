@@ -793,7 +793,7 @@ class SkillChaining(object):
             self.validation_scores.append(eval_score)
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-        if self.generate_plots and episode % 1 == 0 and episode > 0:
+        if self.generate_plots and episode % 50 == 0 and episode > 0:
             visualize_best_option_to_take(self.agent_over_options, episode, self.seed, self.log_dir)
 
             for option in self.trained_options:
