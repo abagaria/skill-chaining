@@ -322,37 +322,24 @@ if __name__ == "__main__":
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
-    elif args.env == "d4rl-point-maze":
+    elif args.env == "d4rl-medium-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
-        overall_mdp = D4RLPointMazeMDP(seed=args.seed, render=args.render)
+        overall_mdp = D4RLPointMazeMDP(seed=args.seed,
+                                       render=args.render,
+                                       use_hard_coded_events=args.use_hard_coded_events,
+                                       difficulty="medium")
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
-    elif "reacher" in args.env.lower():
-        from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-
-
-        overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
-        state_dim = overall_mdp.init_state.features().shape[0]
-        action_dim = overall_mdp.env.action_spec().minimum.shape[0]
-    elif "maze" in args.env.lower():
-        from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
-
-        overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
-        state_dim = 6
-        action_dim = 2
-    elif "point" in args.env.lower():
-        from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
-
-        overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
-        state_dim = 4
-        action_dim = 2
+    elif args.env == "d4rl-hard-point-maze":
+        from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+        overall_mdp = D4RLPointMazeMDP(seed=args.seed,
+                                       render=args.render,
+                                       use_hard_coded_events=args.use_hard_coded_events,
+                                       difficulty="hard")
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
     else:
-        from simple_rl.tasks.gym.GymMDPClass import GymMDP
-
-        overall_mdp = GymMDP(args.env, render=args.render)
-        state_dim = overall_mdp.env.observation_space.shape[0]
-        action_dim = overall_mdp.env.action_space.shape[0]
-        overall_mdp.env.seed(args.seed)
+        raise NotImplementedError(args.env)
 
     # Create folders for saving various things
     logdir = create_log_dir(args.experiment_name)
