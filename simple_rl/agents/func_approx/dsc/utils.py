@@ -144,10 +144,10 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     # TODO: This is a total mess in terms of runtime, but I can't come up with a better solution
     def _plot_contour(mesh_data, ax):
         unique_mesh, z = np.unique(mesh_data, axis=0, return_counts=True)
-        unique_mesh = unique_mesh.tolist()
         x_unique = np.unique(unique_mesh[:, 0])
         y_unique = np.unique(unique_mesh[:, 1])
         if len(x_unique) >= 2 and len(y_unique) >= 2:
+            unique_mesh = unique_mesh.tolist()
             boxed_z = np.zeros((len(x_unique), len(y_unique)))
             for i, x in enumerate(x_unique):
                 for j, y in enumerate(y_unique):
