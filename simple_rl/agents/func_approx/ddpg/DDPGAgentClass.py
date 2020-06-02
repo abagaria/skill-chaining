@@ -25,7 +25,7 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
                  batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="shaping",
-                 trained_options=[], evaluation_epsilon=0.1):
+                 trained_options=[], evaluation_epsilon=0.02, use_fixed_noise=True):
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
@@ -44,6 +44,7 @@ class DDPGAgent(Agent):
         self.name = name
 
         self.noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_size))
+        self.use_fixed_noise = use_fixed_noise
         self.actor = Actor(state_size, action_size, device=device)
         self.critic = Critic(state_size, action_size, device=device)
 
@@ -77,17 +78,21 @@ class DDPGAgent(Agent):
         self.n_learning_iterations = 0
         self.n_acting_iterations = 0
 
+        self.record = []
+        self.i = 1
+
         print("Creating {} with exploration strategy of {}".format(self.name, self.exploration_method))
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
     def act(self, state, evaluation_mode=False):
         action = self.actor.get_action(state)
-        noise = self.noise()
-        if not evaluation_mode:
+        self.i += 1
+        self.record.append(action)
+        if i % 100:
+            print(np.max(self.record, axis=0), np.mean(self.record, axis=0))
             ipdb.set_trace()
-            action += (noise * self.epsilon)
-        action = np.clip(action, -1., 1.)
+        action = self.add_noise_to_action(action, evaluation_mode)
 
         if self.writer is not None:
             self.n_acting_iterations = self.n_acting_iterations + 1
@@ -100,6 +105,18 @@ class DDPGAgent(Agent):
             self.writer.add_scalar("{}_noise_x".format(self.name), noise[0], self.n_acting_iterations)
             self.writer.add_scalar("{}_noise_y".format(self.name), noise[1], self.n_acting_iterations)
 
+        return action
+
+    def add_noise_to_action(self, action, evaluation_mode):
+        if not evaluation_mode:
+            if self.use_fixed_noise:
+                noise = np.random.normal(0, self.evaluation_epsilon, size=(self.action_size,))
+                action += noise
+            else:  # OU Noise
+                noise = self.noise()
+                action += (noise * self.epsilon)
+            # Adding noise could have taken us outside the action space bounds
+            action = np.clip(action, -1., 1.)
         return action
 
     def step(self, state, action, reward, next_state, done):
