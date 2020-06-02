@@ -137,7 +137,7 @@ def sampled_initiation_states(option, trajectories):
     box_high = np.amax(trajectories, 0)
     mesh = np.meshgrid(*[np.arange(axis_min, axis_max, s) for axis_min, axis_max in zip(box_low, box_high)])
     states = np.transpose([mesh_dim.ravel() for mesh_dim in mesh])
-    return np.array([state for state in states if option.is_init_true(state)])
+    return np.array([state for state in states if option.is_init_true(state)]), mesh
 
 
 def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, two_class=False):
@@ -152,7 +152,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     # trajectories and sampled meshgrid for refined initiation sets
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
-    initiation_states = sampled_initiation_states(option, positive_examples)
+    initiation_states, mesh = sampled_initiation_states(option, positive_examples)
 
     fig, axs = plt.subplots(2, 2, sharex='all', sharey='all')
     fig.set_size_inches(15, 13)
@@ -174,6 +174,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         dims_to_delete = [i for i in range(5) if (i != x_idx and i != y_idx)]
         initiation_mesh = np.delete(initiation_states, dims_to_delete, 1)
         x, y = np.unique(initiation_mesh[:, 0]), np.unique(initiation_mesh[:, 1])
+        ipdb.set_trace()
         # required for contour function
         if len(x) >= 2 and len(y) >= 2:
             _, z = np.unique(initiation_mesh, axis=0, return_counts=True)
