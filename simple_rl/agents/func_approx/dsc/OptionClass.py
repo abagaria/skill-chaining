@@ -626,9 +626,11 @@ class Option(object):
 
 				action = self.solver.act(state.features(), evaluation_mode=eval_mode)
 				if self.name == "goal_option_1" and episode == 5:
-					ipdb.set_trace()
+					# ipdb.set_trace()
 
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
+				if step_number == 0:
+					print(state, next_state)
 
 				self.update_option_solver(state, action, reward, next_state)
 
@@ -682,12 +684,12 @@ class Option(object):
 
 			# if self.is_valid_init_data(positive_states):
 			positive_examples = [state.features() for state in positive_states]
-			ipdb.set_trace()
+			# ipdb.set_trace()
 			self.positive_examples.append(positive_examples)
 
 		elif num_steps == self.timeout and self.get_training_phase() == "initiation":
 			negative_examples = [start_state.position]
-			ipdb.set_trace()
+			# ipdb.set_trace()
 			self.negative_examples.append(negative_examples)
 		# else:
 		# 	assert final_state.is_terminal() or outer_step_number == self.max_steps, \
