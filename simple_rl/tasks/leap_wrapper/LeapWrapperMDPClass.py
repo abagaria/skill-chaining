@@ -68,7 +68,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
     def _reward_func(self, state, action):
         assert isinstance(action, np.ndarray), type(action)
-        assert(all(self.env.))
+        assert(all(self.env._get_obs()['observation'] == state))
         next_state, reward, done, _ = self.env.step(action)
         self.next_state = self._get_state(next_state, done)
         if self.render:
