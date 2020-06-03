@@ -679,7 +679,8 @@ class SkillChaining(object):
         last_10_durations = deque(maxlen=10)
 
         for episode in range(starting_episode, starting_episode + num_episodes):
-
+            if episode == 5:
+                ipdb.set_trace()
             self.mdp.reset()
             score = 0.
             step_number = 0
