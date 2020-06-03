@@ -339,19 +339,14 @@ class Option(object):
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
 
+		# ip the option is targeting a salient event, check if we have satisfied the
+		# initiation condition of that salient event
 		if self.target_salient_event is not None:
 			return self.target_salient_event(ground_state)
 
 		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
-		# TODO: Delete these two cases if they are never hit
-		elif self.name == "goal_option_1":
-			ipdb.set_trace()
-			return self.overall_mdp.get_original_target_events()[0](ground_state)
-		elif self.name == "goal_option_2":
-			ipdb.set_trace()
-			return self.overall_mdp.get_original_target_events()[1](ground_state)
 		else:
 			assert len(self.intersecting_options) > 0, "{}, {}".format(self, self.intersecting_options)
 			o1, o2 = self.intersecting_options[0], self.intersecting_options[1]
@@ -658,7 +653,7 @@ class Option(object):
 
 			# TODO: When initialize_everywhere is true, self.train() needs to be called from the OptionClass and not from SkillChainingClass
 
-			if self.is_term_true(state) and self.last_episode_term_triggered != episode: # and self.is_valid_init_data(visited_states):
+			if self.is_term_true(state) and self.last_episode_term_triggered != episode:  # and self.is_valid_init_data(visited_states):
 				self.num_goal_hits += 1
 				self.last_episode_term_triggered = episode
 
@@ -684,10 +679,12 @@ class Option(object):
 
 			# if self.is_valid_init_data(positive_states):
 			positive_examples = [state.features() for state in positive_states]
+			ipdb.set_trace()
 			self.positive_examples.append(positive_examples)
 
 		elif num_steps == self.timeout and self.get_training_phase() == "initiation":
 			negative_examples = [start_state.position]
+			ipdb.set_trace()
 			self.negative_examples.append(negative_examples)
 		# else:
 		# 	assert final_state.is_terminal() or outer_step_number == self.max_steps, \
