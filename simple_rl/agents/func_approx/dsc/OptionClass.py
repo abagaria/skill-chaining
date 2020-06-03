@@ -625,6 +625,9 @@ class Option(object):
 					step_number < self.max_steps and num_steps < self.timeout:
 
 				action = self.solver.act(state.features(), evaluation_mode=eval_mode)
+				if self.name is "goal_option_1" and episode == 5:
+					ipdb.set_trace()
+
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
 				self.update_option_solver(state, action, reward, next_state)
