@@ -117,6 +117,7 @@ class Option(object):
 		self.option_start_states = []
 		self.num_test_executions = 0
 		self.num_successful_test_executions = 0
+		self.temp = []
 
 	def __str__(self):
 		return self.name
@@ -629,8 +630,11 @@ class Option(object):
 					# ipdb.set_trace()
 
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
-				if step_number == 0:
-					print(state, next_state)
+				if step_number == 0 or step_number == 1:
+					self.temp.append((step_number, state.position, next_state.position))
+					if len(self.temp) > 10:
+						ipdb.set_trace()
+					print(self.temp)
 
 				self.update_option_solver(state, action, reward, next_state)
 
