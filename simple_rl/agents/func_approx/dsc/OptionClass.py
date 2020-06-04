@@ -151,7 +151,7 @@ class Option(object):
 			return 0.1
 		elif "ant" in self.overall_mdp.env_name:
 			return 0.25
-		elif "saywer" in self.overall_mdp.env_name:
+		else:
 			return -1
 
 	def act(self, state, eval_mode, warmup_phase):
