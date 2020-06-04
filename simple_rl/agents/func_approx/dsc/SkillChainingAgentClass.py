@@ -372,10 +372,8 @@ class SkillChaining(object):
 			raw_rewards = [tt[2] for tt in transitions]
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
-		try:
-			selected_option = self.trained_options[action]  # type: Option
-		except:
-			ipdb.set_trace()
+		selected_option = self.trained_options[action]  # type: Option
+		ipdb.set_trace()
 
 		for i, transition in enumerate(option_transitions):
 			start_state = transition[0]

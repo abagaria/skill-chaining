@@ -338,13 +338,10 @@ class DQNAgent(Agent):
             action_values = action_values.cpu().data.numpy()
 
             for idx, option in enumerate(self.trained_options):  # type: Option
-                try:
-                    inits = option.batched_is_init_true(states)
-                    # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
-                    terms = option.batched_is_term_true(states)
-                    action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
-                except:
-                    ipdb.set_trace()
+                inits = option.batched_is_init_true(states)
+                # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
+                terms = option.batched_is_term_true(states)
+                action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
 
             # Move the q-values back the GPU
             action_values = torch.from_numpy(action_values).float().to(self.device)

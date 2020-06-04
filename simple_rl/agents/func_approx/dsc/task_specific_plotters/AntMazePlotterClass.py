@@ -5,11 +5,11 @@ import torch
 import matplotlib
 import matplotlib.pyplot as plt
 
-#import simple_rl.agents.func_approx.dsc.BaseSalientEventClass
+
+# import simple_rl.agents.func_approx.dsc.BaseSalientEventClass
 class AntMazePlotter(SkillChainingPlotter):
     def __init__(self, experiment_name):
         SkillChainingPlotter.__init__(self, "ant_maze", experiment_name)
-
 
     def visualize_best_option_to_take(self, policy_over_options_dqn, episode, seed):
         states = np.array([exp.state for exp in policy_over_options_dqn.replay_buffer.memory])
@@ -20,7 +20,7 @@ class AntMazePlotter(SkillChainingPlotter):
         plt.scatter(x, y, c=options, cmap=plt.cm.Dark2)
         plt.colorbar()
         file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}.png"
-        plt.savefig(self.path/file_name)
+        plt.savefig(self.path / file_name)
         plt.close()
 
     def visualize_ddpg_shaped_rewards(self, global_option, other_option, episode, seed):
@@ -31,7 +31,7 @@ class AntMazePlotter(SkillChainingPlotter):
             plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
             plt.colorbar()
             file_name = f"{other_option.name}_low_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
-            plt.savefig(self.path/file_name)
+            plt.savefig(self.path / file_name)
             plt.close()
 
     def visualize_dqn_shaped_rewards(self, dqn_agent, option, episode, seed):
@@ -41,9 +41,8 @@ class AntMazePlotter(SkillChainingPlotter):
             plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
             plt.colorbar()
             file_name = f"{option.name}_high_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
-            plt.savefig(self.path/file_name)
+            plt.savefig(self.path / file_name)
             plt.close()
-
 
     def visualize_dqn_replay_buffer(self, solver):
         goal_transitions = list(filter(lambda e: e[2] >= 0 and e[4] == 1, solver.replay_buffer.memory))
@@ -68,7 +67,7 @@ class AntMazePlotter(SkillChainingPlotter):
         plt.legend()
         plt.title("# transitions = {}".format(len(solver.replay_buffer)))
         file_name = "{}_replay_buffer_analysis.png".format(solver.name)
-        plt.savefig(self.path/file_name)
+        plt.savefig(self.path / file_name)
         plt.close()
 
     def visualize_next_state_reward_heat_map(self, option, episode=None):
@@ -92,9 +91,8 @@ class AntMazePlotter(SkillChainingPlotter):
 
         name = option.name if episode is None else option.name + "_{}_{}".format(self.experiment_name, episode)
         file_name = "{}_replay_buffer_reward_map.png".format(name)
-        plt.savefig(self.path/file_name)
+        plt.savefig(self.path / file_name)
         plt.close()
-
 
     def generate_episode_plots(self, chainer, episode):
         '''
@@ -102,7 +100,7 @@ class AntMazePlotter(SkillChainingPlotter):
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
         '''
         self.visualize_best_option_to_take(chainer.agent_over_options, episode, chainer.seed)
-        
+
         for option in chainer.trained_options:
             self.visualize_ddpg_shaped_rewards(chainer.global_option, option, episode, chainer.seed)
             self.visualize_dqn_shaped_rewards(chainer.agent_over_options, option, episode, chainer.seed)
@@ -110,14 +108,14 @@ class AntMazePlotter(SkillChainingPlotter):
     def generate_experiment_plots(self, chainer):
         for option in chainer.trained_options:
             self.visualize_dqn_replay_buffer(option.solver)
-        
+
         for i, o in enumerate(chainer.trained_options):
             plt.subplot(1, len(chainer.trained_options), i + 1)
             plt.plot(chainer.option_qvalues[o.name])
             plt.title(o.name)
         file_name = "sampled_q_so_{}.png".format(chainer.seed)
-        plt.savefig(self.path/file_name)
+        plt.savefig(self.path / file_name)
         plt.close()
-        
+
         for option in chainer.trained_options:
             self.visualize_next_state_reward_heat_map(option.solver, -1)

@@ -1,6 +1,7 @@
 from pathlib import Path
 import abc
 
+
 class SkillChainingPlotter(metaclass=abc.ABCMeta):
     def __init__(self, task_name, experiment_name):
         '''
@@ -11,7 +12,7 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
         self.task_name = task_name
         self.experiment_name = experiment_name
 
-        self.path = Path.cwd()/"plots"/task_name/experiment_name
+        self.path = Path.cwd() / "plots" / task_name / experiment_name
         self.path.mkdir(parents=True, exist_ok=True)
 
     @abc.abstractmethod
