@@ -8,12 +8,12 @@ import ipdb
 
 class SalientEvent(object):
     def __init__(
-        self, target_state, event_idx, tolerance=0.6, 
-        use_additive_constants=False, 
-        intersection_event=False, 
-        get_relevant_position=None,
-        name=None
-        ):
+            self, target_state, event_idx, tolerance=0.6,
+            use_additive_constants=False,
+            intersection_event=False,
+            get_relevant_position=None,
+            name=None
+    ):
         self.target_state = target_state
         self.event_idx = event_idx
         self.tolerance = tolerance
@@ -35,7 +35,6 @@ class SalientEvent(object):
         else:
             self.get_relevant_position = get_relevant_position
 
-
     def _initialize_trigger_points(self):
         # TODO: Right now, the extra trigger points only work for 2d
         trigger_points = []
@@ -44,10 +43,10 @@ class SalientEvent(object):
             d = r / np.sqrt(2)
             target_position = self.get_relevant_position(self.target_state)
             additive_constants = [np.array((r, 0)), np.array((0, r)),
-                                np.array((-r, 0)), np.array((0, -r)),
-                                np.array((d, d)), np.array((-d, -d)),
-                                np.array((-d, d)), np.array((d, -d))]
-            
+                                  np.array((-r, 0)), np.array((0, -r)),
+                                  np.array((d, d)), np.array((-d, -d)),
+                                  np.array((-d, d)), np.array((d, -d))]
+
             for constant in additive_constants:
                 trigger_points.append(target_position + constant)
 
@@ -79,8 +78,8 @@ class SalientEvent(object):
             return False
 
         return _state_eq(self.target_state, other.target_state) and \
-               self.tolerance == other.tolerance # and \
-               # self.event_idx == other.event_idx
+               self.tolerance == other.tolerance  # and \
+        # self.event_idx == other.event_idx
 
     def __hash__(self):
         target_state = self.get_relevant_position(self.target_state)
@@ -93,8 +92,9 @@ class SalientEvent(object):
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
+        curr_positions = self.get_relevant_position(position_matrix)
         goal_position = self.get_relevant_position(self.target_state)
-        in_goal_position = distance.cdist(position_matrix, goal_position[None, :]) <= self.tolerance
+        in_goal_position = distance.cdist(curr_positions, goal_position[None, :]) <= self.tolerance
         return in_goal_position.squeeze(1)
 
     def is_intersecting(self, option):
@@ -133,9 +133,9 @@ class SalientEvent(object):
 
 class LearnedSalientEvent(SalientEvent):
     def __init__(
-        self, state_set, event_idx, tolerance=0.6, 
-        intersection_event=False, name=None
-        ):
+            self, state_set, event_idx, tolerance=0.6,
+            intersection_event=False, name=None
+    ):
         self.state_set = state_set
         self.classifier = self._classifier_on_state_set()
 
@@ -166,6 +166,7 @@ class LearnedSalientEvent(SalientEvent):
             return f"LearnedSalientEvent targeting {self.target_state}"
         else:
             return f"LearnedSalientEvent targeting {self.target_state} | {self.name}"
+
 
 class DCOSalientEvent(SalientEvent):
     def __init__(self, covering_option, event_idx, replay_buffer, is_low, tolerance=2.0, intersection_event=False, name=None):

@@ -1,3 +1,4 @@
+import ipdb
 import numpy as np
 import random
 from collections import namedtuple, deque
@@ -343,7 +344,7 @@ class DQNAgent(Agent):
                     terms = option.batched_is_term_true(states)
                     action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
                 except:
-                    pdb.set_trace()
+                    ipdb.set_trace()
 
             # Move the q-values back the GPU
             action_values = torch.from_numpy(action_values).float().to(self.device)

@@ -29,12 +29,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.salient_tolerance = 0.03
         self.goal_tolerance = 0.03
 
-
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=False, goal_tolerance=self.goal_tolerance)
         self.goal_state = self.env.get_goal()['state_desired_goal']
-
 
         # Sets the initial state
         self.reset()
@@ -48,9 +46,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         salient_events = [
             SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
-                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
+                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
             SalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
-                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
+                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
         ]
 
         action_dims = range(self.env.action_space.shape[0])

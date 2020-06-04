@@ -204,6 +204,7 @@ class DDPGAgent(Agent):
         self.critic.train()
         return q_values
 
+
 def trained_forward_pass(agent, mdp, steps, render=False):
     mdp.reset()
     state = deepcopy(mdp.init_state)

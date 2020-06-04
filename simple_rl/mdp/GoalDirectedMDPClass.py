@@ -5,6 +5,7 @@ from simple_rl.mdp import MDP, State
 
 from copy import copy
 
+
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state,
                  salient_events, task_agnostic, goal_state=None, goal_tolerance=0.6, start_tolerance=0.6):
