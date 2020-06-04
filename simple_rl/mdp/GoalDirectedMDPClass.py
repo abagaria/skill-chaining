@@ -3,14 +3,16 @@ from scipy.spatial import distance
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp import MDP, State
 
+from copy import deepcopy
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state,
-                 salient_positions, task_agnostic, goal_state=None, goal_tolerance=0.6):
+                 salient_events, task_agnostic, goal_state=None, goal_tolerance=0.6, start_tolerance=0.6):
 
-        self.salient_positions = salient_positions
+        self._salient_events = salient_events
         self.task_agnostic = task_agnostic
         self.goal_tolerance = goal_tolerance
+        self._start_tolerance = start_tolerance
         self.goal_state = goal_state
         self.dense_reward = False
 
@@ -23,17 +25,16 @@ class GoalDirectedMDP(MDP):
 
     def _initialize_salient_events(self):
         # Set the current target events in the MDP
-        self.current_salient_events = [SalientEvent(pos, event_idx=i + 1) for i, pos in
-                                       enumerate(self.salient_positions)]
+        self.current_salient_events = deepcopy(self._salient_events)
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_salient_events = [event for event in self.current_salient_events]
+        self.original_salient_events = deepcopy(self._salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
+        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, tolerance=self._start_tolerance)
 
         # Keep track of all the salient events ever created in this MDP
-        self.all_salient_events_ever = [event for event in self.current_salient_events]
+        self.all_salient_events_ever = deepcopy(self._salient_events)
 
         # Make sure that we didn't create multiple copies of the same events
         self._ensure_all_events_are_the_same()
