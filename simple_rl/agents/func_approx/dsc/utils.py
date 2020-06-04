@@ -157,6 +157,7 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
 
     def _plot_scatter(states, ax):
         x_y, counts = np.unique(states, axis=0, return_counts=True)
+        ipdb.set_trace()
         ax.scatter(x_y[:, 0], x_y[:, 1], counts, cmap=plt.cm.get_cmap("Blues"))
 
 
@@ -165,6 +166,8 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     x_low, x_high, y_low, y_high = -0.4, 0.4, 0.2, 1.
     axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
     titles = ['Endeff', 'Puck']
+    start_state = [-0.007, 0.52, 0.12, 0., 0.6]
+    goal_state = [-0.007, 0.52, 0.12, 0., 0.6]
 
     # trajectories and sampled meshgrid for refined initiation sets
     positive_examples = option.construct_feature_matrix(option.positive_examples)
@@ -182,7 +185,6 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
     axs[0, 0].set_yticks(np.linspace(y_low, y_high, 9))
 
     for i, (x_idx, y_idx) in enumerate(indices):
-        # graphing constants
         trajectory_axis = axs[1, i]
         sampled_axis = axs[0, i]
         x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
@@ -201,11 +203,15 @@ def _plot_initiation_sets(indices, which_classifier, option, episode, logdir, tw
         if two_class and negative_examples.shape[0] > 0:
             trajectory_axis.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.5, s=50)
 
-        # plot option's target state
+        # plot option's start, goal, and target states
+        trajectory_axis.scatter(start_state[x_idx], start_state[y_idx], label="start state", c="k", marker="*", s=100)
+        trajectory_axis.scatter(goal_state[x_idx], goal_state[y_idx], label="goal state", c="k", marker="D", s=100)
+        sampled_axis.scatter(start_state[x_idx], start_state[y_idx], label="start state", c="k", marker="*", s=100)
+        sampled_axis.scatter(start_state[x_idx], start_state[y_idx], label="goal state", c="k", marker="D", s=100)
         if option.target_salient_event is not None:
             target = option.target_salient_event.target_state
-            trajectory_axis.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
-            sampled_axis.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
+            trajectory_axis.scatter(target[x_idx], target[y_idx], label="target salient event", c="k", marker="x", s=100)
+            sampled_axis.scatter(target[x_idx], target[y_idx], label="target salient event", c="k", marker="x", s=100)
 
         # set title and legend
         trajectory_axis.set_title(f"{titles[i]} Trajectories")
