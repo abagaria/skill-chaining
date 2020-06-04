@@ -9,7 +9,6 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
-from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
 from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
 

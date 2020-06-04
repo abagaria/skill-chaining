@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
-from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class GraphSearch(object):

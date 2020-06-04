@@ -35,7 +35,7 @@ class SkillChaining(object):
 				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
 				 pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
 				 update_global_solver=False, use_warmup_phase=False, dense_reward=False,
-				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
+				 log_dir="", seed=0, tensor_log=False, experiment_name="", plotter=None):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -91,6 +91,7 @@ class SkillChaining(object):
 		self.update_global_solver = update_global_solver
 		self.use_warmup_phase = use_warmup_phase
 		self.experiment_name = experiment_name
+		self.plotter = plotter
 
 		tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -230,17 +231,17 @@ class SkillChaining(object):
 			a new_option in the backward chain, i.e, only add positives in the backward chain as
 			negative examples for the new_option.
 		"""
-        forward_option = not new_option.backward_option
-        if forward_option:
-            for option in self.trained_options[1:]:  # type: Option
-                new_option.negative_examples += option.positive_examples
-        else:
-            for option in self.trained_options[1:]:  # type: Option
-                if option.backward_option:
-                    new_option.negative_examples += option.positive_examples
-
-    def init_state_in_option(self, option):
-        """
+		forward_option = not new_option.backward_option
+		if forward_option:
+			for option in self.trained_options[1:]:  # type: Option
+				new_option.negative_examples += option.positive_examples
+		else:
+			for option in self.trained_options[1:]:  # type: Option
+				if option.backward_option:
+					new_option.negative_examples += option.positive_examples
+					
+	def init_state_in_option(self, option):
+		"""
 		If the input `option` is part of a forward chain, we want to check if the start
 		state of the MDP is in its initiation set. If so, we will not create a child
 		option for the input `option`. If the input `option` is part of the backward
@@ -1096,18 +1097,13 @@ class SkillChaining(object):
 			self.validation_scores.append(eval_score)
 			print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-		if self.generate_plots and episode % 10 == 0 and episode > 0:
+		if self.plotter is not None and self.generate_plots and episode % 10 == 0 and episode > 0:
+			self.plotter.generate_episode_plots(self, episode)
 
-			visualize_best_option_to_take(self.agent_over_options, episode, self.seed, self.experiment_name)
-
-			for option in self.trained_options:
-				make_chunked_value_function_plot(option.solver, episode, self.seed, self.experiment_name)
-				visualize_ddpg_shaped_rewards(self.global_option, option, episode, self.seed, self.experiment_name)
-				visualize_dqn_shaped_rewards(self.agent_over_options, option, episode, self.seed, self.experiment_name)
 
 	def save_all_models(self):
 		for option in self.trained_options: # type: Option
-			save_model(option.solver, -1, best=False)
+			save_model(option.solver, -1, self.log_dir, best=False)
 
 	def save_all_scores(self, pretrained, scores, durations):
 		print("\rSaving training and validation scores..")
@@ -1130,20 +1126,6 @@ class SkillChaining(object):
 			pickle.dump(self.validation_scores, _f)
 		with open(num_option_history_file_name, "wb+") as _f:
 			pickle.dump(self.num_options_history, _f)
-
-	def perform_experiments(self):
-		for option in self.trained_options:
-			visualize_dqn_replay_buffer(option.solver, self.experiment_name)
-
-		for i, o in enumerate(self.trained_options):
-			plt.subplot(1, len(self.trained_options), i + 1)
-			plt.plot(self.option_qvalues[o.name])
-			plt.title(o.name)
-		plt.savefig("value_function_plots/{}/sampled_q_so_{}.png".format(self.experiment_name, self.seed))
-		plt.close()
-
-		for option in self.trained_options:
-			visualize_next_state_reward_heat_map(option.solver, -1, self.experiment_name)
 
 	def trained_forward_pass(self, render=True):
 		"""
@@ -1170,18 +1152,6 @@ class SkillChaining(object):
 			state = next_state
 
 		return overall_reward, option_trajectories
-
-
-def create_log_dir(experiment_name):
-	path = os.path.join(os.getcwd(), experiment_name)
-	try:
-		os.mkdir(path)
-	except OSError:
-		print("Creation of the directory %s failed" % path)
-	else:
-		print("Successfully created the directory %s " % path)
-	return path
-
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -1272,5 +1242,6 @@ if __name__ == '__main__':
 
 	# Log performance metrics
 	# chainer.save_all_models()
-	# chainer.perform_experiments()
+	# Used to be chainer.perform_experiments() --Kiran
+	# chainer.plotter.generate_experiment_plots(chainer)
 	chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)

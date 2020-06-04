@@ -7,28 +7,50 @@ import ipdb
 
 
 class SalientEvent(object):
-    def __init__(self, target_state, event_idx, tolerance=0.6, intersection_event=False):
+    def __init__(
+        self, target_state, event_idx, tolerance=0.6, 
+        use_additive_constants=False, 
+        intersection_event=False, 
+        get_relevant_position=None,
+        name=None
+        ):
         self.target_state = target_state
         self.event_idx = event_idx
         self.tolerance = tolerance
+        self.use_additive_constants = use_additive_constants
         self.intersection_event = intersection_event
+        self.name = name
+
+        assert isinstance(event_idx, int)
+        assert isinstance(tolerance, float)
+        assert isinstance(target_state, np.ndarray)
 
         # This is the union of the effect set of all the options targeting this salient event
         self.trigger_points = []
         self._initialize_trigger_points()
 
-        assert isinstance(event_idx, int)
-        assert isinstance(tolerance, float)
+        # Kinna hacky, but currently salient events don't handle arbitrary predicates 
+        if get_relevant_position is None:
+            self.get_relevant_position = self._get_position
+        else:
+            self.get_relevant_position = get_relevant_position
+
 
     def _initialize_trigger_points(self):
-        r = self.tolerance
-        d = r / np.sqrt(2)
-        target_position = self._get_position(self.target_state)
-        additive_constants = [np.array((r, 0)), np.array((0, r)),
-                              np.array((-r, 0)), np.array((0, -r)),
-                              np.array((d, d)), np.array((-d, -d)),
-                              np.array((-d, d)), np.array((d, -d))]
-        trigger_points = [target_position + constant for constant in additive_constants]
+        # TODO: Right now, the extra trigger points only work for 2d
+        trigger_points = []
+        if self.use_additive_constants:
+            r = self.tolerance
+            d = r / np.sqrt(2)
+            target_position = self.get_relevant_position(self.target_state)
+            additive_constants = [np.array((r, 0)), np.array((0, r)),
+                                np.array((-r, 0)), np.array((0, -r)),
+                                np.array((d, d)), np.array((-d, -d)),
+                                np.array((-d, d)), np.array((d, -d))]
+            
+            for constant in additive_constants:
+                trigger_points.append(target_position + constant)
+
         self.trigger_points = [self.target_state] + trigger_points
 
     def __call__(self, states):
@@ -49,8 +71,8 @@ class SalientEvent(object):
 
     def __eq__(self, other):
         def _state_eq(s1, s2):
-            s1 = self._get_position(s1)
-            s2 = self._get_position(s2)
+            s1 = self.get_relevant_position(s1)
+            s2 = self.get_relevant_position(s2)
             return (s1 == s2).all()
 
         if not isinstance(other, SalientEvent):
@@ -61,17 +83,17 @@ class SalientEvent(object):
                # self.event_idx == other.event_idx
 
     def __hash__(self):
-        target_state = self._get_position(self.target_state)
+        target_state = self.get_relevant_position(self.target_state)
         return hash(tuple(target_state))
 
     def is_init_true(self, state):
-        position = self._get_position(state)
-        target_position = self._get_position(self.target_state)
+        position = self.get_relevant_position(state)
+        target_position = self.get_relevant_position(self.target_state)
         return np.linalg.norm(position - target_position) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
-        goal_position = self._get_position(self.target_state)
+        goal_position = self.get_relevant_position(self.target_state)
         in_goal_position = distance.cdist(position_matrix, goal_position[None, :]) <= self.tolerance
         return in_goal_position.squeeze(1)
 
@@ -94,25 +116,31 @@ class SalientEvent(object):
         return False
 
     def get_target_position(self):
-        return self._get_position(self.target_state)
+        return self.get_relevant_position(self.target_state)
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
+        position = state.features() if isinstance(state, State) else state[:2]
         assert isinstance(position, np.ndarray), type(position)
         return position
 
     def __repr__(self):
-        return f"SalientEvent targeting {self.target_state}"
+        if self.name is None:
+            return f"SalientEvent targeting {self.target_state}"
+        else:
+            return f"SalientEvent targeting {self.target_state} | {self.name}"
 
 
 class LearnedSalientEvent(SalientEvent):
-    def __init__(self, state_set, event_idx, tolerance=0.6, intersection_event=False):
+    def __init__(
+        self, state_set, event_idx, tolerance=0.6, 
+        intersection_event=False, name=None
+        ):
         self.state_set = state_set
         self.classifier = self._classifier_on_state_set()
 
         SalientEvent.__init__(self, target_state=None, event_idx=event_idx,
-                              tolerance=tolerance, intersection_event=intersection_event)
+                              tolerance=tolerance, intersection_event=intersection_event, name=name)
 
     def is_init_true(self, state):
         position = self._get_position(state)
@@ -133,9 +161,14 @@ class LearnedSalientEvent(SalientEvent):
         classifier.fit(positions)
         return classifier
 
+    def __repr__(self):
+        if self.name is None:
+            return f"LearnedSalientEvent targeting {self.target_state}"
+        else:
+            return f"LearnedSalientEvent targeting {self.target_state} | {self.name}"
 
 class DCOSalientEvent(SalientEvent):
-    def __init__(self, covering_option, event_idx, replay_buffer, is_low, tolerance=2.0, intersection_event=False):
+    def __init__(self, covering_option, event_idx, replay_buffer, is_low, tolerance=2.0, intersection_event=False, name=None):
         self.covering_option = covering_option
         self.is_low = is_low
 
@@ -146,7 +179,7 @@ class DCOSalientEvent(SalientEvent):
         target_state = states[np.argmin(values) if is_low else np.argmax(values)]
 
         SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx,
-                              tolerance=tolerance, intersection_event=intersection_event)
+                              tolerance=tolerance, intersection_event=intersection_event, name=name)
 
     def __eq__(self, other):
         if not isinstance(other, SalientEvent):
@@ -154,7 +187,10 @@ class DCOSalientEvent(SalientEvent):
         return self is other
 
     def __repr__(self):
-        return f"DCOSalientEvent {self.event_idx} targeting {self.target_state}"
+        if self.name is None:
+            return f"DCOSalientEvent {self.event_idx} targeting {self.target_state}"
+        else:
+            return f"DCOSalientEvent {self.event_idx} targeting {self.target_state} | {self.name}"
 
     def __hash__(self):
         return self.event_idx

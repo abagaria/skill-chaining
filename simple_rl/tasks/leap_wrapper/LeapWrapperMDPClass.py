@@ -10,11 +10,10 @@ import numpy as np
 # Other imports.
 import gym
 
-from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
-# Kiran and Kshitij edit
 import multiworld
 import pdb
 
@@ -34,27 +33,24 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=False)
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
-        # Will this exist in all gym environments??
-        self.threshold = self.env.indicator_threshold  # Default is 0.06
+        self.salient_tolerance = 0.03
+        self.goal_tolerance = self.env.indicator_threshold
 
         # Sets the initial state
         self.reset()
 
         # endeff position is ignored by these salient events - just used when plotting initiation_sets
-        hand_init_z = [self.init_state[2]]
-        puck_goal_1, puck_goal_2, puck_goal_3 = [-0.04, 0.6], [-0.08, 0.6], [-0.12, 0.6]
+        salient_event_1 = np.zeros(5)
+        salient_event_2 = np.zeros(5)
 
-        salient_event_1 = np.concatenate((puck_goal_1, hand_init_z, puck_goal_1))
-        salient_event_2 = np.concatenate((puck_goal_2, hand_init_z, puck_goal_2))
-        salient_event_3 = np.concatenate((puck_goal_3, hand_init_z, puck_goal_3))
+        salient_event_1[3:] = [-0.08, 0.6]
+        salient_event_2[3:] = [-0.11, 0.6]
 
         salient_events = [
-            BaseSalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
-                             tolerance=self.threshold, get_relevant_position=get_puck_pos),
-            BaseSalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
-                             tolerance=self.threshold, get_relevant_position=get_puck_pos),
-            BaseSalientEvent(salient_event_3, 3, name='Puck to goal 3/3',
-                             tolerance=self.threshold, get_relevant_position=get_puck_pos)
+            SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
+                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
+            SalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
+                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
         ]
 
         action_dims = range(self.env.action_space.shape[0])
@@ -66,7 +62,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  salient_events,
                                  False,
                                  goal_state=self.goal_state,
-                                 goal_tolerance=self.threshold
+                                 goal_tolerance=self.goal_tolerance
                                  )
 
     def _reward_func(self, state, action):
@@ -100,10 +96,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if isinstance(state, LeapWrapperState):
             return state.is_terminal()
         return self.env.is_goal_state(state)
-
-    def distance_from_goal(self, state):
-        state_pos = state.position if isinstance(state, LeapWrapperState) else state
-        return np.linalg.norm(state_pos - self.goal_state)
 
     @staticmethod
     def state_space_size():

@@ -18,7 +18,6 @@ from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
-from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
 
 
 class Option(object):
@@ -573,7 +572,7 @@ class Option(object):
 			return -1.
 
 		# Rewards based on position only
-		position_vector = state.features() if isinstance(state, State) else state[:5]
+		position_vector = state.features() if isinstance(state, State) else state[:5] 
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
@@ -626,7 +625,7 @@ class Option(object):
 	def execute_option_in_mdp(self, mdp, episode, step_number, eval_mode=False):
 		"""
 		Option main control loop.
-
+ 
 		Args:
 			mdp (MDP): environment where actions are being taken
 			episode (int)
