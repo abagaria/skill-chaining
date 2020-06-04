@@ -337,7 +337,7 @@ class DQNAgent(Agent):
             states = states.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
 
-            for idx, option in enumerate(self.trained_options): # type: Option
+            for idx, option in enumerate(self.trained_options):  # type: Option
                 try:
                     inits = option.batched_is_init_true(states)
                     # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)

@@ -239,7 +239,7 @@ class SkillChaining(object):
 			for option in self.trained_options[1:]:  # type: Option
 				if option.backward_option:
 					new_option.negative_examples += option.positive_examples
-					
+
 	def init_state_in_option(self, option):
 		"""
 		If the input `option` is part of a forward chain, we want to check if the start
@@ -970,7 +970,7 @@ class SkillChaining(object):
 
 	def manage_skill_chain_after_option_rollout(self, *, state_before_rollout, executed_option,
 												created_options, episode_number, option_transitions):
-		""" After a single option rollout, this method will perform the book-keeping necessary to maintain skill-chain. """
+		""" After a single option rollout, this method will perform the book-keeping necessary to maintain skill-chain."""
 
 		# Update Q(s, o) for the `agent_over_options`
 		self.update_policy_over_options_after_option_rollout(state_before_rollout=state_before_rollout,
