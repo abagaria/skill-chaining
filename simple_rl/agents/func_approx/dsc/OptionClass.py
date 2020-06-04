@@ -117,7 +117,6 @@ class Option(object):
 		self.option_start_states = []
 		self.num_test_executions = 0
 		self.num_successful_test_executions = 0
-		self.temp = []
 
 	def __str__(self):
 		return self.name

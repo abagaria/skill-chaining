@@ -65,6 +65,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  goal_state=self.goal_state,
                                  goal_tolerance=self.threshold
                                  )
+        self.temp = []
 
     def _reward_func(self, state, action):
         assert isinstance(action, np.ndarray), type(action)
