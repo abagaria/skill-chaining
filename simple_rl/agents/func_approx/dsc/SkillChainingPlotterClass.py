@@ -4,11 +4,11 @@ import abc
 
 class SkillChainingPlotter(metaclass=abc.ABCMeta):
     def __init__(self, task_name, experiment_name):
-        '''
+        """
         Args:
             task_name (str): The name of the current task, so we know where to save plots
             experiment_name (str): The name of the current task, so we know where to save plots
-        '''
+        """
         self.task_name = task_name
         self.experiment_name = experiment_name
 
@@ -17,17 +17,21 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def generate_episode_plots(self, chainer, episode):
-        '''
+        """
         Args:
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
             episode (int): the current episode
-        '''
+        """
+        # initiation set
+        # value function
+        # low level shaped rewards
+        # high level shaped rewards
         pass
 
     @abc.abstractmethod
     def generate_experiment_plots(self, chainer):
-        '''
+        """
         Args:
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
-        '''
+        """
         pass
