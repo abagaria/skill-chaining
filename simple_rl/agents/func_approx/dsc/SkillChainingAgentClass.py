@@ -1205,6 +1205,10 @@ if __name__ == '__main__':
 		overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
 		state_dim = 4
 		action_dim = 2
+	elif "sawyer" in args.env.lower():
+		from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
+		overall_mdp = LeapWrapperMDP(dense_reward=args.dense_reward, render=args.render)
+		overall_mdp.env.seed(args.seed)
 	else:
 		from simple_rl.tasks.gym.GymMDPClass import GymMDP
 		overall_mdp = GymMDP(args.env, render=args.render)
