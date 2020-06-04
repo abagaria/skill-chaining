@@ -1,21 +1,12 @@
 # Python imports.
 from __future__ import print_function
-
-import sys
-
-sys.path = [""] + sys.path
-
 from collections import deque, defaultdict
 from copy import deepcopy
-import ipdb
 import argparse
 import os
 import random
-import numpy as np
 from tensorboardX import SummaryWriter
-import torch
-import itertools
-from tqdm import tqdm
+import sys
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -26,6 +17,8 @@ from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.BaseSalientEventClass import BaseSalientEvent
+
+sys.path = [""] + sys.path
 
 
 class SkillChaining(object):
@@ -679,8 +672,6 @@ class SkillChaining(object):
         last_10_durations = deque(maxlen=10)
 
         for episode in range(starting_episode, starting_episode + num_episodes):
-            # if episode == 5:
-                # ipdb.set_trace()
             self.mdp.reset()
             score = 0.
             step_number = 0
@@ -816,7 +807,7 @@ class SkillChaining(object):
 
     def save_all_models(self):
         for option in self.trained_options:  # type: Option
-            save_model(option.solver, args.episodes, self.logdir, best=False)
+            save_model(option.solver, args.episodes, self.log_dir, best=False)
 
     def save_all_scores(self, pretrained, scores, durations):
         print("\rSaving training and validation scores..")
