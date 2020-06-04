@@ -630,9 +630,9 @@ class Option(object):
 					# ipdb.set_trace()
 
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
-				if num_steps == 0 or num_steps == 1:
-					self.temp.append((episode, num_steps, state.position, next_state.position))
-					if len(self.temp) > 10:
+				if step_number == 0 or step_number == 1 or step_number == 2 or step_number == 3 or step_number == 4:
+					mdp.temp.append((episode, step_number, self.name, state.position, next_state.position))
+					if len(mdp.temp) > 50:
 						ipdb.set_trace()
 
 				self.update_option_solver(state, action, reward, next_state)
