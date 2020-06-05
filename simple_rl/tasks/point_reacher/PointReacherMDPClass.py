@@ -12,15 +12,20 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class PointReacherMDP(MDP):
-    def __init__(self, seed, use_hard_coded_events=False, color_str="", dense_reward=False, render=False):
+    def __init__(self, seed, use_hard_coded_events=False, color_str="",
+                 goal_directed=False, init_goal_pos=None, dense_reward=False, render=False):
         self.env_name = "point_reacher"
         self.seed = seed
         self.dense_reward = dense_reward
         self.render = render
         self.use_hard_coded_events = use_hard_coded_events
+        self.goal_directed = goal_directed
 
         random.seed(seed)
         np.random.seed(seed)
+
+        if goal_directed: assert init_goal_pos is not None
+        self.current_goal_position = init_goal_pos
 
         # Configure env
         gym_mujoco_kwargs = {
@@ -63,14 +68,21 @@ class PointReacherMDP(MDP):
         for e1, e2, e3 in zip(self.current_salient_events, self.original_salient_events, self.all_salient_events_ever):
             assert id(e1) == id(e2) == id(e3)
 
+    def set_current_goal(self, position):
+        self.current_goal_position = position
+
     def _reward_func(self, state, action):
-        next_state, reward, done, _ = self.env.step(action)
+        next_state, _, done, _ = self.env.step(action)
         if self.render:
             self.env.render()
+
+        # If we are in the goal-directed case, done will be set internally in _get_state
         self.next_state = self._get_state(next_state, done)
-        if self.dense_reward:
-            return -1.
-        return reward + 1  # TODO: Changing the reward function to return 0 step penalty and 1 reward
+
+        if np.linalg.norm(self.next_state.position - self.current_goal_position) <= 0.6 and self.goal_directed:
+            return 1.
+
+        return 0.
 
     def _transition_func(self, state, action):
         return self.next_state
@@ -79,12 +91,16 @@ class PointReacherMDP(MDP):
         """ Convert np obs array from gym into a State object. """  # TODO: Adapt has_key
         obs = np.copy(observation)
         position = obs[:2]
-        has_key = obs[2]
         theta = obs[3]
         velocity = obs[4:6]
         theta_dot = obs[6]
-        # Ignoring obs[7] which corresponds to time elapsed in seconds
-        state = PointReacherState(position, theta, velocity, theta_dot, done)
+        goal_dist = None
+
+        if self.goal_directed:
+            goal_dist = self.current_goal_position - position
+            done = np.linalg.norm(goal_dist) <= 0.6
+
+        state = PointReacherState(position, theta, velocity, theta_dot, done, goal_component=goal_dist)
         return state
 
     def execute_agent_action(self, action, option_idx=None):
@@ -162,8 +178,9 @@ class PointReacherMDP(MDP):
         position = state.position if isinstance(state, PointReacherState) else state[:2]
         return position
 
-    @staticmethod
-    def state_space_size():
+    def state_space_size(self):
+        if self.goal_directed:
+            return 8
         return 6
 
     @staticmethod

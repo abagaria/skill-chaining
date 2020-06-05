@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 import argparse
-import pdb
+import ipdb
 
 # PyTorch imports.
 import torch
@@ -188,6 +188,10 @@ class DDPGAgent(Agent):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
     def update_epsilon(self):
+        if self.use_fixed_noise:
+            self.epsilon = self.evaluation_epsilon
+            return
+
         if "global" in self.name.lower():
             self.epsilon = max(self.evaluation_epsilon, self.epsilon - GLOBAL_LINEAR_EPS_DECAY)
         else:
@@ -234,6 +238,11 @@ def train(agent, mdp, episodes, steps):
         mdp.reset()
         state = deepcopy(mdp.init_state)
         score = 0.
+
+        if episode % 30 == 0:
+            sampled_goal_position = mdp.sample_random_state()
+            mdp.set_current_goal(sampled_goal_position)
+
         for step in range(steps):
             action = agent.act(state.features())
             reward, next_state = mdp.execute_agent_action(action)
@@ -254,15 +263,64 @@ def train(agent, mdp, episodes, steps):
             save_model(agent, episode)
             best_episodic_reward = score
 
-        print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon), end="")
+        print('\r[{}] Episode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
+            mdp.current_goal_position, episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon), end="")
         if episode % PRINT_EVERY == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
+            print('\r[{}] Episode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
+            mdp.current_goal_position, episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
 
-    visualize_next_state_reward_heat_map(agent, args.episodes, args.experiment_name)
+    # visualize_next_state_reward_heat_map(agent, args.episodes, args.experiment_name)
 
     return per_episode_scores, per_episode_durations
+
+
+def test_single_goal(agent, mdp, episodes, steps, start_state, goal_position):
+    success_rates = []
+
+    mdp.set_current_goal(goal_position)
+
+    for episode in range(episodes):
+        reset_to_state(mdp, start_state)
+        success = 0.
+        state = deepcopy(mdp.init_state)
+
+        for step in range(steps):
+            action = agent.act(state.features(), evaluation_mode=True)
+            reward, next_state = mdp.execute_agent_action(action)
+            state = next_state
+
+            if next_state.is_terminal():
+                success = 1.
+                break
+
+        success_rates.append(success)
+
+        print("*" * 80)
+        print(f"[{start_state} -> {goal_position}] Episode: {episode} \t Success: {success}")
+        print("*" * 80)
+
+    return success_rates
+
+def test(agent, mdp, episodes, steps, num_runs):
+    lc = []
+    start_states = [mdp.sample_random_state() for _ in range(num_runs)]
+    goal_states = [mdp.sample_random_state() for _ in range(num_runs)]
+
+    for start_state, goal_state in zip(start_states, goal_states):
+        reset_to_state(mdp, start_state)
+        successes = test_single_goal(agent, mdp, episodes, steps, start_state, goal_state)
+        lc.append(successes)
+
+    return lc
+
+
+def reset_to_state(mdp, start_state):
+    """ Reset the MDP to either the default start state or to the specified one. """
+    mdp.reset()
+
+    if start_state is not None:
+        start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
+        mdp.set_xy(start_position)
 
 
 if __name__ == "__main__":
@@ -277,6 +335,7 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, help="number of steps per episode", default=200)
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--seed", type=int, help="random seed", default=0)
+    parser.add_argument("--goal_directed", action="store_true", default=False)
     args = parser.parse_args()
 
     log_dir = create_log_dir(args.experiment_name)
@@ -286,23 +345,47 @@ if __name__ == "__main__":
     create_log_dir("value_function_plots/{}".format(args.experiment_name))
     create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
 
-    if "reacher" in args.env.lower():
-        from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-        overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
-        state_dim = overall_mdp.init_state.features().shape[0]
-        action_dim = overall_mdp.env.action_spec().minimum.shape[0]
-    elif "maze" in args.env.lower():
-        from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
-        overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
-        state_dim = 6
-        action_dim = 2
-    elif "point" in args.env.lower():
-        from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
-        overall_mdp = PointEnvMDP(dense_reward=args.dense_reward, render=args.render)
-        state_dim = 4
-        action_dim = 2
+    if args.env == "point-reacher":
+        from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
+
+        overall_mdp = PointReacherMDP(seed=args.seed,
+                                      dense_reward=args.dense_reward,
+                                      render=args.render,
+                                      use_hard_coded_events=False,
+                                      goal_directed=args.goal_directed,
+                                      init_goal_pos=np.array((9, 9)))
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
+    elif args.env == "d4rl-medium-point-maze":
+        from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+        overall_mdp = D4RLPointMazeMDP(seed=args.seed,
+                                       render=args.render,
+                                       goal_directed=args.goal_directed,
+                                       init_goal_pos=np.array((9, 9)),
+                                       difficulty="medium")
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
+    elif args.env == "d4rl-hard-point-maze":
+        from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+        overall_mdp = D4RLPointMazeMDP(seed=args.seed,
+                                       render=args.render,
+                                       goal_directed=args.goal_directed,
+                                       init_goal_pos=np.array((9, 9)),
+                                       difficulty="hard")
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
+    elif args.env == "d4rl-ant-maze":
+        from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+        overall_mdp = D4RLAntMazeMDP(maze_size="medium",
+                                     seed=args.seed,
+                                     goal_directed=args.goal_directed,
+                                     init_goal_pos=np.array((0, 9)),
+                                     render=args.render)
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP
+
         overall_mdp = GymMDP(args.env, render=args.render)
         state_dim = overall_mdp.env.observation_space.shape[0]
         action_dim = overall_mdp.env.action_space.shape[0]
@@ -317,6 +400,6 @@ if __name__ == "__main__":
     save_model(ddpg_agent, episode_number=args.episodes, best=False)
     save_all_scores(episodic_scores, episodic_durations, log_dir, args.seed)
 
-    best_ep, best_agent = load_model(ddpg_agent)
-    print("loaded {} from episode {}".format(best_agent.name, best_ep))
-    # trained_forward_pass(best_agent, overall_mdp, args.steps)
+    success_curve = test(ddpg_agent, overall_mdp, 60, args.steps, 10)
+    with open(f"{args.experiment_name}/lc_randomized_start_states_True_scores.pkl", "wb+") as f:
+        pickle.dump(success_curve, f)

@@ -5,18 +5,30 @@ import tflearn
 import os
 from numpy.linalg import norm
 from tqdm import tqdm
+from copy import deepcopy
+import torch
+import ipdb
 
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
-from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
+from simple_rl.agents.func_approx.dqn.DQNAgentClass import ReplayBuffer
 from simple_rl.mdp.StateClass import State
 
 class CoveringOptions(Option):
     # This class identifies a subgoal by Laplacian method.
     # We feed this option to the skill chaining as a parent and generate its child options.
 
-    def __init__(self, replay_buffer, obs_dim, feature=None, threshold=0.95, num_units=200, num_training_steps=1000,
-                 actor_learning_rate=0.0001, critic_learning_rate=0.0001, batch_size=64, option_idx=None,
-                 chain_id=1, name="covering-options", beta=0.0, use_xy_prior=False):
+    def __init__(self, *, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size,
+				 replay_buffer, obs_dim, feature=None, threshold=0.95, num_units=200, num_training_steps=1000,
+                 batch_size=64,
+                 option_idx=None,
+                 subgoal_reward=0., max_steps=20000, seed=0,
+                 dense_reward=False,
+                 timeout=200,
+                 device=torch.device("cpu"),
+                 chain_id=1,
+                 beta=0.0,
+                 use_xy_prior=False):
+
         self.obs_dim = obs_dim
         self.threshold = threshold
         self.num_units = num_units
@@ -43,10 +55,14 @@ class CoveringOptions(Option):
         else:
             indim = self.feature.num_features()
 
+        Option.__init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size,
+                        subgoal_reward=subgoal_reward, max_steps=max_steps, seed=seed,
+                        dense_reward=dense_reward, enable_timeout=True,
+                        timeout=timeout, option_idx=option_idx, device=device)
+
         self.initiation_classifier = SpectrumNetwork(obs_dim=indim, training_steps=self.num_training_steps,
                                                      n_units=self.num_units, conv=False,
                                                      name=self.name + "-spectrum", beta=beta)
-
         self.initiation_classifier.initialize()
 
         if self.use_xy_prior:
@@ -55,16 +71,6 @@ class CoveringOptions(Option):
         self.train(replay_buffer)
 
         self.threshold_value = self.sample_f_val(replay_buffer)
-
-        # Parameters to be set to child options.
-        # We don't use them for covering options.
-        class mock():
-            def __init__(self):
-                self.actor_learning_rate = actor_learning_rate
-                self.critic_learning_rate = critic_learning_rate
-                self.batch_size = batch_size
-
-        self.solver = mock()
 
     def states_to_tensor(self, states):
         obs = []
@@ -82,19 +88,23 @@ class CoveringOptions(Option):
 
     def convert_states(self, replay_buffer):
         # This function converts all the states recorded in the replay buffer's memory to only have x and y
-        new_rb = ReplayBuffer(replay_buffer.buffer_size, replay_buffer.name, replay_buffer.seed)
+        new_rb = ReplayBuffer(action_size=2,
+                              buffer_size=replay_buffer.buffer_size,
+                              batch_size=64,
+                              seed=0,
+                              device=self.device)
         for old_exp in replay_buffer.memory:
-            state, action, reward, next_state, terminal = old_exp
+            state, action, reward, next_state, terminal = old_exp.state, old_exp.action, old_exp.reward, old_exp.next_state, old_exp.done
             new_state = np.copy(state)
             new_state[2:] = 0
             new_next_state = np.copy(next_state)
             new_next_state[2:] = 0
-            new_rb.add(new_state, action, reward, new_next_state, terminal)
+            new_rb.add(new_state, action, reward, new_next_state, terminal, 1)
         return new_rb
 
     def train(self, replay_buffer):
         for _ in range(self.num_training_steps):
-            s, a, r, s2, t = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
+            s, a, r, s2, t, _ = replay_buffer.sample(min(self.batch_size, len(replay_buffer)))
 
             if not isinstance(s, np.ndarray):
                 s = s.cpu().numpy()
@@ -145,8 +155,7 @@ class CoveringOptions(Option):
         return initiation_probabilities
 
     def is_term_true(self, ground_state):
-        # TODO: set termination condition the same as the initiation condition.
-        return self.is_init_true(ground_state)
+        return not self.is_init_true(ground_state)
 
     def sample_f_val(self, experience_buffer):
         buf_size = len(experience_buffer)
@@ -155,7 +164,8 @@ class CoveringOptions(Option):
         # n_samples = buf_size
 
         # s = [experience_buffer.memory[i][0] for i in range(len(experience_buffer.memory))]
-        s, _, _, _, _ = experience_buffer.sample(n_samples)
+        transition = experience_buffer.sample(n_samples)
+        s = transition[0]
         if not isinstance(s, np.ndarray):
             s = s.cpu().numpy()
         obs = self.states_to_tensor(s)
@@ -178,6 +188,99 @@ class CoveringOptions(Option):
         print('init_th =', init_th)
 
         return init_th
+
+    def _get_epsilon_greedy_epsilon(self):
+        if "point" in self.overall_mdp.env_name:
+            return 0.1
+        elif "ant" in self.overall_mdp.env_name:
+            return 0.25
+
+    def act(self, state, eval_mode, warmup_phase):
+        if random.random() < self._get_epsilon_greedy_epsilon() and not eval_mode:
+            return self.overall_mdp.sample_random_action()
+        return self.solver.act(state.features(), evaluation_mode=eval_mode)
+
+    def update_option_solver(self, s, a, r, s_prime):
+        """ Make on-policy updates to the current option's low-level DDPG solver. """
+        assert not s.is_terminal(), "Terminal state did not terminate at some point"
+
+        if self.is_term_true(s):
+            print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
+            return
+
+        is_terminal = self.is_term_true(s_prime) or s_prime.is_terminal()
+        subgoal_reward = self.get_dco_subgoal_reward(s, s_prime) if self.name != "global_option" else r
+        self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), is_terminal)
+
+    def get_dco_subgoal_reward(self, state, next_state):
+        s = state.features()[None, ...]
+        sp = next_state.features()[None, ...]
+        difference = self.initiation_classifier(s) - self.initiation_classifier(sp)
+        if difference.shape != (1, 1):
+            ipdb.set_trace()
+        return difference[0][0]
+
+    def execute_option_in_mdp(self, mdp, episode, step_number, eval_mode=False):
+        """
+        Option main control loop.
+
+        Args:
+            mdp (MDP): environment where actions are being taken
+            episode (int)
+            step_number (int): how many steps have already elapsed in the outer control loop.
+            eval_mode (bool): Added for the SkillGraphPlanning agent so that we can perform
+                              option policy rollouts with eval_epsilon but still keep training
+                              option policies based on new experiences seen during test time.
+
+        Returns:
+            option_transitions (list): list of (s, a, r, s') tuples
+            discounted_reward (float): cumulative discounted reward obtained by executing the option
+        """
+        start_state = deepcopy(mdp.cur_state)
+        state = mdp.cur_state
+
+        if self.is_init_true(state):
+            option_transitions = []
+            total_reward = 0.
+            self.num_executions += 1
+            num_steps = 0
+            visited_states = []
+
+            if self.name != "global_option":
+                print("Executing {}".format(self.name))
+
+            while not self.is_term_true(state) and not state.is_terminal() and \
+                    step_number < self.max_steps and num_steps < self.timeout:
+
+                action = self.act(state, eval_mode=eval_mode, warmup_phase=False)  # TODO
+                reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
+
+                # This will update the global-solver when it is being executed
+                self.update_option_solver(state, action, reward, next_state)
+
+                if self.name != "global_option" and self.update_global_solver:
+                    self.global_solver.step(state.features(), action, reward, next_state.features(),
+                                            next_state.is_terminal())
+                    self.global_solver.update_epsilon()
+
+                option_transitions.append((state, action, reward, next_state))
+                visited_states.append(state)
+
+                total_reward += reward
+                state = next_state
+
+                # step_number is to check if we exhaust the episodic step budget
+                # num_steps is to appropriately discount the rewards during option execution (and check for timeouts)
+                step_number += 1
+                num_steps += 1
+
+            # Don't forget to add the final state to the followed trajectory
+            visited_states.append(state)
+
+            if self.is_term_true(state):
+                print(f"{self} execution was successful")
+
+            return option_transitions, total_reward
 
 
 class SpectrumNetwork():

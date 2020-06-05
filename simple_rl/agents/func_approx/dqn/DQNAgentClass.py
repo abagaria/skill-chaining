@@ -488,6 +488,7 @@ class ReplayBuffer:
             device (torch.device): cpu / cuda:0 / cuda:1
         """
         self.action_size = action_size
+        self.buffer_size = buffer_size
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
