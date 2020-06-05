@@ -8,7 +8,7 @@ plt.style.use("seaborn-colorblind")
 
 
 class LeapWrapperPlotter(SkillChainingPlotter):
-    def __init__(self, experiment_name, task_name):
+    def __init__(self, task_name, experiment_name):
         # The true start state is: [-0.007, 0.52], but the hand gets to [0.032, 0.409]
         # within a few steps of resetting the environment. This is probably because the
         # arm starts with an initial z position of 0.12, but it goes to 0.07 very quickly.
