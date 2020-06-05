@@ -48,7 +48,8 @@ class PointMazeMDP(MDP):
     def _reward_func(self, state, action):
         next_state, reward, done, _ = self.env.step(action)
         if self.render:
-            self.env.render()
+            rgb_array = self.env.render(mode='rgb_array')
+            pdb.set_trace()
         self.next_state = self._get_state(next_state, done)
         if self.dense_reward:
             return -0.1 * self.distance_to_goal(self.next_state.position)
