@@ -5,14 +5,20 @@ import ipdb
 
 
 class SkillChainingPlotter(metaclass=abc.ABCMeta):
-    def __init__(self, task_name, experiment_name):
+    def __init__(self, task_name, experiment_name, subdirectories=None):
         """
         Args:
             task_name (str): The name of the current task, so we know where to save plots
             experiment_name (str): The name of the current experiment, so we know where to save plots
+            subdirectories (List[str]): List of subdirectories to make where plots will be saved
         """
+        if subdirectories is None:
+            subdirectories = []
+
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
         self._create_log_dir(self.path)
+        for subdirectory in subdirectories:
+            self._create_log_dir(os.path.join(self.path, subdirectory))
 
     @abc.abstractmethod
     def generate_episode_plots(self, chainer, episode):
@@ -34,11 +40,6 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
         """
         pass
-
-    @staticmethod
-    def create_subdirectories(*args):
-        for path in args:
-            SkillChainingPlotter._create_log_dir(path)
 
     @staticmethod
     def _create_log_dir(directory_path):
