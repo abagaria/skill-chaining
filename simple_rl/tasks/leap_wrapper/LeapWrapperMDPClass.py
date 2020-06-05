@@ -26,7 +26,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.dense_reward = dense_reward
         self.render = render
 
-        self.salient_tolerance = 0.045
+        self.salient_tolerance = 0.05
         self.goal_tolerance = 0.03
 
         # Configure env
