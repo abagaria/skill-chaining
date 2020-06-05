@@ -69,8 +69,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
         next_state, reward, done, _ = self.env.step(action)
         self.next_state = self._get_state(next_state, done)
         if self.render:
-            rgb_array = self.env.render(mode='rgb_array')
-            pdb.set_trace()
+            #rgb_array = self.env.render(mode='rgb_array')
+            #pdb.set_trace()
+            self.env.sim.render(600, 600)
         return reward
 
     def _transition_func(self, state, action):
