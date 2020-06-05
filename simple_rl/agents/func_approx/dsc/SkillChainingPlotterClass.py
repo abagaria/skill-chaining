@@ -11,7 +11,7 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
             task_name (str): The name of the current task, so we know where to save plots
             experiment_name (str): The name of the current experiment, so we know where to save plots
         """
-        self.path = rotate_file_name(os.path.join(task_name, experiment_name))
+        self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
         ipdb.set_trace()
         create_log_dir(self.path)
 
