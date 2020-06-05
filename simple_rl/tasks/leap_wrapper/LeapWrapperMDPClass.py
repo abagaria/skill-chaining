@@ -17,6 +17,10 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 import multiworld
 import pdb
 
+# Rendering tests -Kiran
+import matplotlib
+from pathlib import Path
+
 
 class LeapWrapperMDP(GoalDirectedMDP):
     """ Class for Leap Wrapper MDPs """
@@ -71,7 +75,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if self.render:
             #rgb_array = self.env.render(mode='rgb_array')
             #pdb.set_trace()
-            a = self.env.sim.render(600, 600)
+            img = self.env.sim.render(600, 600)
+            matplotlib.image.imsave(Path.cwd()/"rbg_images", img)
             pdb.set_trace()
         return reward
 
