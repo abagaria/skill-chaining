@@ -27,8 +27,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         axes_low = [-0.28, 0.3, 0.06, -0.4, 0.2]
         axes_high = [0.28, 0.9, 0.08, 0.4, 1.]
         meshgrid = np.meshgrid(*[np.arange(axis_min, axis_max, 0.02) for axis_min, axis_max in
-                                 zip(axes_low, axes_high)])
-        self.mesh = np.vstack(map(np.ravel, meshgrid))
+                                 zip(axes_low, axes_high)], indexing="ij")
+        self.mesh = np.vstack(list(map(np.ravel, meshgrid)))
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
@@ -103,7 +103,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             _plot_trajectories(mesh_axis, option, x_idx, y_idx, title)
 
             # plot initiation classifier using mesh
-            _plot_initiation_classifier(trajectory_axes, boolean_mesh, x_idx, y_idx, title)
+            _plot_initiation_classifier(trajectory_axis, boolean_mesh, x_idx, y_idx, title)
 
         mesh_axes[1].legend()
         trajectory_axes[1].legend()

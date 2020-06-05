@@ -371,7 +371,6 @@ class SkillChaining(object):
             return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
         selected_option = self.trained_options[action]  # type: Option
-        ipdb.set_trace()
 
         for i, transition in enumerate(option_transitions):
             start_state = transition[0]
