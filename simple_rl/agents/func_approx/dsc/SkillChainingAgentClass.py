@@ -176,14 +176,13 @@ class SkillChaining(object):
 
     def create_chain_targeting_new_salient_event(self, salient_event):
         """
-		Given a new `salient_event`, create an option and the corresponding skill chain targeting it.
+        Given a new `salient_event`, create an option and the corresponding skill chain targeting it.
+        Args:
+            salient_event (SalientEvent)
 
-		Args:
-			salient_event (SalientEvent)
-
-		Returns:
-			skill_chain (SkillChain)
-		"""
+        Returns:
+            skill_chain (SkillChain)
+        """
         chain_id = len(self.chains) + 1
         init_salient_event = self.mdp.get_start_state_salient_event()
         goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}',
