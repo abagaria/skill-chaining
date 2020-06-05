@@ -26,6 +26,7 @@ from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent
+from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
 
 class SkillChaining(object):
@@ -35,7 +36,7 @@ class SkillChaining(object):
                  start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
                  pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
                  update_global_solver=False, use_warmup_phase=False, dense_reward=False,
-                 log_dir="", seed=0, tensor_log=False, experiment_name="", plotter=None):
+                 seed=0, tensor_log=False, experiment_name="", plotter=None):
         """
         Args:
             mdp (MDP): Underlying domain we have to solve
@@ -61,10 +62,10 @@ class SkillChaining(object):
             update_global_solver (bool): Whether to learn a global option policy (this can increase wall clock time in ant)
             use_warmup_phase (bool): If true, then option will act randomly during its gestation period
             dense_reward (bool): Whether DSC will use dense rewards to train option policies
-            log_dir (os.path): directory to store all the scores for this run
             seed (int): We are going to use the same random seed for all the DQN solvers
             tensor_log (bool): Tensorboard logging enable
             experiment_name (str)
+            plotter (SkillChainingPlotterClass): Plots any graphs of domain such as value function and initiation sets
         """
         self.mdp = mdp
         self.original_actions = deepcopy(mdp.actions)
@@ -76,7 +77,6 @@ class SkillChaining(object):
         self.generate_plots = generate_plots
         self.buffer_length = buffer_length
         self.num_subgoal_hits_required = num_subgoal_hits_required
-        self.log_dir = log_dir
         self.seed = seed
         self.device = torch.device(device)
         self.max_num_options = max_num_options
@@ -1106,11 +1106,12 @@ class SkillChaining(object):
         validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
         num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
 
-        if self.log_dir:
-            training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
-            training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
-            validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
-            num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
+        # TODO: Fix this
+        # if self.log_dir:
+        #     training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
+        #     training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
+        #     validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
+        #     num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
 
         with open(training_scores_file_name, "wb+") as _f:
             pickle.dump(scores, _f)
@@ -1206,7 +1207,8 @@ if __name__ == '__main__':
         action_dim = 2
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
-
+        from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+        mdp_plotter = LeapWrapperPlotter(args.env.lower(), args.experiment_name)
         overall_mdp = LeapWrapperMDP(dense_reward=args.dense_reward, render=args.render)
         overall_mdp.env.seed(args.seed)
     else:
@@ -1217,14 +1219,6 @@ if __name__ == '__main__':
         action_dim = overall_mdp.env.action_space.shape[0]
         overall_mdp.env.seed(args.seed)
 
-    # Create folders for saving various things
-    logdir = create_log_dir(args.experiment_name)
-    create_log_dir("saved_runs")
-    create_log_dir("value_function_plots")
-    create_log_dir("initiation_set_plots")
-    create_log_dir("value_function_plots/{}".format(args.experiment_name))
-    create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
-
     print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
     print("MDP InitState = ", overall_mdp.init_state)
 
@@ -1232,7 +1226,7 @@ if __name__ == '__main__':
 
     chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
                             seed=args.seed, subgoal_reward=args.subgoal_reward,
-                            log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
+                            num_subgoal_hits_required=args.num_subgoal_hits,
                             enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
                             generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,
                             buffer_length=args.buffer_len,
@@ -1242,7 +1236,8 @@ if __name__ == '__main__':
                             pretrain_option_policies=args.pretrain_option_policies,
                             create_backward_options=args.create_backward_options,
                             dense_reward=args.dense_reward,
-                            experiment_name=args.experiment_name)
+                            experiment_name=args.experiment_name,
+                            plotter=mdp_plotter)
     episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
     # Log performance metrics

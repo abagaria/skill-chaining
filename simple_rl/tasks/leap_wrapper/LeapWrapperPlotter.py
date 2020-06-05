@@ -1,14 +1,13 @@
 import os
-
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
-plt.style.use("seaborn-colorblind")
 
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
+plt.style.use("seaborn-colorblind")
 
-class LeapWrapperPlotterClass(SkillChainingPlotter):
+
+class LeapWrapperPlotter(SkillChainingPlotter):
     def __init__(self, experiment_name, task_name):
         # The true start state is: [-0.007, 0.52], but the hand gets to [0.032, 0.409]
         # within a few steps of resetting the environment. This is probably because the
