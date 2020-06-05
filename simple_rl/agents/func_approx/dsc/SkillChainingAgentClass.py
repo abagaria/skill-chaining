@@ -37,35 +37,35 @@ class SkillChaining(object):
                  update_global_solver=False, use_warmup_phase=False, dense_reward=False,
                  log_dir="", seed=0, tensor_log=False, experiment_name="", plotter=None):
         """
-		Args:
-			mdp (MDP): Underlying domain we have to solve
-			max_steps (int): Number of time steps allowed per episode of the MDP
-			lr_actor (float): Learning rate for DDPG Actor
-			lr_critic (float): Learning rate for DDPG Critic
-			ddpg_batch_size (int): Batch size for DDPG agents
-			device (str): torch device {cpu/cuda:0/cuda:1}
-			subgoal_reward (float): Hitting a subgoal must yield a supplementary reward to enable local policy
-			enable_option_timeout (bool): whether or not the option times out after some number of steps
-			buffer_length (int): size of trajectories used to train initiation sets of options
-			num_subgoal_hits_required (int): number of times we need to hit an option's termination before learning
-			classifier_type (str): Type of classifier we will train for option initiation sets
-			init_q (float): If not none, we use this value to initialize the value of a new option
-			generate_plots (bool): whether or not to produce plots in this run
-			use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
-			start_state_salience (bool): Treat the start state of the MDP as a salient event OR create intersection events
-			option_intersection_salience (bool): Should we treat the intersection b/w options as a salient event
-			event_intersection_salience (bool): Should we treat the option-event intersections as salient events
-			pretrain_option_policies (bool): Whether to pre-train option policies with the global option
-			create_backward_options (bool): Whether to spend time learning back options for skill graphs
-			learn_backward_options_offline (bool): Whether to learn initiation sets for back option or reuse forward ones
-			update_global_solver (bool): Whether to learn a global option policy (this can increase wall clock time in ant)
-			use_warmup_phase (bool): If true, then option will act randomly during its gestation period
-			dense_reward (bool): Whether DSC will use dense rewards to train option policies
-			log_dir (os.path): directory to store all the scores for this run
-			seed (int): We are going to use the same random seed for all the DQN solvers
-			tensor_log (bool): Tensorboard logging enable
-			experiment_name (str)
-		"""
+        Args:
+            mdp (MDP): Underlying domain we have to solve
+            max_steps (int): Number of time steps allowed per episode of the MDP
+            lr_actor (float): Learning rate for DDPG Actor
+            lr_critic (float): Learning rate for DDPG Critic
+            ddpg_batch_size (int): Batch size for DDPG agents
+            device (str): torch device {cpu/cuda:0/cuda:1}
+            subgoal_reward (float): Hitting a subgoal must yield a supplementary reward to enable local policy
+            enable_option_timeout (bool): whether or not the option times out after some number of steps
+            buffer_length (int): size of trajectories used to train initiation sets of options
+            num_subgoal_hits_required (int): number of times we need to hit an option's termination before learning
+            classifier_type (str): Type of classifier we will train for option initiation sets
+            init_q (float): If not none, we use this value to initialize the value of a new option
+            generate_plots (bool): whether or not to produce plots in this run
+            use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
+            start_state_salience (bool): Treat the start state of the MDP as a salient event OR create intersection events
+            option_intersection_salience (bool): Should we treat the intersection b/w options as a salient event
+            event_intersection_salience (bool): Should we treat the option-event intersections as salient events
+            pretrain_option_policies (bool): Whether to pre-train option policies with the global option
+            create_backward_options (bool): Whether to spend time learning back options for skill graphs
+            learn_backward_options_offline (bool): Whether to learn initiation sets for back option or reuse forward ones
+            update_global_solver (bool): Whether to learn a global option policy (this can increase wall clock time in ant)
+            use_warmup_phase (bool): If true, then option will act randomly during its gestation period
+            dense_reward (bool): Whether DSC will use dense rewards to train option policies
+            log_dir (os.path): directory to store all the scores for this run
+            seed (int): We are going to use the same random seed for all the DQN solvers
+            tensor_log (bool): Tensorboard logging enable
+            experiment_name (str)
+        """
         self.mdp = mdp
         self.original_actions = deepcopy(mdp.actions)
         self.max_steps = max_steps
@@ -355,16 +355,16 @@ class SkillChaining(object):
 
     def make_off_policy_updates_for_options(self, state, action, reward, next_state):
         for option in self.trained_options:  # type: Option
-            option.off_policy_update(state, action, reward, next_state) \
- \
+            option.off_policy_update(state, action, reward, next_state)
+
     def make_smdp_update(self, *, action, next_state, option_transitions):
         """
-		Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
-		Args:
-			action (int): option taken by the global solver
-			next_state (State): state we landed in after executing the option
-			option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
-		"""
+        Use Intra-Option Learning for sample efficient learning of the option-value function Q(s, o)
+        Args:
+            action (int): option taken by the global solver
+            next_state (State): state we landed in after executing the option
+            option_transitions (list): list of (s, a, r, s') tuples representing the trajectory during option execution
+        """
 
         def get_reward(transitions):
             gamma = self.global_option.solver.gamma

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 import numpy as np
@@ -20,7 +21,7 @@ class AntMazePlotter(SkillChainingPlotter):
         plt.scatter(x, y, c=options, cmap=plt.cm.Dark2)
         plt.colorbar()
         file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}.png"
-        plt.savefig(self.path / file_name)
+        plt.savefig(os.path.join(self.path, file_name))
         plt.close()
 
     def visualize_ddpg_shaped_rewards(self, global_option, other_option, episode, seed):
@@ -31,7 +32,7 @@ class AntMazePlotter(SkillChainingPlotter):
             plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
             plt.colorbar()
             file_name = f"{other_option.name}_low_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
-            plt.savefig(self.path / file_name)
+            plt.savefig(os.path.join(self.path, file_name))
             plt.close()
 
     def visualize_dqn_shaped_rewards(self, dqn_agent, option, episode, seed):
@@ -41,7 +42,7 @@ class AntMazePlotter(SkillChainingPlotter):
             plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
             plt.colorbar()
             file_name = f"{option.name}_high_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
-            plt.savefig(self.path / file_name)
+            plt.savefig(os.path.join(self.path, file_name))
             plt.close()
 
     def visualize_dqn_replay_buffer(self, solver):
@@ -65,9 +66,9 @@ class AntMazePlotter(SkillChainingPlotter):
         # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[0., 1., 1., 0.])
 
         plt.legend()
-        plt.title("# transitions = {}".format(len(solver.replay_buffer)))
-        file_name = "{}_replay_buffer_analysis.png".format(solver.name)
-        plt.savefig(self.path / file_name)
+        plt.title(f"# transitions = {len(solver.replay_buffer)}")
+        file_name = f"{solver.name}_replay_buffer_analysis.png"
+        plt.savefig(os.path.join(self.path, file_name))
         plt.close()
 
     def visualize_next_state_reward_heat_map(self, option, episode=None):
@@ -89,16 +90,12 @@ class AntMazePlotter(SkillChainingPlotter):
         plt.xlim((x_low_lim, x_high_lim))
         plt.ylim((y_low_lim, y_high_lim))
 
-        name = option.name if episode is None else option.name + "_{}_{}".format(self.experiment_name, episode)
-        file_name = "{}_replay_buffer_reward_map.png".format(name)
-        plt.savefig(self.path / file_name)
+        name = option.name if episode is None else f"{option.name}_{episode}"
+        file_name = f"{name}_replay_buffer_reward_map.png"
+        plt.savefig(os.path.join(self.path, file_name))
         plt.close()
 
     def generate_episode_plots(self, chainer, episode):
-        '''
-        Args:
-            chainer (SkillChainingAgent): the skill chaining agent we want to plot
-        '''
         self.visualize_best_option_to_take(chainer.agent_over_options, episode, chainer.seed)
 
         for option in chainer.trained_options:
@@ -114,7 +111,7 @@ class AntMazePlotter(SkillChainingPlotter):
             plt.plot(chainer.option_qvalues[o.name])
             plt.title(o.name)
         file_name = "sampled_q_so_{}.png".format(chainer.seed)
-        plt.savefig(self.path / file_name)
+        plt.savefig(os.path.join(self.path, file_name))
         plt.close()
 
         for option in chainer.trained_options:
