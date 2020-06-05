@@ -50,6 +50,6 @@ def create_log_dir(directory_path):
     try:
         os.makedirs(directory_path)
     except OSError:
-        print("Creation of the directory %s failed" % os.path.join(os.getcwd(), path_name))
+        print("Creation of the directory %s failed" % os.path.join(os.getcwd(), directory_path))
     else:
-        print("Successfully created the directory %s " % os.path.join(os.getcwd(), path_name))
+        print("Successfully created the directory %s " % os.path.join(os.getcwd(), directory_path))
