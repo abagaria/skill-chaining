@@ -1207,7 +1207,7 @@ if __name__ == '__main__':
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
         from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
-        mdp_plotter = LeapWrapperPlotter(args.env.lower(), args.experiment_name)
+        mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name)
         overall_mdp = LeapWrapperMDP(dense_reward=args.dense_reward, render=args.render)
         overall_mdp.env.seed(args.seed)
     else:

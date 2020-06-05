@@ -12,8 +12,7 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
             experiment_name (str): The name of the current experiment, so we know where to save plots
         """
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
-        ipdb.set_trace()
-        create_log_dir(self.path)
+        self._create_log_dir(self.path)
 
     @abc.abstractmethod
     def generate_episode_plots(self, chainer, episode):
@@ -36,6 +35,20 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
         """
         pass
 
+    @staticmethod
+    def create_subdirectories(*args):
+        for path in args:
+            SkillChainingPlotter._create_log_dir(path)
+
+    @staticmethod
+    def _create_log_dir(directory_path):
+        try:
+            os.makedirs(directory_path)
+        except OSError:
+            print("Creation of the directory %s failed" % os.path.join(os.getcwd(), directory_path))
+        else:
+            print("Successfully created the directory %s " % os.path.join(os.getcwd(), directory_path))
+
 
 def rotate_file_name(file_path):
     if os.path.isdir(file_path):
@@ -49,10 +62,4 @@ def rotate_file_name(file_path):
         return file_path
 
 
-def create_log_dir(directory_path):
-    try:
-        os.makedirs(directory_path)
-    except OSError:
-        print("Creation of the directory %s failed" % os.path.join(os.getcwd(), directory_path))
-    else:
-        print("Successfully created the directory %s " % os.path.join(os.getcwd(), directory_path))
+
