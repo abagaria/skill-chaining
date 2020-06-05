@@ -79,7 +79,7 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         # If we are in the goal-directed case, done will be set internally in _get_state
         self.next_state = self._get_state(next_state, done)
 
-        if np.linalg.norm(self.next_state.position - self.current_goal_position) <= 0.6:
+        if np.linalg.norm(self.next_state.position - self.current_goal_position) <= 0.6 and self.goal_directed:
             return 1.
 
         return 0.
@@ -95,9 +95,10 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         theta = obs[3]
         velocity = obs[4:6]
         theta_dot = obs[6]
-        goal_dist = self.current_goal_position - position
+        goal_dist = None
 
         if self.goal_directed:
+            goal_dist = self.current_goal_position - position
             done = np.linalg.norm(goal_dist) <= 0.6
 
         state = PointReacherState(position, theta, velocity, theta_dot, done, goal_component=goal_dist)
