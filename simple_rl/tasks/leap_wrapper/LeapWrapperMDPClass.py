@@ -76,7 +76,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             #rgb_array = self.env.render(mode='rgb_array')
             #pdb.set_trace()
             img = self.env.sim.render(600, 600)
-            matplotlib.image.imsave(Path.cwd()/"rbg_images", img)
+            matplotlib.image.imsave(Path.cwd()/"rbg_images/image.png", img)
             pdb.set_trace()
         return reward
 
