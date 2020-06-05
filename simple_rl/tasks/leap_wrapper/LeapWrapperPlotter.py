@@ -33,7 +33,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
         self.tolerance = 0.03
-        super().__init__(task_name, experiment_name)
+        super().__init__(task_name, experiment_name, ["initiation_set_plots", "value_function_plots"])
 
     def generate_episode_plots(self, chainer, episode):
         """
