@@ -31,7 +31,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         meshgrid = np.meshgrid(*[np.arange(axis_min, axis_max, 0.02) for axis_min, axis_max in
                                  zip(axes_low, axes_high)], indexing="ij")
         self.mesh = np.column_stack(list(map(np.ravel, meshgrid)))
-        ipdb.set_trace()
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
@@ -96,7 +95,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             axis.set_ylabel(self.axis_labels[y_idx])
 
         titles = ['Endeff', 'Puck']
-        boolean_mesh = [state for state in self.mesh if option.is_init_true(state)]
+        boolean_mesh = self.mesh[option.batched_is_init_true(self.mesh)]
         # indices for end effector and puck
         indices = [(0, 1), (3, 4)]
 
@@ -110,7 +109,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             _plot_initiation_classifier(trajectory_axis, boolean_mesh, x_idx, y_idx, title)
 
         mesh_axes[1].legend()
-        trajectory_axes[1].legend()
+        trajectory_axes[1].legend(loc="upper right")
 
         # save plot as png
         file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
