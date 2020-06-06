@@ -30,11 +30,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.render = render
 
         if self.render:
-            self.movie_width = 300
-            self.movie_height = 300
+            self.movie_width = 600
+            self.movie_height = 600
+            self.movie_framerate = 60.
             self.movie_timestep = 0
             self.movie_timestep_min = 0
-            self.movie_timestep_max = 100
+            self.movie_timestep_max = 5000
             self.movie = np.zeros((
                 self.movie_timestep_max - self.movie_timestep_min,
                 self.movie_width,
@@ -86,7 +87,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             self.movie[self.movie_timestep - self.movie_timestep_min, :, :, :] = frame
         
         if self.movie_timestep == self.movie_timestep_max:
-            imageio.mimwrite('movie.mp4', self.movie, fps = 15.)
+            imageio.mimwrite('movie.mp4', self.movie, fps = self.movie_framerate)
 
         self.movie_timestep += 1
 
