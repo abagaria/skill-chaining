@@ -371,7 +371,7 @@ class Option(object):
 			return True
 
 		# print('using svm for predicting if in initiation set.')
-		features = ground_state.features() if isinstance(ground_state, State) else ground_state[:5]
+		features = ground_state.features() if isinstance(ground_state, State) else ground_state
 		return self.initiation_classifier.predict([features])[0] == 1
 
 	def is_term_true(self, ground_state):
@@ -574,6 +574,7 @@ class Option(object):
 			return -1.
 
 		# Rewards based on position only
+		# TODO: Kshitij needs to fix the dependence on 5
 		position_vector = state.features() if isinstance(state, State) else state[:5]
 
 		# For global and parent option, we use the negative distance to the goal state
