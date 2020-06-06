@@ -93,19 +93,19 @@ class LeapWrapperMDP(GoalDirectedMDP):
             frame = self.env.sim.render(camera_name='topview', width=self.movie_width, height=self.movie_height)
             self.movie[self.movie_timestep - self.movie_timestep_start, :, :, :] = frame
         
-        if self.movie_timestep == self.movie_timestep_stop:
-            clip_number = np.int(np.ceil(self.movie_timestep_stop / self.save_every))
-            print(f"Saving clip {clip_number}")
-            imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
+            if self.movie_timestep == self.movie_timestep_stop:
+                clip_number = np.int(np.ceil(self.movie_timestep_stop / self.save_every))
+                print(f"Saving clip {clip_number}")
+                imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
 
-            print("Finishing recording")
-            self.render = False
+                print("Finishing recording")
+                self.render = False
 
-        elif self.movie_timestep > 0 and self.movie_timestep % self.save_every == 0:
-            clip_number = self.movie_timestep // self.save_every
-            print(f"Saving clip {clip_number}")
-            imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
-            self.movie = self.empty_movie.copy()
+            elif self.movie_timestep > 0 and self.movie_timestep % self.save_every == 0:
+                clip_number = self.movie_timestep // self.save_every
+                print(f"Saving clip {clip_number}")
+                imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
+                self.movie = self.empty_movie.copy()
 
         self.movie_timestep += 1
 
@@ -115,7 +115,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.next_state = self._get_state(next_state, done)
         if self.render:
             self.add_frame_to_movie()
-
         return reward
 
     def _transition_func(self, state, action):
