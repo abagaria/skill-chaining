@@ -40,7 +40,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                 self.movie_timestep_max - self.movie_timestep_min,
                 self.movie_width,
                 self.movie_height,
-                3))
+                3), dtype=np.uint8)
 
 
         self.salient_tolerance = 0.03
