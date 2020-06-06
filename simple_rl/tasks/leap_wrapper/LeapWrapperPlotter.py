@@ -35,6 +35,9 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
         self.tolerance = 0.03
+
+        # only want to plot the final initiation set of each option once
+        self.final_initiation_set_has_been_plotted = []
         super().__init__(task_name, experiment_name, ["initiation_set_plots", "value_function_plots"])
 
     def generate_episode_plots(self, chainer, episode):
@@ -43,8 +46,17 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
             episode (int)
         """
-        for option in chainer.trained_options:
-            self._plot_initiation_sets(option, episode)
+        # only want to plot the final initiation set of each option once
+        while len(self.final_initiation_set_has_been_plotted) < len(chainer.trained_options):
+            self.final_initiation_set_has_been_plotted.append(False)
+
+        for i, option in enumerate(chainer.trained_options):
+            if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
+                    option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
+                self._plot_initiation_sets(option, episode)
+
+                if option.get_training_phase() == "initiation_done":
+                    self.final_initiation_set_has_been_plotted[i] = True
         pass
 
     def generate_experiment_plots(self, chainer):
