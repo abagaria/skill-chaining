@@ -67,61 +67,11 @@ class LeapWrapperPlotter(SkillChainingPlotter):
     def generate_experiment_plots(self, chainer):
         pass
 
+    def _plot_value_function(self, option, episode):
+        x = 1
+
     def _plot_initiation_sets(self, option, episode):
-        def _setup_plot():
-            # set up figure and axes
-            fig, axs = plt.subplots(2, 2, sharex='all', sharey='all', constrained_layout=True)
-            fig.set_size_inches(18, 15)
-            fig.suptitle(f"{option.name} Initiation Set", size=24)
-
-            # doesn't matter which axis we set these for because sharey and sharex are true
-            axs[0, 0].set_xlim(self.puck_x_range)
-            axs[0, 0].set_ylim(self.puck_y_range)
-            axs[0, 0].set_xticks(np.linspace(self.puck_x_range[0], self.puck_x_range[1], 9))
-            axs[0, 0].set_yticks(np.linspace(self.puck_y_range[0], self.puck_y_range[1], 9))
-
-            # plot end effector valid range, puck goal, and target salient event
-            for ax in axs.flatten():
-                ax.set_aspect("equal")
-                # plot box showing the valid moves for the end effector because this is smaller than where
-                # the puck can go
-                ax.plot(self.endeff_box[:, 0], self.endeff_box[:, 1], color="k", label="endeff bounds")
-
-                # using circle to specify the radius of the goal state (tolerance)
-                puck_goal = plt.Circle(self.puck_goal, self.goal_tolerance, color=self.goal_color,
-                                       label="puck goal", alpha=0.3)
-                ax.add_patch(puck_goal)
-
-                # plot salient event that this option is targeting
-                if option.target_salient_event is not None:
-                    target_puck_pos = option.target_salient_event.get_target_position()
-                    salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, alpha=0.3,
-                                               color=self.target_salient_event_color, label="target salient event")
-                    ax.add_patch(salient_event)
-
-            # make legend objects
-            endeff_box_marker = Line2D([], [], marker="s", markerfacecolor="none", linestyle="none",
-                                       color="k", markersize=12, label="end effector bounding box")
-            target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
-                                           markersize=12, color=self.target_salient_event_color)
-            puck_goal_marker = Line2D([], [], marker="o", linestyle="none", color=self.goal_color,
-                                      markersize=12, label="puck goal")
-            puck_start_marker = Line2D([], [], marker="*", linestyle="none", color="k",
-                                       markersize=12, label="puck start")
-            endeff_start_marker = Line2D([], [], marker="x", linestyle="none", color="k",
-                                         markersize=12, label="end effector start")
-            positive_trajectories_marker = Line2D([], [], color=self.positive_color, linewidth=2.5, label="successful trajectories")
-            negative_trajectories_marker = Line2D([], [], color=self.negative_color, linewidth=2.5, label="unsuccessful trajectories")
-
-            initiation_set_legend_handles = [endeff_box_marker, target_salient_marker, puck_goal_marker,
-                                             puck_start_marker, endeff_start_marker]
-            axs[1, 1].legend(handles=initiation_set_legend_handles, loc="upper right")
-
-            trajectory_legend_handles = initiation_set_legend_handles + [positive_trajectories_marker, negative_trajectories_marker]
-            axs[0, 1].legend(handles=trajectory_legend_handles, loc="upper right")
-            return fig, axs
-
-        def _plot_trajectories(axis, option, x_idx, y_idx, title):
+        def _plot_trajectories(axis):
             positive_trajectories = option.positive_examples
             negative_trajectories = option.negative_examples
             for positive_trajectory in positive_trajectories:
@@ -134,7 +84,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             axis.set_xlabel(self.axis_labels[x_idx], size=14)
             axis.set_ylabel(self.axis_labels[y_idx], size=14)
 
-        def _plot_initiation_classifier(axis, data, x_idx, y_idx, title):
+        def _plot_initiation_classifier(axis, data):
             x_y, counts = np.unique(data[:, [x_idx, y_idx]], axis=0, return_counts=True)
             axis.scatter(x_y[:, 0], x_y[:, 1], c=counts, cmap=plt.cm.get_cmap("Blues"))
             axis.set_title(f"{title} Initiation Set Classifier", size=16)
@@ -142,27 +92,81 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             axis.set_ylabel(self.axis_labels[y_idx], size=14)
 
         print(f"Plotting initiation set of {option.name}")
-        titles = ['Endeff', 'Puck']
-        boolean_mesh = self.mesh[option.batched_is_init_true(self.mesh)]
+
         # indices for end effector and puck
         indices = [(0, 1), (3, 4)]
+        titles = ['Endeff', 'Puck']
+        boolean_mesh = self.mesh[option.batched_is_init_true(self.mesh)]
 
-        fig, axs = _setup_plot()
+        fig, axs = self._setup_plot(option)
         mesh_axes = axs[0]
         trajectory_axes = axs[1]
 
         for (x_idx, y_idx), mesh_axis, trajectory_axis, title in zip(indices, mesh_axes, trajectory_axes, titles):
             # plot positive and negative examples
-            _plot_trajectories(mesh_axis, option, x_idx, y_idx, title)
+            _plot_trajectories(mesh_axis)
 
             # plot initiation classifier using mesh
-            _plot_initiation_classifier(trajectory_axis, boolean_mesh, x_idx, y_idx, title)
+            _plot_initiation_classifier(trajectory_axis, boolean_mesh)
 
         # plot the puck and endeff starting positions. Need to do this after plotting points so it isn't covered up by the mesh
         for ax in axs.flatten():
-            ax.scatter(self.hand_start[0], self.hand_start[1], color="k", label="endeff start", marker="x", s=100)
+            ax.scatter(self.hand_start[0], self.hand_start[1], color="k", label="endeff start", marker="x", s=180)
             ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=100)
 
         # save plot as png
         file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
         plt.savefig(os.path.join(self.path, "initiation_set_plots", file_name))
+
+    def _setup_plot(self, option):
+        # set up figure and axes
+        fig, axs = plt.subplots(2, 2, sharex='all', sharey='all', constrained_layout=True)
+        fig.set_size_inches(18, 15)
+        fig.suptitle(f"{option.name} Initiation Set", size=24)
+
+        # doesn't matter which axis we set these for because sharey and sharex are true
+        axs[0, 0].set_xlim(self.puck_x_range)
+        axs[0, 0].set_ylim(self.puck_y_range)
+        axs[0, 0].set_xticks(np.linspace(self.puck_x_range[0], self.puck_x_range[1], 9))
+        axs[0, 0].set_yticks(np.linspace(self.puck_y_range[0], self.puck_y_range[1], 9))
+
+        # plot end effector valid range, puck goal, and target salient event
+        for ax in axs.flatten():
+            ax.set_aspect("equal")
+            # plot box showing the valid moves for the end effector because this is smaller than where
+            # the puck can go
+            ax.plot(self.endeff_box[:, 0], self.endeff_box[:, 1], color="k", label="endeff bounds")
+
+            # using circle to specify the radius of the goal state (tolerance)
+            puck_goal = plt.Circle(self.puck_goal, self.goal_tolerance, color=self.goal_color,
+                                   label="puck goal", alpha=0.3)
+            ax.add_patch(puck_goal)
+
+            # plot salient event that this option is targeting
+            if option.target_salient_event is not None:
+                target_puck_pos = option.target_salient_event.get_target_position()
+                salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, alpha=0.3,
+                                           color=self.target_salient_event_color, label="target salient event")
+                ax.add_patch(salient_event)
+
+        # make legend objects
+        endeff_box_marker = Line2D([], [], marker="s", markerfacecolor="none", linestyle="none",
+                                   color="k", markersize=12, label="end effector bounding box")
+        target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
+                                       markersize=12, color=self.target_salient_event_color)
+        puck_goal_marker = Line2D([], [], marker="o", linestyle="none", color=self.goal_color,
+                                  markersize=12, label="puck goal")
+        puck_start_marker = Line2D([], [], marker="*", linestyle="none", color="k",
+                                   markersize=12, label="puck start")
+        endeff_start_marker = Line2D([], [], marker="x", linestyle="none", color="k",
+                                     markersize=12, label="end effector start")
+        positive_trajectories_marker = Line2D([], [], color=self.positive_color, linewidth=2.5, label="successful trajectories")
+        negative_trajectories_marker = Line2D([], [], color=self.negative_color, linewidth=2.5, label="unsuccessful trajectories")
+
+        initiation_set_legend_handles = [endeff_box_marker, target_salient_marker, puck_goal_marker,
+                                         puck_start_marker, endeff_start_marker]
+        axs[1, 1].legend(handles=initiation_set_legend_handles, loc="upper right")
+
+        trajectory_legend_handles = initiation_set_legend_handles + [positive_trajectories_marker, negative_trajectories_marker]
+        axs[0, 1].legend(handles=trajectory_legend_handles, loc="upper right")
+        return fig, axs
