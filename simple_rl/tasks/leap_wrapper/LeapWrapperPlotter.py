@@ -76,8 +76,10 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             positive_trajectories = option.positive_examples
             negative_trajectories = option.negative_examples
             for positive_trajectory in positive_trajectories:
+                positive_trajectory = np.array(positive_trajectory)
                 axis.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx], label="positive", c="b")
             for negative_trajectory in negative_trajectories:
+                negative_trajectory = np.array(negative_trajectory)
                 axis.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx], label="negative", c="r")
             axis.set_title(f"{title} Trajectories")
             axis.set_xlabel(self.axis_labels[x_idx])
