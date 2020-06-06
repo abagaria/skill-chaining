@@ -30,8 +30,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         axes_high = [0.28, 0.9, 0.08, 0.4, 1.]
         meshgrid = np.meshgrid(*[np.arange(axis_min, axis_max, 0.02) for axis_min, axis_max in
                                  zip(axes_low, axes_high)], indexing="ij")
+        self.mesh = np.column_stack(list(map(np.ravel, meshgrid)))
         ipdb.set_trace()
-        self.mesh = np.vstack(list(map(np.ravel, meshgrid)))
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
