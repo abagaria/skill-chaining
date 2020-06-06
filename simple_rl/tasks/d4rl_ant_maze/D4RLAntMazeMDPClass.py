@@ -53,14 +53,19 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         self.current_goal_position = position
 
     def _reward_func(self, state, action):
-        next_state, _, done, _ = self.env.step(action)
+        next_state, _, _, _ = self.env.step(action)
         if self.render:
             self.env.render()
+
+        # We are in the task-agnostic setting so done=False
+        # If we are training a goal-conditioned policy, then _get_state will
+        # internally set done to True when next_state == goal_state
+        done = False
 
         # If we are in the goal-directed case, done will be set internally in _get_state
         self.next_state = self._get_state(next_state, done)
 
-        if np.linalg.norm(self.next_state.position - self.current_goal_position) <= 0.6:
+        if np.linalg.norm(self.next_state.position - self.current_goal_position) <= 0.6 and self.goal_directed:
             return 1.
 
         return 0.
@@ -70,15 +75,14 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
 
     def _get_state(self, observation, done):
         """ Convert np obs array from gym into a State object. """
-        ipdb.set_trace()
 
         obs = np.copy(observation)
         position = obs[:2]
         others = obs[2:]
-
-        goal_dist = self.current_goal_position - position
+        goal_dist = None
 
         if self.goal_directed:
+            goal_dist = self.current_goal_position - position
             done = np.linalg.norm(goal_dist) <= 0.6
 
         state = D4RLAntMazeState(position, others, done, goal_component=goal_dist)
