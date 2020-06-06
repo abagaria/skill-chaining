@@ -73,8 +73,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  )
 
     def add_frame_to_movie(self):
-        frame = self.env.sim.render(600, 600)
         ipdb.set_trace()
+        frame = self.env.sim.render(600, 600)
 
     def _reward_func(self, state, action):
         assert isinstance(action, np.ndarray), type(action)
