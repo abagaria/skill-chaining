@@ -113,6 +113,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         assert isinstance(action, np.ndarray), type(action)
         next_state, reward, done, _ = self.env.step(action)
         self.next_state = self._get_state(next_state, done)
+        ipdb.set_trace()
         if self.render:
             self.add_frame_to_movie()
 
