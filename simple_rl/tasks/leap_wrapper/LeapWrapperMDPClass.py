@@ -47,8 +47,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
                 self.movie_height,
                 3), dtype=np.uint8)
 
-        self.salient_tolerance = 0.03
-        self.goal_tolerance = 0.03
+        self.goal_tolerance = 0.06
+        self.salient_tolerance = 0.06
 
         # Configure env
         multiworld.register_all_envs()
@@ -62,8 +62,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         salient_event_1 = np.zeros(5)
         salient_event_2 = np.zeros(5)
 
-        salient_event_1[3:] = [-0.08, 0.6]
-        salient_event_2[3:] = [-0.11, 0.6]
+        salient_event_1[3:] = [-0.1, 0.6]
+        salient_event_2[3:] = [-0.18, 0.6]
 
         salient_events = [
             SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
@@ -82,7 +82,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  False,
                                  goal_state=self.goal_state,
                                  goal_tolerance=self.goal_tolerance,
-                                 start_tolerance=0.03
+                                 start_tolerance=self.goal_tolerance
                                  )
 
     def add_frame_to_movie(self):
@@ -142,12 +142,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
     @staticmethod
     def state_space_size():
-        # Should this reference something instead of hardcoding?
         return 5
 
     @staticmethod
     def action_space_size():
-        # Should this reference something instead of hardcoding?
         return 2
 
     @staticmethod

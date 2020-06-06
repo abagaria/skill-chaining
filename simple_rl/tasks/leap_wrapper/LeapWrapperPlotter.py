@@ -8,7 +8,7 @@ from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChai
 
 
 class LeapWrapperPlotter(SkillChainingPlotter):
-    def __init__(self, task_name, experiment_name):
+    def __init__(self, task_name, experiment_name, mdp):
         # The true start state is: [-0.007, 0.52], but the hand gets to [0.032, 0.409]
         # within a few steps of resetting the environment. This is probably because the
         # arm starts with an initial z position of 0.12, but it goes to 0.07 very quickly.
@@ -16,7 +16,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         # the z position.
         self.hand_start = (0.032, 0.409)
         self.puck_start = (0., 0.6)
-        self.puck_goal = (-0.15, 0.6)
+        self.puck_goal = mdp.goal_state[3:]
 
         # for plotting axes
         self.endeff_box = np.array([[-0.28, 0.3], [-0.28, 0.9], [0.28, 0.9], [0.28, 0.3], [-0.28, 0.3]])
@@ -33,8 +33,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
-        self.goal_tolerance = 0.03
-        self.salient_tolerance = 0.03
+        self.goal_tolerance = mdp.goal_tolerance
+        self.salient_tolerance = mdp.salient_tolerance
 
         # only want to plot the final initiation set of each option once
         self.final_initiation_set_has_been_plotted = []
