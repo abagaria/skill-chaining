@@ -661,11 +661,6 @@ class Option(object):
                 action = self.act(state, eval_mode=eval_mode, warmup_phase=warmup_phase)
                 reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
-                if step_number == 0 or step_number == 1:
-                    mdp.memory.append(np.array([step_number, episode, self.name, state.features(), next_state.features()]))
-                    if len(mdp.memory) > 20:
-                        ipdb.set_trace()
-
                 if not warmup_phase or (self.name == "global_option" and self.update_global_solver):
                     self.update_option_solver(state, action, reward, next_state)
 
