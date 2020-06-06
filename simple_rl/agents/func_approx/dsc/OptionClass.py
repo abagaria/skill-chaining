@@ -663,7 +663,7 @@ class Option(object):
 
                 if step_number == 0 or step_number == 1:
                     mdp.memory.append(np.array([step_number, episode, self.name, state, next_state]))
-                    if len(mdp.memory > 20):
+                    if len(mdp.memory) > 20:
                         ipdb.set_trace()
 
                 if not warmup_phase or (self.name == "global_option" and self.update_global_solver):
