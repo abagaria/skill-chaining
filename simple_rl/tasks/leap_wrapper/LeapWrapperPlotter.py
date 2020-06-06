@@ -3,6 +3,7 @@ import os
 import ipdb
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
@@ -38,6 +39,11 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         # only want to plot the final initiation set of each option once
         self.final_initiation_set_has_been_plotted = []
+
+        self.positive_color = "b"
+        self.negative_color = "r"
+        self.target_salient_event_color = "green"
+        self.goal_color = "orange"
         super().__init__(task_name, experiment_name, ["initiation_set_plots", "value_function_plots"])
 
     def generate_episode_plots(self, chainer, episode):
@@ -51,6 +57,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             self.final_initiation_set_has_been_plotted.append(False)
 
         for i, option in enumerate(chainer.trained_options):
+            if option.name == "goal_option_2":
+                ipdb.set_trace()
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
                 self._plot_initiation_sets(option, episode)
@@ -83,14 +91,37 @@ class LeapWrapperPlotter(SkillChainingPlotter):
                 ax.plot(self.endeff_box[:, 0], self.endeff_box[:, 1], color="k", label="endeff bounds")
 
                 # using circle to specify the radius of the goal state (tolerance)
-                puck_goal = plt.Circle(self.puck_goal, self.goal_tolerance, color="orange", label="puck goal")
+                puck_goal = plt.Circle(self.puck_goal, self.goal_tolerance, color=self.goal_color,
+                                       label="puck goal", alpha=0.3)
                 ax.add_patch(puck_goal)
 
                 # plot salient event that this option is targeting
                 if option.target_salient_event is not None:
                     target_puck_pos = option.target_salient_event.get_target_position()
-                    salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, color="green", label="target salient event")
+                    salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, alpha=0.3,
+                                               color=self.target_salient_event_color, label="target salient event")
                     ax.add_patch(salient_event)
+
+            # make legend objects
+            endeff_box_marker = Line2D([], [], marker="s", markerfacecolor="none", linestyle="none",
+                                       color="k", markersize=10, label="end effector bounding box")
+            target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
+                                           markersize=10, color=self.target_salient_event_color)
+            puck_goal_marker = Line2D([], [], marker="*", linestyle="none", color=self.goal_color,
+                                      markersize=10, label="puck goal")
+            puck_start_marker = Line2D([], [], marker="*", linestyle="none", color="k",
+                                       markersize=10, label="puck start")
+            endeff_start_marker = Line2D([], [], marker="x", linestyle="none", color="k",
+                                         markersize=10, label="end effector start")
+            positive_trajectories_marker = Line2D([], [], color=self.positive_color, label="successful trajectories")
+            negative_trajectories_marker = Line2D([], [], color=self.negative_color, label="unsuccessful trajectories")
+
+            initiation_set_legend_handles = [endeff_box_marker, target_salient_marker, puck_goal_marker,
+                                             puck_start_marker, endeff_start_marker]
+            axs[1, 1].legend(handles=initiation_set_legend_handles, loc="upper right")
+
+            trajectory_legend_handles = initiation_set_legend_handles + [positive_trajectories_marker, negative_trajectories_marker]
+            axs[0, 1].legend(handles=trajectory_legend_handles, loc="upper right")
             return fig, axs
 
         def _plot_trajectories(axis, option, x_idx, y_idx, title):
@@ -98,21 +129,21 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             negative_trajectories = option.negative_examples
             for positive_trajectory in positive_trajectories:
                 positive_trajectory = np.array(positive_trajectory)
-                axis.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx], label="positive", c="b")
+                axis.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx], label="positive", c=self.positive_color)
             for negative_trajectory in negative_trajectories:
                 negative_trajectory = np.array(negative_trajectory)
-                axis.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx], label="negative", c="r")
-            axis.set_title(f"{title} Trajectories")
-            axis.set_xlabel(self.axis_labels[x_idx])
-            axis.set_ylabel(self.axis_labels[y_idx])
+                axis.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx], label="negative", c=self.negative_color)
+            axis.set_title(f"{title} Trajectories", size=16)
+            axis.set_xlabel(self.axis_labels[x_idx], size=14)
+            axis.set_ylabel(self.axis_labels[y_idx], size=14)
 
         def _plot_initiation_classifier(axis, data, x_idx, y_idx, title):
-            x_y, counts = np.unique(data, axis=0, return_counts=True)
+            x_y, counts = np.unique(data[:, [x_idx, y_idx]], axis=0, return_counts=True)
             ipdb.set_trace()
-            axis.scatter(x_y[:, x_idx], x_y[:, y_idx], c=counts, cmap=plt.cm.get_cmap("Blues"))
-            axis.set_title(f"{title} Initiation Set Classifier")
-            axis.set_xlabel(self.axis_labels[x_idx])
-            axis.set_ylabel(self.axis_labels[y_idx])
+            axis.scatter(x_y[:, 0], x_y[:, 1], c=counts, cmap=plt.cm.get_cmap("Blues"))
+            axis.set_title(f"{title} Initiation Set Classifier", size=16)
+            axis.set_xlabel(self.axis_labels[x_idx], size=14)
+            axis.set_ylabel(self.axis_labels[y_idx], size=14)
 
         print(f"Plotting initiation set of {option.name}")
         titles = ['Endeff', 'Puck']
@@ -135,9 +166,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         for ax in axs.flatten():
             ax.scatter(self.hand_start[0], self.hand_start[1], color="k", label="endeff start", marker="x", s=100)
             ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=100)
-
-        mesh_axes[1].legend()
-        trajectory_axes[1].legend(loc="upper right")
 
         # save plot as png
         file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
