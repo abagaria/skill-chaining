@@ -86,7 +86,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             self.movie[self.movie_timestep - self.movie_timestep_min, :, :, :] = frame
         
         if self.movie_timestep == self.movie_timestep_max:
-            imageio.mimwrite('movie.mp4', self.movie, fps = [15])
+            imageio.mimwrite('movie.mp4', self.movie, fps = 15.)
 
         self.movie_timestep += 1
 
