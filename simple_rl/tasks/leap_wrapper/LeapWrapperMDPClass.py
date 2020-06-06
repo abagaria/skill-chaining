@@ -30,6 +30,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.dense_reward = dense_reward
         self.render = render
 
+        if self.render:
+            self.movie_timesteps_offset = 1000
+            self.movie_timesteps_max = 1000
+
         self.salient_tolerance = 0.03
         self.goal_tolerance = 0.03
 
@@ -68,16 +72,17 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  start_tolerance=0.03
                                  )
 
+    def add_frame_to_movie(self):
+        frame = self.env.render(mode='rgb_array', close=True)
+        ipdb.set_trace()
+
     def _reward_func(self, state, action):
         assert isinstance(action, np.ndarray), type(action)
         next_state, reward, done, _ = self.env.step(action)
         self.next_state = self._get_state(next_state, done)
         if self.render:
-            #rgb_array = self.env.render(mode='rgb_array')
-            #pdb.set_trace()
-            img = self.env.sim.render(600, 600)
-            matplotlib.image.imsave(Path.cwd()/"rbg_images/image.png", img)
-            pdb.set_trace()
+            self.add_frame_to_movie()
+
         return reward
 
     def _transition_func(self, state, action):
