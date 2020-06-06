@@ -32,12 +32,17 @@ class LeapWrapperMDP(GoalDirectedMDP):
         if self.render:
             self.movie_width = 600
             self.movie_height = 600
-            self.movie_framerate = 60.
+            self.movie_framerate = 240.
             self.movie_timestep = 0
-            self.movie_timestep_min = 0
-            self.movie_timestep_max = 5000
+            self.movie_timestep_start = 2000000
+            self.movie_timestep_stop = 50000
+            self.save_every = 5000
+
+            movie_duration = self.movie_timestep_stop - self.movie_timestep_start
+            assert(self.save_every < movie_duration)
+
             self.movie = np.zeros((
-                self.movie_timestep_max - self.movie_timestep_min,
+                movie_duration,
                 self.movie_width,
                 self.movie_height,
                 3), dtype=np.uint8)
@@ -82,12 +87,24 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  )
 
     def add_frame_to_movie(self):
-        if self.movie_timestep_min <= self.movie_timestep < self.movie_timestep_max:
+        if self.movie_timestep_start <= self.movie_timestep < self.movie_timestep_stop:
+            if self.movie_timestep == self.movie_timestep_start:
+                print("Starting recording")
             frame = self.env.sim.render(camera_name='topview', width=self.movie_width, height=self.movie_height)
-            self.movie[self.movie_timestep - self.movie_timestep_min, :, :, :] = frame
+            self.movie[self.movie_timestep - self.movie_timestep_start, :, :, :] = frame
         
-        if self.movie_timestep == self.movie_timestep_max:
-            imageio.mimwrite('movie.mp4', self.movie, fps = self.movie_framerate)
+        if self.movie_timestep == self.movie_timestep_stop:
+            clip_numper = np.int(np.ceil(self.movie_timestep_stop / self.save_every))
+            print(f"Saving clip {clip_number}")
+            imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
+
+            print("Finishing recording")
+            self.render = False
+
+        elif self.movie_timestep > 0 and self.movie_timestep % self.save_every == 0:
+            clip_number = self.movie_timestep // self.save_every
+            print(f"Saving clip {clip_number}")
+            imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
 
         self.movie_timestep += 1
 
