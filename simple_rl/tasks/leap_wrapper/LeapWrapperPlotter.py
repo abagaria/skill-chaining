@@ -57,8 +57,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             self.final_initiation_set_has_been_plotted.append(False)
 
         for i, option in enumerate(chainer.trained_options):
-            if option.name == "goal_option_2":
-                ipdb.set_trace()
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
                 self._plot_initiation_sets(option, episode)
@@ -104,17 +102,17 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
             # make legend objects
             endeff_box_marker = Line2D([], [], marker="s", markerfacecolor="none", linestyle="none",
-                                       color="k", markersize=10, label="end effector bounding box")
+                                       color="k", markersize=12, label="end effector bounding box")
             target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
-                                           markersize=10, color=self.target_salient_event_color)
-            puck_goal_marker = Line2D([], [], marker="*", linestyle="none", color=self.goal_color,
-                                      markersize=10, label="puck goal")
+                                           markersize=12, color=self.target_salient_event_color)
+            puck_goal_marker = Line2D([], [], marker="o", linestyle="none", color=self.goal_color,
+                                      markersize=12, label="puck goal")
             puck_start_marker = Line2D([], [], marker="*", linestyle="none", color="k",
-                                       markersize=10, label="puck start")
+                                       markersize=12, label="puck start")
             endeff_start_marker = Line2D([], [], marker="x", linestyle="none", color="k",
-                                         markersize=10, label="end effector start")
-            positive_trajectories_marker = Line2D([], [], color=self.positive_color, label="successful trajectories")
-            negative_trajectories_marker = Line2D([], [], color=self.negative_color, label="unsuccessful trajectories")
+                                         markersize=12, label="end effector start")
+            positive_trajectories_marker = Line2D([], [], color=self.positive_color, linewidth=2.5, label="successful trajectories")
+            negative_trajectories_marker = Line2D([], [], color=self.negative_color, linewidth=2.5, label="unsuccessful trajectories")
 
             initiation_set_legend_handles = [endeff_box_marker, target_salient_marker, puck_goal_marker,
                                              puck_start_marker, endeff_start_marker]
@@ -139,7 +137,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         def _plot_initiation_classifier(axis, data, x_idx, y_idx, title):
             x_y, counts = np.unique(data[:, [x_idx, y_idx]], axis=0, return_counts=True)
-            ipdb.set_trace()
             axis.scatter(x_y[:, 0], x_y[:, 1], c=counts, cmap=plt.cm.get_cmap("Blues"))
             axis.set_title(f"{title} Initiation Set Classifier", size=16)
             axis.set_xlabel(self.axis_labels[x_idx], size=14)
