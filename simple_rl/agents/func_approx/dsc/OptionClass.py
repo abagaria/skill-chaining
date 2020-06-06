@@ -662,7 +662,7 @@ class Option(object):
                 reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
                 if step_number == 0 or step_number == 1:
-                    mdp.memory.append(np.array([step_number, episode, self.name, state, next_state]))
+                    mdp.memory.append(np.array([step_number, episode, self.name, state.features(), next_state.features()]))
                     if len(mdp.memory) > 20:
                         ipdb.set_trace()
 
