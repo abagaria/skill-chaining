@@ -42,7 +42,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             assert(self.save_every < movie_duration)
 
             self.movie = np.zeros((
-                movie_duration,
+                self.save_every,
                 self.movie_width,
                 self.movie_height,
                 3), dtype=np.uint8)
