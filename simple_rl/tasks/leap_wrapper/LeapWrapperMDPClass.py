@@ -48,7 +48,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
                 3), dtype=np.uint8)
             self.movie = self.empty_movie.copy()
 
-
         self.salient_tolerance = 0.03
         self.goal_tolerance = 0.03
 
