@@ -25,7 +25,7 @@ class AntReacherMDP(GoalDirectedMDP):
             'put_spin_near_agent': False,
             'top_down_view': False,
             'manual_collision': True,
-            'maze_size_scaling': 2,
+            'maze_size_scaling': 3,
             'color_str': ""
         }
         self.env = AntMazeEnv(**gym_mujoco_kwargs)
@@ -113,8 +113,8 @@ class AntReacherMDP(GoalDirectedMDP):
         self.init_state = deepcopy(self.cur_state)
 
     def _determine_x_y_lims(self):
-        self.xlims = (-5, 5)
-        self.ylims = (-5, 5)
+        self.xlims = (-10, 10)
+        self.ylims = (-10, 10)
 
     def get_x_y_low_lims(self):
         return self.xlims[0], self.ylims[0]

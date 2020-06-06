@@ -201,4 +201,3 @@ class DSCOptionSalientEvent(SalientEvent):
     def _get_position(state):
         raise NotImplementedError("DSCOptionSalientEvent does not have a target state - it just wraps around an option")
 
->>>>>>> bd6ee75... 1. Don't rewire (at least in the way we added in the prev commit) backward chains in ChainClass

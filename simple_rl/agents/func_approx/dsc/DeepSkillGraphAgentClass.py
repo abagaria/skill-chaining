@@ -151,6 +151,11 @@ class DeepSkillGraphAgent(object):
             high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
             reject_high = self.add_salient_event(high_salient_event, episode)
 
+            if reject_low or reject_high:
+                for _ in range(1000):
+                    self.dsc_agent.agent_over_options.step(low_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, high_salient_event.target_state, 0, 1)
+                    self.dsc_agent.agent_over_options.step(high_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, low_salient_event.target_state, 0, 1)
+
             plot_dco_salient_event_comparison(low_salient_event,
                                               high_salient_event,
                                               replay_buffer,
