@@ -10,6 +10,8 @@ from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChai
 
 class LeapWrapperPlotter(SkillChainingPlotter):
     def __init__(self, task_name, experiment_name):
+        plt.style.use("seaborn-whitegrid")
+
         # The true start state is: [-0.007, 0.52], but the hand gets to [0.032, 0.409]
         # within a few steps of resetting the environment. This is probably because the
         # arm starts with an initial z position of 0.12, but it goes to 0.07 very quickly.
@@ -26,9 +28,9 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         self.axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
 
         # grid of points to plot decision classifiers
-        axes_low = [-0.28, 0.3, 0.06, -0.4, 0.2]
-        axes_high = [0.28, 0.9, 0.08, 0.4, 1.]
-        meshgrid = np.meshgrid(*[np.arange(axis_min, axis_max, 0.02) for axis_min, axis_max in
+        axes_low = [-0.28, 0.3, 0.065, -0.4, 0.2]
+        axes_high = [0.28, 0.9, 0.075, 0.4, 1.]
+        meshgrid = np.meshgrid(*[np.arange(axis_min, axis_max, 0.01) for axis_min, axis_max in
                                  zip(axes_low, axes_high)], indexing="ij")
         self.mesh = np.column_stack(list(map(np.ravel, meshgrid)))
 
@@ -137,7 +139,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         def _plot_initiation_classifier(axis, data, x_idx, y_idx, title):
             x_y, counts = np.unique(data[:, [x_idx, y_idx]], axis=0, return_counts=True)
-            axis.scatter(x_y[:, 0], x_y[:, 1], c=counts, cmap=plt.cm.get_cmap("Blues"))
+            axis.scatter(x_y[:, 0], x_y[:, 1], c=counts, cmap=plt.cm.get_cmap("YlGnBu"))
             axis.set_title(f"{title} Initiation Set Classifier", size=16)
             axis.set_xlabel(self.axis_labels[x_idx], size=14)
             axis.set_ylabel(self.axis_labels[y_idx], size=14)
