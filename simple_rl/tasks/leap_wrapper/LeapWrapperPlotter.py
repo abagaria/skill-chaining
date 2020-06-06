@@ -95,6 +95,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             axis.set_ylabel(self.axis_labels[y_idx])
 
         titles = ['Endeff', 'Puck']
+        ipdb.set_trace()
         boolean_mesh = self.mesh[option.batched_is_init_true(self.mesh)]
         # indices for end effector and puck
         indices = [(0, 1), (3, 4)]
