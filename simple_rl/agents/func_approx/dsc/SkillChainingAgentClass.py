@@ -564,14 +564,13 @@ class SkillChaining(object):
 
     def create_all_backward_options_offline(self, forward_chain, back_chain):
         """
+        Args:
+            forward_chain (SkillChain)
+            back_chain (SkillChain)
 
-		Args:
-			forward_chain (SkillChain)
-			back_chain (SkillChain)
-
-		Returns:
-			created_options (list)
-		"""
+        Returns:
+            created_options (list)
+        """
         assert forward_chain.is_chain_completed(self.chains)
         assert not forward_chain.is_backward_chain
 

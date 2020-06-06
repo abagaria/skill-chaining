@@ -574,7 +574,7 @@ class Option(object):
 			return -1.
 
 		# Rewards based on position only
-		position_vector = state.features() if isinstance(state, State) else state[:5] 
+		position_vector = state.features() if isinstance(state, State) else state[:5]
 
 		# For global and parent option, we use the negative distance to the goal state
 		if self.parent is None:
@@ -705,6 +705,8 @@ class Option(object):
 			eligible_phase = self.get_training_phase() == "gestation"
 		elif "ant" in self.overall_mdp.env_name:
 			eligible_phase = self.get_training_phase() != "initiation_done"
+		elif "sawyer" in self.overall_mdp.env_name:
+			eligible_phase = self.get_training_phase() == "gestation"
 		else:
 			raise NotImplementedError(self.overall_mdp)
 
