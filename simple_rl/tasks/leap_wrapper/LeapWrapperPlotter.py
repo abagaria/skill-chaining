@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
-plt.style.use("seaborn-colorblind")
-
 
 class LeapWrapperPlotter(SkillChainingPlotter):
     def __init__(self, task_name, experiment_name):
@@ -21,8 +19,9 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         self.puck_goal = (-0.15, 0.6)
 
         # for plotting axes
-        self.x_range = (-0.4, 0.4)
-        self.y_range = (0.2, 1.)
+        self.endeff_box = np.array([[-0.28, 0.3], [-0.28, 0.9], [0.28, 0.9], [0.28, 0.3], [-0.28, 0.3]])
+        self.puck_x_range = (-0.4, 0.4)
+        self.puck_y_range = (0.2, 1.)
         self.axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
 
         # grid of points to plot decision classifiers
@@ -34,7 +33,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
-        self.tolerance = 0.03
+        self.goal_tolerance = 0.03
+        self.salient_tolerance = 0.03
 
         # only want to plot the final initiation set of each option once
         self.final_initiation_set_has_been_plotted = []
@@ -65,25 +65,32 @@ class LeapWrapperPlotter(SkillChainingPlotter):
     def _plot_initiation_sets(self, option, episode):
         def _setup_plot():
             # set up figure and axes
-            fig, axs = plt.subplots(2, 2, sharex='all', sharey='all')
+            fig, axs = plt.subplots(2, 2, sharex='all', sharey='all', constrained_layout=True)
             fig.set_size_inches(18, 15)
-            fig.suptitle(f"{option.name} Initiation Set", size=16)
+            fig.suptitle(f"{option.name} Initiation Set", size=24)
 
             # doesn't matter which axis we set these for because sharey and sharex are true
-            axs[0, 0].set_xlim(self.x_range)
-            axs[0, 0].set_ylim(self.y_range)
-            axs[0, 0].set_xticks(np.linspace(self.x_range[0], self.x_range[1], 9))
-            axs[0, 0].set_yticks(np.linspace(self.y_range[0], self.y_range[1], 9))
+            axs[0, 0].set_xlim(self.puck_x_range)
+            axs[0, 0].set_ylim(self.puck_y_range)
+            axs[0, 0].set_xticks(np.linspace(self.puck_x_range[0], self.puck_x_range[1], 9))
+            axs[0, 0].set_yticks(np.linspace(self.puck_y_range[0], self.puck_y_range[1], 9))
 
-            # plot puck start position, hand start position, and puck goal state
+            # plot end effector valid range, puck goal, and target salient event
             for ax in axs.flatten():
-                ax.scatter(self.hand_start[0], self.hand_start[1], color="k", label="endeff start", marker="x", s=100)
-                ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=100)
+                ax.set_aspect("equal")
+                # plot box showing the valid moves for the end effector because this is smaller than where
+                # the puck can go
+                ax.plot(self.endeff_box[:, 0], self.endeff_box[:, 1], color="k", label="endeff bounds")
 
                 # using circle to specify the radius of the goal state (tolerance)
-                puck_goal = plt.Circle(self.puck_goal, self.tolerance, color='gold', label="puck goal")
+                puck_goal = plt.Circle(self.puck_goal, self.goal_tolerance, color="orange", label="puck goal")
                 ax.add_patch(puck_goal)
 
+                # plot salient event that this option is targeting
+                if option.target_salient_event is not None:
+                    target_puck_pos = option.target_salient_event.get_target_position()
+                    salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, color="green", label="target salient event")
+                    ax.add_patch(salient_event)
             return fig, axs
 
         def _plot_trajectories(axis, option, x_idx, y_idx, title):
@@ -101,18 +108,21 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         def _plot_initiation_classifier(axis, data, x_idx, y_idx, title):
             x_y, counts = np.unique(data, axis=0, return_counts=True)
+            ipdb.set_trace()
             axis.scatter(x_y[:, x_idx], x_y[:, y_idx], c=counts, cmap=plt.cm.get_cmap("Blues"))
             axis.set_title(f"{title} Initiation Set Classifier")
             axis.set_xlabel(self.axis_labels[x_idx])
             axis.set_ylabel(self.axis_labels[y_idx])
 
+        print(f"Plotting initiation set of {option.name}")
         titles = ['Endeff', 'Puck']
-        ipdb.set_trace()
         boolean_mesh = self.mesh[option.batched_is_init_true(self.mesh)]
         # indices for end effector and puck
         indices = [(0, 1), (3, 4)]
 
-        fig, (mesh_axes, trajectory_axes) = _setup_plot()
+        fig, axs = _setup_plot()
+        mesh_axes = axs[0]
+        trajectory_axes = axs[1]
 
         for (x_idx, y_idx), mesh_axis, trajectory_axis, title in zip(indices, mesh_axes, trajectory_axes, titles):
             # plot positive and negative examples
@@ -120,6 +130,11 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
             # plot initiation classifier using mesh
             _plot_initiation_classifier(trajectory_axis, boolean_mesh, x_idx, y_idx, title)
+
+        # plot the puck and endeff starting positions. Need to do this after plotting points so it isn't covered up by the mesh
+        for ax in axs.flatten():
+            ax.scatter(self.hand_start[0], self.hand_start[1], color="k", label="endeff start", marker="x", s=100)
+            ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=100)
 
         mesh_axes[1].legend()
         trajectory_axes[1].legend(loc="upper right")

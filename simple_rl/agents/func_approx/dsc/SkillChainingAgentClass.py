@@ -939,7 +939,8 @@ class SkillChaining(object):
 		"""
         if untrained_option.get_training_phase() == "initiation_done":
             # Debug visualization
-            plot_two_class_classifier(untrained_option, episode, self.experiment_name)
+            # TODO: does this need to be run here?
+            # plot_two_class_classifier(untrained_option, episode, self.experiment_name)
 
             # We fix the learned option's initiation set and remove it from the list of target events
             self.untrained_options.remove(untrained_option)
