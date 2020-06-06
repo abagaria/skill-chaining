@@ -18,8 +18,7 @@ import multiworld
 import pdb
 
 # Rendering tests -Kiran
-import matplotlib
-from pathlib import Path
+import imageio
 
 
 class LeapWrapperMDP(GoalDirectedMDP):
@@ -31,8 +30,17 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.render = render
 
         if self.render:
-            self.movie_timesteps_offset = 1000
-            self.movie_timesteps_max = 1000
+            self.movie_width = 300
+            self.movie_height = 300
+            self.movie_timestep = 0
+            self.movie_timestep_min = 0
+            self.movie_timestep_max = 100
+            self.movie = np.zeros((
+                self.movie_timestep_max - self.movie_timestep_min,
+                self.movie_width,
+                self.movie_height,
+                3))
+
 
         self.salient_tolerance = 0.03
         self.goal_tolerance = 0.03
@@ -73,8 +81,14 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  )
 
     def add_frame_to_movie(self):
-        ipdb.set_trace()
-        frame = self.env.sim.render(300, 300)
+        if self.movie_timestep_min <= self.movie_timestep < self.movie_timestep_max:
+            frame = self.env.sim.render(camera_name='topview', width=self.movie_width, height=self.movie_height)
+            self.movie[self.movie_timestep - self.movie_timestep_min, :, :, :] = frame
+        
+        if self.movie_timestep == self.movie_timestep_max:
+            imageio.mimwrite('movie.mp4', self.movie, fps = [15])
+
+        self.movie_timestep += 1
 
     def _reward_func(self, state, action):
         assert isinstance(action, np.ndarray), type(action)
