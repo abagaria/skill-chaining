@@ -41,11 +41,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
             movie_duration = self.movie_timestep_start - self.movie_timestep_stop
             assert(self.save_every < movie_duration)
 
-            self.movie = np.zeros((
+            self.empty_movie = np.zeros((
                 self.save_every,
                 self.movie_width,
                 self.movie_height,
                 3), dtype=np.uint8)
+            self.movie = self.empty_movie.copy()
 
         self.goal_tolerance = 0.06
         self.salient_tolerance = 0.06
@@ -93,7 +94,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             self.movie[self.movie_timestep - self.movie_timestep_start, :, :, :] = frame
         
         if self.movie_timestep == self.movie_timestep_stop:
-            clip_numper = np.int(np.ceil(self.movie_timestep_stop / self.save_every))
+            clip_number = np.int(np.ceil(self.movie_timestep_stop / self.save_every))
             print(f"Saving clip {clip_number}")
             imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
 
@@ -104,6 +105,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             clip_number = self.movie_timestep // self.save_every
             print(f"Saving clip {clip_number}")
             imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
+            self.movie = self.empty_movie.copy()
 
         self.movie_timestep += 1
 
