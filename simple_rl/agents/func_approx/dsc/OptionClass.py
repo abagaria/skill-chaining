@@ -1,62 +1,62 @@
 # Python imports.
 from __future__ import print_function
-import random
 
-import ipdb
-import numpy as np
-import pdb
+import itertools
+import random
 from copy import deepcopy
+import numpy as np
 import torch
+from scipy.spatial import distance
 from sklearn import svm
 from tqdm import tqdm
-import itertools
-from scipy.spatial import distance
 
-# Other imports.
-from simple_rl.mdp.StateClass import State
-from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
-from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
+from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
+from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
+from simple_rl.mdp.StateClass import State
 
 
 class Option(object):
+    fixed_epsilon = False
 
     def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
                  subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
                  dense_reward=False, enable_timeout=True, timeout=200, initiation_period=5, option_idx=None,
                  chain_id=None, initialize_everywhere=True, max_num_children=3,
                  init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
-                 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
+                 gestation_init_predicates=None, is_backward_option=False, solver_type="ddpg",
                  generate_plots=False, device=torch.device("cpu"), writer=None):
-        '''
-		Args:
-			overall_mdp (GoalDirectedMDP)
-			name (str)
-			global_solver (DDPGAgent)
-			lr_actor (float)
-			lr_critic (float)
-			ddpg_batch_size (int)
-			classifier_type (str)
-			subgoal_reward (float)
-			max_steps (int)
-			seed (int)
-			parent (Option)
-			dense_reward (bool)
-			enable_timeout (bool)
-			timeout (int)
-			chain_id (int)
-			initialize_everywhere (bool)
-			init_salient_event (SalientEvent)
-			target_salient_event (SalientEvent)
-			update_global_solver (bool)
-			use_warmup_phase (bool)
-			gestation_init_predicates (list)
-			is_backward_option (bool)
-			generate_plots (bool)
-			device (torch.device)
-			writer (SummaryWriter)
-		'''
+        """
+        Args:
+            overall_mdp (GoalDirectedMDP)
+            name (str)
+            global_solver (DDPGAgent)
+            lr_actor (float)
+            lr_critic (float)
+            ddpg_batch_size (int)
+            classifier_type (str)
+            subgoal_reward (float)
+            max_steps (int)
+            seed (int)
+            parent (Option)
+            dense_reward (bool)
+            enable_timeout (bool)
+            timeout (int)
+            chain_id (int)
+            initialize_everywhere (bool)
+            init_salient_event (SalientEvent)
+            target_salient_event (SalientEvent)
+            update_global_solver (bool)
+            use_warmup_phase (bool)
+            gestation_init_predicates (list)
+            is_backward_option (bool)
+            generate_plots (bool)
+            device (torch.device)
+            writer (SummaryWriter)
+        """
+        if gestation_init_predicates is None:
+            gestation_init_predicates = []
         self.name = name
         self.subgoal_reward = subgoal_reward
         self.max_steps = max_steps
@@ -166,8 +166,8 @@ class Option(object):
 
     def reset_global_solver(self):
         if self.solver_type == "ddpg":
-            self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device,
-                                           self.lr_actor, self.lr_critic, self.ddpg_batch_size, name="global_option")
+            self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device, self.lr_actor,
+                                           self.lr_critic, self.ddpg_batch_size, name="global_option", fixed_epsilon=self.fixed_epsilon)
         elif self.solver_type == "td3":
             self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
                                      max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
@@ -186,7 +186,8 @@ class Option(object):
             solver_name = "{}_ddpg_agent".format(self.name)
             exploration = "shaping" if self.name == "global_option" else ""
             self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-                                    tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
+                                    tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration,
+                                    fixed_epsilon=self.fixed_epsilon)
         elif self.solver_type == "td3":
             exploration_method = "shaping" if self.name == "global_option" else ""
             self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,

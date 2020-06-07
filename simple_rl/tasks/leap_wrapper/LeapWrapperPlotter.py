@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import ipdb
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
@@ -66,9 +65,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
     def generate_experiment_plots(self, chainer):
         pass
-
-    def _plot_value_function(self, option, episode):
-        x = 1
 
     def _plot_initiation_sets(self, option, episode):
         def _plot_trajectories(axis):

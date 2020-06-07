@@ -36,7 +36,7 @@ class SkillChaining(object):
                  start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
                  pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
                  update_global_solver=False, use_warmup_phase=False, dense_reward=False,
-                 seed=0, tensor_log=False, experiment_name="", plotter=None):
+                 seed=0, tensor_log=False, experiment_name="", plotter=None, fixed_epsilon=False):
         """
         Args:
             mdp (MDP): Underlying domain we have to solve
@@ -66,6 +66,7 @@ class SkillChaining(object):
             tensor_log (bool): Tensorboard logging enable
             experiment_name (str)
             plotter (SkillChainingPlotterClass): Plots any graphs of domain such as value function and initiation sets
+            fixed_epsilon (bool): Use fixed epsilon for option DDPG if true, decreasing epsilon over time otherwise
         """
         self.mdp = mdp
         self.original_actions = deepcopy(mdp.actions)
@@ -92,6 +93,8 @@ class SkillChaining(object):
         self.use_warmup_phase = use_warmup_phase
         self.experiment_name = experiment_name
         self.plotter = plotter
+        Option.fixed_epsilon = fixed_epsilon
+        ipdb.set_trace()
 
         tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
         self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -1153,7 +1156,7 @@ if __name__ == '__main__':
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
-    parser.add_argument("--pretrained", type=bool, help="whether or not to load pretrained options", default=False)
+    parser.add_argument("--pretrained", action="store_true", help="whether or not to load pretrained options", default=False)
     parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
     parser.add_argument("--episodes", type=int, help="# episodes", default=200)
     parser.add_argument("--steps", type=int, help="# steps", default=1000)
@@ -1161,23 +1164,24 @@ if __name__ == '__main__':
     parser.add_argument("--lr_a", type=float, help="DDPG Actor learning rate", default=1e-4)
     parser.add_argument("--lr_c", type=float, help="DDPG Critic learning rate", default=1e-3)
     parser.add_argument("--ddpg_batch_size", type=int, help="DDPG Batch Size", default=64)
-    parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
-    parser.add_argument("--option_timeout", type=bool, help="Whether option times out at 200 steps", default=False)
-    parser.add_argument("--generate_plots", type=bool, help="Whether or not to generate plots", default=False)
-    parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
-    parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
-    parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
+    parser.add_argument("--render", action="store_true", help="Render the mdp env", default=False)
+    parser.add_argument("--option_timeout", action="store_true", help="Whether option times out at 200 steps", default=False)
+    parser.add_argument("--generate_plots", action="store_true", help="Whether or not to generate plots", default=False)
+    parser.add_argument("--tensor_log", action="store_true", help="Enable tensorboard logging", default=False)
+    parser.add_argument("--control_cost", action="store_true", help="Penalize high actuation solutions", default=False)
+    parser.add_argument("--dense_reward", action="store_true", help="Use dense/sparse rewards", default=False)
     parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
     parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
     parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
     parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
     parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
-    parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
+    parser.add_argument("--use_smdp_update", action="store_true", help="sparse/SMDP update for option policy", default=False)
     parser.add_argument("--use_start_state_salience", action="store_true", default=False)
     parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
     parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
     parser.add_argument("--create_backward_options", action="store_true", default=False)
+    parser.add_argument("--fixed_epsilon", action="store_true", help="Use fixed epsilon or decreasing epsilon for DDPG", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -1236,7 +1240,8 @@ if __name__ == '__main__':
                             create_backward_options=args.create_backward_options,
                             dense_reward=args.dense_reward,
                             experiment_name=args.experiment_name,
-                            plotter=mdp_plotter)
+                            plotter=mdp_plotter,
+                            fixed_epsilon=args.fixed_epsilon)
     episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
     # Log performance metrics
