@@ -1073,7 +1073,7 @@ class SkillChaining(object):
         return per_episode_scores, per_episode_durations
 
     def _log_dqn_status(self, episode, last_10_scores, last_10_durations):
-
+        ipdb.set_trace()
         print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
 
