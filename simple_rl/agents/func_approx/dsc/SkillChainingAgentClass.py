@@ -893,40 +893,40 @@ class SkillChaining(object):
 				else:
 					self.option_data[option.name][episode] = {'clfs_bounds' : clfs_bounds}
 
-	# TODO: main plotting calss for episodic plots
+	# TODO: main plotting class for episodic plots
 	def plot_episodic_plots(self, episode, per_episode_scores):
 		sns.set_style("white")
 		rgb_color_palette = sns.color_palette('deep')
 
 		# plot all options' boundaries
-		# self.plot_multi_boundaries(x_mesh=self.x_mesh,
-		# 							y_mesh=self.y_mesh,
-		# 							option_data=self.option_data,
-		# 							rgb_color_palette=rgb_color_palette,
-		# 							experiment_name=self.log_dir,
-		# 							alpha=0.7,
-		# 							plot_eps=episode,
-		# 							img_name='images/point_maze_domain.png',
-		# 							img_alpha=0.9,
-		# 							goal=self.goal_xy,
-		# 							start=self.start_xy)
+		self.plot_multi_boundaries(x_mesh=self.x_mesh,
+									y_mesh=self.y_mesh,
+									option_data=self.option_data,
+									rgb_color_palette=rgb_color_palette,
+									experiment_name=self.log_dir,
+									alpha=0.7,
+									plot_eps=episode,
+									img_name='images/treasure_game_domain.png',
+									img_alpha=0.9,
+									goal=self.goal_xy,
+									start=self.start_xy)
 		
 		# plot learning curves
 		self.plot_learning_curves(self.log_dir, per_episode_scores)
 
 		# plot trajectories
-		rgb_color_palette = [(0,0,0)] + rgb_color_palette
-		self.plot_trajectory(x_mesh=self.x_mesh,
-							 y_mesh=self.y_mesh,
-							 trajectory_data=self.trajectory_data,
-							 episode=episode,
-							 experiment_name=self.log_dir,
-							 rgb_color_palette=rgb_color_palette,
-							 alpha=0.8,
-							 img_name='images/point_maze_domain.png',
-							 img_alpha=0.9, 
-							 goal=self.goal_xy,
-							 start=self.start_xy)
+		# rgb_color_palette = [(0,0,0)] + rgb_color_palette
+		# self.plot_trajectory(x_mesh=self.x_mesh,
+		# 					 y_mesh=self.y_mesh,
+		# 					 trajectory_data=self.trajectory_data,
+		# 					 episode=episode,
+		# 					 experiment_name=self.log_dir,
+		# 					 rgb_color_palette=rgb_color_palette,
+		# 					 alpha=0.8,
+		# 					 img_name='images/treasure_game_domain.png',
+		# 					 img_alpha=0.9, 
+		# 					 goal=self.goal_xy,
+		# 					 start=self.start_xy)
 
 	# TODO: utilities
 	def update_options_episode(self, episode):
@@ -950,11 +950,14 @@ class SkillChaining(object):
 
 		# TODO: create mesh of environment
 		if "treasure" in self.mdp.env_name:
-			raise NotImplementedError
+			width_coord = np.array([-2,11])
+			height_coord = np.array([-2,11])
+			exit()
 		else:
 			# TODO: hardcode for point maze
 			width_coord = height_coord = np.array([-2,11])
-			self.x_mesh, self.y_mesh = self.make_meshgrid(width_coord, height_coord, h=0.1)	# for predictions
+		
+		self.x_mesh, self.y_mesh = self.make_meshgrid(width_coord, height_coord, h=0.1)	# for predictions
 
 		for episode in range(num_episodes):
 			print("|-> episode: {}".format(episode))	# TODO: remove

@@ -114,10 +114,10 @@ Hyperparameter search
 	- subgoal_reward
 	- buffer_len: can't be too big
 
-	Defaults (Point Maze)
+	Defaults (Treaure Game)
 	---------------------
-	- episodes = 300
-	- steps = 1000
+	- episodes = ???
+	- steps = ???
 	- subgoal_reward = 300
 	- buffer_len = 20
 	- num_sub_goal_hits: 5
