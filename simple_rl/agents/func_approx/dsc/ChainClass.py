@@ -263,12 +263,14 @@ class SkillChain(object):
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
+        position = state.position if isinstance(state, State) else state
+        # position = state.position if isinstance(state, State) else state[:2]
         assert isinstance(position, np.ndarray), type(position)
         return position
 
     @staticmethod
     def get_position_matrix(states):
-        to_position = lambda s: s.position if isinstance(s, State) else s[:2]
+        to_position = lambda s: s.position if isinstance(s, State) else s
+        # to_position = lambda s: s.position if isinstance(s, State) else s[:2]
         positions = [to_position(state) for state in states]
         return np.array(positions)

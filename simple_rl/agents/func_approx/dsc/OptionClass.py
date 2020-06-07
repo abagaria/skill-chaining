@@ -575,13 +575,14 @@ class Option(object):
             return -1.
 
         # Rewards based on position only
-        # TODO: Kshitij needs to fix the dependence on 5
-        position_vector = state.features() if isinstance(state, State) else state[:5]
+        # TODO: Kshitij needs to fix this
+        position_vector = state.features() if isinstance(state, State) else state
 
         # For global and parent option, we use the negative distance to the goal state
         if self.parent is None:
             goal_state = self.target_salient_event.target_state
-            goal_position = goal_state.features()[:2] if isinstance(goal_state, State) else goal_state[:2]
+            goal_position = goal_state.features() if isinstance(goal_state, State) else goal_state
+            # goal_position = goal_state.features()[:2] if isinstance(goal_state, State) else goal_state[:2]
             distance_to_goal = np.linalg.norm(position_vector - goal_position)
             return -distance_to_goal
 

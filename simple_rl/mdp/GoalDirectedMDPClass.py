@@ -117,5 +117,6 @@ class GoalDirectedMDP(MDP):
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
+        position = state.position if isinstance(state, State) else state
+        # position = state.position if isinstance(state, State) else state[:2]
         return position

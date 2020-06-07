@@ -47,7 +47,8 @@ def sample_state_outside_graph(dsg_agent, mdp):
 def generate_test_states(mdp, num_states=10):
     generated_states = []
     for i in range(num_states):
-        goal_position = mdp.sample_random_state()[:2]
+        goal_position = mdp.sample_random_state()
+        # goal_position = mdp.sample_random_state()[:2]
         generated_states.append(goal_position)
     return generated_states
 

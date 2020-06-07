@@ -120,7 +120,8 @@ class SalientEvent(object):
 
     @staticmethod
     def _get_position(state):
-        position = state.features() if isinstance(state, State) else state[:2]
+        position = state.features() if isinstance(state, State) else state
+        # position = state.features() if isinstance(state, State) else state[:2]
         assert isinstance(position, np.ndarray), type(position)
         return position
 

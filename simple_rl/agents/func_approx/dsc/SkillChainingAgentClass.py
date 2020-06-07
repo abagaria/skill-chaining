@@ -35,8 +35,8 @@ class SkillChaining(object):
                  classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
                  start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
                  pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
-                 update_global_solver=False, use_warmup_phase=False, dense_reward=False,
-                 seed=0, tensor_log=False, experiment_name="", plotter=None, fixed_epsilon=False):
+                 update_global_solver=False, use_warmup_phase=False, dense_reward=False, seed=0, tensor_log=False,
+                 experiment_name="", plotter=None, fixed_option_epsilon=False, init_dqn_epsilon=0.3):
         """
         Args:
             mdp (MDP): Underlying domain we have to solve
@@ -66,7 +66,8 @@ class SkillChaining(object):
             tensor_log (bool): Tensorboard logging enable
             experiment_name (str)
             plotter (SkillChainingPlotterClass): Plots any graphs of domain such as value function and initiation sets
-            fixed_epsilon (bool): Use fixed epsilon for option DDPG if true, decreasing epsilon over time otherwise
+            fixed_option_epsilon (bool): Use fixed epsilon for option DDPG if true, decreasing epsilon over time otherwise
+            init_dqn_epsilon (float): Initial epsilon value for policy over options (DQN). Will decrease over time.
         """
         self.mdp = mdp
         self.original_actions = deepcopy(mdp.actions)
@@ -93,7 +94,9 @@ class SkillChaining(object):
         self.use_warmup_phase = use_warmup_phase
         self.experiment_name = experiment_name
         self.plotter = plotter
-        Option.fixed_epsilon = fixed_epsilon
+        Option.fixed_epsilon = fixed_option_epsilon
+        self.init_dqn_epsilon = init_dqn_epsilon
+
 
         tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
         self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -144,7 +147,7 @@ class SkillChaining(object):
         # We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
         # options, this agent will predict Q-values for them as well
         self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
-                                           seed=seed, lr=1e-4, name="GlobalDQN", eps_start=0.5, tensor_log=tensor_log,
+                                           seed=seed, lr=1e-4, name="GlobalDQN", eps_start=self.init_dqn_epsilon, tensor_log=tensor_log,
                                            use_double_dqn=True, writer=self.writer, device=self.device,
                                            exploration_strategy="shaping")
 
@@ -263,15 +266,15 @@ class SkillChaining(object):
 
     def state_in_any_completed_option(self, state):
         """
-		Is the input `state` is inside the initiation classifier of an option whose initiation
-		we are already done learning.
+        Is the input `state` is inside the initiation classifier of an option whose initiation
+        we are already done learning.
 
-		Args:
-			state (State)
+        Args:
+            state (State)
 
-		Returns:
-			is_inside (bool)
-		"""
+        Returns:
+            is_inside (bool)
+        """
         for option in self.trained_options[1:]:  # type: Option
             if option.get_training_phase() == "initiation_done" and option.initiation_classifier is not None:
                 if option.is_init_true(state):
@@ -1179,7 +1182,9 @@ if __name__ == '__main__':
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
     parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
     parser.add_argument("--create_backward_options", action="store_true", default=False)
-    parser.add_argument("--fixed_epsilon", action="store_true", help="Use fixed epsilon or decreasing epsilon for DDPG", default=False)
+    parser.add_argument("--fixed_option_epsilon", action="store_true",
+                        help="If true, use fixed epsilon for options' DDPG. Else, use decreasing epsilon over time", default=False)
+    parser.add_argument("--init_dqn_epsilon", type=float, help="Initial epsilon for policy over options, decays over time.", default=0.3)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -1239,7 +1244,8 @@ if __name__ == '__main__':
                             dense_reward=args.dense_reward,
                             experiment_name=args.experiment_name,
                             plotter=mdp_plotter,
-                            fixed_epsilon=args.fixed_epsilon)
+                            fixed_option_epsilon=args.fixed_option_epsilon,
+                            init_dqn_epsilon=args.init_dqn_epsilon)
     episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
     # Log performance metrics

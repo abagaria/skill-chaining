@@ -121,6 +121,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         # save plot as png
         file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
         plt.savefig(os.path.join(self.path, "initiation_set_plots", file_name))
+        plt.close()
 
     def _setup_plot(self, option):
         # set up figure and axes
