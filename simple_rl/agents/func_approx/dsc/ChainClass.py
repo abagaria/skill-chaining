@@ -218,8 +218,8 @@ class SkillChain(object):
                 elif len(intersecting_events) > 1:
                     # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
                     # ipdb.set_trace()  # TODO: This doesn't work for backward chains :(
-                    target_states = [event.target_state for event in intersecting_events]
-                    distances = [np.linalg.norm(s - self.target_position) for s in target_states]
+                    target_states = [event.get_target_position() for event in intersecting_events]
+                    distances = [np.linalg.norm(s - self.get_target_position()) for s in target_states]
                     best_idx = np.argmin(distances)
                     best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
                     closest_event = intersecting_events[best_idx]
