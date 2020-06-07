@@ -492,7 +492,7 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
 
     kGraphIterationNumber += 1
 
-def plot_dco_salient_event(ax, salient_event, states):
+def plot_dco_salient_event(ax, salient_event, states, mdp):
     option = salient_event.covering_option
     is_low = salient_event.is_low
 
@@ -519,29 +519,21 @@ def plot_dco_salient_event(ax, salient_event, states):
 
     ax.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
 
-    low_bound_x, up_bound_x = -15, 15
-    low_bound_y, up_bound_y = -15, 15
+    low_bound_x, low_bound_y = mdp.get_x_y_low_lims()
+    high_bound_x, high_bound_y = mdp.get_x_y_high_lims()
 
-    ax.set_xlim((low_bound_x, up_bound_x))
-    ax.set_ylim((low_bound_y, up_bound_y))
+    ax.set_xlim((low_bound_x - 1, high_bound_x + 1))
+    ax.set_ylim((low_bound_y - 1, high_bound_y + 1))
 
     ax.set_xlabel("x")
     ax.set_ylabel("y")
 
-def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, episode, reject_low, reject_high, experiment_name=""):
+def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, episode, reject_low, reject_high, mdp, experiment_name=""):
     fig, axs = plt.subplots(2, figsize=(8, 10))
 
     states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
-    plot_dco_salient_event(axs[0], low_event, states)
-    plot_dco_salient_event(axs[1], high_event, states)
-
-    # global_states = np.array(global_buffer.sample(min(4000, len(global_buffer)), get_tensor=False)[0])
-    # plot_dco_salient_event(axs[0, 0], global_low_event, global_states)
-    # plot_dco_salient_event(axs[1, 0], global_high_event, global_states)
-
-    # smdp_states = np.array(smdp_buffer.sample(min(4000, len(smdp_buffer)), get_tensor=False)[0])
-    # plot_dco_salient_event(axs[0, 1], smdp_low_event, smdp_states)
-    # plot_dco_salient_event(axs[1, 1], smdp_high_event, smdp_states)
+    plot_dco_salient_event(axs[0], low_event, states, mdp)
+    plot_dco_salient_event(axs[1], high_event, states, mdp)
 
     option = low_event.covering_option
     name = option.name
@@ -550,8 +542,6 @@ def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, epis
 
     axs[0].set_title(f"Min (replay buffer of size {len(replay_buffer)})")
     axs[1].set_title(f"Max (replay buffer of size {len(replay_buffer)})")
-    # axs[0, 1].set_title(f"SMDP Min (replay buffer of size {len(smdp_buffer)})")
-    # axs[1, 1].set_title(f"SMDP Max (replay buffer of size {len(smdp_buffer)})")
 
     fig.suptitle(f"Salient events with threshold={threshold} and beta={beta:.4f}")
     plt.savefig("initiation_set_plots/{}/{}_threshold_{}-episode_{}-reject_({}, {}).png".format(experiment_name, name, threshold, episode, reject_low, reject_high))
