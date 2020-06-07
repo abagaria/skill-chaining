@@ -156,13 +156,18 @@ class DeepSkillGraphAgent(object):
                     self.dsc_agent.agent_over_options.step(low_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, high_salient_event.target_state, 0, 1)
                     self.dsc_agent.agent_over_options.step(high_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, low_salient_event.target_state, 0, 1)
 
-            plot_dco_salient_event_comparison(low_salient_event,
-                                              high_salient_event,
-                                              replay_buffer,
-                                              episode,
-                                              reject_low,
-                                              reject_high,
-                                              self.experiment_name)
+            if not reject_low or not reject_high:
+                plot_dco_salient_event_comparison(low_salient_event,
+                                                  high_salient_event,
+                                                  replay_buffer,
+                                                  episode,
+                                                  reject_low,
+                                                  reject_high,
+                                                  self.mdp,
+                                                  self.experiment_name)
+
+            with open(f"{self.experiment_name}/rejects.txt", "a+") as f:
+                f.write(f"reject_({'FT'[reject_low]}, {'FT'[reject_high]}) for episode {episode}\n")
         else:
             event_idx = len(self.mdp.all_salient_events_ever) + 1
             target_state = self.mdp.sample_random_state()[:2]
