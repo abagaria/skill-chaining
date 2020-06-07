@@ -17,6 +17,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         self.puck_start = (0., 0.6)
         self.puck_goal = mdp.goal_state[3:]
 
+
         # for plotting axes
         self.endeff_box = np.array([[-0.28, 0.3], [-0.28, 0.9], [0.28, 0.9], [0.28, 0.3], [-0.28, 0.3]])
         self.puck_x_range = (-0.4, 0.4)
@@ -72,10 +73,12 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             negative_trajectories = option.negative_examples
             for positive_trajectory in positive_trajectories:
                 positive_trajectory = np.array(positive_trajectory)
-                axis.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx], label="positive", c=self.positive_color)
+                axis.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx],
+                          label="positive", c=self.positive_color, alpha=0.5, linewidth=1.5)
             for negative_trajectory in negative_trajectories:
                 negative_trajectory = np.array(negative_trajectory)
-                axis.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx], label="negative", c=self.negative_color)
+                axis.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx],
+                          label="negative", c=self.negative_color, alpha=0.5, linewidth=1.5)
             axis.set_title(f"{title} Trajectories", size=16)
             axis.set_xlabel(self.axis_labels[x_idx], size=14)
             axis.set_ylabel(self.axis_labels[y_idx], size=14)
@@ -113,7 +116,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         trajectories = "all" if len(option.negative_examples) > 0 else "positive"
         has_salient_target = option.target_salient_event is not None
         self._add_legend(axs[0, 1], trajectories=trajectories, target_salient=has_salient_target)
-        self._add_legend(axs[1, 1], trajectories=trajectories, target_salient=has_salient_target)
+        self._add_legend(axs[1, 1], target_salient=has_salient_target)
 
         # save plot as png
         file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
@@ -167,18 +170,21 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         # plot the puck and endeff starting positions.
         ax.scatter(self.hand_start[0], self.hand_start[1], color="k", label="endeff start", marker="x", s=180)
-        ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=100)
+        ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=400)
 
     def _add_legend(self, ax, target_salient=False, trajectories="none"):
         """
-        Adds a legend to `ax`/
+        Adds a legend to `ax`.
         Args:
-            ax:
-            target_salient:
+            ax: axis created from plt.subplots() to add legend to
+            target_salient: if True, add a legend marker for target salient events
             trajectories:
+                "all" - add legend marker for positive and negative trajectories.
+                "positive" - add legend marker for positive trajectories only
+                "none" - don't add legend marker for trajectories
 
         Returns:
-
+            None
         """
         endeff_box_marker = Line2D([], [], marker="s", markerfacecolor="none", linestyle="none",
                                    color="k", markersize=12, label="end effector bounding box")
