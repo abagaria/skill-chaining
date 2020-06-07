@@ -161,6 +161,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
     def __str__(self):
         return self.env_name
 
+    def sample_random_action(self):
+        size = (self.action_space_size(),)
+        return np.random.uniform(-1., 1., size=size)
+
 
 def get_endeff_pos(state):
     if isinstance(state, LeapWrapperState):
