@@ -134,7 +134,7 @@ class DeepSkillGraphAgent(object):
         self.num_covering_options_generated += 1
         buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
 
-        if self.use_dco:
+        if self.use_dco and len(self.mdp.all_salient_events_ever) > 0:
             c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                        num_training_steps=1000,
                                        option_idx=c_option_idx,
