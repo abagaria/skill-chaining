@@ -216,7 +216,8 @@ class DeepSkillGraphAgent(object):
         Returns:
             should_reject (bool)
         """
-        if any([event(salient_event.target_state) for event in self.mdp.get_all_target_events_ever()]):
+        existing_target_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        if any([event(salient_event.target_state) for event in existing_target_events]):
             return True
 
         if self.dsc_agent.state_in_any_completed_option(salient_event.target_state):
