@@ -691,7 +691,7 @@ class Option(object):
                 self.last_episode_term_triggered = episode
                 self.effect_set.append(state)
 
-            if self.parent is None and self.is_term_true(state):
+            if self.parent is None and self.is_term_true(state) and self.target_salient_event is not None:
                 print(f"[{self}] Adding {state.position} to {self.target_salient_event}'s trigger points")
                 self.target_salient_event.trigger_points.append(state)
 
