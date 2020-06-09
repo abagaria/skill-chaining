@@ -1084,53 +1084,26 @@ class SkillChaining(object):
         if self.writer is not None:
             self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
 
-        if episode % 10 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
-                episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
-
-        if episode > 0 and episode % 100 == 0:
+        if episode > 0 and episode % 1 == 0:
             # eval_score, trajectory = self.trained_forward_pass(render=False)
             eval_score, trajectory = 0., []
 
             self.validation_scores.append(eval_score)
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-        if self.plotter is not None and self.generate_plots and episode % 10 == 0 and episode > 0:
+        if self.plotter is not None and self.generate_plots and episode % 30 == 0 and episode > 0:
             self.plotter.generate_episode_plots(self, episode)
 
     def save_all_models(self):
         for option in self.trained_options:  # type: Option
             save_model(option.solver, -1, self.log_dir, best=False)
 
-    def save_all_scores(self, pretrained, scores, durations):
-        print("\rSaving training and validation scores..")
-        training_scores_file_name = "sc_pretrained_{}_training_scores_{}.pkl".format(pretrained, self.seed)
-        training_durations_file_name = "sc_pretrained_{}_training_durations_{}.pkl".format(pretrained, self.seed)
-        validation_scores_file_name = "sc_pretrained_{}_validation_scores_{}.pkl".format(pretrained, self.seed)
-        num_option_history_file_name = "sc_pretrained_{}_num_options_per_epsiode_{}.pkl".format(pretrained, self.seed)
-
-        # TODO: Fix this
-        # if self.log_dir:
-        #     training_scores_file_name = os.path.join(self.log_dir, training_scores_file_name)
-        #     training_durations_file_name = os.path.join(self.log_dir, training_durations_file_name)
-        #     validation_scores_file_name = os.path.join(self.log_dir, validation_scores_file_name)
-        #     num_option_history_file_name = os.path.join(self.log_dir, num_option_history_file_name)
-
-        with open(training_scores_file_name, "wb+") as _f:
-            pickle.dump(scores, _f)
-        with open(training_durations_file_name, "wb+") as _f:
-            pickle.dump(durations, _f)
-        with open(validation_scores_file_name, "wb+") as _f:
-            pickle.dump(self.validation_scores, _f)
-        with open(num_option_history_file_name, "wb+") as _f:
-            pickle.dump(self.num_options_history, _f)
-
     def trained_forward_pass(self, render=True):
         """
-		Called when skill chaining has finished training: execute options when possible and then atomic actions
-		Returns:
-			overall_reward (float): score accumulated over the course of the episode.
-		"""
+        Called when skill chaining has finished training: execute options when possible and then atomic actions
+        Returns:
+            overall_reward (float): score accumulated over the course of the episode.
+        """
         self.mdp.reset()
         state = deepcopy(self.mdp.init_state)
         overall_reward = 0.
@@ -1250,6 +1223,6 @@ if __name__ == '__main__':
 
     # Log performance metrics
     # chainer.save_all_models()
-    # Used to be chainer.perform_experiments() --Kiran
-    # chainer.plotter.generate_experiment_plots(chainer)
-    chainer.save_all_scores(args.pretrained, episodic_scores, episodic_durations)
+    # Used to be chainer.perform_experiments() --Kiran\
+    mdp_plotter.generate_experiment_plots(chainer, args.pretrained, episodic_scores, episodic_durations)
+

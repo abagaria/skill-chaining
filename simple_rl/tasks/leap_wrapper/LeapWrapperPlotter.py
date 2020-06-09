@@ -1,6 +1,10 @@
 import os
+import pickle
+
+import ipdb
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 from matplotlib.lines import Line2D
 
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
@@ -17,7 +21,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         self.puck_start = (0., 0.6)
         self.puck_goal = mdp.goal_state[3:]
 
-
         # for plotting axes
         self.endeff_box = np.array([[-0.28, 0.3], [-0.28, 0.9], [0.28, 0.9], [0.28, 0.3], [-0.28, 0.3]])
         self.puck_x_range = (-0.4, 0.4)
@@ -25,11 +28,16 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         self.axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
 
         # grid of points to plot decision classifiers
-        axes_low = [-0.28, 0.3, 0.065, -0.4, 0.2]
-        axes_high = [0.28, 0.9, 0.075, 0.4, 1.]
-        meshgrid = np.meshgrid(*[np.arange(axis_min, axis_max, 0.01) for axis_min, axis_max in
-                                 zip(axes_low, axes_high)], indexing="ij")
-        self.mesh = np.column_stack(list(map(np.ravel, meshgrid)))
+        axes_low = [-0.28, 0.3, 0.07, -0.4, 0.2]
+        axes_high = [0.28, 0.9, 0.07, 0.4, 1.]
+        mesh_axes = [np.arange(axis_min, axis_max, 0.01) for axis_min, axis_max in zip(axes_low, axes_high)]
+        mesh_axes[2] = [[0.07]]
+        self.mesh = np.column_stack(list(map(np.ravel, np.meshgrid(*mesh_axes, indexing="ij"))))
+
+        # for pmeshgrid
+        # step = 0.01
+        # meshgrid = [np.arange(axis_min, axis_max + step, step) for axis_min, axis_max in zip(axes_low, axes_high)]
+        # meshgrid[2] = [[0.07]]
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
@@ -56,16 +64,51 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             self.final_initiation_set_has_been_plotted.append(False)
 
         for i, option in enumerate(chainer.trained_options):
+            self._plot_value_function(option.solver)
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
                 self._plot_initiation_sets(option, episode)
 
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted[i] = True
-        pass
 
-    def generate_experiment_plots(self, chainer):
-        pass
+    def _plot_value_function(self, solver):
+        CHUNK_SIZE = 250
+
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(self.mesh.shape[0] / CHUNK_SIZE))
+        state_chunks = np.array_split(self.mesh, num_chunks, axis=0)
+        qvalues = np.zeros((self.mesh.shape[0],))
+        current_idx = 0
+        actions = [[-1.0, 0.], [1.0, 0.], [0., -1.0], [0., 1.0]]
+
+        # get qvalues for taking action in each state
+        for chunk_number, state_chunk in enumerate(state_chunks):
+            current_chunk_size = len(state_chunk)
+            repeated_states = np.repeat(state_chunk, 4, axis=0)
+            repeated_actions = np.tile(actions, current_chunk_size).reshape(-1, 2)
+            state_chunk = torch.from_numpy(repeated_states).float().to(solver.device)
+            action_chunk = torch.from_numpy(repeated_actions).float().to(solver.device)
+            ipdb.set_trace()
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+
+            qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+            current_idx += current_chunk_size
+
+        # fig, axs = self._setup_plot((1, 2))
+        # fig.suptitle(f"{solver.name} Value Function Plot")
+        # for ax_idx, ax in zip(((0, 1), (3, 4)), axs):
+        #     # get average qvalue for each state
+        #     unq_states, idx, cnt = np.unique(states[:, ax_idx], return_inverse=True, return_counts=True)
+        #     avg_qvalue = np.bincount(idx, weights=qvalues) / cnt
+        #     ax.scatter(unq_states[:, 0], unq_states[:, 1], c=avg_qvalue)
+        #
+        # axs[0].scatter(states[:, 0], states[:, 1], c=avg_qvalue, alpha=0.4)
+        # axs[1].scatter
+        # plt.colorbar()
+        # file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
+        # plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
+        # plt.close()
 
     def _plot_initiation_sets(self, option, episode):
         def _plot_trajectories(axis):
@@ -97,7 +140,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         titles = ['Endeff', 'Puck']
         boolean_mesh = self.mesh[option.batched_is_init_true(self.mesh)]
 
-        fig, axs = self._setup_plot(option)
+        fig, axs = self._setup_plot((2, 2))
+        fig.suptitle(f"{option.name} Initiation Set", size=24)
         mesh_axes = axs[0]
         trajectory_axes = axs[1]
 
@@ -123,17 +167,18 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         plt.savefig(os.path.join(self.path, "initiation_set_plots", file_name))
         plt.close()
 
-    def _setup_plot(self, option):
+    def _setup_plot(self, shape):
+        GRAPH_WIDTH = 6
         # set up figure and axes
-        fig, axs = plt.subplots(2, 2, sharex='all', sharey='all', constrained_layout=True)
-        fig.set_size_inches(18, 15)
-        fig.suptitle(f"{option.name} Initiation Set", size=24)
+        fig, axs = plt.subplots(shape[0], shape[1], sharex='all', sharey='all', constrained_layout=True)
+        fig.set_size_inches(shape[0] * GRAPH_WIDTH, shape[1] * GRAPH_WIDTH)
 
         # doesn't matter which axis we set these for because sharey and sharex are true
-        axs[0, 0].set_xlim(self.puck_x_range)
-        axs[0, 0].set_ylim(self.puck_y_range)
-        axs[0, 0].set_xticks(np.linspace(self.puck_x_range[0], self.puck_x_range[1], 9))
-        axs[0, 0].set_yticks(np.linspace(self.puck_y_range[0], self.puck_y_range[1], 9))
+        ax = axs.flat[0]
+        ax.set_xlim(self.puck_x_range)
+        ax.set_ylim(self.puck_y_range)
+        ax.set_xticks(np.linspace(self.puck_x_range[0], self.puck_x_range[1], 9))
+        ax.set_yticks(np.linspace(self.puck_y_range[0], self.puck_y_range[1], 9))
 
         for ax in axs.flatten():
             ax.set_aspect("equal")

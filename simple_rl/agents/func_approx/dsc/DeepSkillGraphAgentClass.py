@@ -216,7 +216,7 @@ class DeepSkillGraphAgent(object):
 
         def _events_chained(low_event, high_event):
             chains = self.dsc_agent.chains
-            chains_targeting_low_event =  [chain for chain in chains if chain.target_salient_event == low_event and
+            chains_targeting_low_event = [chain for chain in chains if chain.target_salient_event == low_event and
                                                                         chain.is_chain_completed(chains)]
             chains_targeting_high_event = [chain for chain in chains if chain.target_salient_event == high_event and
                                                                         chain.is_chain_completed(chains)]

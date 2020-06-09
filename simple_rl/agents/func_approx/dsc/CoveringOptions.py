@@ -10,6 +10,7 @@ from numpy.linalg import norm
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.mdp.StateClass import State
 
+
 class CoveringOptions(Option):
     # This class identifies a subgoal by Laplacian method.
     # We feed this option to the skill chaining as a parent and generate its child options.
@@ -171,7 +172,7 @@ class CoveringOptions(Option):
         return low_threshold, high_threshold
 
 
-class SpectrumNetwork():
+class SpectrumNetwork:
 
     def __init__(self, obs_dim=None, learning_rate=0.0001, training_steps=100, batch_size=32, n_units=16, beta=0.0,
                  delta=0.1, conv=False, name="spectrum"):
@@ -239,8 +240,8 @@ class SpectrumNetwork():
                 net = tflearn.fully_connected(obs, 1, weights_init=w_init)
 
                 # @Yuu Jinnai: Do we not need any non-linearities here?
-                #net = tflearn.fully_connected(obs, 3, weights_init=w_init, activation="relu")
-                #net = tflearn.fully_connected(net, 1, weights_init=w_init)
+                # net = tflearn.fully_connected(obs, 3, weights_init=w_init, activation="relu")
+                # net = tflearn.fully_connected(net, 1, weights_init=w_init)
                 out = net
         return obs, out
 
