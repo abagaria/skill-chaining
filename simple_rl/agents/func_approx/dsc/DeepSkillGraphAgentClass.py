@@ -10,6 +10,7 @@ from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
+from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
 
 class DeepSkillGraphAgent(object):
@@ -130,6 +131,7 @@ class DeepSkillGraphAgent(object):
         self.num_covering_options_generated += 1
         buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
 
+        # We shouldn't be using dco -Kiran# This might be a problem -Kiran
         if self.use_dco:
             c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                        num_training_steps=1000,
@@ -161,6 +163,7 @@ class DeepSkillGraphAgent(object):
                                               self.experiment_name)
         else:
             event_idx = len(self.mdp.all_salient_events_ever) + 1
+            # We gotta fix this -Kiran
             target_state = self.mdp.sample_random_state()[:2]
             salient_event = SalientEvent(target_state=target_state,
                                          event_idx=event_idx,
@@ -313,22 +316,22 @@ if __name__ == "__main__":
     parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
     parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
     parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
-    parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
+    parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5) # Is this fine? -Kiran
     parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
     parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
     parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
     parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
     parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
-    parser.add_argument("--use_start_state_salience", action="store_true", default=False)
-    parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
-    parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
+    parser.add_argument("--use_start_state_salience", action="store_true", default=False) # Don't understand this -Kiran
+    parser.add_argument("--use_option_intersection_salience", action="store_true", default=False) # Don't understand this -Kiran
+    parser.add_argument("--use_event_intersection_salience", action="store_true", default=False) # Don't understand this -Kiran
     parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
-    parser.add_argument("--create_backward_options", action="store_true", default=False)
-    parser.add_argument("--learn_backward_options_offline", action="store_true", default=False)
+    parser.add_argument("--create_backward_options", action="store_true", default=False) # Do we want to do this? -Kiran
+    parser.add_argument("--learn_backward_options_offline", action="store_true", default=False) # Do we want to do this? -Kiran
     parser.add_argument("--use_warmup_phase", action="store_true", default=False)
     parser.add_argument("--update_global_solver", action="store_true", default=False)
-    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50)
-    parser.add_argument("--use_hard_coded_events", action="store_true", help="Whether to use hard-coded salient events", default=False)
+    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50) # We should turn this off -Kiran
+    parser.add_argument("--use_hard_coded_events", action="store_true", help="Whether to use hard-coded salient events", default=False) # We should turn this on -Kiran
     parser.add_argument("--dco_use_xy_prior", action="store_true", default=False)
     parser.add_argument("--plot_rejected_events", action="store_true", default=False)
     parser.add_argument("--use_dco", action="store_true", default=False)
@@ -382,6 +385,15 @@ if __name__ == "__main__":
         overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
         state_dim = 4
         action_dim = 2
+    elif "sawyer" in args.env.lower():
+        from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
+        from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+
+        overall_mdp = LeapWrapperMDP(dense_reward=args.dense_reward, render=args.render)
+        state_dim = 5
+        action_dim = 2
+        mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
+        overall_mdp.env.seed(args.seed)
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP
 
@@ -419,7 +431,8 @@ if __name__ == "__main__":
                             dense_reward=args.dense_reward,
                             update_global_solver=args.update_global_solver,
                             use_warmup_phase=args.use_warmup_phase,
-                            experiment_name=args.experiment_name)
+                            experiment_name=args.experiment_name,
+                            plotter=mdp_plotter)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
     # assert args.use_option_intersection_salience ^ args.use_event_intersection_salience

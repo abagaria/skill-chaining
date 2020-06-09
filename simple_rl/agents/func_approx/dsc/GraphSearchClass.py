@@ -75,6 +75,7 @@ class GraphSearch(object):
         if self.pre_compute_shortest_paths:
             self.shortest_paths = shortest_paths.shortest_path(self.plan_graph)
 
+    # This might be a problem -Kiran
     def visualize_plan_graph(self, file_name=None):
         pos = nx.planar_layout(self.plan_graph)
         labels = nx.get_edge_attributes(self.plan_graph, "weight")

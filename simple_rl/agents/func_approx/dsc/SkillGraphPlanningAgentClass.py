@@ -641,6 +641,7 @@ class SkillGraphPlanningAgent(object):
         """
 
         def _get_start_state_for_new_chain(in_graph_option):
+            # This might be an issue -Kiran
             for s, a, r, sp, done in in_graph_option.solver.replay_buffer:
                 if done:
                     return sp
@@ -872,6 +873,7 @@ class SkillGraphPlanningAgent(object):
         """ Reset the MDP to either the default start state or to the specified one. """
         self.mdp.reset()
 
+        # This might be an issue -Kiran
         if start_state is not None:
             start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             self.mdp.set_xy(start_position)
