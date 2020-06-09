@@ -378,24 +378,7 @@ def make_chunked_value_function_plot(solver, episode, seed, logdir, chunk_size=1
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
 
-    # Checks if option has hasn't been executed yet. Making state and action chunks errors if the array is empty.
-    if len(replay_buffer.memory) > 0:
-        states = np.array([exp[0] for exp in replay_buffer.memory])
-        actions = np.array([exp[1] for exp in replay_buffer.memory])
-        # Chunk up the inputs so as to conserve GPU memory
-        num_chunks = int(np.ceil(states.shape[0] / chunk_size))
-        state_chunks = np.array_split(states, num_chunks, axis=0)
-        action_chunks = np.array_split(actions, num_chunks, axis=0)
-        qvalues = np.zeros((states.shape[0],))
-        current_idx = 0
 
-        for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
-            state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
-            action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
-            current_chunk_size = len(state_chunk)
-            qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
-            current_idx += current_chunk_size
 
         plt.scatter(states[:, 0], states[:, 1], c=qvalues, alpha=0.4)
         plt.colorbar()

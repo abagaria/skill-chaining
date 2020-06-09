@@ -1,7 +1,10 @@
 import os
 import abc
+import pickle
+import numpy as np
 
 import ipdb
+import torch
 
 
 class SkillChainingPlotter(metaclass=abc.ABCMeta):
@@ -16,7 +19,6 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
             subdirectories = []
 
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
-        self._create_log_dir(self.path)
         for subdirectory in subdirectories:
             self._create_log_dir(os.path.join(self.path, subdirectory))
 
@@ -33,13 +35,55 @@ class SkillChainingPlotter(metaclass=abc.ABCMeta):
         # high level shaped rewards
         pass
 
-    @abc.abstractmethod
-    def generate_experiment_plots(self, chainer):
+    def generate_experiment_plots(self, chainer, pretrained, scores, durations):
         """
         Args:
+            durations:
+            scores:
+            pretrained:
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
         """
-        pass
+        print("\rSaving training and validation scores..")
+
+        base_file_name = f"_pretrained_{pretrained}_seed_{chainer.seed}.pkl"
+        training_scores_file_name = os.path.join(self.path, "training_scores", base_file_name)
+        training_durations_file_name = os.path.join(self.path, "training_durations", base_file_name)
+        validation_scores_file_name = os.path.join(self.path, "validation_scores", base_file_name)
+        num_option_history_file_name = os.path.join(self.path, "num_options_per_episode", base_file_name)
+
+        with open(training_scores_file_name, "wb+") as _f:
+            pickle.dump(scores, _f)
+        with open(training_durations_file_name, "wb+") as _f:
+            pickle.dump(durations, _f)
+        with open(validation_scores_file_name, "wb+") as _f:
+            pickle.dump(chainer.validation_scores, _f)
+        with open(num_option_history_file_name, "wb+") as _f:
+            pickle.dump(chainer.num_options_history, _f)
+
+    @staticmethod
+    def _get_qvalues(solver, replay_buffer):
+        CHUNK_SIZE = 1000
+        replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+        states = np.array([exp[0] for exp in replay_buffer])
+        actions = np.array([exp[1] for exp in replay_buffer])
+
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(states.shape[0] / CHUNK_SIZE))
+        state_chunks = np.array_split(states, num_chunks, axis=0)
+        action_chunks = np.array_split(actions, num_chunks, axis=0)
+        qvalues = np.zeros((states.shape[0],))
+        current_idx = 0
+
+        # get qvalues for taking action in each state
+        for chunk_number, (state_chunk, action_chunk) in enumerate(zip(state_chunks, action_chunks)):
+            state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+            action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+            current_chunk_size = len(state_chunk)
+            qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+            current_idx += current_chunk_size
+
+        return states, qvalues
 
     @staticmethod
     def _create_log_dir(directory_path):

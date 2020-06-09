@@ -151,8 +151,10 @@ class Option(object):
             return 0.1
         elif "ant" in self.overall_mdp.env_name:
             return 0.25
-        else:
+        elif "sawyer" in self.overall_mdp.env_name:
             return 0.1
+        else:
+            raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
 
     def act(self, state, eval_mode, warmup_phase):
         """ Epsilon greedy action selection when in training mode. """
