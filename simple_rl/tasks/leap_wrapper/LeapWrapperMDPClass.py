@@ -36,7 +36,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             self.movie_timestep_stop = 1000
             self.save_every = 500
 
-            movie_duration = self.movie_timestep_start - self.movie_timestep_stop
+            movie_duration = self.movie_timestep_stop - self.movie_timestep_start
             assert(self.save_every < movie_duration)
 
             self.empty_movie = np.zeros((
