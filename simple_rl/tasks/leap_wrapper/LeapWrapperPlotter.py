@@ -64,7 +64,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             self.final_initiation_set_has_been_plotted.append(False)
 
         for i, option in enumerate(chainer.trained_options):
-            self._plot_value_function(option.solver)
+            self._plot_value_function(option.solver, chainer.seed, episode)
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
                 self._plot_initiation_sets(option, episode)
@@ -72,43 +72,46 @@ class LeapWrapperPlotter(SkillChainingPlotter):
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted[i] = True
 
-    def _plot_value_function(self, solver):
+    def _plot_value_function(self, solver, seed, episode):
         CHUNK_SIZE = 250
 
         # Chunk up the inputs so as to conserve GPU memory
         num_chunks = int(np.ceil(self.mesh.shape[0] / CHUNK_SIZE))
         state_chunks = np.array_split(self.mesh, num_chunks, axis=0)
-        qvalues = np.zeros((self.mesh.shape[0],))
+        values = np.zeros((self.mesh.shape[0],))
         current_idx = 0
         actions = [[-1.0, 0.], [1.0, 0.], [0., -1.0], [0., 1.0]]
 
-        # get qvalues for taking action in each state
+        # get values for each state
         for chunk_number, state_chunk in enumerate(state_chunks):
             current_chunk_size = len(state_chunk)
             repeated_states = np.repeat(state_chunk, 4, axis=0)
-            repeated_actions = np.tile(actions, current_chunk_size).reshape(-1, 2)
+            repeated_actions = np.tile(actions, (current_chunk_size, 1))
             state_chunk = torch.from_numpy(repeated_states).float().to(solver.device)
             action_chunk = torch.from_numpy(repeated_actions).float().to(solver.device)
-            ipdb.set_trace()
-            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
-
-            qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+            # To get value function from q values, take the argmax across moving up, left, right, and down.
+            chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=0)
+            values[current_idx:current_idx + current_chunk_size] = chunk_values
             current_idx += current_chunk_size
 
-        # fig, axs = self._setup_plot((1, 2))
-        # fig.suptitle(f"{solver.name} Value Function Plot")
-        # for ax_idx, ax in zip(((0, 1), (3, 4)), axs):
-        #     # get average qvalue for each state
-        #     unq_states, idx, cnt = np.unique(states[:, ax_idx], return_inverse=True, return_counts=True)
-        #     avg_qvalue = np.bincount(idx, weights=qvalues) / cnt
-        #     ax.scatter(unq_states[:, 0], unq_states[:, 1], c=avg_qvalue)
-        #
-        # axs[0].scatter(states[:, 0], states[:, 1], c=avg_qvalue, alpha=0.4)
-        # axs[1].scatter
-        # plt.colorbar()
-        # file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
-        # plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
-        # plt.close()
+        titles = ['Endeff', 'Puck']
+        fig, axs = self._setup_plot((1, 2))
+        fig.suptitle(f"{solver.name} Value Function Plot")
+
+        # plot endeff pos in left graph and puck pos in right graph
+        for (x_idx, y_idx), ax, title in zip(((0, 1), (3, 4)), axs, titles):
+            # get average qvalue for each state along unique endeff pos or unique puck pos
+            unq_states, idx, cnt = np.unique(self.mesh[:, (x_idx, y_idx)], return_inverse=True, return_counts=True)
+            avg_qvalue = np.bincount(idx, weights=values) / cnt
+            ax.scatter(unq_states[:, 0], unq_states[:, 1], c=avg_qvalue)
+            ax.set_title(f"{title} Initiation Set Classifier", size=16)
+            ax.set_xlabel(self.axis_labels[x_idx], size=14)
+            ax.set_ylabel(self.axis_labels[y_idx], size=14)
+
+        plt.colorbar()
+        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
+        plt.close()
 
     def _plot_initiation_sets(self, option, episode):
         def _plot_trajectories(axis):
