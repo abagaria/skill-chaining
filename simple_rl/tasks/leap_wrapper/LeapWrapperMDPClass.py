@@ -16,8 +16,6 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 import multiworld
 import pdb
-
-# Rendering tests -Kiran
 import imageio
 
 

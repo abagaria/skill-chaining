@@ -40,7 +40,6 @@ class DeepSkillGraphAgent(object):
         self.experiment_name = experiment_name
         self.seed = seed
         self.threshold = threshold
-        self.salient_event_freq = salient_event_freq
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
 
         self.num_covering_options_generated = 0
@@ -89,8 +88,13 @@ class DeepSkillGraphAgent(object):
 
         for episode in range(episodes):
 
-            if self.should_generate_new_salient_event(episode):
-                self.discover_new_salient_event(replay_buffer, episode)
+            # if hardcoded events are provided, then we don't want to discover new salient events
+            if self.use_hard_coded_events:
+                assert not self.use_dco
+            else:
+                # if hardcoded events are not provided, we can discover them using DCO or random sampling
+                if self.should_generate_new_salient_event(episode):
+                    self.discover_new_salient_event(replay_buffer, episode)
 
             step_number = 0
             self.mdp.reset()
@@ -131,7 +135,6 @@ class DeepSkillGraphAgent(object):
         self.num_covering_options_generated += 1
         buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
 
-        # We shouldn't be using dco -Kiran# This might be a problem -Kiran
         if self.use_dco:
             c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                        num_training_steps=1000,
@@ -163,8 +166,8 @@ class DeepSkillGraphAgent(object):
                                               self.experiment_name)
         else:
             event_idx = len(self.mdp.all_salient_events_ever) + 1
-            # We gotta fix this -Kiran
-            target_state = self.mdp.sample_random_state()[:2]
+            target_state = self.mdp.sample_random_state()
+            # target_state = self.mdp.sample_random_state()[:2]
             salient_event = SalientEvent(target_state=target_state,
                                          event_idx=event_idx,
                                          tolerance=0.6,
@@ -316,28 +319,28 @@ if __name__ == "__main__":
     parser.add_argument("--tensor_log", type=bool, help="Enable tensorboard logging", default=False)
     parser.add_argument("--control_cost", type=bool, help="Penalize high actuation solutions", default=False)
     parser.add_argument("--dense_reward", type=bool, help="Use dense/sparse rewards", default=False)
-    parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5) # Is this fine? -Kiran
+    parser.add_argument("--max_num_options", type=int, help="Max number of options we can learn", default=5)
     parser.add_argument("--num_subgoal_hits", type=int, help="Number of subgoal hits to learn an option", default=3)
     parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=20)
     parser.add_argument("--classifier_type", type=str, help="ocsvm/elliptic for option initiation clf", default="ocsvm")
     parser.add_argument("--init_q", type=str, help="compute/zero", default="zero")
     parser.add_argument("--use_smdp_update", type=bool, help="sparse/SMDP update for option policy", default=False)
-    parser.add_argument("--use_start_state_salience", action="store_true", default=False) # Don't understand this -Kiran
-    parser.add_argument("--use_option_intersection_salience", action="store_true", default=False) # Don't understand this -Kiran
-    parser.add_argument("--use_event_intersection_salience", action="store_true", default=False) # Don't understand this -Kiran
+    parser.add_argument("--use_start_state_salience", action="store_true", default=False)
+    parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
+    parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
     parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
-    parser.add_argument("--create_backward_options", action="store_true", default=False) # Do we want to do this? -Kiran
-    parser.add_argument("--learn_backward_options_offline", action="store_true", default=False) # Do we want to do this? -Kiran
+    parser.add_argument("--create_backward_options", action="store_true", default=False)
+    parser.add_argument("--learn_backward_options_offline", action="store_true", default=False)
     parser.add_argument("--use_warmup_phase", action="store_true", default=False)
     parser.add_argument("--update_global_solver", action="store_true", default=False)
-    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50) # We should turn this off -Kiran
-    parser.add_argument("--use_hard_coded_events", action="store_true", help="Whether to use hard-coded salient events", default=False) # We should turn this on -Kiran
+    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50)
+    parser.add_argument("--use_hard_coded_events", action="store_true", help="Whether to use hard-coded salient events", default=False)
     parser.add_argument("--dco_use_xy_prior", action="store_true", default=False)
     parser.add_argument("--plot_rejected_events", action="store_true", default=False)
     parser.add_argument("--use_dco", action="store_true", default=False)
     parser.add_argument("--use_ucb", action="store_true", default=False)
     parser.add_argument("--threshold", type=int, help="Threshold determining size of termination set", default=0.1)
-    parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options", default=False)
+    parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options", default=False) # we should use this
     args = parser.parse_args()
 
     if args.env == "point-reacher":
