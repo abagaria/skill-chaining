@@ -180,7 +180,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         GRAPH_WIDTH = 6
         # set up figure and axes
         fig, axs = plt.subplots(shape[0], shape[1], sharex='all', sharey='all', constrained_layout=True)
-        fig.set_size_inches(shape[0] * GRAPH_WIDTH, shape[1] * GRAPH_WIDTH)
+        fig.set_size_inches(shape[1] * GRAPH_WIDTH, shape[0] * GRAPH_WIDTH)
 
         # doesn't matter which axis we set these for because sharey and sharex are true
         ax = axs.flat[0]
