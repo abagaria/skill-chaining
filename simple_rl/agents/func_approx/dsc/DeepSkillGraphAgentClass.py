@@ -421,7 +421,8 @@ if __name__ == "__main__":
 
     chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
                             seed=args.seed, subgoal_reward=args.subgoal_reward,
-                            log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
+                            # log_dir=logdir,
+                            num_subgoal_hits_required=args.num_subgoal_hits,
                             enable_option_timeout=args.option_timeout, init_q=q0,
                             use_full_smdp_update=args.use_smdp_update,
                             generate_plots=args.generate_plots, tensor_log=args.tensor_log,
