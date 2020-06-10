@@ -86,13 +86,13 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
     def add_frame_to_movie(self):
         print(self.movie_timestep)
-        if self.movie_timestep_start <= self.movie_timestep <= self.movie_timestep_stop:
+        if self.movie_timestep_start <= self.movie_timestep < self.movie_timestep_stop:
             if self.movie_timestep == self.movie_timestep_start:
                 print("Starting recording")
             frame = self.env.sim.render(camera_name='topview', width=self.movie_width, height=self.movie_height)
             self.movie[self.movie_timestep - self.movie_timestep_start, :, :, :] = frame
         
-            if self.movie_timestep == self.movie_timestep_stop:
+            if self.movie_timestep == (self.movie_timestep_stop - 1):
                 clip_number = np.int(np.ceil(self.movie_timestep_stop / self.save_every))
                 print(f"Saving clip {clip_number}")
                 imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
