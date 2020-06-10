@@ -51,7 +51,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         # Configure env
         multiworld.register_all_envs()
-        self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=False, goal_tolerance=self.goal_tolerance)
+        self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=False,
+                            goal_tolerance=self.goal_tolerance, goal=(0.15, 0.6, 0.02, -0.25, 0.6))
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
         # Sets the initial state
