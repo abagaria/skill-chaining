@@ -1090,7 +1090,8 @@ class SkillChaining(object):
             self.validation_scores.append(eval_score)
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-        if self.plotter is not None and self.generate_plots and episode % 1 == 0 and episode > 0:
+        # if self.plotter is not None and self.generate_plots and episode % 1 == 0 and episode > 0:
+        if self.plotter is not None and self.generate_plots and episode % 1 == 0:
             self.plotter.generate_episode_plots(self, episode)
 
     def save_all_models(self):

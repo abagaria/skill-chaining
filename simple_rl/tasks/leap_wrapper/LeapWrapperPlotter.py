@@ -106,7 +106,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             # get average qvalue for each state along unique endeff pos or unique puck pos
             unq_states, idx, cnt = np.unique(self.mesh[:, (x_idx, y_idx)], return_inverse=True, return_counts=True, axis=0)
             avg_qvalue = np.bincount(idx, weights=values) / cnt
-            ax.scatter(unq_states[:, 0], unq_states[:, 1], c=avg_qvalue)
+            ax.scatter(unq_states[:, 0], unq_states[:, 1], c=avg_qvalue, cmap=plt.cm.get_cmap("Blues"))
             ax.set_title(f"{title} Initiation Set Classifier", size=16)
             ax.set_xlabel(self.axis_labels[x_idx], size=14)
             ax.set_ylabel(self.axis_labels[y_idx], size=14)
