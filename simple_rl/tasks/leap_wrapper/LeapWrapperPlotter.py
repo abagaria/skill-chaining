@@ -74,7 +74,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
                     self.final_initiation_set_has_been_plotted[i] = True
 
     def _plot_value_function(self, solver, seed, episode):
-        print(time.perf_counter())
+        t_0 = time.perf_counter()
         CHUNK_SIZE = 250
 
         # Chunk up the inputs so as to conserve GPU memory
@@ -95,7 +95,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=1)
             values[current_idx:current_idx + current_chunk_size] = chunk_values
             current_idx += current_chunk_size
-        print(time.perf_counter())
+        t_1 = time.perf_counter()
 
         titles = ['Endeff', 'Puck']
         fig, axs = self._setup_plot((1, 2))
@@ -111,12 +111,13 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             ax.set_xlabel(self.axis_labels[x_idx], size=14)
             ax.set_ylabel(self.axis_labels[y_idx], size=14)
 
-        print(time.perf_counter())
+        t_2 = time.perf_counter()
         plt.colorbar()
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
         plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
         plt.close()
-        print(time.perf_counter())
+        t_3 = time.perf_counter()
+        print(t_1 - t_0, t_2 - t_1, t_3 - t_2)
 
     def _plot_initiation_sets(self, option, episode):
         def _plot_trajectories(axis):
