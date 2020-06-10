@@ -32,9 +32,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
             self.movie_height = 600
             self.movie_framerate = 240.
             self.movie_timestep = 0
-            self.movie_timestep_start = 2000000
-            self.movie_timestep_stop = 50000
-            self.save_every = 5000
+            self.movie_timestep_start = 0
+            self.movie_timestep_stop = 500
+            self.save_every = 500
 
             movie_duration = self.movie_timestep_start - self.movie_timestep_stop
             assert(self.save_every < movie_duration)
@@ -85,6 +85,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  )
 
     def add_frame_to_movie(self):
+        print(self.movie_timestep)
         if self.movie_timestep_start <= self.movie_timestep < self.movie_timestep_stop:
             if self.movie_timestep == self.movie_timestep_start:
                 print("Starting recording")
