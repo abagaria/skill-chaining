@@ -1083,14 +1083,14 @@ class SkillChaining(object):
         if self.writer is not None:
             self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
 
-        if episode > 0 and episode % 1 == 0:
+        if episode > 0 and episode % 50 == 0:
             # eval_score, trajectory = self.trained_forward_pass(render=False)
             eval_score, trajectory = 0., []
 
             self.validation_scores.append(eval_score)
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-        if self.plotter is not None and self.generate_plots and episode % 30 == 0 and episode > 0:
+        if self.plotter is not None and self.generate_plots and episode % 1 == 0 and episode > 0:
             self.plotter.generate_episode_plots(self, episode)
 
     def save_all_models(self):
