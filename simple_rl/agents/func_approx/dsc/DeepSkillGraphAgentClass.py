@@ -138,7 +138,7 @@ class DeepSkillGraphAgent(object):
             c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                        num_training_steps=1000,
                                        option_idx=c_option_idx,
-                                       name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
+                                       name=f"covering-options-{c_option_idx}-{buffer_type}-threshold_{self.threshold}",
                                        threshold=self.threshold,
                                        beta=0.1)
                                        # use_xy_prior=self.dco_use_xy_prior)
@@ -151,23 +151,17 @@ class DeepSkillGraphAgent(object):
             high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
             reject_high = self.add_salient_event(high_salient_event, episode)
 
-            if reject_low or reject_high:
-                for _ in range(1000):
-                    self.dsc_agent.agent_over_options.step(low_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, high_salient_event.target_state, 0, 1)
-                    self.dsc_agent.agent_over_options.step(high_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, low_salient_event.target_state, 0, 1)
+            generation_description = f"reject_({'FT'[reject_low]}, {'FT'[reject_high]})-episode_{episode}"
 
             if not reject_low or not reject_high:
-                plot_dco_salient_event_comparison(low_salient_event,
-                                                  high_salient_event,
-                                                  replay_buffer,
-                                                  episode,
-                                                  reject_low,
-                                                  reject_high,
-                                                  self.mdp,
-                                                  self.experiment_name)
+                simple_dco_event_comparison(c_option,
+                                            replay_buffer,
+                                            generation_description,
+                                            self.mdp,
+                                            self.experiment_name)
 
             with open(f"{self.experiment_name}/rejects.txt", "a+") as f:
-                f.write(f"reject_({'FT'[reject_low]}, {'FT'[reject_high]}) for episode {episode}\n")
+                f.write(generation_description + "\n")
         else:
             event_idx = len(self.mdp.all_salient_events_ever) + 1
             target_state = self.mdp.sample_random_state()[:2]

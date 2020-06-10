@@ -547,6 +547,44 @@ def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, epis
     plt.savefig("initiation_set_plots/{}/{}_threshold_{}-episode_{}-reject_({}, {}).png".format(experiment_name, name, threshold, episode, reject_low, reject_high))
     plt.close()
 
+def plot_simple_dco_salient_event(ax, option, states, mdp):
+    values = option.initiation_classifier(states).flatten()
+    target_states = states[[np.argmin(values), np.argmax(values)]]
+
+    idx = np.random.choice(len(states), size=min(4000, len(states)), replace=False)
+    states = states[idx]
+    values = values[idx]
+
+    cmap = matplotlib.cm.get_cmap('Blues')
+    normalize = matplotlib.colors.Normalize(vmin=min(values), vmax=max(values))
+    colors = [cmap(normalize(v)) for v in values]
+
+    ax.scatter(states[:, 0], states[:, 1], c=colors)
+    ax.scatter(target_states[:, 0], target_states[:, 1], c="black", s=[300])
+
+    low_xlim, low_ylim = mdp.get_x_y_low_lims()
+    high_xlim, high_ylim = mdp.get_x_y_high_lims()
+
+    ax.set_xlim((low_xlim, high_xlim))
+    ax.set_ylim((low_ylim, high_ylim))
+
+    background_img_fname="ant_maze_big_domain"
+    filename = os.path.join(os.getcwd(), f"{background_img_fname}.png")
+    if os.path.isfile(filename):
+        background_image = imageio.imread(filename)
+    ax.imshow(background_image, zorder=1, alpha=0.5, extent=[low_xlim, high_xlim, low_ylim, high_ylim])
+
+def simple_dco_event_comparison(option, replay_buffer, description, mdp, experiment_name=""):
+    sns.set_style("white")
+    plt.figure(figsize=(10, 10))
+    ax = plt.axes()
+
+    states = np.array([exp.state for exp in replay_buffer.memory])
+    plot_simple_dco_salient_event(ax, option, states, mdp)
+
+    plt.savefig(f"initiation_set_plots/{experiment_name}/{option.name}-{description}.png")
+    plt.close()
+
 def get_intersecting_events(source_chain, events):
     """ events come from the plan_graph """
     connecting_events = []
