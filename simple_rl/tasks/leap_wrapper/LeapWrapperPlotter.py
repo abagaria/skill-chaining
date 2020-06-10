@@ -90,7 +90,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             state_chunk = torch.from_numpy(repeated_states).float().to(solver.device)
             action_chunk = torch.from_numpy(repeated_actions).float().to(solver.device)
             # To get value function from q values, take the argmax across moving up, left, right, and down.
-            chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=0)
+            chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=1)
             values[current_idx:current_idx + current_chunk_size] = chunk_values
             current_idx += current_chunk_size
 
