@@ -2,6 +2,7 @@ import os
 import pickle
 
 import ipdb
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -73,6 +74,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
                     self.final_initiation_set_has_been_plotted[i] = True
 
     def _plot_value_function(self, solver, seed, episode):
+        print(time.perf_counter())
         CHUNK_SIZE = 250
 
         # Chunk up the inputs so as to conserve GPU memory
@@ -93,6 +95,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=1)
             values[current_idx:current_idx + current_chunk_size] = chunk_values
             current_idx += current_chunk_size
+        print(time.perf_counter())
 
         titles = ['Endeff', 'Puck']
         fig, axs = self._setup_plot((1, 2))
@@ -101,17 +104,19 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         # plot endeff pos in left graph and puck pos in right graph
         for (x_idx, y_idx), ax, title in zip(((0, 1), (3, 4)), axs, titles):
             # get average qvalue for each state along unique endeff pos or unique puck pos
-            unq_states, idx, cnt = np.unique(self.mesh[:, (x_idx, y_idx)], return_inverse=True, return_counts=True)
+            unq_states, idx, cnt = np.unique(self.mesh[:, (x_idx, y_idx)], return_inverse=True, return_counts=True, axis=0)
             avg_qvalue = np.bincount(idx, weights=values) / cnt
             ax.scatter(unq_states[:, 0], unq_states[:, 1], c=avg_qvalue)
             ax.set_title(f"{title} Initiation Set Classifier", size=16)
             ax.set_xlabel(self.axis_labels[x_idx], size=14)
             ax.set_ylabel(self.axis_labels[y_idx], size=14)
 
+        print(time.perf_counter())
         plt.colorbar()
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
         plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
         plt.close()
+        print(time.perf_counter())
 
     def _plot_initiation_sets(self, option, episode):
         def _plot_trajectories(axis):
