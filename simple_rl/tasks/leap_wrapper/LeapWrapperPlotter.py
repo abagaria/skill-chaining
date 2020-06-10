@@ -112,7 +112,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             ax.set_ylabel(self.axis_labels[y_idx], size=14)
 
         t_2 = time.perf_counter()
-        plt.colorbar()
+        # plt.colorbar()
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
         plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
         plt.close()
