@@ -9,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillG
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
-from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
+# from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
 
@@ -136,34 +136,35 @@ class DeepSkillGraphAgent(object):
         buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
 
         if self.use_dco:
-            c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-                                       num_training_steps=1000,
-                                       option_idx=c_option_idx,
-                                       name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
-                                       threshold=self.threshold,
-                                       beta=0.1)
-                                       # use_xy_prior=self.dco_use_xy_prior)
+            ipdb.set_trace()
+            # c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+            #                            num_training_steps=1000,
+            #                            option_idx=c_option_idx,
+            #                            name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
+            #                            threshold=self.threshold,
+            #                            beta=0.1)
+            #                            # use_xy_prior=self.dco_use_xy_prior)
 
-            low_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
-            reject_low = self.add_salient_event(low_salient_event, episode)
+            # low_event_idx = len(self.mdp.all_salient_events_ever) + 1
+            # low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
+            # reject_low = self.add_salient_event(low_salient_event, episode)
 
-            high_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
-            reject_high = self.add_salient_event(high_salient_event, episode)
+            # high_event_idx = len(self.mdp.all_salient_events_ever) + 1
+            # high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
+            # reject_high = self.add_salient_event(high_salient_event, episode)
 
-            self.most_recent_generated_salient_events = (
-                low_salient_event if not reject_low else None,
-                high_salient_event if not reject_high else None,
-            )
+            # self.most_recent_generated_salient_events = (
+            #     low_salient_event if not reject_low else None,
+            #     high_salient_event if not reject_high else None,
+            # )
 
-            plot_dco_salient_event_comparison(low_salient_event,
-                                              high_salient_event,
-                                              replay_buffer,
-                                              episode,
-                                              reject_low,
-                                              reject_high,
-                                              self.experiment_name)
+            # plot_dco_salient_event_comparison(low_salient_event,
+            #                                   high_salient_event,
+            #                                   replay_buffer,
+            #                                   episode,
+            #                                   reject_low,
+            #                                   reject_high,
+            #                                   self.experiment_name)
         else:
             event_idx = len(self.mdp.all_salient_events_ever) + 1
             target_state = self.mdp.sample_random_state()
@@ -420,7 +421,8 @@ if __name__ == "__main__":
 
     chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
                             seed=args.seed, subgoal_reward=args.subgoal_reward,
-                            log_dir=logdir, num_subgoal_hits_required=args.num_subgoal_hits,
+                            # log_dir=logdir,
+                            num_subgoal_hits_required=args.num_subgoal_hits,
                             enable_option_timeout=args.option_timeout, init_q=q0,
                             use_full_smdp_update=args.use_smdp_update,
                             generate_plots=args.generate_plots, tensor_log=args.tensor_log,

@@ -1,6 +1,7 @@
 # Python imports.
 from __future__ import print_function
 
+import ipdb
 import itertools
 import random
 from copy import deepcopy
@@ -657,6 +658,10 @@ class Option(object):
 
             if self.name != "global_option":
                 print("Executing {}".format(self.name))
+
+            if self.is_term_true(state) or state.is_terminal():
+                if step_number == 0 or num_steps == 0:
+                    ipdb.set_trace()
 
             while not self.is_term_true(state) and not state.is_terminal() and \
                     step_number < self.max_steps and num_steps < self.timeout:
