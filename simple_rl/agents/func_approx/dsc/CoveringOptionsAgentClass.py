@@ -80,7 +80,6 @@ class CoveringOptions(Option):
             obs.append(o)
         return obs
 
-    # This might be a problem -Kiran
     def convert_states(self, replay_buffer):
         # This function converts all the states recorded in the replay buffer's memory to only have x and y
         new_rb = ReplayBuffer(replay_buffer.buffer_size, replay_buffer.name, replay_buffer.seed)

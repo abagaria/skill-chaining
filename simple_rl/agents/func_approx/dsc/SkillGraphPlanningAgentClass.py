@@ -464,11 +464,10 @@ class SkillGraphPlanningAgent(object):
 
         return step_number, goal_salient_event(state)
 
-
     def planning_run_loop(self, *, start_episode, goal_state, to_reset,
                           step_number=0, start_state=None, goal_salient_event=None, eval_mode=False):
         """
-        This is a test-time run loop that uses planning to select options when it can.
+        This loop uses planning to select options when it can.
         Args:
             start_episode (int)
             goal_state (State)
@@ -873,9 +872,9 @@ class SkillGraphPlanningAgent(object):
         """ Reset the MDP to either the default start state or to the specified one. """
         self.mdp.reset()
 
-        # This might be an issue -Kiran
         if start_state is not None:
-            start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
+            start_position = start_state.position if isinstance(start_state, State) else start_state
+            # start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             self.mdp.set_xy(start_position)
 
     def measure_success(self, goal_state, start_state=None, starting_episode=0, num_episodes=100):

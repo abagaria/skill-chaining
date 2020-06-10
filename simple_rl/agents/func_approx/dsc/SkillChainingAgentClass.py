@@ -97,7 +97,6 @@ class SkillChaining(object):
         Option.fixed_epsilon = fixed_option_epsilon
         self.init_dqn_epsilon = init_dqn_epsilon
 
-
         tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
         self.writer = SummaryWriter(tensor_name) if tensor_log else None
 
@@ -641,7 +640,7 @@ class SkillChaining(object):
 
     def manage_skill_chain_to_start_state(self, option):
         """
-		When we complete creating a skill-chain targeting a salient event,
+        When we complete creating a skill-chain targeting a salient event,
 		we want to create a new skill chain that goes in the opposite direction.
 		Args:
 			option (Option)
@@ -1084,14 +1083,15 @@ class SkillChaining(object):
         if self.writer is not None:
             self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
 
-        if episode > 0 and episode % 1 == 0:
+        if episode > 0 and episode % 50 == 0:
             # eval_score, trajectory = self.trained_forward_pass(render=False)
             eval_score, trajectory = 0., []
 
             self.validation_scores.append(eval_score)
             print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
-        if self.plotter is not None and self.generate_plots and episode % 30 == 0 and episode > 0:
+        # if self.plotter is not None and self.generate_plots and episode % 1 == 0 and episode > 0:
+        if self.plotter is not None and self.generate_plots and episode % 1 == 0:
             self.plotter.generate_episode_plots(self, episode)
 
     def save_all_models(self):
@@ -1187,6 +1187,7 @@ if __name__ == '__main__':
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
         from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+
         overall_mdp = LeapWrapperMDP(dense_reward=args.dense_reward, render=args.render)
         mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
         overall_mdp.env.seed(args.seed)
@@ -1223,6 +1224,4 @@ if __name__ == '__main__':
 
     # Log performance metrics
     # chainer.save_all_models()
-    # Used to be chainer.perform_experiments() --Kiran\
     mdp_plotter.generate_experiment_plots(chainer, args.pretrained, episodic_scores, episodic_durations)
-
