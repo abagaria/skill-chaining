@@ -61,7 +61,7 @@ class MovieRenderer(object):
 
     def _save_movie(self):
         imageio.mimwrite(
-            f'{self.clip_name}_{self.clip_index}.mp4', 
+            f'{self.clip_name}_{self.clip_index + 1}.mp4', 
             self.movie, 
             fps=self.framerate)
 
