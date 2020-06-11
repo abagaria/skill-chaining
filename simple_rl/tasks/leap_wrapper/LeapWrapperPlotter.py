@@ -151,7 +151,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         plt.close()
 
     def _plot_initiation_sets(self, option, episode):
-        def _plot_trajectories(axis):
+        def _plot_trajectories(axis, title, x_idx, y_idx):
             positive_trajectories = option.positive_examples
             negative_trajectories = option.negative_examples
             for positive_trajectory in positive_trajectories:
@@ -166,41 +166,50 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             axis.set_xlabel(self.axis_labels[x_idx], size=14)
             axis.set_ylabel(self.axis_labels[y_idx], size=14)
 
-        def _plot_initiation_classifier(axis, data):
-            x_y, counts = np.unique(data[:, [x_idx, y_idx]], axis=0, return_counts=True)
-            axis.scatter(x_y[:, 0], x_y[:, 1], c=counts, cmap=plt.cm.get_cmap("Blues"))
-            axis.set_title(f"{title} Initiation Set Classifier", size=16)
-            axis.set_xlabel(self.axis_labels[x_idx], size=14)
-            axis.set_ylabel(self.axis_labels[y_idx], size=14)
+        def _plot_initiation_classifier(ax, init_set, title):
+            if title.lower() == "endeff":
+                ax.pcolormesh(self.endeff_grid[0], self.endeff_grid[1], init_set, norm=norm, cmap=cmap)
+                x_label = self.axis_labels[0]
+                y_label = self.axis_labels[1]
+            elif title.lower() == "puck":
+                ax.pcolormesh(self.puck_grid[0], self.puck_grid[1], init_set, norm=norm, cmap=cmap)
+                x_label = self.axis_labels[3]
+                y_label = self.axis_labels[4]
+            else:
+                raise NotImplementedError(title)
+            ax.set_title(f"{title} Initiation Set Classifier", size=16)
+            ax.set_xlabel(x_label, size=14)
+            ax.set_ylabel(y_label, size=14)
 
         print(f"Plotting initiation set of {option.name}")
 
         # indices for end effector and puck
-        indices = [(0, 1), (3, 4)]
-        titles = ['Endeff', 'Puck']
-        boolean_mesh = self.mesh[option.batched_is_init_true(self.mesh)]
+        boolean_mesh = option.batched_is_init_true(self.center_points)
+        endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
+        puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
+        vmax = min(np.amin(endeff_inits), np.amin(puck_inits))
+        norm = Normalize(vmin=0., vmax=vmax)
+        cmap = "Blues"
 
         fig, axs = self._setup_plot((2, 2))
         fig.suptitle(f"{option.name} Initiation Set", size=24)
-        mesh_axes = axs[0]
-        trajectory_axes = axs[1]
+        trajectory_axes = axs[0]
+        mesh_axes = axs[1]
 
-        for (x_idx, y_idx), mesh_axis, trajectory_axis, title in zip(indices, mesh_axes, trajectory_axes, titles):
-            # plot positive and negative examples
-            _plot_trajectories(mesh_axis)
-
-            # plot initiation classifier using mesh
-            _plot_initiation_classifier(trajectory_axis, boolean_mesh)
+        _plot_trajectories(trajectory_axes[0], "Endeff", 0, 1)
+        _plot_trajectories(trajectory_axes[1], "Puck", 3, 4)
+        _plot_initiation_classifier(mesh_axes[0], endeff_inits, "Endeff")
+        _plot_initiation_classifier(mesh_axes[1], puck_inits, "Puck")
 
         # plot end effector bounds, end effector start, puck start, puck goal, and option target
         for ax in axs.flatten():
             self._plot_sawyer_features(ax, option)
 
-        # plot legend
+        # plot legend and colorbar
         trajectories = "all" if len(option.negative_examples) > 0 else "positive"
-        has_salient_target = option.target_salient_event is not None
         self._add_legend(axs[0, 1], option, trajectories=trajectories)
         self._add_legend(axs[1, 1], option)
+        fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=mesh_axes, aspect=40, orientation='horizontal', shrink=0.9)
 
         # save plot as png
         file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
