@@ -9,7 +9,6 @@ import torch
 from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-from tqdm import tqdm
 
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
@@ -68,7 +67,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         while len(self.final_initiation_set_has_been_plotted) < len(chainer.trained_options):
             self.final_initiation_set_has_been_plotted.append(False)
 
-        for i, option in enumerate(tqdm(chainer.trained_options, desc="Generating plots")):
+        for i, option in enumerate(chainer.trained_options):
             self._plot_value_function(option, chainer.seed, episode)
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
