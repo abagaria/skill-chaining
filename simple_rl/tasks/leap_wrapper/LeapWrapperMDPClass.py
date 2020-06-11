@@ -12,6 +12,7 @@ import gym
 
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
+from simple_rl.tasks.leap_wrapper.MovieRendererClass import MovieRenderer
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 import multiworld
@@ -22,29 +23,21 @@ import imageio
 class LeapWrapperMDP(GoalDirectedMDP):
     """ Class for Leap Wrapper MDPs """
 
-    def __init__(self, dense_reward=False, render=False):
+    def __init__(self, episode_length, dense_reward=False, render=False):
         self.env_name = "sawyer"
         self.dense_reward = dense_reward
         self.render = render
 
         if self.render:
-            self.movie_width = 600
-            self.movie_height = 600
-            self.movie_framerate = 240.
-            self.movie_timestep = 0
-            self.movie_timestep_start = 0
-            self.movie_timestep_stop = 375
-            self.save_every = 375
-
-            movie_duration = self.movie_timestep_stop - self.movie_timestep_start
-            assert(self.save_every <= movie_duration)
-
-            self.empty_movie = np.zeros((
-                self.save_every,
+            self.movie_width = 500
+            self.movie_height = 500
+            self.movie_renderer = MovieRenderer(
+                episode_length,
                 self.movie_width,
                 self.movie_height,
-                3), dtype=np.uint8)
-            self.movie = self.empty_movie.copy()
+                3,
+                num_clips=10,
+                wait_between_clips=episode_length*5)
 
         self.goal_tolerance = 0.06
         self.salient_tolerance = 0.06
@@ -84,36 +77,16 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  start_tolerance=self.goal_tolerance
                                  )
 
-    def add_frame_to_movie(self):
-        print(self.movie_timestep)
-        if self.movie_timestep_start <= self.movie_timestep < self.movie_timestep_stop:
-            if self.movie_timestep == self.movie_timestep_start:
-                print("Starting recording")
-            frame = self.env.sim.render(camera_name='topview', width=self.movie_width, height=self.movie_height)
-            self.movie[self.movie_timestep - self.movie_timestep_start, :, :, :] = frame
-        
-            if self.movie_timestep == (self.movie_timestep_stop - 1):
-                clip_number = np.int(np.ceil(self.movie_timestep_stop / self.save_every))
-                print(f"Saving clip {clip_number}")
-                imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
-
-                print("Finishing recording")
-                self.render = False
-
-            elif self.movie_timestep > 0 and self.movie_timestep % self.save_every == 0:
-                clip_number = self.movie_timestep // self.save_every
-                print(f"Saving clip {clip_number}")
-                imageio.mimwrite(f'movie_{clip_number}.mp4', self.movie, fps = self.movie_framerate)
-                self.movie = self.empty_movie.copy()
-
-        self.movie_timestep += 1
-
     def _reward_func(self, state, action):
         assert isinstance(action, np.ndarray), type(action)
         next_state, reward, done, _ = self.env.step(action)
         self.next_state = self._get_state(next_state, done)
         if self.render:
-            self.add_frame_to_movie()
+            frame = self.env.sim.render(
+                camera_name='topview', 
+                width=self.movie_width, 
+                height=self.movie_height)
+            self.movie_renderer.add_frame(frame)
         return reward
 
     def _transition_func(self, state, action):

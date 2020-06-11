@@ -1038,7 +1038,7 @@ class SkillChaining(object):
 
             # DSC book keeping
             created_options = self.manage_skill_chain_after_option_rollout(state_before_rollout=state,
-                                                                           executed_option=selected_option,
+                                                                           exeacuted_option=selected_option,
                                                                            option_transitions=option_transitions,
                                                                            episode_number=episode_number,
                                                                            created_options=created_options)
