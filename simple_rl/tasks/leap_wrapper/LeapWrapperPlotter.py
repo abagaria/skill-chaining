@@ -187,7 +187,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         boolean_mesh = option.batched_is_init_true(self.center_points)
         endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
         puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
-        vmax = min(np.amin(endeff_inits), np.amin(puck_inits))
+        vmax = max(np.amax(endeff_inits), np.amax(puck_inits))
         norm = Normalize(vmin=0., vmax=vmax)
         cmap = "Blues"
 
