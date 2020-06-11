@@ -29,15 +29,15 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.render = render
 
         if self.render:
-            self.movie_width = 500
-            self.movie_height = 500
+            self.movie_width = 512
+            self.movie_height = 512
             self.movie_renderer = MovieRenderer(
                 episode_length,
                 self.movie_width,
                 self.movie_height,
                 3,
                 num_clips=10,
-                wait_between_clips=episode_length*5)
+                wait_between_clips=episode_length*100)
 
         self.goal_tolerance = 0.06
         self.salient_tolerance = 0.06
