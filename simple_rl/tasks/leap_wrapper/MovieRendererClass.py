@@ -31,6 +31,7 @@ class MovieRenderer(object):
 
     def _add_frame(self, frame):
         if self.frame_index >= self.clip_dimensions[0]:
+            print(f"Saving clip ({self.clip_index + 1}/{self.num_clips})")
             self._save_movie()
             self._reset_movie()
             self.clip_index += 1
