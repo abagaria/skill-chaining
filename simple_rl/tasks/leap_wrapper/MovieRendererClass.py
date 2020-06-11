@@ -68,7 +68,7 @@ class MovieRenderer(object):
 
     def _reset_movie(self):
         self.frame_index = 0
-        self.movie = np.zeros(self.clip_dimensions)
+        self.movie = np.zeros(self.clip_dimensions, dtype=np.uint8)
 
     
 
