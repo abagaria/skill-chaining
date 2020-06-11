@@ -265,7 +265,7 @@ class SkillGraphPlanningAgent(object):
 
             self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state,
                                                        goal_salient_event, jumped_off_the_graph=True)
-
+            self.chainer.log_dqn_status(episode)
         return deepcopy(self.mdp.cur_state), step_number
 
     def perform_option_rollout(self, option, episode, step, eval_mode, goal_salient_event):

@@ -1074,21 +1074,21 @@ class SkillChaining(object):
 
         return per_episode_scores, per_episode_durations
 
-    def _log_dqn_status(self, episode, last_10_scores, last_10_durations):
-        print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
-
-        self.num_options_history.append(len(self.trained_options))
-
-        if self.writer is not None:
-            self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
-
-        if episode > 0 and episode % 50 == 0:
-            # eval_score, trajectory = self.trained_forward_pass(render=False)
-            eval_score, trajectory = 0., []
-
-            self.validation_scores.append(eval_score)
-            print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+    def log_dqn_status(self, episode):
+        # print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
+        #     episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
+        #
+        # self.num_options_history.append(len(self.trained_options))
+        #
+        # if self.writer is not None:
+        #     self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
+        #
+        # if episode > 0 and episode % 50 == 0:
+        #     # eval_score, trajectory = self.trained_forward_pass(render=False)
+        #     eval_score, trajectory = 0., []
+        #
+        #     self.validation_scores.append(eval_score)
+        #     print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
         # if self.plotter is not None and self.generate_plots and episode % 1 == 0 and episode > 0:
         if self.plotter is not None and self.generate_plots and episode % 1 == 0:
