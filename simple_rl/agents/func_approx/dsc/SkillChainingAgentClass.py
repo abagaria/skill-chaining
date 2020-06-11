@@ -36,7 +36,7 @@ class SkillChaining(object):
                  start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
                  pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
                  update_global_solver=False, use_warmup_phase=False, dense_reward=False, seed=0, tensor_log=False,
-                 experiment_name="", plotter=None, fixed_option_epsilon=False, init_dqn_epsilon=0.3):
+                 experiment_name="", plotter=None, fixed_option_epsilon=False, init_dqn_epsilon=0.5):
         """
         Args:
             mdp (MDP): Underlying domain we have to solve
@@ -1158,7 +1158,7 @@ if __name__ == '__main__':
     parser.add_argument("--create_backward_options", action="store_true", default=False)
     parser.add_argument("--fixed_option_epsilon", action="store_true",
                         help="If true, use fixed epsilon for options' DDPG. Else, use decreasing epsilon over time", default=False)
-    parser.add_argument("--init_dqn_epsilon", type=float, help="Initial epsilon for policy over options, decays over time.", default=0.3)
+    parser.add_argument("--init_dqn_epsilon", type=float, help="Initial epsilon for policy over options, decays over time.", default=0.5)
     args = parser.parse_args()
 
     if args.env == "point-reacher":

@@ -1,8 +1,5 @@
-import os
-import pickle
-
 import ipdb
-import time
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -133,14 +130,14 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         self._add_legend(ax2, option)
 
         # plot value function with respect to endeff pos
-        ax1.pcolormesh(self.endeff_grid[0], self.endeff_grid[1], endeff_z, norm=norm, cmap=cmap)
+        ax1.pcolormesh(self.endeff_grid[0], self.endeff_grid[1], endeff_z, norm=norm, cmap=cmap, alpha=0.5)
         ax1.set_title("Endeff Value Function", size=16)
         ax1.set_xlabel(self.axis_labels[0], size=14)
         ax1.set_ylabel(self.axis_labels[1], size=14)
         self._plot_sawyer_features(ax1, option)
 
         # plot value function with respect to puck pos
-        ax2.pcolormesh(self.puck_grid[0], self.puck_grid[1], puck_z, norm=norm, cmap=cmap)
+        ax2.pcolormesh(self.puck_grid[0], self.puck_grid[1], puck_z, norm=norm, cmap=cmap, alpha=0.5)
         ax2.set_title("Puck Value Function", size=16)
         ax2.set_xlabel(self.axis_labels[3], size=14)
         ax2.set_ylabel(self.axis_labels[4], size=14)
@@ -151,20 +148,20 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         plt.close()
 
     def _plot_initiation_sets(self, option, episode):
-        def _plot_trajectories(axis, title, x_idx, y_idx):
+        def _plot_trajectories(ax, title, x_idx, y_idx):
             positive_trajectories = option.positive_examples
             negative_trajectories = option.negative_examples
             for positive_trajectory in positive_trajectories:
                 positive_trajectory = np.array(positive_trajectory)
-                axis.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx],
-                          label="positive", c=self.positive_color, alpha=0.5, linewidth=1.5)
+                ax.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx],
+                        label="positive", c=self.positive_color, alpha=0.5, linewidth=1.5)
             for negative_trajectory in negative_trajectories:
                 negative_trajectory = np.array(negative_trajectory)
-                axis.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx],
-                          label="negative", c=self.negative_color, alpha=0.5, linewidth=1.5)
-            axis.set_title(f"{title} Trajectories", size=16)
-            axis.set_xlabel(self.axis_labels[x_idx], size=14)
-            axis.set_ylabel(self.axis_labels[y_idx], size=14)
+                ax.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx],
+                        label="negative", c=self.negative_color, alpha=0.5, linewidth=1.5)
+            ax.set_title(f"{title} Trajectories", size=16)
+            ax.set_xlabel(self.axis_labels[x_idx], size=14)
+            ax.set_ylabel(self.axis_labels[y_idx], size=14)
 
         def _plot_initiation_classifier(ax, init_set, title):
             if title.lower() == "endeff":
@@ -202,8 +199,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         _plot_initiation_classifier(mesh_axes[1], puck_inits, "Puck")
 
         # plot end effector bounds, end effector start, puck start, puck goal, and option target
-        for ax in axs.flatten():
-            self._plot_sawyer_features(ax, option)
+        for axis in axs.flatten():
+            self._plot_sawyer_features(axis, option)
 
         # plot legend and colorbar
         trajectories = "all" if len(option.negative_examples) > 0 else "positive"
@@ -319,6 +316,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             inverse_indices and number of times each unique value is repeated from np.unique
         """
         _, idx, cnt = np.unique(self.center_points[:, indices], return_inverse=True, return_counts=True, axis=0)
+        ipdb.set_trace()
         # converting to int16 to save memory because this is a large array
         return idx.astype(np.int16), cnt
 
@@ -348,7 +346,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         return avg.reshape((num_buckets_along_y, -1)).T
 
     @staticmethod
-    def _get_endeff_puck_grids(step=0.02):
+    def _get_endeff_puck_grids(step=0.01):
         """
         Make meshgrids (boundary rectangles) for plt.pcolormesh and get the center point of each rectangle.
         Args:

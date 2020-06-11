@@ -153,7 +153,7 @@ class Option(object):
         elif "ant" in self.overall_mdp.env_name:
             return 0.25
         elif "sawyer" in self.overall_mdp.env_name:
-            return 0.1
+            return 0.
         else:
             raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
 
