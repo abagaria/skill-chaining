@@ -15,6 +15,7 @@ from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChai
 
 class LeapWrapperPlotter(SkillChainingPlotter):
     def __init__(self, task_name, experiment_name, mdp):
+        print("Setting up Plotter")
         # The true start state is: [-0.007, 0.52], but the hand gets to [0.032, 0.409]
         # within a few steps of resetting the environment. This is probably because the
         # arm starts with an initial z position of 0.12, but it goes to 0.07 very quickly.
@@ -116,6 +117,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         Returns:
             None
         """
+        print(f"Plotting {option.name} value function")
         solver = option.solver
         v = self.get_value_function_values(solver)
         endeff_z = self._average_groupby_puck_or_endeff_pos("endeff", v)
