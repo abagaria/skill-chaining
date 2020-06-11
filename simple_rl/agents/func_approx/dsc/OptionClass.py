@@ -153,7 +153,7 @@ class Option(object):
         elif "ant" in self.overall_mdp.env_name:
             return 0.25
         elif "sawyer" in self.overall_mdp.env_name:
-            return 0.1
+            return 0.
         else:
             raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
 
@@ -174,7 +174,6 @@ class Option(object):
         elif self.solver_type == "td3":
             self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
                                      max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
-
         else:
             raise NotImplementedError(self.solver_type)
 
@@ -191,7 +190,7 @@ class Option(object):
             self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
                                     tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration,
                                     fixed_epsilon=self.fixed_epsilon)
-        elif self.solver_type == "td3":
+        elif _type == "td3":
             exploration_method = "shaping" if self.name == "global_option" else ""
             self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
                               max_action=self.overall_mdp.env.action_space.high[0],

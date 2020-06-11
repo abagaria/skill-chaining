@@ -36,7 +36,7 @@ class SkillChaining(object):
                  start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
                  pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
                  update_global_solver=False, use_warmup_phase=False, dense_reward=False, seed=0, tensor_log=False,
-                 experiment_name="", plotter=None, fixed_option_epsilon=False, init_dqn_epsilon=0.3):
+                 experiment_name="", plotter=None, fixed_option_epsilon=False, init_dqn_epsilon=0.5):
         """
         Args:
             mdp (MDP): Underlying domain we have to solve
@@ -1074,24 +1074,25 @@ class SkillChaining(object):
 
         return per_episode_scores, per_episode_durations
 
-    def _log_dqn_status(self, episode, last_10_scores, last_10_durations):
-        print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
-
-        self.num_options_history.append(len(self.trained_options))
-
-        if self.writer is not None:
-            self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
-
-        if episode > 0 and episode % 50 == 0:
-            # eval_score, trajectory = self.trained_forward_pass(render=False)
-            eval_score, trajectory = 0., []
-
-            self.validation_scores.append(eval_score)
-            print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+    def log_dqn_status(self, episode):
+        # TODO: Find a more permanent fix
+        # print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
+        #     episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
+        #
+        # self.num_options_history.append(len(self.trained_options))
+        #
+        # if self.writer is not None:
+        #     self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
+        #
+        # if episode > 0 and episode % 50 == 0:
+        #     # eval_score, trajectory = self.trained_forward_pass(render=False)
+        #     eval_score, trajectory = 0., []
+        #
+        #     self.validation_scores.append(eval_score)
+        #     print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
 
         # if self.plotter is not None and self.generate_plots and episode % 1 == 0 and episode > 0:
-        if self.plotter is not None and self.generate_plots and episode % 1 == 0:
+        if self.plotter is not None and self.generate_plots and episode % 30 == 0 and episode > 0:
             self.plotter.generate_episode_plots(self, episode)
 
     def save_all_models(self):
@@ -1157,7 +1158,7 @@ if __name__ == '__main__':
     parser.add_argument("--create_backward_options", action="store_true", default=False)
     parser.add_argument("--fixed_option_epsilon", action="store_true",
                         help="If true, use fixed epsilon for options' DDPG. Else, use decreasing epsilon over time", default=False)
-    parser.add_argument("--init_dqn_epsilon", type=float, help="Initial epsilon for policy over options, decays over time.", default=0.3)
+    parser.add_argument("--init_dqn_epsilon", type=float, help="Initial epsilon for policy over options, decays over time.", default=0.5)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
