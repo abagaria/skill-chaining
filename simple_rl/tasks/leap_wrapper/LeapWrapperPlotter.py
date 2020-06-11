@@ -198,6 +198,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         _plot_trajectories(trajectory_axes[0], "Endeff", 0, 1)
         _plot_trajectories(trajectory_axes[1], "Puck", 3, 4)
+        ipdb.set_trace()
         _plot_initiation_classifier(mesh_axes[0], endeff_inits, "Endeff")
         _plot_initiation_classifier(mesh_axes[1], puck_inits, "Puck")
 
