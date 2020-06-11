@@ -181,7 +181,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             ax.set_xlabel(x_label, size=14)
             ax.set_ylabel(y_label, size=14)
 
-        print(f"Plotting initiation set of {option.name}")
+        print(f"Plotting {option.name} initiation set")
 
         # indices for end effector and puck
         boolean_mesh = option.batched_is_init_true(self.center_points)
@@ -198,7 +198,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         _plot_trajectories(trajectory_axes[0], "Endeff", 0, 1)
         _plot_trajectories(trajectory_axes[1], "Puck", 3, 4)
-        ipdb.set_trace()
         _plot_initiation_classifier(mesh_axes[0], endeff_inits, "Endeff")
         _plot_initiation_classifier(mesh_axes[1], puck_inits, "Puck")
 
