@@ -9,6 +9,7 @@ import torch
 from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
+from tqdm import tqdm
 
 from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
 
@@ -67,7 +68,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         while len(self.final_initiation_set_has_been_plotted) < len(chainer.trained_options):
             self.final_initiation_set_has_been_plotted.append(False)
 
-        for i, option in enumerate(chainer.trained_options):
+        for i, option in enumerate(tqdm(chainer.trained_options, desc="Generating plots")):
             self._plot_value_function(option, chainer.seed, episode)
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
@@ -339,11 +340,11 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         return avg.reshape((num_buckets_along_y, -1)).T
 
     @staticmethod
-    def _get_endeff_puck_grids(step=0.01):
+    def _get_endeff_puck_grids(step=0.02):
         """
         Make meshgrids (boundary rectangles) for plt.pcolormesh and get the center point of each rectangle.
         Args:
-            step: making this larger reduces resolution but improves runtime/memory
+            step: making this smaller improves resolution but hurts runtime/memory
 
         Returns:
             center_points, endeff_grid, puck_grid

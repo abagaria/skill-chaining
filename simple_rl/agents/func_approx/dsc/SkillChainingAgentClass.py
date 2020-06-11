@@ -1075,6 +1075,7 @@ class SkillChaining(object):
         return per_episode_scores, per_episode_durations
 
     def log_dqn_status(self, episode):
+        # TODO: Find a more permanent fix
         # print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
         #     episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
         #
