@@ -1,5 +1,5 @@
-import ipdb
 import os
+import ipdb
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -60,6 +60,7 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
             episode (int)
         """
+        ipdb.set_trace()
         # only want to plot the final initiation set of each option once
         while len(self.final_initiation_set_has_been_plotted) < len(chainer.trained_options):
             self.final_initiation_set_has_been_plotted.append(False)
@@ -130,14 +131,14 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         self._add_legend(ax2, option)
 
         # plot value function with respect to endeff pos
-        ax1.pcolormesh(self.endeff_grid[0], self.endeff_grid[1], endeff_z, norm=norm, cmap=cmap, alpha=0.5)
+        ax1.pcolormesh(self.endeff_grid[0], self.endeff_grid[1], endeff_z, norm=norm, cmap=cmap)
         ax1.set_title("Endeff Value Function", size=16)
         ax1.set_xlabel(self.axis_labels[0], size=14)
         ax1.set_ylabel(self.axis_labels[1], size=14)
         self._plot_sawyer_features(ax1, option)
 
         # plot value function with respect to puck pos
-        ax2.pcolormesh(self.puck_grid[0], self.puck_grid[1], puck_z, norm=norm, cmap=cmap, alpha=0.5)
+        ax2.pcolormesh(self.puck_grid[0], self.puck_grid[1], puck_z, norm=norm, cmap=cmap)
         ax2.set_title("Puck Value Function", size=16)
         ax2.set_xlabel(self.axis_labels[3], size=14)
         ax2.set_ylabel(self.axis_labels[4], size=14)
@@ -316,7 +317,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             inverse_indices and number of times each unique value is repeated from np.unique
         """
         _, idx, cnt = np.unique(self.center_points[:, indices], return_inverse=True, return_counts=True, axis=0)
-        ipdb.set_trace()
         # converting to int16 to save memory because this is a large array
         return idx.astype(np.int16), cnt
 

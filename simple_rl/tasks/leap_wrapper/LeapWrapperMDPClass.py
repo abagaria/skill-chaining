@@ -33,8 +33,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
             self.movie_framerate = 240.
             self.movie_timestep = 0
             self.movie_timestep_start = 0
-            self.movie_timestep_stop = 375
-            self.save_every = 375
+            self.movie_timestep_stop = 50000
+            self.save_every = 5000
 
             movie_duration = self.movie_timestep_stop - self.movie_timestep_start
             assert(self.save_every <= movie_duration)
