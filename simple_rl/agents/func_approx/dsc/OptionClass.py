@@ -120,6 +120,7 @@ class Option(object):
         self.last_episode_term_triggered = -1
         self.nu = 0.01
         self.pretrained_option_policy = False
+        self.greedy_epsilon = None
 
         self.final_transitions = []
         self.terminal_states = []
@@ -153,14 +154,21 @@ class Option(object):
         elif "ant" in self.overall_mdp.env_name:
             return 0.25
         elif "sawyer" in self.overall_mdp.env_name:
-            return 0.05
+            if self.name == "global_option":
+                if self.greedy_epsilon is None:
+                    self.greedy_epsilon = 0.7
+                else:
+                    self.greedy_epsilon *= 0.99998
+                return max(0.05, self.greedy_epsilon)
+            else:
+                return 0.05
         else:
             raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
 
     def act(self, state, eval_mode, warmup_phase):
         """ Epsilon greedy action selection when in training mode. """
 
-        if warmup_phase and self.use_warmup_phase:
+        if warmup_phase and self.use_warmup_phase and self.name != "global_option":
             return self.overall_mdp.sample_random_action()
 
         if random.random() < self._get_epsilon_greedy_epsilon() and not eval_mode:
@@ -169,8 +177,9 @@ class Option(object):
 
     def reset_global_solver(self):
         if self.solver_type == "ddpg":
-            self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device, self.lr_actor,
-                                           self.lr_critic, self.ddpg_batch_size, name="global_option", fixed_epsilon=self.fixed_epsilon)
+            self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device, self.lr_actor, self.lr_critic,
+                                           self.ddpg_batch_size, tensor_log=(self.writer is not None), writer=self.writer,
+                                           name="global_option", fixed_epsilon=self.fixed_epsilon)
         elif self.solver_type == "td3":
             self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
                                      max_action=self.overall_mdp.env.action_space.high[0], device=self.device)

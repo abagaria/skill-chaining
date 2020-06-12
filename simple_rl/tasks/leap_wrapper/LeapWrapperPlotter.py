@@ -18,7 +18,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         # arm starts with an initial z position of 0.12, but it goes to 0.07 very quickly.
         # As a result, Reacher might have to slightly adjust the x and y position to drop
         # the z position.
-        self.hand_start = (0.032, 0.409)
+        self.true_hand_start = (-0.007, 0.52)
+        self.effective_hand_start = (0.032, 0.409)
         self.puck_start = (0., 0.6)
         self.puck_goal = mdp.goal_state[3:]
 
@@ -261,7 +262,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             ax.add_patch(salient_event)
 
         # plot the puck and endeff starting positions.
-        ax.scatter(self.hand_start[0], self.hand_start[1], color="k", label="endeff start", marker="x", s=180)
+        ax.scatter(self.effective_hand_start[0], self.effective_hand_start[1], color="k", label="effective endeff start", marker="x", s=180)
+        ax.scatter(self.true_hand_start[0], self.true_hand_start[1], color="k", label="true endeff start", marker="+", s=180)
         ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=400)
 
     def _add_legend(self, ax, option, trajectories="none"):
@@ -284,10 +286,12 @@ class LeapWrapperPlotter(SkillChainingPlotter):
                                   markersize=12, label="puck goal")
         puck_start_marker = Line2D([], [], marker="*", linestyle="none", color="k",
                                    markersize=12, label="puck start")
-        endeff_start_marker = Line2D([], [], marker="x", linestyle="none", color="k",
-                                     markersize=12, label="end effector start")
+        effective_endeff_start_marker = Line2D([], [], marker="x", linestyle="none", color="k",
+                                               markersize=12, label="effective end effector start")
+        true_endeff_start_marker = Line2D([], [], marker="+", linestyle="none", color="k",
+                                          markersize=12, label="true end effector start")
 
-        handles = [endeff_box_marker, puck_goal_marker, puck_start_marker, endeff_start_marker]
+        handles = [endeff_box_marker, puck_goal_marker, puck_start_marker, effective_endeff_start_marker, true_endeff_start_marker]
 
         if option.target_salient_event is not None:
             target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
