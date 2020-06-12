@@ -128,6 +128,7 @@ class DeepSkillGraphAgent(object):
 
                 # in the task agnostic setting, we end the episode if we have reached the goal
                 if not self.mdp.task_agnostic and state.is_terminal():
+                    print(f"[DeepSkillGraphAgentClass] successfully reached MDP Goal State")
                     break
 
         return successes
