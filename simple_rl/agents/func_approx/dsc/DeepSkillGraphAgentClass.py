@@ -47,6 +47,9 @@ class DeepSkillGraphAgent(object):
         self.last_event_creation_episode = -1
         self.num_successive_rejections = 0
 
+        if self.use_hard_coded_events:
+            assert not self.use_dco
+
     def select_goal_salient_event(self, state):
         """
 
@@ -87,11 +90,8 @@ class DeepSkillGraphAgent(object):
 
         for episode in range(episodes):
 
-            # if hardcoded events are provided, then we don't want to discover new salient events
-            if self.use_hard_coded_events:
-                assert not self.use_dco
-            else:
-                # if hardcoded events are not provided, we can discover them using DCO or random sampling
+            # if hardcoded events are not provided, we can discover them using DCO or random sampling
+            if not self.use_hard_coded_events:
                 if self.should_generate_new_salient_event(episode):
                     self.discover_new_salient_event(replay_buffer, episode)
 
