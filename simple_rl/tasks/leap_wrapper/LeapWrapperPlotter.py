@@ -60,7 +60,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
             chainer (SkillChainingAgent): the skill chaining agent we want to plot
             episode (int)
         """
-        ipdb.set_trace()
         # only want to plot the final initiation set of each option once
         while len(self.final_initiation_set_has_been_plotted) < len(chainer.trained_options):
             self.final_initiation_set_has_been_plotted.append(False)
