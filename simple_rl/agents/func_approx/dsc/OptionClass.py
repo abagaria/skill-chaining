@@ -120,7 +120,6 @@ class Option(object):
         self.last_episode_term_triggered = -1
         self.nu = 0.01
         self.pretrained_option_policy = False
-        self.greedy_epsilon = None
 
         self.final_transitions = []
         self.terminal_states = []
@@ -154,21 +153,14 @@ class Option(object):
         elif "ant" in self.overall_mdp.env_name:
             return 0.25
         elif "sawyer" in self.overall_mdp.env_name:
-            if self.name == "global_option":
-                if self.greedy_epsilon is None:
-                    self.greedy_epsilon = 0.7
-                else:
-                    self.greedy_epsilon *= 0.99998
-                return max(0.05, self.greedy_epsilon)
-            else:
-                return 0.05
+            return 0.
         else:
             raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
 
     def act(self, state, eval_mode, warmup_phase):
         """ Epsilon greedy action selection when in training mode. """
 
-        if warmup_phase and self.use_warmup_phase and self.name != "global_option":
+        if warmup_phase and self.use_warmup_phase:
             return self.overall_mdp.sample_random_action()
 
         if random.random() < self._get_epsilon_greedy_epsilon() and not eval_mode:
@@ -678,6 +670,7 @@ class Option(object):
                 action = self.act(state, eval_mode=eval_mode, warmup_phase=warmup_phase)
                 reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
+                ipdb.set_trace()
                 if not warmup_phase or (self.name == "global_option" and self.update_global_solver):
                     self.update_option_solver(state, action, reward, next_state)
 
