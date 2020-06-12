@@ -402,7 +402,7 @@ if __name__ == "__main__":
         overall_mdp = LeapWrapperMDP(
             args.steps, 
             dense_reward=args.dense_reward, 
-            render=args.render
+            render=args.render,
             generate_n_clips=args.generate_n_clips,
             wait_n_episodes_between_clips=args.wait_n_episodes_between_clips)
         state_dim = 5
