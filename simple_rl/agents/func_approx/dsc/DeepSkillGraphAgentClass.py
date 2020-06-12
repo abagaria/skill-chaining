@@ -346,6 +346,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_ucb", action="store_true", default=False)
     parser.add_argument("--threshold", type=int, help="Threshold determining size of termination set", default=0.1)
     parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options", default=False) # we should use this
+    parser.add_argument("--generate_n_clips", type=int, help="The number of run clips to generate", default=10)
+    parser.add_argument("--wait_n_episodes_between_clips", type=int, help="The number of episodes to wait between clip generation", default=0)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -397,7 +399,12 @@ if __name__ == "__main__":
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
         from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
 
-        overall_mdp = LeapWrapperMDP(args.steps, dense_reward=args.dense_reward, render=args.render)
+        overall_mdp = LeapWrapperMDP(
+            args.steps, 
+            dense_reward=args.dense_reward, 
+            render=args.render
+            generate_n_clips=args.generate_n_clips,
+            wait_n_episodes_between_clips=args.wait_n_episodes_between_clips)
         state_dim = 5
         action_dim = 2
         mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
