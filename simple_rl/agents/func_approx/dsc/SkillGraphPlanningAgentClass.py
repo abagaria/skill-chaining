@@ -3,6 +3,8 @@ import itertools
 import numpy as np
 from tqdm import tqdm
 from copy import deepcopy
+
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp.StateClass import State
 from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
