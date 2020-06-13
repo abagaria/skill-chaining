@@ -23,12 +23,8 @@ import imageio
 class LeapWrapperMDP(GoalDirectedMDP):
     """ Class for Leap Wrapper MDPs """
 
-    def __init__(self, 
-        episode_length, 
-        dense_reward=False, 
-        render=False,
-        generate_n_clips=10,
-        wait_n_episodes_between_clips=0):
+    def __init__(self, episode_length, dense_reward=False, render=False, generate_n_clips=10,
+                 wait_n_episodes_between_clips=0):
         self.env_name = "sawyer"
         self.dense_reward = dense_reward
         self.render = render
@@ -41,8 +37,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
                 self.movie_width,
                 self.movie_height,
                 3,
+                output_folder="movies",
                 num_clips=generate_n_clips,
-                wait_between_clips=episode_length*wait_n_episodes_between_clips)
+                wait_between_clips=episode_length * wait_n_episodes_between_clips)
 
         self.goal_tolerance = 0.06
         self.salient_tolerance = 0.06
@@ -89,8 +86,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.next_state = self._get_state(next_state, done)
         if self.render:
             frame = self.env.sim.render(
-                camera_name='topview', 
-                width=self.movie_width, 
+                camera_name='topview',
+                width=self.movie_width,
                 height=self.movie_height)
             self.movie_renderer.add_frame(frame)
         return reward
