@@ -26,13 +26,13 @@ from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent
-from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
+from simple_rl.agents.func_approx.dsc.MDPPlotterClass import MDPPlotter
 
 
 class SkillChaining(object):
     def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
                  subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
-                 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
+                 classifier_type="ocsvm", init_q=None, use_full_smdp_update=False,
                  start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
                  pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
                  update_global_solver=False, use_warmup_phase=False, dense_reward=False, seed=0, tensor_log=False,
@@ -51,7 +51,6 @@ class SkillChaining(object):
             num_subgoal_hits_required (int): number of times we need to hit an option's termination before learning
             classifier_type (str): Type of classifier we will train for option initiation sets
             init_q (float): If not none, we use this value to initialize the value of a new option
-            generate_plots (bool): whether or not to produce plots in this run
             use_full_smdp_update (bool): sparse 0/1 reward or discounted SMDP reward for training policy over options
             start_state_salience (bool): Treat the start state of the MDP as a salient event OR create intersection events
             option_intersection_salience (bool): Should we treat the intersection b/w options as a salient event
@@ -76,7 +75,6 @@ class SkillChaining(object):
         self.enable_option_timeout = enable_option_timeout
         self.init_q = init_q
         self.use_full_smdp_update = use_full_smdp_update
-        self.generate_plots = generate_plots
         self.buffer_length = buffer_length
         self.num_subgoal_hits_required = num_subgoal_hits_required
         self.seed = seed
@@ -108,14 +106,13 @@ class SkillChaining(object):
         self.validation_scores = []
 
         # This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
-        self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
-                                    lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
-                                    ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
-                                    subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
-                                    enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-                                    generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-                                    use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
-                                    dense_reward=self.dense_reward, chain_id=None, is_backward_option=False, option_idx=0)
+        self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None, lr_actor=lr_actor, lr_critic=lr_critic,
+                                    ddpg_batch_size=ddpg_batch_size, classifier_type=classifier_type, subgoal_reward=self.subgoal_reward,
+                                    max_steps=self.max_steps, seed=self.seed, num_subgoal_hits_required=num_subgoal_hits_required,
+                                    buffer_length=buffer_length, dense_reward=self.dense_reward, enable_timeout=self.enable_option_timeout,
+                                    option_idx=0, chain_id=None, update_global_solver=self.update_global_solver,
+                                    use_warmup_phase=self.use_warmup_phase, is_backward_option=False, device=self.device,
+                                    writer=self.writer)
 
         self.trained_options = [self.global_option]
 
@@ -131,14 +128,13 @@ class SkillChaining(object):
         # Once we have learned its initiation set, we will create its child option
         for i, salient_event in enumerate(self.mdp.get_original_target_events()):
             goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{i + 1}', global_solver=self.global_option.solver,
-                                 lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
-                                 ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
-                                 subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
-                                 enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
-                                 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-                                 dense_reward=self.dense_reward, chain_id=i + 1, max_num_children=1,
-                                 use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
-                                 target_salient_event=salient_event, option_idx=i + 1)
+                                 lr_actor=lr_actor, lr_critic=lr_critic, ddpg_batch_size=ddpg_batch_size, classifier_type=classifier_type,
+                                 subgoal_reward=self.subgoal_reward, max_steps=self.max_steps, seed=self.seed,
+                                 num_subgoal_hits_required=num_subgoal_hits_required, buffer_length=buffer_length,
+                                 dense_reward=self.dense_reward, enable_timeout=self.enable_option_timeout, option_idx=i + 1,
+                                 chain_id=i + 1, max_num_children=1, target_salient_event=salient_event,
+                                 update_global_solver=self.update_global_solver, use_warmup_phase=self.use_warmup_phase, device=self.device,
+                                 writer=self.writer)
             self.untrained_options.append(goal_option)
 
         # This is our policy over options
@@ -189,26 +185,15 @@ class SkillChaining(object):
         """
         chain_id = len(self.chains) + 1
         init_salient_event = self.mdp.get_start_state_salient_event()
-        goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}',
-                             global_solver=self.global_option.solver,
+        goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}', global_solver=self.global_option.solver,
                              lr_actor=self.global_option.solver.actor_learning_rate,
-                             lr_critic=self.global_option.solver.critic_learning_rate,
-                             ddpg_batch_size=self.global_option.solver.batch_size,
-                             subgoal_reward=self.subgoal_reward,
-                             buffer_length=self.buffer_length,
-                             classifier_type=self.classifier_type,
-                             num_subgoal_hits_required=self.num_subgoal_hits_required,
-                             seed=self.seed, parent=None, max_steps=self.max_steps,
-                             enable_timeout=self.enable_option_timeout,
-                             chain_id=chain_id,
-                             initialize_everywhere=True, max_num_children=1,
-                             writer=self.writer, device=self.device,
-                             dense_reward=self.dense_reward,
-                             use_warmup_phase=self.use_warmup_phase,
-                             update_global_solver=self.update_global_solver,
-                             is_backward_option=False,
-                             init_salient_event=init_salient_event,
-                             target_salient_event=salient_event)
+                             lr_critic=self.global_option.solver.critic_learning_rate, ddpg_batch_size=self.global_option.solver.batch_size,
+                             classifier_type=self.classifier_type, subgoal_reward=self.subgoal_reward, max_steps=self.max_steps,
+                             seed=self.seed, parent=None, num_subgoal_hits_required=self.num_subgoal_hits_required,
+                             buffer_length=self.buffer_length, dense_reward=self.dense_reward, enable_timeout=self.enable_option_timeout,
+                             chain_id=chain_id, initialize_everywhere=True, max_num_children=1, init_salient_event=init_salient_event,
+                             target_salient_event=salient_event, update_global_solver=self.update_global_solver,
+                             use_warmup_phase=self.use_warmup_phase, is_backward_option=False, device=self.device, writer=self.writer)
         self.untrained_options.append(goal_option)
 
         new_chain = SkillChain(start_states=self.s0, options=[], chain_id=chain_id,
@@ -331,22 +316,15 @@ class SkillChaining(object):
         old_untrained_option_id = id(parent_option)
         new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
                                       lr_actor=parent_option.solver.actor_learning_rate,
-                                      lr_critic=parent_option.solver.critic_learning_rate,
-                                      ddpg_batch_size=parent_option.solver.batch_size,
-                                      subgoal_reward=self.subgoal_reward,
-                                      buffer_length=self.buffer_length,
-                                      classifier_type=self.classifier_type,
-                                      num_subgoal_hits_required=self.num_subgoal_hits_required,
-                                      seed=self.seed, parent=parent_option, max_steps=self.max_steps,
-                                      enable_timeout=self.enable_option_timeout, chain_id=parent_option.chain_id,
-                                      writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-                                      initialize_everywhere=parent_option.initialize_everywhere,
-                                      max_num_children=parent_option.max_num_children,
-                                      is_backward_option=is_backward_option,
-                                      init_salient_event=gestation_init_salient_event,
-                                      use_warmup_phase=self.use_warmup_phase,
-                                      update_global_solver=self.update_global_solver,
-                                      initiation_period=parent_option.initiation_period)
+                                      lr_critic=parent_option.solver.critic_learning_rate, ddpg_batch_size=parent_option.solver.batch_size,
+                                      classifier_type=self.classifier_type, subgoal_reward=self.subgoal_reward, max_steps=self.max_steps,
+                                      seed=self.seed, parent=parent_option, num_subgoal_hits_required=self.num_subgoal_hits_required,
+                                      buffer_length=self.buffer_length, dense_reward=self.dense_reward,
+                                      enable_timeout=self.enable_option_timeout, initiation_period=parent_option.initiation_period,
+                                      chain_id=parent_option.chain_id, initialize_everywhere=parent_option.initialize_everywhere,
+                                      max_num_children=parent_option.max_num_children, init_salient_event=gestation_init_salient_event,
+                                      update_global_solver=self.update_global_solver, use_warmup_phase=self.use_warmup_phase,
+                                      is_backward_option=is_backward_option, device=self.device, writer=self.writer)
 
         new_untrained_option_id = id(new_untrained_option)
         assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -584,26 +562,17 @@ class SkillChaining(object):
         for i, forward_option in enumerate(reversed(forward_chain.options)):  # type: int, Option
 
             if i == 0:
-                back_option = Option(self.mdp, name=f"chain_{back_chain.chain_id}_backward_option",
-                                     global_solver=self.global_option.solver,
+                back_option = Option(self.mdp, name=f"chain_{back_chain.chain_id}_backward_option", global_solver=self.global_option.solver,
                                      lr_actor=self.global_option.solver.actor_learning_rate,
                                      lr_critic=self.global_option.solver.critic_learning_rate,
-                                     ddpg_batch_size=self.global_option.solver.batch_size,
-                                     subgoal_reward=self.subgoal_reward,
-                                     buffer_length=self.buffer_length,
-                                     classifier_type=self.classifier_type,
-                                     num_subgoal_hits_required=self.num_subgoal_hits_required,
-                                     seed=self.seed, parent=None, max_steps=self.max_steps,
-                                     enable_timeout=self.enable_option_timeout,
-                                     chain_id=len(self.chains),
-                                     initialize_everywhere=True, max_num_children=1,
-                                     writer=self.writer, device=self.device,
-                                     dense_reward=self.dense_reward,
-                                     use_warmup_phase=self.use_warmup_phase,
-                                     update_global_solver=self.update_global_solver,
-                                     is_backward_option=True,
-                                     init_salient_event=back_chain.init_salient_event,
-                                     target_salient_event=back_chain.target_salient_event)
+                                     ddpg_batch_size=self.global_option.solver.batch_size, classifier_type=self.classifier_type,
+                                     subgoal_reward=self.subgoal_reward, max_steps=self.max_steps, seed=self.seed, parent=None,
+                                     num_subgoal_hits_required=self.num_subgoal_hits_required, buffer_length=self.buffer_length,
+                                     dense_reward=self.dense_reward, enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
+                                     initialize_everywhere=True, max_num_children=1, init_salient_event=back_chain.init_salient_event,
+                                     target_salient_event=back_chain.target_salient_event, update_global_solver=self.update_global_solver,
+                                     use_warmup_phase=self.use_warmup_phase, is_backward_option=True, device=self.device,
+                                     writer=self.writer)
             else:
                 back_option = self.create_child_option(parent_option=parent)
 
@@ -678,23 +647,16 @@ class SkillChaining(object):
                 return trained_back_options
 
             # Create a new option and equip the SkillChainingAgent with it
-            new_option = Option(self.mdp, name=f"chain_{chain.chain_id}_backward_option",
-                                global_solver=self.global_option.solver,
+            new_option = Option(self.mdp, name=f"chain_{chain.chain_id}_backward_option", global_solver=self.global_option.solver,
                                 lr_actor=self.global_option.solver.actor_learning_rate,
                                 lr_critic=self.global_option.solver.critic_learning_rate,
-                                ddpg_batch_size=self.global_option.solver.batch_size,
-                                subgoal_reward=self.subgoal_reward,
-                                buffer_length=self.buffer_length,
-                                classifier_type=self.classifier_type,
-                                num_subgoal_hits_required=self.num_subgoal_hits_required,
-                                seed=self.seed, parent=None, max_steps=self.max_steps,
-                                enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
-                                initialize_everywhere=True, max_num_children=1,
-                                writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-                                use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
-                                is_backward_option=True,
-                                init_salient_event=init_salient_event,
-                                target_salient_event=target_salient_event)
+                                ddpg_batch_size=self.global_option.solver.batch_size, classifier_type=self.classifier_type,
+                                subgoal_reward=self.subgoal_reward, max_steps=self.max_steps, seed=self.seed, parent=None,
+                                num_subgoal_hits_required=self.num_subgoal_hits_required, buffer_length=self.buffer_length,
+                                dense_reward=self.dense_reward, enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
+                                initialize_everywhere=True, max_num_children=1, init_salient_event=init_salient_event,
+                                target_salient_event=target_salient_event, update_global_solver=self.update_global_solver,
+                                use_warmup_phase=self.use_warmup_phase, is_backward_option=True, device=self.device, writer=self.writer)
 
             if self.pretrain_option_policies:
                 new_option.initialize_with_global_solver()
@@ -728,23 +690,16 @@ class SkillChaining(object):
         # Create a new option and equip the SkillChainingAgent with it
         if create_root_option:
             back_chain_root_option = Option(self.mdp, name=f"chain_{back_chain.chain_id}_backward_option",
-                                            global_solver=self.global_option.solver,
-                                            lr_actor=self.global_option.solver.actor_learning_rate,
+                                            global_solver=self.global_option.solver, lr_actor=self.global_option.solver.actor_learning_rate,
                                             lr_critic=self.global_option.solver.critic_learning_rate,
-                                            ddpg_batch_size=self.global_option.solver.batch_size,
-                                            subgoal_reward=self.subgoal_reward,
-                                            buffer_length=self.buffer_length,
-                                            classifier_type=self.classifier_type,
-                                            num_subgoal_hits_required=self.num_subgoal_hits_required,
-                                            seed=self.seed, parent=None, max_steps=self.max_steps,
-                                            enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
-                                            initialize_everywhere=True, max_num_children=1,
-                                            writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-                                            use_warmup_phase=self.use_warmup_phase,
-                                            update_global_solver=self.update_global_solver,
-                                            is_backward_option=True,
-                                            init_salient_event=start_event,
-                                            target_salient_event=target_event)
+                                            ddpg_batch_size=self.global_option.solver.batch_size, classifier_type=self.classifier_type,
+                                            subgoal_reward=self.subgoal_reward, max_steps=self.max_steps, seed=self.seed, parent=None,
+                                            num_subgoal_hits_required=self.num_subgoal_hits_required, buffer_length=self.buffer_length,
+                                            dense_reward=self.dense_reward, enable_timeout=self.enable_option_timeout,
+                                            chain_id=len(self.chains), initialize_everywhere=True, max_num_children=1,
+                                            init_salient_event=start_event, target_salient_event=target_event,
+                                            update_global_solver=self.update_global_solver, use_warmup_phase=self.use_warmup_phase,
+                                            is_backward_option=True, device=self.device, writer=self.writer)
 
             if self.pretrain_option_policies:
                 back_chain_root_option.initialize_with_global_solver()
@@ -1074,25 +1029,23 @@ class SkillChaining(object):
 
         return per_episode_scores, per_episode_durations
 
-    def log_dqn_status(self, episode):
-        # TODO: Find a more permanent fix
-        # print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
-        #     episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
-        #
-        # self.num_options_history.append(len(self.trained_options))
-        #
-        # if self.writer is not None:
-        #     self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
-        #
-        # if episode > 0 and episode % 50 == 0:
-        #     # eval_score, trajectory = self.trained_forward_pass(render=False)
-        #     eval_score, trajectory = 0., []
-        #
-        #     self.validation_scores.append(eval_score)
-        #     print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+    def log_dqn_status(self, episode, last_10_scores, last_10_durations):
+        print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
+            episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
 
-        # if self.plotter is not None and self.generate_plots and episode % 1 == 0 and episode > 0:
-        if self.plotter is not None and self.generate_plots and episode % 30 == 0 and episode > 0:
+        self.num_options_history.append(len(self.trained_options))
+
+        if self.writer is not None:
+            self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
+
+        if episode > 0 and episode % 50 == 0:
+            # eval_score, trajectory = self.trained_forward_pass(render=False)
+            eval_score, trajectory = 0., []
+
+            self.validation_scores.append(eval_score)
+            print("\rEpisode {}\tValidation Score: {:.2f}".format(episode, eval_score))
+
+        if self.plotter is not None and episode % 30 == 0 and episode > 0:
             self.plotter.generate_episode_plots(self, episode)
 
     def save_all_models(self):
@@ -1161,6 +1114,7 @@ if __name__ == '__main__':
     parser.add_argument("--init_dqn_epsilon", type=float, help="Initial epsilon for policy over options, decays over time.", default=0.5)
     args = parser.parse_args()
 
+    mdp_plotter = None
     if args.env == "point-reacher":
         from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
 
@@ -1187,11 +1141,11 @@ if __name__ == '__main__':
         action_dim = 2
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
-        from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
-
         overall_mdp = LeapWrapperMDP(args.steps, dense_reward=args.dense_reward, render=args.render)
-        mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
         overall_mdp.env.seed(args.seed)
+        if args.generate_plots:
+            from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+            mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP
 
@@ -1208,8 +1162,10 @@ if __name__ == '__main__':
     chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
                             seed=args.seed, subgoal_reward=args.subgoal_reward,
                             num_subgoal_hits_required=args.num_subgoal_hits,
-                            enable_option_timeout=args.option_timeout, init_q=q0, use_full_smdp_update=args.use_smdp_update,
-                            generate_plots=args.generate_plots, tensor_log=args.tensor_log, device=args.device,
+                            enable_option_timeout=args.option_timeout,
+                            init_q=q0,
+                            use_full_smdp_update=args.use_smdp_update,
+                            tensor_log=args.tensor_log, device=args.device,
                             buffer_length=args.buffer_len,
                             start_state_salience=args.use_start_state_salience,
                             option_intersection_salience=args.use_option_intersection_salience,

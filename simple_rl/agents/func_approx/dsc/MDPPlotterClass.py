@@ -7,7 +7,7 @@ import ipdb
 import torch
 
 
-class SkillChainingPlotter(metaclass=abc.ABCMeta):
+class MDPPlotter(metaclass=abc.ABCMeta):
     def __init__(self, task_name, experiment_name, subdirectories=None):
         """
         Args:

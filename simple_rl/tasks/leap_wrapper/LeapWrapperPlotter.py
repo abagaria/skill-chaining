@@ -7,10 +7,10 @@ from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 
-from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
+from simple_rl.agents.func_approx.dsc.MDPPlotterClass import MDPPlotter
 
 
-class LeapWrapperPlotter(SkillChainingPlotter):
+class LeapWrapperPlotter(MDPPlotter):
     def __init__(self, task_name, experiment_name, mdp):
         print("Setting up Plotter")
         # The true start state is: [-0.007, 0.52], but the hand gets to [0.032, 0.409]
@@ -44,6 +44,8 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         # to compute, so do it once when initializing the plotter.
         self.center_points, self.endeff_grid, self.puck_grid = self._get_endeff_puck_grids()
 
+        self.arrow_points = self._get_arrow_points()
+
         # used when calculating average of value function when grouping by puck pos or endeff pos
         self.endeff_idx, self.endeff_cnt = self._setup_unique_weighted_average((0, 1))
         self.puck_idx, self.puck_cnt = self._setup_unique_weighted_average((3, 4))
@@ -67,12 +69,29 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         for i, option in enumerate(chainer.trained_options):
             self._plot_value_function(option, chainer.seed, episode)
+            self._plot_option_policy(option, chainer.seed, episode)
+
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
                 self._plot_initiation_sets(option, episode)
 
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted[i] = True
+
+    def _plot_option_policy(self, option, seed, episode):
+        ipdb.set_trace()
+
+        num_graphs = len(self.arrow_points)
+        fig, axs = plt.subplots(1, num_graphs, figsize=(num_graphs * 6, 6), sharey='all', constrained_layout=True)
+
+    def _get_arrow_points(self):
+        arm_x = np.arange(-0.25, 0.25, 0.1)
+        arm_y = np.arange(0.35, 0.85, 0.1)
+        arm_z = [0.07]
+        puck_x = np.linspace(self.puck_start[0], self.puck_goal[0], 3)[:-1]
+        puck_y = [0.06]
+
+        return [np.column_stack(list(map(np.ravel, np.meshgrid(arm_x, arm_y, arm_z, [x], puck_y)))) for x in puck_x]
 
     def get_value_function_values(self, solver):
         CHUNK_SIZE = 250
@@ -166,11 +185,11 @@ class LeapWrapperPlotter(SkillChainingPlotter):
 
         def _plot_initiation_classifier(ax, init_set, title):
             if title.lower() == "endeff":
-                ax.pcolormesh(self.endeff_grid[0], self.endeff_grid[1], init_set, norm=norm, cmap=cmap)
+                ax.pcolormesh(self.endeff_grid[0], self.endeff_grid[1], init_set, cmap=cmap)
                 x_label = self.axis_labels[0]
                 y_label = self.axis_labels[1]
             elif title.lower() == "puck":
-                ax.pcolormesh(self.puck_grid[0], self.puck_grid[1], init_set, norm=norm, cmap=cmap)
+                ax.pcolormesh(self.puck_grid[0], self.puck_grid[1], init_set, cmap=cmap)
                 x_label = self.axis_labels[3]
                 y_label = self.axis_labels[4]
             else:
@@ -185,8 +204,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         boolean_mesh = option.batched_is_init_true(self.center_points)
         endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
         puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
-        vmax = max(np.amax(endeff_inits), np.amax(puck_inits))
-        norm = Normalize(vmin=0., vmax=vmax)
         cmap = "Blues"
 
         fig, axs = self._setup_plot((2, 2))
@@ -207,7 +224,6 @@ class LeapWrapperPlotter(SkillChainingPlotter):
         trajectories = "all" if len(option.negative_examples) > 0 else "positive"
         self._add_legend(axs[0, 1], option, trajectories=trajectories)
         self._add_legend(axs[1, 1], option)
-        fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=mesh_axes, aspect=40, orientation='horizontal', shrink=0.9)
 
         # save plot as png
         file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
