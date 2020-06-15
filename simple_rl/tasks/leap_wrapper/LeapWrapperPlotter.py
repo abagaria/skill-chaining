@@ -308,6 +308,7 @@ class LeapWrapperPlotter(MDPPlotter):
         if puck_pos is not None:
             puck = plt.Circle(puck_pos, self.puck_radius, alpha=0.3,
                               color=self.target_salient_event_color, label="puck")
+            ipdb.set_trace()
             ax.add_patch(puck)
 
         # plot the puck and endeff starting positions.
