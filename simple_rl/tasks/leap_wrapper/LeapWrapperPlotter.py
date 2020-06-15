@@ -118,7 +118,7 @@ class LeapWrapperPlotter(MDPPlotter):
         puck_y = [0.06]
 
         meshes = [np.meshgrid(arm_x, arm_y, arm_z, [x], puck_y) for x in puck_x]
-        return [np.column_stack(list(map(np.ravel, mesh))) for mesh in meshes], meshes[0]
+        return [np.column_stack(list(map(np.ravel, mesh))) for mesh in meshes], np.array(meshes[0])
 
     def get_value_function_values(self, solver):
         CHUNK_SIZE = 250
