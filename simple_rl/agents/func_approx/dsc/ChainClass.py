@@ -192,6 +192,8 @@ class SkillChain(object):
         Returns:
             is_completed (bool)
         """
+        to_position = lambda s: s.position if isinstance(s, State) else s[:2]
+
         if self._is_deemed_completed:
             return True
 
@@ -217,9 +219,9 @@ class SkillChain(object):
                     self.init_salient_event = event  # Rewiring operation
                 elif len(intersecting_events) > 1:
                     # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
-                    # ipdb.set_trace()  # TODO: This doesn't work for backward chains :(
-                    target_states = [event.target_state for event in intersecting_events]
-                    distances = [np.linalg.norm(s - self.target_position) for s in target_states]
+                    target_states = [to_position(event.target_state) for event in intersecting_events]
+                    chain_target_position = to_position(self.target_position)
+                    distances = [np.linalg.norm(s - chain_target_position) for s in target_states]
                     best_idx = np.argmin(distances)
                     best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
                     closest_event = intersecting_events[best_idx]

@@ -2,7 +2,7 @@
 from __future__ import print_function
 import random
 import numpy as np
-import pdb
+import ipdb
 from copy import deepcopy
 import torch
 from sklearn import svm
@@ -195,6 +195,14 @@ class Option(object):
 
 	def sample_state(self):
 		""" Return a state from the option's initiation set. """
+
+		def _get_state_from_experience(experience):
+			if isinstance(experience, list):
+				experience = experience[0]
+			if isinstance(experience, Experience):
+				return experience.state
+			return experience[0]
+
 		if self.get_training_phase() != "initiation_done":
 			return None
 
@@ -209,7 +217,9 @@ class Option(object):
 					sampled_experience = random.choice(self.experience_buffer)
 				else:
 					continue
-				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
+				# ipdb.set_trace()
+				sampled_state = _get_state_from_experience(sampled_experience)
+				sampled_state = sampled_state if self.is_init_true(sampled_state) else None
 			elif isinstance(self.solver, TD3):
 				sampled_idx = random.randint(0, len(self.solver.replay_buffer) - 1)
 				sampled_experience = self.solver.replay_buffer[sampled_idx]
@@ -693,7 +703,7 @@ class Option(object):
 
 	def is_eligible_for_off_policy_triggers(self):
 		if "point" in self.overall_mdp.env_name:
-			eligible_phase = self.get_training_phase() == "gestation"
+			eligible_phase = self.get_training_phase() != "initiation_done"  # TODO: Trying this for DCO
 		elif "ant" in self.overall_mdp.env_name:
 			eligible_phase = self.get_training_phase() != "initiation_done"
 		else:

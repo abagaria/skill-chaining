@@ -35,7 +35,6 @@ def moving_average(a, n=25):
 
 
 def smoothen_data(scores, n=10):
-    print(scores.shape)
     smoothened_cols = scores.shape[1] - n + 1
     smoothened_data = np.zeros((scores.shape[0], smoothened_cols))
     for i in range(scores.shape[0]):

@@ -134,7 +134,7 @@ class DeepSkillGraphAgent(object):
         self.num_covering_options_generated += 1
         buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
 
-        if self.use_dco:
+        if self.use_dco and len(self.mdp.all_salient_events_ever) > 0:
             c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                        num_training_steps=1000,
                                        option_idx=c_option_idx,
@@ -156,13 +156,14 @@ class DeepSkillGraphAgent(object):
                     self.dsc_agent.agent_over_options.step(low_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, high_salient_event.target_state, 0, 1)
                     self.dsc_agent.agent_over_options.step(high_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, low_salient_event.target_state, 0, 1)
 
-            plot_dco_salient_event_comparison(low_salient_event,
-                                              high_salient_event,
-                                              replay_buffer,
-                                              episode,
-                                              reject_low,
-                                              reject_high,
-                                              self.experiment_name)
+            if not reject_low or not reject_high or args.plot_rejected_events:
+                plot_dco_salient_event_comparison(low_salient_event,
+                                                  high_salient_event,
+                                                  replay_buffer,
+                                                  episode,
+                                                  reject_low,
+                                                  reject_high,
+                                                  self.experiment_name)
         else:
             event_idx = len(self.mdp.all_salient_events_ever) + 1
             target_state = self.mdp.sample_random_state()[:2]
@@ -211,7 +212,8 @@ class DeepSkillGraphAgent(object):
         Returns:
             should_reject (bool)
         """
-        if any([event(salient_event.target_state) for event in self.mdp.get_all_target_events_ever()]):
+        existing_target_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        if any([event(salient_event.target_state) for event in existing_target_events]):
             return True
 
         if self.dsc_agent.state_in_any_completed_option(salient_event.target_state):
@@ -271,7 +273,7 @@ class DeepSkillGraphAgent(object):
         # If we have tried to create an event outside the graph a lot of times and failed,
         # then that probably means that we are done with forward-chaining and we can now
         # begin learning our backward options
-        return self.num_successive_rejections >= 100 \
+        return self.num_successive_rejections >= 20 \
                and not self.dsc_agent.create_backward_options \
                and not self.dsc_agent.learn_backward_options_offline
 
