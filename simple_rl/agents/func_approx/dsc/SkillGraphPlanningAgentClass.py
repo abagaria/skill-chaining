@@ -268,7 +268,6 @@ class SkillGraphPlanningAgent(object):
 
             self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state,
                                                        goal_salient_event, jumped_off_the_graph=True)
-            self.chainer.log_dqn_status(episode)
         return deepcopy(self.mdp.cur_state), step_number
 
     def perform_option_rollout(self, option, episode, step, eval_mode, goal_salient_event):
@@ -442,7 +441,7 @@ class SkillGraphPlanningAgent(object):
                                                       goal_salient_event=goal_salient_event)
 
             state = deepcopy(self.mdp.cur_state)
-            if self.mdp.task_agnostic and state.is_terminal():
+            if not self.mdp.task_agnostic and state.is_terminal():
                 break
 
             should_terminate_run_loop = self.should_planning_run_loop_terminate(state,
@@ -465,7 +464,7 @@ class SkillGraphPlanningAgent(object):
                                                                         new_option,
                                                                         goal_salient_event,
                                                                         eval_mode=eval_mode)
-                if self.mdp.task_agnostic and state.is_terminal():
+                if not self.mdp.task_agnostic and state.is_terminal():
                     break
 
         return step_number, goal_salient_event(state)
@@ -672,23 +671,17 @@ class SkillGraphPlanningAgent(object):
         new_untrained_option = Option(self.mdp, name=name, global_solver=self.chainer.global_option.solver,
                                       lr_actor=train_goal_option.solver.actor_learning_rate,
                                       lr_critic=train_goal_option.solver.critic_learning_rate,
-                                      ddpg_batch_size=train_goal_option.solver.batch_size,
-                                      subgoal_reward=self.chainer.subgoal_reward,
-                                      buffer_length=self.chainer.buffer_length,
-                                      classifier_type=self.chainer.classifier_type,
-                                      num_subgoal_hits_required=self.chainer.num_subgoal_hits_required,
-                                      seed=self.seed, parent=None, max_steps=self.chainer.max_steps,
-                                      enable_timeout=self.chainer.enable_option_timeout,
-                                      chain_id=chain_id,
-                                      writer=self.chainer.writer, device=self.chainer.device,
-                                      dense_reward=self.chainer.dense_reward,
+                                      ddpg_batch_size=train_goal_option.solver.batch_size, classifier_type=self.chainer.classifier_type,
+                                      subgoal_reward=self.chainer.subgoal_reward, max_steps=self.chainer.max_steps, seed=self.seed,
+                                      parent=None, num_subgoal_hits_required=self.chainer.num_subgoal_hits_required,
+                                      buffer_length=self.chainer.buffer_length, dense_reward=self.chainer.dense_reward,
+                                      enable_timeout=self.chainer.enable_option_timeout, chain_id=chain_id,
                                       initialize_everywhere=train_goal_option.initialize_everywhere,
                                       max_num_children=train_goal_option.max_num_children,
-                                      use_warmup_phase=self.chainer.use_warmup_phase,
+                                      init_salient_event=train_goal_option.init_salient_event, target_salient_event=target_salient_event,
                                       update_global_solver=self.chainer.update_global_solver,
-                                      is_backward_option=False,
-                                      init_salient_event=train_goal_option.init_salient_event,
-                                      target_salient_event=target_salient_event)
+                                      use_warmup_phase=self.chainer.use_warmup_phase, is_backward_option=False, device=self.chainer.device,
+                                      writer=self.chainer.writer)
 
         print(f"Created {new_untrained_option} targeting {target_salient_event}")
 
@@ -752,23 +745,17 @@ class SkillGraphPlanningAgent(object):
                                       lr_actor=self.chainer.global_option.solver.actor_learning_rate,
                                       lr_critic=self.chainer.global_option.solver.critic_learning_rate,
                                       ddpg_batch_size=self.chainer.global_option.solver.batch_size,
-                                      subgoal_reward=self.chainer.subgoal_reward,
-                                      buffer_length=self.chainer.buffer_length,
-                                      classifier_type=self.chainer.classifier_type,
+                                      classifier_type=self.chainer.classifier_type, subgoal_reward=self.chainer.subgoal_reward,
+                                      max_steps=self.chainer.max_steps, seed=self.seed, parent=None,
                                       num_subgoal_hits_required=self.chainer.num_subgoal_hits_required,
-                                      seed=self.seed, parent=None, max_steps=self.chainer.max_steps,
-                                      enable_timeout=self.chainer.enable_option_timeout,
-                                      chain_id=chain_id,
-                                      writer=self.chainer.writer, device=self.chainer.device,
-                                      dense_reward=self.chainer.dense_reward,
+                                      buffer_length=self.chainer.buffer_length, dense_reward=self.chainer.dense_reward,
+                                      enable_timeout=self.chainer.enable_option_timeout, initiation_period=0, chain_id=chain_id,
                                       initialize_everywhere=self.chainer.trained_options[1].initialize_everywhere,
                                       max_num_children=self.chainer.trained_options[1].max_num_children,
-                                      use_warmup_phase=self.chainer.use_warmup_phase,
+                                      init_salient_event=init_salient_event, target_salient_event=target_salient_event,
                                       update_global_solver=self.chainer.update_global_solver,
-                                      is_backward_option=False,
-                                      init_salient_event=init_salient_event,
-                                      target_salient_event=target_salient_event,
-                                      initiation_period=0)  # TODO: This might not be wise in Ant
+                                      use_warmup_phase=self.chainer.use_warmup_phase, is_backward_option=False, device=self.chainer.device,
+                                      writer=self.chainer.writer)  # TODO: This might not be wise in Ant
 
         print(f"Created {new_untrained_option} targeting {target_salient_event}")
 

@@ -9,12 +9,14 @@ from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillG
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
+
+
 # from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions\
 
 
 class DeepSkillGraphAgent(object):
-    def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, use_hard_coded_events,
-                 use_dco, dco_use_xy_prior, experiment_name, seed, threshold, use_smdp_replay_buffer):
+    def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, use_hard_coded_events, use_dco,
+                 dco_use_xy_prior, experiment_name, seed, threshold, use_smdp_replay_buffer, plotter):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -28,6 +30,7 @@ class DeepSkillGraphAgent(object):
             dco_use_xy_prior (bool)
             experiment_name (str)
             seed (int)
+            plotter (SkillChainingPlotter)
         """
         self.mdp = mdp
         self.dsc_agent = dsc_agent
@@ -40,6 +43,7 @@ class DeepSkillGraphAgent(object):
         self.seed = seed
         self.threshold = threshold
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
+        self.plotter = plotter
 
         self.num_covering_options_generated = 0
         self.generated_salient_events = []
@@ -130,6 +134,9 @@ class DeepSkillGraphAgent(object):
                 if not self.mdp.task_agnostic and state.is_terminal():
                     print(f"[DeepSkillGraphAgentClass] successfully reached MDP Goal State")
                     break
+
+            if self.plotter is not None and episode % 30 == 0 and episode > 0:
+                self.plotter.generate_episode_plots(self.dsc_agent, episode)
 
         return successes
 
@@ -225,12 +232,12 @@ class DeepSkillGraphAgent(object):
         def _events_chained(low_event, high_event):
             chains = self.dsc_agent.chains
             chains_targeting_low_event = [chain for chain in chains if chain.target_salient_event == low_event and
-                                                                        chain.is_chain_completed(chains)]
+                                          chain.is_chain_completed(chains)]
             chains_targeting_high_event = [chain for chain in chains if chain.target_salient_event == high_event and
-                                                                        chain.is_chain_completed(chains)]
+                                           chain.is_chain_completed(chains)]
             return (
-                (len(chains_targeting_low_event) > 0 or low_event is None) and
-                (len(chains_targeting_high_event) > 0 or high_event is None)
+                    (len(chains_targeting_low_event) > 0 or low_event is None) and
+                    (len(chains_targeting_high_event) > 0 or high_event is None)
             )
 
         most_recent_event = self.most_recent_generated_salient_events  # type: Tuple[DCOSalientEvent, DCOSalientEvent]
@@ -254,7 +261,8 @@ class DeepSkillGraphAgent(object):
     def are_all_original_salient_events_forward_chained(self):
         original_salient_events = self.mdp.get_original_target_events()
         for event in original_salient_events:  # type: SalientEvent
-            forward_chains = [chain for chain in self.dsc_agent.chains if chain.target_salient_event == event and not chain.is_backward_chain]
+            forward_chains = [chain for chain in self.dsc_agent.chains if
+                              chain.target_salient_event == event and not chain.is_backward_chain]
             if any([not chain.is_chain_completed(self.dsc_agent.chains) for chain in forward_chains]):
                 return False
         return True
@@ -303,7 +311,9 @@ class DeepSkillGraphAgent(object):
         done = self.mdp.is_goal_state(next_state)
 
         self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
-        self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(), done, 1)
+        self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(),
+                                               done, 1)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -345,11 +355,14 @@ if __name__ == "__main__":
     parser.add_argument("--use_dco", action="store_true", default=False)
     parser.add_argument("--use_ucb", action="store_true", default=False)
     parser.add_argument("--threshold", type=int, help="Threshold determining size of termination set", default=0.1)
-    parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options", default=False) # we should use this
+    parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options",
+                        default=False)  # we should use this
     parser.add_argument("--generate_n_clips", type=int, help="The number of run clips to generate", default=10)
-    parser.add_argument("--wait_n_episodes_between_clips", type=int, help="The number of episodes to wait between clip generation", default=0)
+    parser.add_argument("--wait_n_episodes_between_clips", type=int, help="The number of episodes to wait between clip generation",
+                        default=0)
     args = parser.parse_args()
 
+    mdp_plotter = None
     if args.env == "point-reacher":
         from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
 
@@ -361,6 +374,7 @@ if __name__ == "__main__":
         action_dim = 2
     elif args.env == "ant-reacher":
         from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
+
         overall_mdp = AntReacherMDP(seed=args.seed,
                                     render=args.render,
                                     use_hard_coded_events=args.use_hard_coded_events)
@@ -368,17 +382,18 @@ if __name__ == "__main__":
         action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+
         overall_mdp = D4RLPointMazeMDP(seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
     elif "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-
 
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
@@ -397,18 +412,18 @@ if __name__ == "__main__":
         action_dim = 2
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
-        from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
 
         overall_mdp = LeapWrapperMDP(
-            args.steps, 
-            dense_reward=args.dense_reward, 
+            args.steps,
+            dense_reward=args.dense_reward,
             render=args.render,
             generate_n_clips=args.generate_n_clips,
             wait_n_episodes_between_clips=args.wait_n_episodes_between_clips)
-        state_dim = 5
-        action_dim = 2
-        mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
         overall_mdp.env.seed(args.seed)
+        if args.generate_plots:
+            from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+
+            mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP
 
@@ -417,14 +432,6 @@ if __name__ == "__main__":
         action_dim = overall_mdp.env.action_space.shape[0]
         overall_mdp.env.seed(args.seed)
 
-    # Create folders for saving various things
-    logdir = create_log_dir(args.experiment_name)
-    create_log_dir("saved_runs")
-    create_log_dir("value_function_plots")
-    create_log_dir("initiation_set_plots")
-    create_log_dir("value_function_plots/{}".format(args.experiment_name))
-    create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
-
     print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
     print("MDP InitState = ", overall_mdp.init_state)
 
@@ -432,11 +439,10 @@ if __name__ == "__main__":
 
     chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
                             seed=args.seed, subgoal_reward=args.subgoal_reward,
-                            # log_dir=logdir,
                             num_subgoal_hits_required=args.num_subgoal_hits,
                             enable_option_timeout=args.option_timeout, init_q=q0,
                             use_full_smdp_update=args.use_smdp_update,
-                            generate_plots=args.generate_plots, tensor_log=args.tensor_log,
+                            tensor_log=args.tensor_log,
                             device=args.device, buffer_length=args.buffer_len,
                             start_state_salience=args.use_start_state_salience,
                             option_intersection_salience=args.use_option_intersection_salience,
@@ -451,7 +457,6 @@ if __name__ == "__main__":
                             plotter=mdp_plotter)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
-    # assert args.use_option_intersection_salience ^ args.use_event_intersection_salience
 
     planner = SkillGraphPlanningAgent(mdp=overall_mdp,
                                       chainer=chainer,
@@ -471,6 +476,7 @@ if __name__ == "__main__":
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
-                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer)
+                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer,
+                                    plotter=mdp_plotter)
 
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

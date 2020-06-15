@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from simple_rl.agents.func_approx.dsc.SkillChainingPlotterClass import SkillChainingPlotter
+from simple_rl.agents.func_approx.dsc.MDPPlotterClass import MDPPlotter
 import numpy as np
 import torch
 import matplotlib
@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 
 
 # import simple_rl.agents.func_approx.dsc.BaseSalientEventClass
-class AntMazePlotter(SkillChainingPlotter):
+class AntMazePlotter(MDPPlotter):
     def __init__(self, experiment_name):
-        SkillChainingPlotter.__init__(self, "ant_maze", experiment_name)
+        MDPPlotter.__init__(self, "ant_maze", experiment_name)
 
     def visualize_best_option_to_take(self, policy_over_options_dqn, episode, seed):
         states = np.array([exp.state for exp in policy_over_options_dqn.replay_buffer.memory])

@@ -21,13 +21,11 @@ from simple_rl.mdp.StateClass import State
 class Option(object):
     fixed_epsilon = False
 
-    def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
-                 subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
-                 dense_reward=False, enable_timeout=True, timeout=200, initiation_period=5, option_idx=None,
-                 chain_id=None, initialize_everywhere=True, max_num_children=3,
-                 init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
-                 gestation_init_predicates=None, is_backward_option=False, solver_type="ddpg",
-                 generate_plots=False, device=torch.device("cpu"), writer=None):
+    def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm", subgoal_reward=0.,
+                 max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20, dense_reward=False,
+                 enable_timeout=True, timeout=200, initiation_period=5, option_idx=None, chain_id=None, initialize_everywhere=True,
+                 max_num_children=3, init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
+                 gestation_init_predicates=None, is_backward_option=False, solver_type="ddpg", device=torch.device("cpu"), writer=None):
         """
         Args:
             overall_mdp (GoalDirectedMDP)
@@ -52,7 +50,6 @@ class Option(object):
             use_warmup_phase (bool)
             gestation_init_predicates (list)
             is_backward_option (bool)
-            generate_plots (bool)
             device (torch.device)
             writer (SummaryWriter)
         """
@@ -68,7 +65,6 @@ class Option(object):
         self.initiation_period = initiation_period
         self.max_num_children = max_num_children
         self.classifier_type = classifier_type
-        self.generate_plots = generate_plots
         self.writer = writer
         self.initialize_everywhere = initialize_everywhere
         self.init_salient_event = init_salient_event
