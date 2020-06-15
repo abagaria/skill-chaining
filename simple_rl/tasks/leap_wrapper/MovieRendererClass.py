@@ -1,5 +1,6 @@
+import errno
 import os
-
+import ipdb
 import numpy as np
 import imageio
 
@@ -17,7 +18,15 @@ class MovieRenderer(object):
                  wait_between_clips=0):
 
         self.output_folder = output_folder
-        os.mkdir(self.output_folder)
+        try:
+            os.mkdir(self.output_folder)
+            print(f"Created directory: {os.path.join(os.getcwd(), self.output_folder)}")
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                ipdb.set_trace()
+            else:
+                print(f"Failed to create directory: {os.path.join(os.getcwd(), self.output_folder)}")
+
         self.clip_name = clip_name
         self.framerate = framerate
         self.num_clips = num_clips
