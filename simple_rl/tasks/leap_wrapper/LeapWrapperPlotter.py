@@ -57,7 +57,7 @@ class LeapWrapperPlotter(MDPPlotter):
         # has already been plotted, false otherwise.
         self.final_initiation_set_has_been_plotted = []
 
-        super().__init__(task_name, experiment_name, ["initiation_set_plots", "value_function_plots"])
+        super().__init__(task_name, experiment_name, ["initiation_set_plots", "value_function_plots", "option_policy_plots"])
 
     def generate_episode_plots(self, chainer, episode):
         """
@@ -106,7 +106,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
         # save plot
         file_name = f"{option.solver.name}_policy_seed_{seed}_episode_{episode}.png"
-        plt.savefig(os.path.join(self.path, "option_policy", file_name))
+        plt.savefig(os.path.join(self.path, "option_policy_plots", file_name))
         plt.close()
 
 
