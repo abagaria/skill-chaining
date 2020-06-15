@@ -3,21 +3,15 @@ LeapWrapperMDPClass.py: Contains implementation for MDPs of the Leap Environment
 https://github.com/vitchyr/multiworld
 """
 
-# Python imports.
 import ipdb
 import numpy as np
-
-# Other imports.
 import gym
+import multiworld
 
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
 from simple_rl.tasks.leap_wrapper.MovieRendererClass import MovieRenderer
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
-
-import multiworld
-import pdb
-import imageio
 
 
 class LeapWrapperMDP(GoalDirectedMDP):
@@ -149,7 +143,7 @@ def get_endeff_pos(state):
     elif state.ndim == 1:
         return state[:3]
     else:
-        pdb.set_trace()
+        ipdb.set_trace()
 
 
 def get_xy_endeff_pos(state):
@@ -160,7 +154,7 @@ def get_xy_endeff_pos(state):
     elif state.ndim == 1:
         return state[:2]
     else:
-        pdb.set_trace()
+        ipdb.set_trace()
 
 
 def get_puck_pos(state):
@@ -171,4 +165,4 @@ def get_puck_pos(state):
     elif state.ndim == 1:
         return state[3:]
     else:
-        pdb.set_trace()
+        ipdb.set_trace()

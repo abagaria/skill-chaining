@@ -70,6 +70,7 @@ class SkillGraphPlanningAgent(object):
         Returns:
             option (Option): Option to execute in the ground MDP
         """
+
         def _pick_option_to_execute_from_plan(selected_plan):
             admissible_options = [o for o in selected_plan if o.is_init_true(start_state) and not o.is_term_true(start_state)]
             if len(admissible_options) > 0:
@@ -143,7 +144,7 @@ class SkillGraphPlanningAgent(object):
             all_salient_events = self.mdp.get_all_target_events_ever()
             event_indices = [event.event_idx for event in all_salient_events]
             new_salient_event = SalientEvent(goal_state, event_idx=max(event_indices) + 1)
-            self.mdp.add_new_target_event(new_salient_event) # TODO: Shouldn't you add the salient event to the graph as well??
+            self.mdp.add_new_target_event(new_salient_event)  # TODO: Shouldn't you add the salient event to the graph as well??
             return new_salient_event
 
         target_salient_event = self.get_salient_event_for_state(goal_state)
@@ -334,7 +335,7 @@ class SkillGraphPlanningAgent(object):
             used_bandit = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
 
             jumping_off_options = [option for option in self.get_options_in_known_part_of_the_graph()
-                                    if option.is_init_true(pre_rollout_state)]
+                                   if option.is_init_true(pre_rollout_state)]
 
             for option in jumping_off_options:  # type: Option
                 if option in used_bandit.options:
@@ -359,8 +360,8 @@ class SkillGraphPlanningAgent(object):
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option):
 
-        assert newly_created_option.get_training_phase() == "initiation_done",\
-               f"{newly_created_option} in {newly_created_option.get_training_phase()}"
+        assert newly_created_option.get_training_phase() == "initiation_done", \
+            f"{newly_created_option} in {newly_created_option.get_training_phase()}"
 
         # If the new option isn't already in the graph, add it
         self.plan_graph.add_node(newly_created_option)
@@ -393,9 +394,8 @@ class SkillGraphPlanningAgent(object):
 
         # Case 2: Leaf option # TODO: Need to check intersection with the init_salient_event as well
         if chain.is_chain_completed(self.chainer.chains) \
-            and is_leaf_node \
+                and is_leaf_node \
                 and chain.detect_intersection_between_option_and_event(newly_created_option, init_salient_event):
-
             print(f"Case 2: Adding edge from {init_salient_event} to {newly_created_option}")
             self.plan_graph.add_edge(init_salient_event, newly_created_option, edge_weight=0.)
 
@@ -427,7 +427,7 @@ class SkillGraphPlanningAgent(object):
             visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
 
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
-                                 goal_salient_event, episode_number, step_number, eval_mode):
+                        goal_salient_event, episode_number, step_number, eval_mode):
 
         should_terminate_run_loop = False
 
@@ -442,6 +442,8 @@ class SkillGraphPlanningAgent(object):
                                                       goal_salient_event=goal_salient_event)
 
             state = deepcopy(self.mdp.cur_state)
+            if self.mdp.task_agnostic and state.is_terminal():
+                break
 
             should_terminate_run_loop = self.should_planning_run_loop_terminate(state,
                                                                                 goal_state,
@@ -463,6 +465,8 @@ class SkillGraphPlanningAgent(object):
                                                                         new_option,
                                                                         goal_salient_event,
                                                                         eval_mode=eval_mode)
+                if self.mdp.task_agnostic and state.is_terminal():
+                    break
 
         return step_number, goal_salient_event(state)
 
@@ -572,7 +576,8 @@ class SkillGraphPlanningAgent(object):
 
         if self.use_ucb and goal_salient_event not in self.bandit_agents:
             candidate_options = self.get_options_in_known_part_of_the_graph()
-            candidate_options = [option for option in candidate_options if not option.backward_option]  # TODO: This only makes sense if you start at s0
+            candidate_options = [option for option in candidate_options if
+                                 not option.backward_option]  # TODO: This only makes sense if you start at s0
             self.bandit_agents[goal_salient_event] = UCBActionSelectionAgent(goal_state=goal_state,
                                                                              options=candidate_options,
                                                                              chains=self.chainer.chains,
@@ -588,7 +593,7 @@ class SkillGraphPlanningAgent(object):
         known_options = []
         for chain in completed_chains:  # type: SkillChain
             chain_options = [option for option in chain.options if option.get_training_phase() == "initiation_done"
-                                and option in self.plan_graph.option_nodes]
+                             and option in self.plan_graph.option_nodes]
             known_options.append(chain_options)
         known_options = list(itertools.chain.from_iterable(known_options))
         return known_options
@@ -716,7 +721,8 @@ class SkillGraphPlanningAgent(object):
 
         # Add an outgoing edge from the new option to the target salient event
         print(f"Adding edge from {new_untrained_option} to {target_salient_event} in plan-graph")
-        self.plan_graph.add_edge(new_untrained_option, target_salient_event, edge_weight=1./new_untrained_option.get_option_success_rate())
+        self.plan_graph.add_edge(new_untrained_option, target_salient_event,
+                                 edge_weight=1. / new_untrained_option.get_option_success_rate())
 
         return new_untrained_option
 
@@ -885,7 +891,7 @@ class SkillGraphPlanningAgent(object):
         self.chainer.create_backward_options = False
         self.chainer.learn_backward_options_offline = False  # TODO: Need a better way to say that we should not create back options at test time
         for episode in range(num_episodes):
-            step_number, reached_goal = self.planning_run_loop(start_episode=starting_episode+episode,
+            step_number, reached_goal = self.planning_run_loop(start_episode=starting_episode + episode,
                                                                goal_state=goal_state,
                                                                start_state=start_state,
                                                                to_reset=True,
