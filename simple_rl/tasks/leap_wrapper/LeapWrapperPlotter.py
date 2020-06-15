@@ -90,6 +90,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
         for i, ax in enumerate(axs):
             # set up axis
+            ax.set_aspect("equal")
             ax.set_xlim(self.endeff_x_range)
             ax.set_ylim(self.endeff_y_range)
             ax.set_xticks(np.linspace(self.endeff_x_range[0], self.endeff_x_range[1], 7))
@@ -102,8 +103,8 @@ class LeapWrapperPlotter(MDPPlotter):
             vectors = np.array([option.solver.act(arrow, evaluation_mode=True) for arrow in arrow_points])
 
             # plot quiver diagram
-            ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1], width=0.02, headlength=4, headwidth=2)
-            self._plot_sawyer_features(ax, puck_pos=arrow_points[0])
+            ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1], headlength=4, headwidth=2)
+            self._plot_sawyer_features(ax, puck_pos=arrow_points[0][3:])
 
         # save plot
         file_name = f"{option.solver.name}_policy_seed_{seed}_episode_{episode}.png"
