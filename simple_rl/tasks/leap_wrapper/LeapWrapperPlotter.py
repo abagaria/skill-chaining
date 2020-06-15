@@ -93,7 +93,7 @@ class LeapWrapperPlotter(MDPPlotter):
             ax.set_aspect("equal")
             ax.set_xlim(self.endeff_x_range)
             ax.set_ylim(self.endeff_y_range)
-            ax.set_xticks(np.linspace(self.endeff_x_range[0], self.endeff_x_range[1], 7))
+            ax.set_xticks(np.arange(self.endeff_x_range[0], self.endeff_x_range[1], 0.07))
             ax.set_yticks(np.linspace(self.endeff_y_range[0], self.endeff_y_range[1], 7))
             ax.set_xlabel(self.axis_labels[0], size=14)
             ax.set_ylabel(self.axis_labels[1], size=14)
@@ -308,7 +308,6 @@ class LeapWrapperPlotter(MDPPlotter):
         if puck_pos is not None:
             puck = plt.Circle(puck_pos, self.puck_radius, alpha=0.3,
                               color=self.target_salient_event_color, label="puck")
-            ipdb.set_trace()
             ax.add_patch(puck)
 
         # plot the puck and endeff starting positions.
