@@ -57,7 +57,7 @@ class LeapWrapperPlotter(MDPPlotter):
         # has already been plotted, false otherwise.
         self.final_initiation_set_has_been_plotted = []
 
-        super().__init__(task_name, experiment_name, ["initiation_set_plots", "value_function_plots", "option_policy_plots"])
+        super().__init__(task_name, experiment_name, ["initiation_set_plots", "value_function_plots", "option_policy_plots", "event_graphs"])
 
     def generate_episode_plots(self, chainer, episode):
         """
@@ -96,7 +96,6 @@ class LeapWrapperPlotter(MDPPlotter):
             # get policy from option solver
             arrow_points = self.arrow_points[i]
             vectors = np.array([option.solver.act(arrow, evaluation_mode=True) for arrow in arrow_points])
-            ipdb.set_trace()
 
             # plot quiver diagram
             ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1])

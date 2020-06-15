@@ -484,7 +484,7 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
 
     plt.xticks([]); plt.yticks([])
 
-    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
+    plt.savefig(f"plots/sawyer/{experiment_name}/event_graphs/event_graphs_episode_{kGraphIterationNumber}.png")
     plt.close()
 
     kGraphIterationNumber += 1
