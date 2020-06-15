@@ -104,7 +104,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
             # plot quiver diagram
             ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1], headlength=4, headwidth=2.6)
-            self._plot_sawyer_features(ax, puck_pos=tuple(arrow_points[0][3:]))
+            self._plot_sawyer_features(ax, puck_pos=arrow_points[0][3:])
 
         # save plot
         file_name = f"{option.solver.name}_policy_seed_{seed}_episode_{episode}.png"
@@ -112,11 +112,11 @@ class LeapWrapperPlotter(MDPPlotter):
         plt.close()
 
     def _get_arrow_points(self):
-        arm_x = np.linspace(-0.28, 0.28, 10)[1:-1]
-        arm_y = np.linspace(0.3, 0.9, 10)[1:-1]
+        arm_x = np.linspace(self.endeff_x_range[0], self.endeff_x_range[1], 10)[1:-1]
+        arm_y = np.linspace(self.endeff_y_range[0], self.endeff_y_range[1], 10)[1:-1]
         arm_z = [0.07]
         puck_x = np.linspace(self.puck_start[0], self.puck_goal[0], 3)[:-1]
-        puck_y = [0.06]
+        puck_y = [self.puck_goal[1]]
         meshes = [np.meshgrid(arm_x, arm_y, arm_z, [x], puck_y) for x in puck_x]
         return [np.column_stack(list(map(np.ravel, mesh))) for mesh in meshes], np.array(meshes[0])
 
