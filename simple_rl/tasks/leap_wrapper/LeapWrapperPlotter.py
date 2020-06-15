@@ -103,7 +103,7 @@ class LeapWrapperPlotter(MDPPlotter):
             vectors = np.array([option.solver.act(arrow, evaluation_mode=True) for arrow in arrow_points])
 
             # plot quiver diagram
-            ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1], headlength=4, headwidth=2)
+            ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1], headlength=4, headwidth=2.6)
             self._plot_sawyer_features(ax, puck_pos=arrow_points[0][3:])
 
         # save plot
@@ -407,7 +407,7 @@ class LeapWrapperPlotter(MDPPlotter):
         return avg.reshape((num_buckets_along_y, -1)).T
 
     @staticmethod
-    def _get_endeff_puck_grids(step=0.01):
+    def _get_endeff_puck_grids(step=0.02):
         """
         Make meshgrids (boundary rectangles) for plt.pcolormesh and get the center point of each rectangle.
         Args:
