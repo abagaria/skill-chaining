@@ -96,6 +96,7 @@ class LeapWrapperPlotter(MDPPlotter):
             # get policy from option solver
             arrow_points = self.arrow_points[i]
             vectors = np.array([option.solver.act(arrow, evaluation_mode=True) for arrow in arrow_points])
+            ipdb.set_trace()
 
             # plot quiver diagram
             ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1])
@@ -107,14 +108,12 @@ class LeapWrapperPlotter(MDPPlotter):
         plt.savefig(os.path.join(self.path, "option_policy_plots", file_name))
         plt.close()
 
-
     def _get_arrow_points(self):
         arm_x = np.linspace(-0.24, 0.24, 7)
         arm_y = np.arange(0.35, 0.85, 0.1)
         arm_z = [0.07]
         puck_x = np.linspace(self.puck_start[0], self.puck_goal[0], 3)[:-1]
         puck_y = [0.06]
-
         meshes = [np.meshgrid(arm_x, arm_y, arm_z, [x], puck_y) for x in puck_x]
         return [np.column_stack(list(map(np.ravel, mesh))) for mesh in meshes], np.array(meshes[0])
 
