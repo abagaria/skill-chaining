@@ -81,8 +81,6 @@ class LeapWrapperPlotter(MDPPlotter):
                     self.final_initiation_set_has_been_plotted[i] = True
 
     def _plot_option_policy(self, option, seed, episode):
-        ipdb.set_trace()
-
         num_graphs = len(self.arrow_points)
         fig, axs = plt.subplots(1, num_graphs, figsize=(num_graphs * 6, 6), sharey='all', constrained_layout=True)
         for i, ax in enumerate(axs):
@@ -100,7 +98,7 @@ class LeapWrapperPlotter(MDPPlotter):
             vectors = np.array([option.solver.act(arrow, evaluation_mode=True) for arrow in arrow_points])
 
             # plot quiver diagram
-            ax.quiver(self.arrow_mesh[:, 0], self.arrow_mesh[:, 1], vectors[:, 0], vectors[:, 1])
+            ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1])
 
         self._add_legend(axs[-1], option, include_target=True)
 
