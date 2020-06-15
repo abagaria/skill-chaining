@@ -24,6 +24,8 @@ class LeapWrapperPlotter(MDPPlotter):
         self.puck_goal = mdp.goal_state[3:]
 
         # bounds of possible endeff positions (smaller than possible puck positions)
+        self.endeff_x_range = (-0.28, 0.28)
+        self.endeff_y_range = (0.3, 0.9)
         self.endeff_box = np.array([[-0.28, 0.3], [-0.28, 0.9], [0.28, 0.9], [0.28, 0.3], [-0.28, 0.3]])
         self.puck_x_range = (-0.4, 0.4)
         self.puck_y_range = (0.2, 1.)
@@ -33,8 +35,9 @@ class LeapWrapperPlotter(MDPPlotter):
         # radius of the goal and salient events
         self.goal_tolerance = mdp.goal_tolerance
         self.salient_tolerance = mdp.salient_tolerance
+        self.puck_radius = mdp.env.puck_radius
 
-        # colors used for plotting sawyer features
+        # colors for plotting sawyer features
         self.positive_color = "b"
         self.negative_color = "r"
         self.target_salient_event_color = "green"
@@ -43,8 +46,7 @@ class LeapWrapperPlotter(MDPPlotter):
         # Used to plot pcolormesh for value function and initiation set plots. This is costly
         # to compute, so do it once when initializing the plotter.
         self.center_points, self.endeff_grid, self.puck_grid = self._get_endeff_puck_grids()
-
-        self.arrow_points = self._get_arrow_points()
+        self.arrow_points, self.arrow_mesh = self._get_arrow_points()
 
         # used when calculating average of value function when grouping by puck pos or endeff pos
         self.endeff_idx, self.endeff_cnt = self._setup_unique_weighted_average((0, 1))
@@ -83,15 +85,40 @@ class LeapWrapperPlotter(MDPPlotter):
 
         num_graphs = len(self.arrow_points)
         fig, axs = plt.subplots(1, num_graphs, figsize=(num_graphs * 6, 6), sharey='all', constrained_layout=True)
+        for i, ax in enumerate(axs):
+            # set up axis
+            ax.set_xlim(self.endeff_x_range)
+            ax.set_ylim(self.endeff_y_range)
+            ax.set_xticks(np.linspace(-0.3, 0.3, 7))
+            ax.set_yticks(np.linspace(self.endeff_y_range[0], self.endeff_y_range[1], 7))
+            ax.set_xlabel(self.axis_labels[0], size=14)
+            ax.set_ylabel(self.axis_labels[1], size=14)
+            self._plot_sawyer_features(ax)
+
+            # get policy from option solver
+            arrow_points = self.arrow_points[i]
+            vectors = np.array([option.solver.act(arrow, evaluation_mode=True) for arrow in arrow_points])
+
+            # plot quiver diagram
+            ax.quiver(self.arrow_mesh[:, 0], self.arrow_mesh[:, 1], vectors[:, 0], vectors[:, 1])
+
+        self._add_legend(axs[-1], option, include_target=True)
+
+        # save plot
+        file_name = f"{option.solver.name}_policy_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(self.path, "option_policy", file_name))
+        plt.close()
+
 
     def _get_arrow_points(self):
-        arm_x = np.arange(-0.25, 0.25, 0.1)
+        arm_x = np.linspace(-0.24, 0.24, 7)
         arm_y = np.arange(0.35, 0.85, 0.1)
         arm_z = [0.07]
         puck_x = np.linspace(self.puck_start[0], self.puck_goal[0], 3)[:-1]
         puck_y = [0.06]
 
-        return [np.column_stack(list(map(np.ravel, np.meshgrid(arm_x, arm_y, arm_z, [x], puck_y)))) for x in puck_x]
+        meshes = [np.meshgrid(arm_x, arm_y, arm_z, [x], puck_y) for x in puck_x]
+        return [np.column_stack(list(map(np.ravel, mesh))) for mesh in meshes], meshes[0]
 
     def get_value_function_values(self, solver):
         CHUNK_SIZE = 250
@@ -154,14 +181,14 @@ class LeapWrapperPlotter(MDPPlotter):
         ax1.set_title("Endeff Value Function", size=16)
         ax1.set_xlabel(self.axis_labels[0], size=14)
         ax1.set_ylabel(self.axis_labels[1], size=14)
-        self._plot_sawyer_features(ax1, option)
+        self._plot_sawyer_features(ax1, option=option)
 
         # plot value function with respect to puck pos
         ax2.pcolormesh(self.puck_grid[0], self.puck_grid[1], puck_z, norm=norm, cmap=cmap)
         ax2.set_title("Puck Value Function", size=16)
         ax2.set_xlabel(self.axis_labels[3], size=14)
         ax2.set_ylabel(self.axis_labels[4], size=14)
-        self._plot_sawyer_features(ax2, option)
+        self._plot_sawyer_features(ax2, option=option)
 
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
         plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
@@ -218,7 +245,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
         # plot end effector bounds, end effector start, puck start, puck goal, and option target
         for axis in axs.flatten():
-            self._plot_sawyer_features(axis, option)
+            self._plot_sawyer_features(axis, option=option)
 
         # plot legend and colorbar
         trajectories = "all" if len(option.negative_examples) > 0 else "positive"
@@ -247,7 +274,7 @@ class LeapWrapperPlotter(MDPPlotter):
             ax.set_aspect("equal")
         return fig, axs
 
-    def _plot_sawyer_features(self, ax, option=None):
+    def _plot_sawyer_features(self, ax, option=None, target_pos=None):
         """Plots the different Sawyer environment features.
 
         Plots the end effector box, puck goal (as a circle with radius = goal_tolerance),
@@ -272,8 +299,13 @@ class LeapWrapperPlotter(MDPPlotter):
 
         # plot salient event that this option is targeting
         if option is not None and option.target_salient_event is not None:
+            assert target_pos is None, "can either plot option target or provided target"
             target_puck_pos = option.target_salient_event.get_target_position()
             salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, alpha=0.3,
+                                       color=self.target_salient_event_color, label="target salient event")
+            ax.add_patch(salient_event)
+        elif target_pos is not None:
+            salient_event = plt.Circle(target_pos, self.puck_radius, alpha=0.3,
                                        color=self.target_salient_event_color, label="target salient event")
             ax.add_patch(salient_event)
 
@@ -282,7 +314,7 @@ class LeapWrapperPlotter(MDPPlotter):
         ax.scatter(self.true_hand_start[0], self.true_hand_start[1], color="k", label="true endeff start", marker="+", s=180)
         ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=400)
 
-    def _add_legend(self, ax, option, trajectories="none"):
+    def _add_legend(self, ax, option, trajectories="none", include_target=False):
         """
         Adds a legend to `ax`.
         Args:
@@ -309,7 +341,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
         handles = [endeff_box_marker, puck_goal_marker, puck_start_marker, effective_endeff_start_marker, true_endeff_start_marker]
 
-        if option.target_salient_event is not None:
+        if option.target_salient_event is not None or include_target:
             target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
                                            markersize=12, color=self.target_salient_event_color)
             handles.append(target_salient_marker)
