@@ -47,17 +47,29 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Sets the initial state
         self.reset()
 
+        # self.puck_start = (0., 0.6)
+        # self.endeff_x_range = (-0.28, 0.28)
+        # self.endeff_y_range = (0.3, 0.9)
+
         # endeff position is ignored by these salient events - just used when plotting initiation_sets
         salient_event_1 = np.zeros(5)
         salient_event_2 = np.zeros(5)
+        salient_event_3 = np.zeros(5)
+        salient_event_4 = np.zeros(5)
 
-        salient_event_1[3:] = [-0.1, 0.6]
-        salient_event_2[3:] = [-0.18, 0.6]
+        salient_event_1[3:] = [-.22, .4]
+        salient_event_2[3:] = [.02, .8]
+        salient_event_3[3:] = [-.03, 0.35]
+        salient_event_4[3:] = [.25, .6]
 
         salient_events = [
-            SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
+            SalientEvent(salient_event_1, 1, name='Puck goal 1',
                          tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
-            SalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
+            SalientEvent(salient_event_2, 2, name='Puck goal 2',
+                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
+            SalientEvent(salient_event_3, 2, name='Puck goal 3',
+                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
+            SalientEvent(salient_event_4, 2, name='Puck goal 4',
                          tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
         ]
 
