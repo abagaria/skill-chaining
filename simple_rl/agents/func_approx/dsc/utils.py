@@ -451,6 +451,7 @@ def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
     plt.close()
 
+
 def plot_effect_sets(options):
     plt.figure()
     for option in options:
@@ -460,34 +461,6 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
-kGraphIterationNumber = 0
-
-def visualize_graph(chains, experiment_name, plot_completed_events):
-
-    global kGraphIterationNumber
-
-    sns.set_style("white")
-
-    def _plot_event_pair(event1, event2):
-        x = [event1.target_state[0], event2.target_state[0]]
-        y = [event1.target_state[1], event2.target_state[1]]
-        plt.plot(x, y, "o-", c="black")
-
-    plt.figure()
-
-    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
-
-    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
-
-    for chain in forward_chains:
-        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
-
-    plt.xticks([]); plt.yticks([])
-
-    plt.savefig(f"plots/sawyer/{experiment_name}/event_graphs/event_graphs_episode_{kGraphIterationNumber}.png")
-    plt.close()
-
-    kGraphIterationNumber += 1
 
 def plot_dco_salient_event(ax, salient_event, states):
     option = salient_event.covering_option

@@ -2,6 +2,8 @@ import os
 import abc
 import pickle
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 import ipdb
 import torch
@@ -15,12 +17,12 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             experiment_name (str): The name of the current experiment, so we know where to save plots
             subdirectories (List[str]): List of subdirectories to make where plots will be saved
         """
-        if subdirectories is None:
-            subdirectories = []
-
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
-        for subdirectory in subdirectories:
-            self._create_log_dir(os.path.join(self.path, subdirectory))
+        if subdirectories is not None:
+            for subdirectory in subdirectories:
+                self._create_log_dir(os.path.join(self.path, subdirectory))
+
+        self.kGraphIterationNumber = 0
 
     @abc.abstractmethod
     def generate_episode_plots(self, chainer, episode):
@@ -93,6 +95,29 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             print("Creation of the directory %s failed" % os.path.join(os.getcwd(), directory_path))
         else:
             print("Successfully created the directory %s " % os.path.join(os.getcwd(), directory_path))
+
+    def visualize_graph(self, chains, experiment_name, plot_completed_events):
+        def _completed(chain):
+            return chain.is_chain_completed(chains) if plot_completed_events else True
+
+        def _plot_event_pair(event1, event2):
+            x = [event1.target_state[0], event2.target_state[0]]
+            y = [event1.target_state[1], event2.target_state[1]]
+            plt.plot(x, y, "o-", c="black")
+
+        plt.figure()
+        forward_chains = [chain for chain in chains if not chain.is_backward_chain and _completed(chain)]
+        with sns.axes_style("white"):
+            for chain in forward_chains:
+                _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
+
+            plt.xticks([])
+            plt.yticks([])
+
+        plt.savefig(f"plots/sawyer/{experiment_name}/event_graphs/event_graphs_episode_{self.kGraphIterationNumber}.png")
+        plt.close()
+
+        self.kGraphIterationNumber += 1
 
 
 def rotate_file_name(file_path):

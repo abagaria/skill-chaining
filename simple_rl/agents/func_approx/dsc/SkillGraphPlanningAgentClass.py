@@ -12,7 +12,7 @@ from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
+from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot
 
 
 class SkillGraphPlanningAgent(object):
@@ -423,7 +423,7 @@ class SkillGraphPlanningAgent(object):
             raise NotImplementedError("Option intersections")
 
         if chain.is_chain_completed(self.chainer.chains):
-            visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
+            self.chainer.plotter.visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
 
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
                         goal_salient_event, episode_number, step_number, eval_mode):
