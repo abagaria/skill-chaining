@@ -66,7 +66,7 @@ class MovieRenderer(object):
 
     def create_folder(self, folder):
         if folder is not None:
-            self.output_folder = folder
+            self.output_folder = f"{folder}/movies"
 
         try:
             os.makedirs(self.output_folder)
