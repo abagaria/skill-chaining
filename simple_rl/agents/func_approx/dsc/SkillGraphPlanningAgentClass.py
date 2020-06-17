@@ -422,7 +422,7 @@ class SkillGraphPlanningAgent(object):
             # 2. Add an each from each intersecting option to the newly_created_option
             raise NotImplementedError("Option intersections")
 
-        if chain.is_chain_completed(self.chainer.chains):
+        if chain.is_chain_completed(self.chainer.chains) and self.chainer.plotter is not None:
             self.chainer.plotter.visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
 
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
