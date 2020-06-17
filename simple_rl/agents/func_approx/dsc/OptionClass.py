@@ -667,12 +667,9 @@ class Option(object):
                 reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
                 if not warmup_phase or (self.name == "global_option" and self.update_global_solver):
-                    if self.name == "global_option":
-                        ipdb.set_trace()
                     self.update_option_solver(state, action, reward, next_state)
 
                 if self.name != "global_option" and self.update_global_solver:
-                    ipdb.set_trace()
                     self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
                     self.global_solver.update_epsilon()
 
