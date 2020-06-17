@@ -205,8 +205,8 @@ class LeapWrapperPlotter(MDPPlotter):
                         label="positive", c=self.positive_color, alpha=0.5, linewidth=1.5)
             for negative_trajectory in negative_trajectories:
                 negative_trajectory = np.array(negative_trajectory)
-                ax.plot(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx],
-                        label="negative", c=self.negative_color, alpha=0.5, linewidth=1.5)
+                ax.scatter(negative_trajectory[:, x_idx], negative_trajectory[:, y_idx],
+                           label="negative", c=self.negative_color, alpha=0.5)
             ax.set_title(f"{title} Trajectories", size=16)
             ax.set_xlabel(self.axis_labels[x_idx], size=14)
             ax.set_ylabel(self.axis_labels[y_idx], size=14)
