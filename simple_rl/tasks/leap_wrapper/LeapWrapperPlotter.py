@@ -198,7 +198,6 @@ class LeapWrapperPlotter(MDPPlotter):
         def _plot_trajectories(ax, title, x_idx, y_idx):
             positive_trajectories = option.positive_examples
             negative_trajectories = option.negative_examples
-            ipdb.set_trace()
             for positive_trajectory in positive_trajectories:
                 positive_trajectory = np.array(positive_trajectory)
                 ax.plot(positive_trajectory[:, x_idx], positive_trajectory[:, y_idx],
