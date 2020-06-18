@@ -18,7 +18,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
     """ Class for Leap Wrapper MDPs """
 
     def __init__(self, episode_length, dense_reward=False, render=False, generate_n_clips=10,
-                 wait_n_episodes_between_clips=0):
+                 wait_n_episodes_between_clips=0, movie_output_folder=""):
         self.env_name = "sawyer"
         self.dense_reward = dense_reward
         self.render = render
@@ -32,7 +32,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                 self.movie_width,
                 self.movie_height,
                 3,
-                output_folder="movies",
+                output_folder=f"{movie_output_folder}/movies",
                 num_clips=generate_n_clips,
                 wait_between_clips=episode_length * wait_n_episodes_between_clips)
 
