@@ -480,3 +480,4 @@ if __name__ == "__main__":
                                     plotter=mdp_plotter)
 
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)
+    ipdb.set_trace()
