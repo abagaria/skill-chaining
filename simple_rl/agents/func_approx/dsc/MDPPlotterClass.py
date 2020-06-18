@@ -1,16 +1,16 @@
 import os
 import abc
 import pickle
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-import ipdb
 import torch
+import ipdb
 
 
 class MDPPlotter(metaclass=abc.ABCMeta):
-    def __init__(self, task_name, experiment_name, subdirectories=None):
+    def __init__(self, task_name, experiment_name, subdirectories):
         """
         Args:
             task_name (str): The name of the current task, so we know where to save plots
@@ -18,9 +18,9 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             subdirectories (List[str]): List of subdirectories to make where plots will be saved
         """
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
-        if subdirectories is not None:
-            for subdirectory in subdirectories:
-                self._create_log_dir(os.path.join(self.path, subdirectory))
+        subdirectories.append("event_graphs")
+        for subdirectory in subdirectories:
+            self._create_log_dir(os.path.join(self.path, subdirectory))
 
         self.kGraphIterationNumber = 0
 
@@ -96,7 +96,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         else:
             print("Successfully created the directory %s " % os.path.join(os.getcwd(), directory_path))
 
-    def visualize_graph(self, chains, experiment_name, plot_completed_events):
+    def visualize_graph(self, chains, plot_completed_events):
         def _completed(chain):
             return chain.is_chain_completed(chains) if plot_completed_events else True
 
@@ -114,10 +114,16 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             plt.xticks([])
             plt.yticks([])
 
-        plt.savefig(f"plots/sawyer/{experiment_name}/event_graphs/event_graphs_episode_{self.kGraphIterationNumber}.png")
+        file_name = f"event_graphs_episode_{self.kGraphIterationNumber}.png"
+        plt.savefig(os.path.join(self.path, "event_graphs", file_name))
         plt.close()
 
         self.kGraphIterationNumber += 1
+
+    def save_args(self):
+        f = open(os.path.join(self.path, "run_command.txt"), 'w')
+        f.write(' '.join(str(arg) for arg in sys.argv))
+        f.close()
 
 
 def rotate_file_name(file_path):
@@ -130,6 +136,3 @@ def rotate_file_name(file_path):
         return file_path
     else:
         return file_path
-
-
-
