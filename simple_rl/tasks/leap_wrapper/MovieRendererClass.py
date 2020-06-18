@@ -18,14 +18,7 @@ class MovieRenderer(object):
                  wait_between_clips=0):
 
         self.output_folder = output_folder
-        try:
-            os.mkdir(self.output_folder)
-            print(f"Created directory: {os.path.join(os.getcwd(), self.output_folder)}")
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                ipdb.set_trace()
-            else:
-                print(f"Failed to create directory: {os.path.join(os.getcwd(), self.output_folder)}")
+        self._folder_made = False
 
         self.clip_name = clip_name
         self.framerate = framerate
@@ -71,7 +64,25 @@ class MovieRenderer(object):
         if self.clip_index < self.num_clips and not self._should_wait():
             self._add_frame(frame)
 
+    def create_folder(self, folder):
+        if folder is not None:
+            self.output_folder = f"{folder}/movies"
+
+        try:
+            os.makedirs(self.output_folder)
+            print(f"Created directory: {os.path.join(os.getcwd(), self.output_folder)}")
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                ipdb.set_trace()
+            else:
+                print(f"Failed to create directory: {os.path.join(os.getcwd(), self.output_folder)}")
+        
+        self._folder_made = True
+
     def _save_movie(self):
+        if not self._folder_made:
+            self.create_folder(None)
+
         imageio.mimwrite(
             os.path.join(self.output_folder, f'{self.clip_name}_{self.clip_index + 1}.mp4'),
             self.movie,
