@@ -431,3 +431,20 @@ class LeapWrapperPlotter(MDPPlotter):
         center_points = np.column_stack(list(map(np.ravel, np.meshgrid(*center_points))))
 
         return center_points, endeff_grid, puck_grid
+
+    def visualize_ddpg_replay_buffer(self, solver, episode, seed, logdir):
+        fig, (ax1, ax2) = self._setup_plot((1, 2))
+        fig.suptitle(f"{solver.name} Replay Buffer Value Function Plot")
+
+
+        states = np.array([exp[0] for exp in solver.replay_buffer.memory])
+        actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
+        states_tensor = torch.from_numpy(states).float().to(solver.device)
+        actions_tensor = torch.from_numpy(actions).float().to(solver.device)
+        qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
+        plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+        plt.colorbar()
+        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(logdir, "replay_buffer", file_name))
+        plt.close()
+

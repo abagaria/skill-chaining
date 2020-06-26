@@ -8,14 +8,14 @@ from copy import copy
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state,
-                 salient_events, task_agnostic, goal_state=None, goal_tolerance=0.6, start_tolerance=0.6):
+                 salient_events, task_agnostic, goal_state=None, goal_tolerance=0.6, start_tolerance=0.6, dense_reward=False):
 
         self._salient_events = salient_events
         self.task_agnostic = task_agnostic
         self.goal_tolerance = goal_tolerance
         self._start_tolerance = start_tolerance
         self.goal_state = goal_state
-        self.dense_reward = False
+        self.dense_reward = dense_reward
 
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state
