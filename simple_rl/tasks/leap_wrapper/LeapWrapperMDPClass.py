@@ -41,7 +41,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=dense_reward,
-                            goal_tolerance=self.goal_tolerance, task_agnostic=task_agnostic, goal=(0.15, 0.6, 0.02, -0.23, 0.6))
+                            goal_tolerance=self.goal_tolerance, task_agnostic=task_agnostic, goal=(0.15, 0.6, 0.02, -0.2, 0.6))
         self.goal_state = self.env.get_goal()['state_desired_goal']
         ipdb.set_trace()
 
@@ -51,17 +51,14 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # endeff position is ignored by these salient events - just used when plotting initiation_sets
         salient_event_1 = np.zeros(5)
         salient_event_2 = np.zeros(5)
-        salient_event_3 = np.zeros(5)
         salient_event_1[3:] = [-0.11, 0.6]
         salient_event_2[3:] = [-0.15, 0.6]
-        salient_event_3[3:] = [-0.2, 0.6]
 
         salient_events = [
-            SalientEvent(salient_event_1, 1, name='Puck to goal 1/4',
+            SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
                          tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
-            SalientEvent(salient_event_2, 2, name='Puck to goal 2/4',
-                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
-            SalientEvent(salient_event_3, 3, name='Puck to goal 3/4', tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
+            SalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
+                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
         ]
 
         action_dims = range(self.env.action_space.shape[0])
