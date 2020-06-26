@@ -43,7 +43,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=dense_reward,
                             goal_tolerance=self.goal_tolerance, task_agnostic=task_agnostic, goal=(0.15, 0.6, 0.02, -0.2, 0.6))
         self.goal_state = self.env.get_goal()['state_desired_goal']
-        ipdb.set_trace()
 
         # Sets the initial state
         self.reset()
