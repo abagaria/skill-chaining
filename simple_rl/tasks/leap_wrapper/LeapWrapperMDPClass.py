@@ -137,13 +137,14 @@ class LeapWrapperMDP(GoalDirectedMDP):
         size = (self.action_space_size(),)
         return np.random.uniform(-1., 1., size=size)
 
-    def sample_salient_event(self):
+    def sample_salient_event(self, episode):
         event_idx = len(self.all_salient_events_ever) + 1
         target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
         return SalientEvent(target_state=target_state,
                             event_idx=event_idx,
                             tolerance=self.salient_tolerance,
-                            get_relevant_position=get_puck_pos)
+                            get_relevant_position=get_puck_pos,
+                            name=f"RRT Salient Episode {episode}")
 
 
 def get_endeff_pos(state):
