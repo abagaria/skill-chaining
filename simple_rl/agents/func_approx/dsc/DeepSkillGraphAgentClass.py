@@ -182,8 +182,8 @@ class DeepSkillGraphAgent(object):
             # target_state = self.mdp.sample_random_state()[:2]
             salient_event = SalientEvent(target_state=target_state,
                                          event_idx=event_idx,
-                                         tolerance=0.6,
-                                         intersection_event=False)
+                                         tolerance=self.mdp.salient_tolerance,
+                                         get_relevant_position=self.mdp.get_puck_pos)
             self.add_salient_event(salient_event, episode)
             print(f"Generated {salient_event}")
 
@@ -412,9 +412,12 @@ if __name__ == "__main__":
         action_dim = 2
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
+        task_agnostic = 'agnostic' in args.env.lower()
 
         overall_mdp = LeapWrapperMDP(
-            args.steps,
+            task_agnostic=task_agnostic,
+            episode_length=args.steps,
+            use_hard_coded_events=args.use_hard_coded_events,
             dense_reward=args.dense_reward,
             render=args.render,
             generate_n_clips=args.generate_n_clips,

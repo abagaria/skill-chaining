@@ -17,12 +17,12 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 class LeapWrapperMDP(GoalDirectedMDP):
     """ Class for Leap Wrapper MDPs """
 
-    def __init__(self, episode_length, dense_reward=False, render=False, generate_n_clips=10,
-                 wait_n_episodes_between_clips=0, movie_output_folder=""):
+    def __init__(self, episode_length, use_hard_coded_events, render, dense_reward, generate_n_clips,
+                 wait_n_episodes_between_clips, movie_output_folder, task_agnostic):
         self.env_name = "sawyer"
         self.render = render
-        task_agnostic = False
         dense_reward = False
+        ipdb.set_trace()
 
         if self.render:
             self.movie_width = 512
@@ -48,18 +48,21 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Sets the initial state
         self.reset()
 
-        # endeff position is ignored by these salient events - just used when plotting initiation_sets
-        salient_event_1 = np.zeros(5)
-        salient_event_2 = np.zeros(5)
-        salient_event_1[3:] = [-0.11, 0.6]
-        salient_event_2[3:] = [-0.15, 0.6]
+        salient_events = []
 
-        salient_events = [
-            SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
-                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
-            SalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
-                         tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
-        ]
+        if use_hard_coded_events:
+            # endeff position is ignored by these salient events - just used when plotting initiation_sets
+            salient_event_1 = np.zeros(5)
+            salient_event_2 = np.zeros(5)
+            salient_event_1[3:] = [-0.11, 0.6]
+            salient_event_2[3:] = [-0.15, 0.6]
+
+            salient_events = [
+                SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
+                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
+                SalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
+                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
+            ]
 
         action_dims = range(self.env.action_space.shape[0])
         GoalDirectedMDP.__init__(self,
