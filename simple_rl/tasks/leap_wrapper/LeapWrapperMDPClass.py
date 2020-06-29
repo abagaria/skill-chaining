@@ -22,6 +22,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env_name = "sawyer"
         self.render = render
         task_agnostic = False
+        dense_reward = False
 
         if self.render:
             self.movie_width = 512
