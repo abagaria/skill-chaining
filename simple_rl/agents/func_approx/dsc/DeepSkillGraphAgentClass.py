@@ -177,13 +177,8 @@ class DeepSkillGraphAgent(object):
             #                                   reject_high,
             #                                   self.experiment_name)
         else:
-            event_idx = len(self.mdp.all_salient_events_ever) + 1
-            target_state = self.mdp.sample_random_state()
-            # target_state = self.mdp.sample_random_state()[:2]
-            salient_event = SalientEvent(target_state=target_state,
-                                         event_idx=event_idx,
-                                         tolerance=self.mdp.salient_tolerance,
-                                         get_relevant_position=self.mdp.get_puck_pos)
+            salient_event = self.mdp.sample_salient_event()
+            ipdb.set_trace()
             self.add_salient_event(salient_event, episode)
             print(f"Generated {salient_event}")
 
@@ -224,10 +219,11 @@ class DeepSkillGraphAgent(object):
         return False
 
     def should_generate_new_salient_event(self, episode):
-        if episode < 5:
-            return False
-        elif episode == 5:
-            return True
+        return True
+        # if episode < 5:
+        #     return False
+        # elif episode == 5:
+        #     return True
 
         def _events_chained(low_event, high_event):
             chains = self.dsc_agent.chains
