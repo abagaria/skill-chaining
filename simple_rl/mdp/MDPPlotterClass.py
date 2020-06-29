@@ -18,6 +18,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             subdirectories (List[str]): List of subdirectories to make where plots will be saved
         """
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
+        self.save_args()
         subdirectories.append("event_graphs")
         for subdirectory in subdirectories:
             self._create_log_dir(os.path.join(self.path, subdirectory))

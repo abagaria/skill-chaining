@@ -9,24 +9,17 @@ from collections import deque, defaultdict
 from copy import deepcopy
 import ipdb
 import argparse
-import os
 import random
-import numpy as np
 from tensorboardX import SummaryWriter
-import torch
-import itertools
-from tqdm import tqdm
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
-from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent
-from simple_rl.agents.func_approx.dsc.MDPPlotterClass import MDPPlotter
 
 
 class SkillChaining(object):

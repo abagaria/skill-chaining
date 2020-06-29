@@ -1,9 +1,7 @@
 import os
-from pathlib import Path
-from simple_rl.agents.func_approx.dsc.MDPPlotterClass import MDPPlotter
+from simple_rl.mdp.MDPPlotterClass import MDPPlotter
 import numpy as np
 import torch
-import matplotlib
 import matplotlib.pyplot as plt
 
 

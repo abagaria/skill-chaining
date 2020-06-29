@@ -579,10 +579,7 @@ class Option(object):
 
         # For global and parent option, we use the negative distance to the goal state
         if self.parent is None:
-            goal_state = self.target_salient_event.target_state
-            goal_position = goal_state.features() if isinstance(goal_state, State) else goal_state
-            # goal_position = goal_state.features()[:2] if isinstance(goal_state, State) else goal_state[:2]
-            distance_to_goal = np.linalg.norm(position_vector - goal_position)
+            distance_to_goal = self.target_salient_event.distance_from_goal(position_vector)
             return -distance_to_goal
 
         # For every other option, we use the negative distance to the parent's initiation set classifier
@@ -657,6 +654,7 @@ class Option(object):
 
             if self.is_term_true(state) or state.is_terminal():
                 if step_number == 0 or num_steps == 0:
+                    # failed to reset the option after reaching a terminal state
                     ipdb.set_trace()
 
             while not self.is_term_true(state) and not state.is_terminal() and \

@@ -131,6 +131,11 @@ class SalientEvent(object):
         else:
             return f"SalientEvent targeting {self.target_state} | {self.name}"
 
+    def distance_from_goal(self, state):
+        goal_state = self.get_relevant_position(self.target_state)
+        curr_positions = self.get_relevant_position(state)
+        return np.linalg.norm(goal_state - curr_positions)
+
 
 class LearnedSalientEvent(SalientEvent):
     def __init__(

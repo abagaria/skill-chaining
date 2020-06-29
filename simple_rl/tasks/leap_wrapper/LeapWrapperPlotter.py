@@ -5,9 +5,8 @@ import torch
 from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-import ipdb
 
-from simple_rl.agents.func_approx.dsc.MDPPlotterClass import MDPPlotter
+from simple_rl.mdp.MDPPlotterClass import MDPPlotter
 
 
 class LeapWrapperPlotter(MDPPlotter):
@@ -58,7 +57,7 @@ class LeapWrapperPlotter(MDPPlotter):
         self.final_initiation_set_has_been_plotted = []
 
         super().__init__(task_name, experiment_name,
-                         ["initiation_set_plots", "value_function_plots", "option_policy_plots", "event_graphs"])
+                         ["initiation_set_plots", "value_function_plots", "option_policy_plots"])
 
     def generate_episode_plots(self, chainer, episode):
         """
