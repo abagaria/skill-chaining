@@ -22,7 +22,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env_name = "sawyer"
         self.render = render
         dense_reward = False
-        ipdb.set_trace()
 
         if self.render:
             self.movie_width = 512
@@ -139,7 +138,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         return np.random.uniform(-1., 1., size=size)
 
     def sample_random_state(self):
-        ipdb.set_trace()
         return np.random.uniform(self.env.goal_low, self.env.goal_high)
 
 
