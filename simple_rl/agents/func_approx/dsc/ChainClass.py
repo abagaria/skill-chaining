@@ -17,8 +17,8 @@ class SkillChain(object):
         Args:
             start_states (list): List of states at which chaining stops
             mdp_start_states (list): list of MDP start states, if distinct from `start_states`
-            init_salient_event (BaseSalientEvent): f: s -> {0, 1} based on start salience
-            target_salient_event (BaseSalientEvent): f: s -> {0, 1} based on target salience
+            init_salient_event (SalientEvent): f: s -> {0, 1} based on start salience
+            target_salient_event (SalientEvent): f: s -> {0, 1} based on target salience
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
             intersecting_options (list): List of options whose initiation sets overlap
@@ -216,8 +216,7 @@ class SkillChain(object):
             elif len(intersecting_events) > 1:
                 # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
                 # TODO: Eventually change this back to target_position instead of target_state
-                target_states = [event.target_state for event in intersecting_events]
-                distances = [np.linalg.norm(s - self.get_target_position()) for s in target_states]
+                distances = [self.target_salient_event.distance_from_goal(event.target_state) for event in intersecting_events]
                 best_idx = np.argmin(distances)
                 best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
                 closest_event = intersecting_events[best_idx]
@@ -260,11 +259,11 @@ class SkillChain(object):
         return [option for option in self.options if option.parent is None]
 
     def get_target_position(self):
-        return self._get_position(self.target_position)
+        return self._get_position(self.target_salient_event.target_state)
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state
+        position = state.features() if isinstance(state, State) else state
         # position = state.position if isinstance(state, State) else state[:2]
         assert isinstance(position, np.ndarray), type(position)
         return position
