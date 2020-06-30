@@ -2,6 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from copy import copy
 from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
@@ -229,12 +230,9 @@ class LeapWrapperPlotter(MDPPlotter):
         endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
         puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
 
-        import warnings
-        warnings.simplefilter('error', UserWarning)
-        ipdb.set_trace()
         endeff_inits = np.ma.masked_where(endeff_inits == 1, endeff_inits)
-        puck_inits = np.ma.masked_where(puck_inits == 1, puck_inits)
-        cmap = plt.get_cmap('Blues')
+        puck_inits = np.ma.masked_where(puck_inits == 0, puck_inits)
+        cmap = copy(plt.get_cmap('Blues'))
         cmap.set_bad(color='k', alpha=1.)
 
         fig, axs = self._setup_plot((2, 2))
