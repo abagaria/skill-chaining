@@ -235,7 +235,7 @@ class LeapWrapperPlotter(MDPPlotter):
         endeff_inits = np.ma.masked_where(endeff_inits == 1, endeff_inits)
         puck_inits = np.ma.masked_where(puck_inits == 1, puck_inits)
         cmap = plt.get_cmap('Blues')
-        cmap.set_bad(color='k', alpha=0.)
+        cmap.set_bad(color='k', alpha=1.)
 
         fig, axs = self._setup_plot((2, 2))
         fig.suptitle(f"{option.name} Initiation Set", size=24)
