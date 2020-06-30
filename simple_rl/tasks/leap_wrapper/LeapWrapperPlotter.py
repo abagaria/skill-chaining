@@ -5,6 +5,7 @@ import torch
 from matplotlib.lines import Line2D
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
+import ipdb
 
 from simple_rl.mdp.MDPPlotterClass import MDPPlotter
 
@@ -227,7 +228,9 @@ class LeapWrapperPlotter(MDPPlotter):
         boolean_mesh = option.batched_is_init_true(self.center_points)
         endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
         puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
-        cmap = "Blues"
+        cmap = plt.get_cmap('Blues')
+        cmap.set_bad(color='k', alpha=0.)
+        ipdb.set_trace()
 
         fig, axs = self._setup_plot((2, 2))
         fig.suptitle(f"{option.name} Initiation Set", size=24)
