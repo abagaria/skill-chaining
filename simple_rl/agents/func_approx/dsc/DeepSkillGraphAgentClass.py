@@ -423,7 +423,8 @@ if __name__ == "__main__":
             from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
 
             mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
-            overall_mdp.movie_renderer.create_folder(mdp_plotter.path)
+            if args.render:
+                overall_mdp.movie_renderer.create_folder(mdp_plotter.path)
 
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP
