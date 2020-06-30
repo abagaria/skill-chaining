@@ -76,12 +76,12 @@ class LeapWrapperPlotter(MDPPlotter):
             self._plot_value_function(option, chainer.seed, episode)
             self._plot_option_policy(option, chainer.seed, episode)
 
-            if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
-                    option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
-                self._plot_initiation_sets(option, episode)
+            # if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
+            #         option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
+            self._plot_initiation_sets(option, episode)
 
-                if option.get_training_phase() == "initiation_done":
-                    self.final_initiation_set_has_been_plotted[i] = True
+            if option.get_training_phase() == "initiation_done":
+                self.final_initiation_set_has_been_plotted[i] = True
 
     def _plot_option_policy(self, option, seed, episode):
         print(f"plotting {option.name}'s policy")
@@ -254,7 +254,7 @@ class LeapWrapperPlotter(MDPPlotter):
         plt.close()
 
     def _setup_plot(self, shape):
-        GRAPH_WIDTH = 5
+        GRAPH_WIDTH = 6
         # set up figure and axes
         fig, axs = plt.subplots(shape[0], shape[1], sharex='all', sharey='all', constrained_layout=True)
         fig.set_size_inches(shape[1] * GRAPH_WIDTH, shape[0] * GRAPH_WIDTH)
@@ -263,7 +263,7 @@ class LeapWrapperPlotter(MDPPlotter):
         ax = axs.flat[0]
         ax.set_xlim(self.axis_x_range)
         ax.set_ylim(self.axis_y_range)
-        ax.set_xticks(np.linspace(self.axis_x_range[0], self.axis_x_range[1], 7))
+        ax.set_xticks(np.linspace(self.axis_x_range[0], self.axis_x_range[1], 8))
         ax.set_yticks(np.linspace(self.axis_y_range[0], self.axis_y_range[1], 7))
 
         for ax in axs.flatten():
