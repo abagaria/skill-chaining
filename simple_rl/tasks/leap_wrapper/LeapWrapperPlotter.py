@@ -228,6 +228,10 @@ class LeapWrapperPlotter(MDPPlotter):
         boolean_mesh = option.batched_is_init_true(self.center_points)
         endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
         puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
+
+        import warnings
+        warnings.simplefilter('error', UserWarning)
+        ipdb.set_trace()
         endeff_inits = np.ma.masked_where(endeff_inits == 1, endeff_inits)
         puck_inits = np.ma.masked_where(puck_inits == 1, puck_inits)
         cmap = plt.get_cmap('Blues')
