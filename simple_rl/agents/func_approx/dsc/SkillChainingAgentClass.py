@@ -23,7 +23,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, Lea
 
 
 class SkillChaining(object):
-    def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, max_num_options=5,
+    def __init__(self, mdp, max_steps, lr_actor, lr_critic, ddpg_batch_size, device, constant_noise, max_num_options=5,
                  subgoal_reward=0., enable_option_timeout=True, buffer_length=20, num_subgoal_hits_required=3,
                  classifier_type="ocsvm", init_q=None, use_full_smdp_update=False,
                  start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
@@ -38,6 +38,7 @@ class SkillChaining(object):
             lr_critic (float): Learning rate for DDPG Critic
             ddpg_batch_size (int): Batch size for DDPG agents
             device (str): torch device {cpu/cuda:0/cuda:1}
+            constant_noise (bool): Should options take a random action a fixed % of time
             subgoal_reward (float): Hitting a subgoal must yield a supplementary reward to enable local policy
             enable_option_timeout (bool): whether or not the option times out after some number of steps
             buffer_length (int): size of trajectories used to train initiation sets of options
@@ -86,6 +87,7 @@ class SkillChaining(object):
         self.experiment_name = experiment_name
         self.plotter = plotter
         Option.fixed_epsilon = fixed_option_epsilon
+        Option.consant_noise = constant_noise
         self.init_dqn_epsilon = init_dqn_epsilon
 
         tensor_name = "runs/{}_{}".format(self.experiment_name, seed)

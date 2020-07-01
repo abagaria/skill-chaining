@@ -20,6 +20,7 @@ from simple_rl.mdp.StateClass import State
 
 class Option(object):
     fixed_epsilon = False
+    constant_noise = False
 
     def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm", subgoal_reward=0.,
                  max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20, dense_reward=False,
@@ -144,14 +145,16 @@ class Option(object):
         return not self == other
 
     def _get_epsilon_greedy_epsilon(self):
-        if "point" in self.overall_mdp.env_name:
-            return 0.1
-        elif "ant" in self.overall_mdp.env_name:
-            return 0.25
-        elif "sawyer" in self.overall_mdp.env_name:
-            return 0.
-        else:
-            raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
+        if self.constant_noise:
+            if "point" in self.overall_mdp.env_name:
+                return 0.1
+            elif "ant" in self.overall_mdp.env_name:
+                return 0.25
+            elif "sawyer" in self.overall_mdp.env_name:
+                return 0.25
+            else:
+                raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
+        return 0.
 
     def act(self, state, eval_mode, warmup_phase):
         """ Epsilon greedy action selection when in training mode. """

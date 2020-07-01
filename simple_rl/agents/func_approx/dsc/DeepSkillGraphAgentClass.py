@@ -361,6 +361,7 @@ if __name__ == "__main__":
     parser.add_argument("--generate_n_clips", type=int, help="The number of run clips to generate", default=10)
     parser.add_argument("--wait_n_episodes_between_clips", type=int, help="The number of episodes to wait between clip generation",
                         default=0)
+    parser.add_argument("--constant_noise", action="store_true", help="options will take a random action a fixed % of time", default=False)
     args = parser.parse_args()
 
     mdp_plotter = None
@@ -447,6 +448,7 @@ if __name__ == "__main__":
     q0 = 0. if args.init_q == "zero" else None
 
     chainer = SkillChaining(overall_mdp, args.steps, args.lr_a, args.lr_c, args.ddpg_batch_size,
+                            constant_noise=args.constant_noise,
                             seed=args.seed, subgoal_reward=args.subgoal_reward,
                             num_subgoal_hits_required=args.num_subgoal_hits,
                             enable_option_timeout=args.option_timeout, init_q=q0,
