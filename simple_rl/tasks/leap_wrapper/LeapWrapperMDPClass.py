@@ -109,6 +109,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         return reward, next_state
 
     def is_goal_state(self, state):
+        if self.task_agnostic:
+            return False
         if isinstance(state, LeapWrapperState):
             return state.is_terminal()
         return self.env.is_goal_state(state)
