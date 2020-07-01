@@ -64,19 +64,19 @@ class LeapWrapperPlotter(MDPPlotter):
         super().__init__(task_name, experiment_name,
                          ["initiation_set_plots", "value_function_plots", "option_policy_plots"])
 
-    def generate_episode_plots(self, chainer, episode):
+    def generate_episode_plots(self, dsc_agent, episode):
         """
         Args:
-            chainer (SkillChainingAgent): the skill chaining agent we want to plot
+            dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
             episode (int)
         """
         # only want to plot the final initiation set of each option once
-        while len(self.final_initiation_set_has_been_plotted) < len(chainer.trained_options):
+        while len(self.final_initiation_set_has_been_plotted) < len(dsc_agent.trained_options):
             self.final_initiation_set_has_been_plotted.append(False)
 
-        for i, option in enumerate(chainer.trained_options):
-            self._plot_value_function(option, chainer.seed, episode)
-            self._plot_option_policy(option, chainer.seed, episode)
+        for i, option in enumerate(dsc_agent.trained_options):
+            self._plot_value_function(option, dsc_agent.seed, episode)
+            self._plot_option_policy(option, dsc_agent.seed, episode)
 
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:

@@ -93,24 +93,24 @@ class AntMazePlotter(MDPPlotter):
         plt.savefig(os.path.join(self.path, file_name))
         plt.close()
 
-    def generate_episode_plots(self, chainer, episode):
-        self.visualize_best_option_to_take(chainer.agent_over_options, episode, chainer.seed)
+    def generate_episode_plots(self, dsc_agent, episode):
+        self.visualize_best_option_to_take(dsc_agent.agent_over_options, episode, dsc_agent.seed)
 
-        for option in chainer.trained_options:
-            self.visualize_ddpg_shaped_rewards(chainer.global_option, option, episode, chainer.seed)
-            self.visualize_dqn_shaped_rewards(chainer.agent_over_options, option, episode, chainer.seed)
+        for option in dsc_agent.trained_options:
+            self.visualize_ddpg_shaped_rewards(dsc_agent.global_option, option, episode, dsc_agent.seed)
+            self.visualize_dqn_shaped_rewards(dsc_agent.agent_over_options, option, episode, dsc_agent.seed)
 
-    def generate_experiment_plots(self, chainer):
-        for option in chainer.trained_options:
+    def generate_experiment_plots(self, dsc_agent):
+        for option in dsc_agent.trained_options:
             self.visualize_dqn_replay_buffer(option.solver)
 
-        for i, o in enumerate(chainer.trained_options):
-            plt.subplot(1, len(chainer.trained_options), i + 1)
-            plt.plot(chainer.option_qvalues[o.name])
+        for i, o in enumerate(dsc_agent.trained_options):
+            plt.subplot(1, len(dsc_agent.trained_options), i + 1)
+            plt.plot(dsc_agent.option_qvalues[o.name])
             plt.title(o.name)
-        file_name = "sampled_q_so_{}.png".format(chainer.seed)
+        file_name = "sampled_q_so_{}.png".format(dsc_agent.seed)
         plt.savefig(os.path.join(self.path, file_name))
         plt.close()
 
-        for option in chainer.trained_options:
+        for option in dsc_agent.trained_options:
             self.visualize_next_state_reward_heat_map(option.solver, -1)

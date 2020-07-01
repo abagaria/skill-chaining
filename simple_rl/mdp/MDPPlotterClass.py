@@ -1,3 +1,4 @@
+import csv
 import os
 import abc
 import pickle
@@ -18,17 +19,17 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             subdirectories (List[str]): List of subdirectories to make where plots will be saved
         """
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
-        subdirectories.append("event_graphs")
+        subdirectories.extend(["final_csv", "event_graphs"])
         for subdirectory in subdirectories:
             self._create_log_dir(os.path.join(self.path, subdirectory))
         self.save_args()
         self.kGraphIterationNumber = 0
 
     @abc.abstractmethod
-    def generate_episode_plots(self, chainer, episode):
+    def generate_episode_plots(self, dsc_agent, episode):
         """
         Args:
-            chainer (SkillChainingAgent): the skill chaining agent we want to plot
+            dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
             episode (int): the current episode
         """
         # initiation set
@@ -37,17 +38,17 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # high level shaped rewards
         pass
 
-    def generate_experiment_plots(self, chainer, pretrained, scores, durations):
+    def generate_experiment_plots(self, dsc_agent, pretrained, scores, durations):
         """
         Args:
             durations:
             scores:
             pretrained:
-            chainer (SkillChainingAgent): the skill chaining agent we want to plot
+            dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
         """
         print("\rSaving training and validation scores..")
 
-        base_file_name = f"_pretrained_{pretrained}_seed_{chainer.seed}.pkl"
+        base_file_name = f"_pretrained_{pretrained}_seed_{dsc_agent.seed}.pkl"
         training_scores_file_name = os.path.join(self.path, "training_scores", base_file_name)
         training_durations_file_name = os.path.join(self.path, "training_durations", base_file_name)
         validation_scores_file_name = os.path.join(self.path, "validation_scores", base_file_name)
@@ -58,9 +59,33 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         with open(training_durations_file_name, "wb+") as _f:
             pickle.dump(durations, _f)
         with open(validation_scores_file_name, "wb+") as _f:
-            pickle.dump(chainer.validation_scores, _f)
+            pickle.dump(dsc_agent.validation_scores, _f)
         with open(num_option_history_file_name, "wb+") as _f:
-            pickle.dump(chainer.num_options_history, _f)
+            pickle.dump(dsc_agent.num_options_history, _f)
+
+    def save_option_successes(self, dsc_agent):
+        def write_options_csv():
+            fields = ['option', 'salient event', 'num_goal_hits', 'num_executions', 'success_rate']
+            rows = [(o.name,
+                     o.target_salient_event.name if o.target_salient_event is not None else None,
+                     o.num_goal_hits,
+                     o.num_executions,
+                     o.get_option_success_rate()) for o in dsc_agent.trained_options]
+            with open(os.path.join(self.path, "final_csv", "option_results.csv"), "w") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(fields)
+                csv_writer.writerows(rows)
+
+        def write_chains_csv():
+            fields = ['chain', 'is_completed']
+            rows = [(str(chain), chain.is_chain_completed(dsc_agent.chains)) for chain in dsc_agent.chains]
+            with open(os.path.join(self.path, "final_csv", "chain_results.csv"), "w") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(fields)
+                csv_writer.writerows(rows)
+
+        write_options_csv()
+        write_chains_csv()
 
     @staticmethod
     def _get_qvalues(solver, replay_buffer):
