@@ -3,13 +3,11 @@ import argparse
 import random
 from copy import deepcopy
 
-from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent, DCOSalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DCOSalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillGraphPlanningAgent
-from simple_rl.agents.func_approx.dsc.utils import *
-from simple_rl.mdp import MDP, State
+from simple_rl.mdp import State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 
 
@@ -150,29 +148,29 @@ class DeepSkillGraphAgent(object):
 
         if self.use_dco:
             ipdb.set_trace()
-            c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-                                       num_training_steps=1000,
-                                       option_idx=c_option_idx,
-                                       name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
-                                       threshold=self.threshold,
-                                       beta=0.1)
-            # use_xy_prior=self.dco_use_xy_prior)
-
-            low_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
-            reject_low = self.add_salient_event(low_salient_event, episode)
-
-            high_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
-            reject_high = self.add_salient_event(high_salient_event, episode)
-
-            plot_dco_salient_event_comparison(low_salient_event,
-                                              high_salient_event,
-                                              replay_buffer,
-                                              episode,
-                                              reject_low,
-                                              reject_high,
-                                              self.experiment_name)
+            # c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+            #                            num_training_steps=1000,
+            #                            option_idx=c_option_idx,
+            #                            name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
+            #                            threshold=self.threshold,
+            #                            beta=0.1)
+            # # use_xy_prior=self.dco_use_xy_prior)
+            #
+            # low_event_idx = len(self.mdp.all_salient_events_ever) + 1
+            # low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
+            # reject_low = self.add_salient_event(low_salient_event, episode)
+            #
+            # high_event_idx = len(self.mdp.all_salient_events_ever) + 1
+            # high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
+            # reject_high = self.add_salient_event(high_salient_event, episode)
+            #
+            # plot_dco_salient_event_comparison(low_salient_event,
+            #                                   high_salient_event,
+            #                                   replay_buffer,
+            #                                   episode,
+            #                                   reject_low,
+            #                                   reject_high,
+            #                                   self.experiment_name)
         else:
             low_salient_event = self.mdp.sample_salient_event(episode)
             reject_low = self.add_salient_event(low_salient_event, episode)
