@@ -230,10 +230,7 @@ class LeapWrapperPlotter(MDPPlotter):
         endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
         puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
 
-        endeff_inits = np.ma.masked_where(endeff_inits == 1, endeff_inits)
-        puck_inits = np.ma.masked_where(puck_inits == 0, puck_inits)
-        cmap = copy(plt.get_cmap('Blues'))
-        cmap.set_bad(color='k', alpha=1.)
+        cmap = plt.get_cmap('Blues')
 
         fig, axs = self._setup_plot((2, 2))
         fig.suptitle(f"{option.name} Initiation Set", size=24)
