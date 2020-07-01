@@ -241,7 +241,6 @@ class DeepSkillGraphAgent(object):
             )
 
         most_recent_events = self.most_recent_generated_salient_events  # type: Tuple[DCOSalientEvent, DCOSalientEvent]
-        ipdb.set_trace()
 
         return (
                 _all_events_chained(*most_recent_events) or
