@@ -135,8 +135,7 @@ class DeepSkillGraphAgent(object):
                     print(f"[DeepSkillGraphAgentClass] successfully reached MDP Goal State")
                     break
 
-            # if self.plotter is not None and episode % 100 == 0 and episode > 0:
-            if self.plotter is not None:
+            if self.plotter is not None and episode % 100 == 0 and episode > 0:
                 self.plotter.generate_episode_plots(self.dsc_agent, episode)
 
         return successes
@@ -236,6 +235,7 @@ class DeepSkillGraphAgent(object):
             )
 
         most_recent_event = self.most_recent_generated_salient_events  # type: Tuple[DCOSalientEvent, DCOSalientEvent]
+        ipdb.set_trace()
 
         if _events_chained(*most_recent_event):
             return True

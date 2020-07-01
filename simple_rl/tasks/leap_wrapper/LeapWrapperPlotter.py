@@ -91,7 +91,7 @@ class LeapWrapperPlotter(MDPPlotter):
         fig, axs = self._setup_plot((2, 3))
         fig.suptitle(f"{option.solver.name} Policy")
         axs = axs.flatten()
-        self._add_legend(axs[2], include_puck=True)
+        self._add_legend(axs[-1], include_puck=True)
 
         for i, ax in enumerate(axs):
             # set up axis
