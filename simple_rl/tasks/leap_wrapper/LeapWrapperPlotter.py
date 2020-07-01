@@ -78,12 +78,12 @@ class LeapWrapperPlotter(MDPPlotter):
             self._plot_value_function(option, chainer.seed, episode)
             self._plot_option_policy(option, chainer.seed, episode)
 
-            # if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
-            #         option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
-            self._plot_initiation_sets(option, episode)
+            if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
+                    option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
+                self._plot_initiation_sets(option, episode)
 
-            if option.get_training_phase() == "initiation_done":
-                self.final_initiation_set_has_been_plotted[i] = True
+                if option.get_training_phase() == "initiation_done":
+                    self.final_initiation_set_has_been_plotted[i] = True
 
     def _plot_option_policy(self, option, seed, episode):
         print(f"plotting {option.name}'s policy")
