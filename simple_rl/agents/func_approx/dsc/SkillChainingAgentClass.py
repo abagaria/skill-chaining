@@ -87,7 +87,7 @@ class SkillChaining(object):
         self.experiment_name = experiment_name
         self.plotter = plotter
         Option.fixed_epsilon = fixed_option_epsilon
-        Option.consant_noise = constant_noise
+        Option.constant_noise = constant_noise
         self.init_dqn_epsilon = init_dqn_epsilon
 
         tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
