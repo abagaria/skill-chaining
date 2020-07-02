@@ -104,7 +104,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
             # plot quiver diagram
             ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1], headlength=4, headwidth=2.6)
-            self._plot_sawyer_features(ax, puck_pos=arrow_points[0][3:])
+            self._plot_sawyer_features(ax, option=option, puck_pos=arrow_points[0][3:])
 
         # save plot
         file_name = f"{option.solver.name}_policy_seed_{seed}_episode_{episode}.png"
