@@ -145,7 +145,6 @@ class Option(object):
         return not self == other
 
     def _get_epsilon_greedy_epsilon(self):
-        ipdb.set_trace()
         if self.constant_noise:
             if "point" in self.overall_mdp.env_name:
                 return 0.1
