@@ -33,7 +33,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
-        self.goal_tolerance = mdp.goal_tolerance
+        self.goal_tolerance = mdp.salient_tolerance
         self.salient_tolerance = mdp.salient_tolerance
         self.puck_radius = mdp.env.puck_radius
 
