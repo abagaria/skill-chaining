@@ -33,7 +33,7 @@ class GoalDirectedMDP(MDP):
         self.original_salient_events = copy(self._salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
+        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, name="Start State Salient")
 
         # Keep track of all the salient events ever created in this MDP
         self.all_salient_events_ever = copy(self._salient_events)
