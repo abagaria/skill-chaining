@@ -40,27 +40,27 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # high level shaped rewards
         pass
 
-    def generate_final_experiment_plots(self, dsc_agent, episode):
+    def generate_final_experiment_plots(self, dsg_agent, episode):
         """
         Args:
-            dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
+            dsg_agent (DeepSkillGraphAgent): the skill chaining agent we want to plot
             episode (int): the current episode
         """
-        self.save_option_success_rate(dsc_agent)
-        self.plot_learning_curve(dsc_agent, episode)
+        self.save_option_success_rate(dsg_agent.chainer)
+        self.plot_learning_curve(dsg_agent, episode)
 
-    def plot_learning_curve(self, dsc_agent, episode):
-        learning_curves = self.learning_curve(dsc_agent, episode, 100, True)
+    def plot_learning_curve(self, dsg_agent, episode):
+        learning_curves = self.learning_curve(dsg_agent, episode, 100, True)
         ipdb.set_trace()
 
-    def learning_curve(self, agent, episodes, episode_interval, randomize_start_states=False):
+    def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False):
         start_states = self.generate_start_states(num_states=20)
         goal_salient_events = self.generate_goal_salient_events(num_states=20)
         all_runs = []
         for start_state in start_states:
             for goal_salient_event in goal_salient_events:
                 start_state = start_state if randomize_start_states else None
-                single_run = self.success_curve(agent, start_state, goal_salient_event, episodes, episode_interval)
+                single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
                 all_runs.append(single_run)
         return all_runs
 
@@ -82,7 +82,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
                                                                     num_episodes=episode_interval)
 
             print("*" * 80)
-            print(f"[{goal_state}]: Episode {episode}: Success Rate: {success_rate}")
+            print(f"[{goal_salient_event}]: Episode {episode}: Success Rate: {success_rate}")
             print("*" * 80)
 
             success_rates_over_time.append(success_rate)
