@@ -1,6 +1,7 @@
 import ipdb
 import itertools
 import numpy as np
+import torch
 from tqdm import tqdm
 from copy import deepcopy
 
@@ -12,11 +13,11 @@ from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
 from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot
 
 
 class SkillGraphPlanningAgent(object):
-    def __init__(self, *, mdp, chainer, pretrain_option_policies, initialize_graph, use_ucb, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, pretrain_option_policies, initialize_graph, use_ucb, experiment_name,
+                 seed, max_qvalue):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -30,6 +31,7 @@ class SkillGraphPlanningAgent(object):
             use_ucb (bool)
             experiment_name (str)
             seed (int)
+            max_qvalue (int)
         """
         self.mdp = mdp
         self.chainer = chainer
@@ -38,6 +40,9 @@ class SkillGraphPlanningAgent(object):
         self.use_ucb = use_ucb
         self.experiment_name = experiment_name
         self.seed = seed
+        self.max_qvalue = max(max_qvalue, 500)
+        # just to make it easier to reference plotter, could also have been passed in directly to the constructor
+        self.plotter = self.chainer.plotter
 
         self.bandit_agents = {}
 
@@ -52,8 +57,8 @@ class SkillGraphPlanningAgent(object):
         plan_graph.construct_graph(self.chainer.chains)
 
         # Visualize the graph
-        file_name = f"value_function_plots/{self.experiment_name}/plan_graph_seed_{self.seed}.png"
-        plan_graph.visualize_plan_graph(file_name)
+        if self.plotter is not None:
+            self.plotter.visualize_plan_graph(self.plan_graph, self.seed)
 
         return plan_graph
 
@@ -220,8 +225,8 @@ class SkillGraphPlanningAgent(object):
             new_option = self.create_goal_option_outside_graph(goal_salient_event)
 
         # Visualize the new graph with the new option node
-        file_name = f"value_function_plots/{self.experiment_name}/plan_graph_seed_{self.seed}_episode_{episode}.png"
-        self.plan_graph.visualize_plan_graph(file_name)
+        if self.plotter is not None:
+            self.plotter.visualize_plan_graph(self.plan_graph, self.seed, episode=episode)
 
         return new_option
 
@@ -422,8 +427,8 @@ class SkillGraphPlanningAgent(object):
             # 2. Add an each from each intersecting option to the newly_created_option
             raise NotImplementedError("Option intersections")
 
-        if chain.is_chain_completed(self.chainer.chains) and self.chainer.plotter is not None:
-            self.chainer.plotter.visualize_graph(self.chainer.chains, True)
+        if chain.is_chain_completed(self.chainer.chains) and self.plotter is not None:
+            self.plotter.visualize_graph(self.chainer.chains, True)
 
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
                         goal_salient_event, episode_number, step_number, eval_mode):
@@ -765,19 +770,18 @@ class SkillGraphPlanningAgent(object):
 
             # Check if the value function diverges - if it does, then retry. If it still does,
             # then initialize to random weights and use that
-            max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                           self.experiment_name,
-                                                           replay_buffer=self.chainer.global_option.solver.replay_buffer)
-            if max_q_value > 500:
+            max_q_value = self.get_max_qvalue(new_untrained_option.solver,
+                                              replay_buffer=self.chainer.global_option.solver.replay_buffer)
+            if max_q_value > self.max_qvalue:
+                ipdb.set_trace()
                 print("=" * 80)
                 print(f"{new_untrained_option} VF diverged")
                 print("=" * 80)
                 new_untrained_option.reset_option_solver()
                 new_untrained_option.initialize_with_global_solver()
-                max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                               self.experiment_name,
-                                                               replay_buffer=self.chainer.global_option.solver.replay_buffer)
-                if max_q_value > 500:
+                max_q_value = self.get_max_qvalue(new_untrained_option.solver,
+                                                  replay_buffer=self.chainer.global_option.solver.replay_buffer)
+                if max_q_value > self.max_qvalue:
                     print("=" * 80)
                     print(f"{new_untrained_option} VF diverged AGAIN")
                     print("Just initializing to random weights")
@@ -790,6 +794,29 @@ class SkillGraphPlanningAgent(object):
         # Note: we are not adding the new option to the plan-graph
 
         return new_untrained_option
+
+    @staticmethod
+    def get_max_qvalue(solver, chunk_size=1000, replay_buffer=None):
+        replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+        states = np.array([exp[0] for exp in replay_buffer])
+        actions = np.array([exp[1] for exp in replay_buffer])
+
+        # Chunk up the inputs so as to conserve GPU memory
+        num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+        qvalue_max = 0
+
+        if num_chunks == 0:
+            return 0.
+
+        state_chunks = np.array_split(states, num_chunks, axis=0)
+        action_chunks = np.array_split(actions, num_chunks, axis=0)
+
+        for state_chunk, action_chunk in zip(state_chunks, action_chunks):
+            state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+            action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+            qvalue_max = max(qvalue_max, chunk_qvalues.max())
+        return qvalue_max
 
     def modify_executed_option_edge_weight(self, selected_option):
 
@@ -829,6 +856,7 @@ class SkillGraphPlanningAgent(object):
             return selected_option
 
         def _distance_choose_event_too_fall_off_graph_from():
+            ipdb.set_trace()
             candidate_events = self.get_events_in_known_part_of_the_graph()
             candidate_events = [event for event in candidate_events if event != goal_salient_event]
             # TODO: Eventually change this back to target_position instead of target_state
@@ -871,7 +899,7 @@ class SkillGraphPlanningAgent(object):
         if start_state is not None:
             start_position = start_state.position if isinstance(start_state, State) else start_state
             # start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
-            self.mdp.set_xy(start_position)
+            self.mdp.set_start_state(start_position)
 
     def measure_success(self, goal_state, start_state=None, starting_episode=0, num_episodes=100):
         successes = 0

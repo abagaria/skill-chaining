@@ -5,13 +5,14 @@ import pickle
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import networkx as nx
 import seaborn as sns
 import torch
 import ipdb
 
 
 class MDPPlotter(metaclass=abc.ABCMeta):
-    def __init__(self, task_name, experiment_name, subdirectories):
+    def __init__(self, task_name, experiment_name, subdirectories, mdp):
         """
         Args:
             task_name (str): The name of the current task, so we know where to save plots
@@ -19,11 +20,12 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             subdirectories (List[str]): List of subdirectories to make where plots will be saved
         """
         self.path = rotate_file_name(os.path.join("plots", task_name, experiment_name))
-        subdirectories.extend(["final_csv", "event_graphs"])
+        subdirectories.extend(["final_results", "event_graphs"])
         for subdirectory in subdirectories:
             self._create_log_dir(os.path.join(self.path, subdirectory))
         self.save_args()
         self.kGraphIterationNumber = 0
+        self.mdp = mdp
 
     @abc.abstractmethod
     def generate_episode_plots(self, dsc_agent, episode):
@@ -38,7 +40,78 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # high level shaped rewards
         pass
 
-    def generate_experiment_plots(self, dsc_agent, pretrained, scores, durations):
+    def generate_final_experiment_plots(self, dsc_agent, episode):
+        """
+        Args:
+            dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
+            episode (int): the current episode
+        """
+        self.save_option_success_rate(dsc_agent)
+        self.plot_learning_curve(dsc_agent, episode)
+
+    def plot_learning_curve(self, dsc_agent, episode):
+        learning_curves = self.learning_curve(dsc_agent, episode, 100, True)
+
+    def learning_curve(self, agent, episodes, episode_interval, randomize_start_states=False):
+        start_states = self.generate_test_states(num_states=20)
+        goal_states = self.generate_test_states(num_states=20)
+        all_runs = []
+        for start_state in start_states:
+            for goal_state in goal_states:
+                start_state = start_state if randomize_start_states else None
+                single_run = self.success_curve(agent, start_state, goal_state, episodes, episode_interval)
+                all_runs.append(single_run)
+        return all_runs
+
+    @staticmethod
+    def success_curve(dsg_agent, start_state, goal_state, episodes, episode_interval):
+        success_rates_over_time = []
+        for episode in range(episodes):
+            success_rate = dsg_agent.planning_agent.measure_success(goal_state=goal_state,
+                                                                    start_state=start_state,
+                                                                    starting_episode=episode,
+                                                                    num_episodes=episode_interval)
+
+            print("*" * 80)
+            print(f"[{goal_state}]: Episode {episode}: Success Rate: {success_rate}")
+            print("*" * 80)
+
+            success_rates_over_time.append(success_rate)
+        return success_rates_over_time
+
+    def generate_test_states(self, num_states=10):
+        generated_states = []
+        for i in range(num_states):
+            goal_position = self.mdp.sample_random_state()
+            # goal_position = mdp.sample_random_state()[:2]
+            generated_states.append(goal_position)
+        return generated_states
+
+    def save_option_success_rate(self, dsc_agent):
+        def write_options_csv():
+            fields = ['option', 'salient event', 'num_goal_hits', 'num_executions', 'success_rate']
+            rows = [(o.name,
+                     o.target_salient_event.name if o.target_salient_event is not None else None,
+                     o.num_goal_hits,
+                     o.num_executions,
+                     o.get_option_success_rate()) for o in dsc_agent.trained_options]
+            with open(os.path.join(self.path, "final_results", "option_results.csv"), "w") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(fields)
+                csv_writer.writerows(rows)
+
+        def write_chains_csv():
+            fields = ['chain', 'is_completed']
+            rows = [(str(chain), chain.is_chain_completed(dsc_agent.chains)) for chain in dsc_agent.chains]
+            with open(os.path.join(self.path, "final_results", "chain_results.csv"), "w") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(fields)
+                csv_writer.writerows(rows)
+
+        write_options_csv()
+        write_chains_csv()
+
+    def save_pickled_data(self, dsc_agent, pretrained, scores, durations):
         """
         Args:
             durations:
@@ -46,13 +119,13 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             pretrained:
             dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
         """
-        print("\rSaving training and validation scores..")
+        print("\rSaving training and validation scores.")
 
         base_file_name = f"_pretrained_{pretrained}_seed_{dsc_agent.seed}.pkl"
-        training_scores_file_name = os.path.join(self.path, "training_scores", base_file_name)
-        training_durations_file_name = os.path.join(self.path, "training_durations", base_file_name)
-        validation_scores_file_name = os.path.join(self.path, "validation_scores", base_file_name)
-        num_option_history_file_name = os.path.join(self.path, "num_options_per_episode", base_file_name)
+        training_scores_file_name = os.path.join(self.path, "final_results", "training_scores" + base_file_name)
+        training_durations_file_name = os.path.join(self.path, "final_results", "training_durations" + base_file_name)
+        validation_scores_file_name = os.path.join(self.path, "final_results", "validation_scores" + base_file_name)
+        num_option_history_file_name = os.path.join(self.path, "final_results", "num_options_per_episode" + base_file_name)
 
         with open(training_scores_file_name, "wb+") as _f:
             pickle.dump(scores, _f)
@@ -62,30 +135,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             pickle.dump(dsc_agent.validation_scores, _f)
         with open(num_option_history_file_name, "wb+") as _f:
             pickle.dump(dsc_agent.num_options_history, _f)
-
-    def save_option_successes(self, dsc_agent):
-        def write_options_csv():
-            fields = ['option', 'salient event', 'num_goal_hits', 'num_executions', 'success_rate']
-            rows = [(o.name,
-                     o.target_salient_event.name if o.target_salient_event is not None else None,
-                     o.num_goal_hits,
-                     o.num_executions,
-                     o.get_option_success_rate()) for o in dsc_agent.trained_options]
-            with open(os.path.join(self.path, "final_csv", "option_results.csv"), "w") as csv_file:
-                csv_writer = csv.writer(csv_file)
-                csv_writer.writerow(fields)
-                csv_writer.writerows(rows)
-
-        def write_chains_csv():
-            fields = ['chain', 'is_completed']
-            rows = [(str(chain), chain.is_chain_completed(dsc_agent.chains)) for chain in dsc_agent.chains]
-            with open(os.path.join(self.path, "final_csv", "chain_results.csv"), "w") as csv_file:
-                csv_writer = csv.writer(csv_file)
-                csv_writer.writerow(fields)
-                csv_writer.writerows(rows)
-
-        write_options_csv()
-        write_chains_csv()
 
     @staticmethod
     def _get_qvalues(solver, replay_buffer):
@@ -132,9 +181,8 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
         plt.figure()
         forward_chains = [chain for chain in chains if not chain.is_backward_chain and _completed(chain)]
-        with sns.axes_style("white"):
-            for chain in forward_chains:
-                _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
+        for chain in forward_chains:
+            _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
 
             plt.xticks([])
             plt.yticks([])
@@ -144,6 +192,24 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         plt.close()
 
         self.kGraphIterationNumber += 1
+
+    def visualize_plan_graph(self, plan_graph, seed, episode=None):
+        ipdb.set_trace()
+        pos = nx.planar_layout(plan_graph)
+        labels = nx.get_edge_attributes(plan_graph, "weight")
+
+        # Truncate the labels to 2 decimal places
+        for key in labels:
+            labels[key] = np.round(labels[key], 2)
+
+        plt.figure(figsize=(16, 10))
+
+        nx.draw_networkx(plan_graph, pos)
+        nx.draw_networkx_edge_labels(plan_graph, pos, edge_labels=labels)
+
+        file_name = f"plan_graph_seed_{seed}_episode_{episode}.png" if episode is not None else f"plan_graph_seed_{seed}.png"
+        plt.savefig(os.path.join(self.path, "event_graphs", file_name))
+        plt.close()
 
     def save_args(self):
         f = open(os.path.join(self.path, "run_command.txt"), 'w')

@@ -7,15 +7,16 @@ from copy import copy
 
 
 class GoalDirectedMDP(MDP):
-    def __init__(self, actions, transition_func, reward_func, init_state,
-                 salient_events, task_agnostic, goal_state=None, goal_tolerance=0.6, start_tolerance=0.6, dense_reward=False):
+    def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance,
+                 dense_reward,  salient_events, task_agnostic, goal_state=None):
 
         self._salient_events = salient_events
         self.task_agnostic = task_agnostic
-        self.goal_tolerance = goal_tolerance
-        self._start_tolerance = start_tolerance
         self.goal_state = goal_state
         self.dense_reward = dense_reward
+
+        self.salient_tolerance = salient_tolerance
+        SalientEvent.tolerance = salient_tolerance
 
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state
@@ -32,7 +33,7 @@ class GoalDirectedMDP(MDP):
         self.original_salient_events = copy(self._salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, tolerance=self._start_tolerance)
+        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0)
 
         # Keep track of all the salient events ever created in this MDP
         self.all_salient_events_ever = copy(self._salient_events)
@@ -64,11 +65,11 @@ class GoalDirectedMDP(MDP):
     def is_start_state(self, state):
         pos = self._get_position(state)
         s0 = self.init_state.position
-        return np.linalg.norm(pos - s0) <= self.goal_tolerance
+        return np.linalg.norm(pos - s0) <= self.salient_tolerance
 
     def batched_is_start_state(self, position_matrix):
         s0 = self.init_state.position
-        in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= self.goal_tolerance
+        in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= self.salient_tolerance
         return in_start_pos.squeeze(1)
 
     def get_start_state_salient_event(self):

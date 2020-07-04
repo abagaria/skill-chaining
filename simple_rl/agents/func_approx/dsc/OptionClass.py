@@ -286,6 +286,8 @@ class Option(object):
                 if self.is_term_true(state):
                     continue
                 if self.is_term_true(next_state):
+                    # probably can delete this case but will check later
+                    ipdb.set_trace()
                     self.solver.step(state, action, self.subgoal_reward, next_state, True)
                 else:
                     subgoal_reward = self.get_subgoal_reward(next_state)

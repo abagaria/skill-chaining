@@ -22,6 +22,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env_name = "sawyer"
         self.render = render
         dense_reward = False
+        salient_tolerance = 0.06
 
         if self.render:
             self.movie_width = 512
@@ -35,13 +36,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
                 num_clips=generate_n_clips,
                 wait_between_clips=episode_length * wait_n_episodes_between_clips)
 
-        self.goal_tolerance = 0.05
-        self.salient_tolerance = 0.05
-
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=dense_reward,
-                            goal_tolerance=self.goal_tolerance, task_agnostic=task_agnostic, goal=(0.15, 0.6, 0.02, -0.2, 0.6))
+                            goal_tolerance=salient_tolerance, task_agnostic=task_agnostic, goal=(0.15, 0.6, 0.02, -0.2, 0.6))
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
         # Sets the initial state
@@ -57,24 +55,21 @@ class LeapWrapperMDP(GoalDirectedMDP):
             salient_event_2[3:] = [-0.15, 0.6]
 
             salient_events = [
-                SalientEvent(salient_event_1, 1, name='Puck to goal 1/3',
-                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos),
-                SalientEvent(salient_event_2, 2, name='Puck to goal 2/3',
-                             tolerance=self.salient_tolerance, get_relevant_position=get_puck_pos)
+                SalientEvent(salient_event_1, 1, name='Puck to goal 1/3', get_relevant_position=get_puck_pos),
+                SalientEvent(salient_event_2, 2, name='Puck to goal 2/3', get_relevant_position=get_puck_pos)
             ]
 
         action_dims = range(self.env.action_space.shape[0])
         GoalDirectedMDP.__init__(self,
-                                 action_dims,
-                                 self._transition_func,
-                                 self._reward_func,
-                                 self.init_state,
-                                 salient_events,
-                                 task_agnostic,
+                                 actions=action_dims,
+                                 transition_func=self._transition_func,
+                                 reward_func=self._reward_func,
+                                 init_state=self.init_state,
+                                 salient_tolerance=salient_tolerance,
+                                 dense_reward=dense_reward,
+                                 salient_events=salient_events,
+                                 task_agnostic=task_agnostic,
                                  goal_state=self.goal_state,
-                                 goal_tolerance=self.goal_tolerance,
-                                 start_tolerance=self.goal_tolerance,
-                                 dense_reward=dense_reward
                                  )
 
     def _reward_func(self, state, action):
@@ -144,9 +139,15 @@ class LeapWrapperMDP(GoalDirectedMDP):
         target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
         return SalientEvent(target_state=target_state,
                             event_idx=event_idx,
-                            tolerance=self.salient_tolerance,
                             get_relevant_position=get_puck_pos,
                             name=f"RRT Salient Episode {episode}")
+
+    def reset_to_start_state(self, start_state):
+        self.env.reset_to_new_start_state(start_pos=start_state)
+        self.cur_state = LeapWrapperState(start_state[:3], start_state[3:], done=False)
+
+    def sample_random_start_state(self):
+        return np.random.uniform(self.env.goal_low, self.env.goal_high)
 
 
 def get_endeff_pos(state):

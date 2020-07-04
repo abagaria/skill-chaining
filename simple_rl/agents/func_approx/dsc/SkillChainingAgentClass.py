@@ -1176,4 +1176,4 @@ if __name__ == '__main__':
 
     # Log performance metrics
     # chainer.save_all_models()
-    mdp_plotter.generate_experiment_plots(chainer, args.pretrained, episodic_scores, episodic_durations)
+    mdp_plotter.save_pickled_data(chainer, args.pretrained, episodic_scores, episodic_durations)

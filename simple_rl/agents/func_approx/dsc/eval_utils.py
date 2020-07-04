@@ -5,7 +5,7 @@ import itertools
 
 from simple_rl.agents.func_approx.dsc.DeepSkillGraphAgentClass import DeepSkillGraphAgent
 
-
+# TODO: Eventually all of this code needs to be moved to MDPPlotterClass
 def sample_state_inside_graph(dsg_agent):
     """
 
@@ -42,47 +42,6 @@ def sample_state_outside_graph(dsg_agent, mdp):
         done = not dsg_agent.planning_agent.is_state_inside_graph(sampled_state)
     assert sampled_state is not None
     return sampled_state
-
-
-def generate_test_states(mdp, num_states=10):
-    generated_states = []
-    for i in range(num_states):
-        goal_position = mdp.sample_random_state()
-        # goal_position = mdp.sample_random_state()[:2]
-        generated_states.append(goal_position)
-    return generated_states
-
-
-def success_curve(dsg_agent, start_state, goal_state, episodes, episode_interval):
-    success_rates_over_time = []
-    for episode in range(episodes):
-        success_rate = dsg_agent.planning_agent.measure_success(goal_state=goal_state,
-                                                                start_state=start_state,
-                                                                starting_episode=episode,
-                                                                num_episodes=episode_interval)
-
-        print("*" * 80)
-        print(f"[{goal_state}]: Episode {episode}: Success Rate: {success_rate}")
-        print("*" * 80)
-
-        success_rates_over_time.append(success_rate)
-    return success_rates_over_time
-
-
-def learning_curve(agent, mdp, episodes, episode_interval, randomize_start_states=False):
-    start_states = generate_test_states(mdp)
-    goal_states = generate_test_states(mdp)
-    all_runs = []
-    for start_state in start_states:
-        for goal_state in goal_states:
-            start_state = start_state if randomize_start_states else None
-            single_run = success_curve(agent,
-                                       start_state,
-                                       goal_state,
-                                       episodes,
-                                       episode_interval)
-            all_runs.append(single_run)
-    return all_runs
 
 
 def learning_curve_inside_graph(agent, mdp, episodes, episode_interval, randomize_start_states=False):

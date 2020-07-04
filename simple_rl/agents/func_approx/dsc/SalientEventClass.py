@@ -7,29 +7,35 @@ import ipdb
 
 
 class SalientEvent(object):
-    def __init__(
-            self, target_state, event_idx, tolerance=0.6,
-            use_additive_constants=False,
-            intersection_event=False,
-            get_relevant_position=None,
-            name=None
-    ):
+    # All salient events for a single MDP should have the same tolerance (except maybe start and goal states)
+    tolerance = 0
+
+    def __init__(self, target_state, event_idx, use_additive_constants=False, intersection_event=False,
+                 get_relevant_position=None, name=None):
+        """
+
+        Args:
+            target_state (np.ndarray):
+            event_idx (int):
+            use_additive_constants (bool):
+            intersection_event (bool):
+            get_relevant_position (lambda):
+            name (str):
+        """
         self.target_state = target_state
         self.event_idx = event_idx
-        self.tolerance = tolerance
         self.use_additive_constants = use_additive_constants
         self.intersection_event = intersection_event
         self.name = name
 
         assert isinstance(event_idx, int)
-        assert isinstance(tolerance, float)
         assert isinstance(target_state, np.ndarray)
 
         # This is the union of the effect set of all the options targeting this salient event
         self.trigger_points = []
         self._initialize_trigger_points()
 
-        # Kinna hacky, but currently salient events don't handle arbitrary predicates 
+        # Kinda hacky, but currently salient events don't handle arbitrary predicates
         if get_relevant_position is None:
             self.get_relevant_position = self._get_position
         else:

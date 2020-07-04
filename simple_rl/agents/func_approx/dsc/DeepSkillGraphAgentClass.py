@@ -135,7 +135,7 @@ class DeepSkillGraphAgent(object):
                     print(f"[DeepSkillGraphAgentClass] successfully reached MDP Goal State")
                     break
 
-            if self.plotter is not None and episode % 50 == 0 and episode > 0:
+            if self.plotter is not None and episode % 100 == 0 and episode > 0:
                 self.plotter.generate_episode_plots(self.dsc_agent, episode)
 
         return successes
@@ -474,7 +474,8 @@ if __name__ == "__main__":
                                       seed=args.seed,
                                       initialize_graph=False,
                                       pretrain_option_policies=args.pretrain_option_policies,
-                                      use_ucb=args.use_ucb)
+                                      use_ucb=args.use_ucb,
+                                      max_qvalue=args.subgoal_reward)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
                                     dsc_agent=chainer,
@@ -492,5 +493,5 @@ if __name__ == "__main__":
 
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)
     if args.generate_plots:
-        mdp_plotter.save_option_successes(chainer)
+        mdp_plotter.generate_final_experiment_plots(chainer, args.episodes)
     ipdb.set_trace()
