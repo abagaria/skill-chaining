@@ -50,6 +50,8 @@ class DeepSkillGraphAgent(object):
         self.last_event_creation_episode = -1
         self.last_event_rejection_episode = -1
         self.num_successive_rejections = 0
+        # TODO: Delete
+        self.num_successive_rejections_history = []
 
         if self.use_hard_coded_events:
             assert not self.use_dco
@@ -201,6 +203,11 @@ class DeepSkillGraphAgent(object):
 
             # Create a skill chain targeting the new event
             self.dsc_agent.create_chain_targeting_new_salient_event(salient_event)
+
+        # TODO: Delete
+        self.num_successive_rejections_history.append((episode, self.num_successive_rejections))
+        if len(self.num_successive_rejections_history) % 20 == 0:
+            ipdb.set_trace()
 
         return reject
 
