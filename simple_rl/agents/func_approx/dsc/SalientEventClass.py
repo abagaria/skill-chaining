@@ -22,6 +22,7 @@ class SalientEvent(object):
             get_relevant_position (lambda):
             name (str):
         """
+        ipdb.set_trace()
         self.target_state = target_state
         self.event_idx = event_idx
         self.use_additive_constants = use_additive_constants
