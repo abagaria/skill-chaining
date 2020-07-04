@@ -1,5 +1,0 @@
-option,salient event,num_goal_hits,num_executions,success_rate
-global_option,,382,560680,0.0006813155454091461
-goal_option_1,Puck to goal 1/3,3,321,0.009345794392523364
-goal_option_2,Puck to goal 2/3,922,2010,0.45870646766169154
-option_2_0,,1286,2616,0.49159021406727826
