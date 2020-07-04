@@ -831,9 +831,8 @@ class SkillGraphPlanningAgent(object):
             assert child_option is not None
             if isinstance(child_option, Option):
                 child_option_success_rate = child_option.get_option_success_rate()
-                weight = 1. / child_option_success_rate if child_option_success_rate > 0 else 0.
-                self.plan_graph.set_edge_weight(child_option, selected_option,
-                                                weight=1. / weight)
+                weight = 1. / child_option_success_rate if child_option_success_rate > 0 else 0
+                self.plan_graph.set_edge_weight(child_option, selected_option, weight=weight)
             elif isinstance(child_option, SalientEvent):
                 self.plan_graph.set_edge_weight(child_option, selected_option, weight=0.)
             else:
@@ -856,7 +855,7 @@ class SkillGraphPlanningAgent(object):
             return selected_option
 
         def _distance_choose_event_too_fall_off_graph_from():
-            ipdb.set_trace()
+            ipdb.set_trace() # TODO: Implement a valid distance metric for Sawyer
             candidate_events = self.get_events_in_known_part_of_the_graph()
             candidate_events = [event for event in candidate_events if event != goal_salient_event]
             # TODO: Eventually change this back to target_position instead of target_state
