@@ -1,0 +1,1 @@
+simple_rl/agents/func_approx/dsc/DeepSkillGraphAgentClass.py --env=sawyer_agnostic --episodes=100 --steps=2000 --use_smdp_update --option_timeout --use_smdp_replay_buffer --use_start_state_salience --use_event_intersection_salience --device=cuda:0 --generate_plots --use_warmup_phase --update_global_solver --subgoal_reward=1000 --experiment_name=learning_curves_task_agnostic_RRT
