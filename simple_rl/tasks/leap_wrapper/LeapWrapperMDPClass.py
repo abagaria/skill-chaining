@@ -60,6 +60,13 @@ class LeapWrapperMDP(GoalDirectedMDP):
             ]
 
         action_dims = range(self.env.action_space.shape[0])
+
+        # Needs to be defined inside of LeapWrapperMDP because it has a `get_relevant_position` because the start state is only defined
+        # by the puck position
+        start_state_salient_event = SalientEvent(target_state=self.init_state.position,
+                                                 event_idx=0,
+                                                 name="Start State Salient",
+                                                 get_relevant_position=get_puck_pos)
         GoalDirectedMDP.__init__(self,
                                  actions=action_dims,
                                  transition_func=self._transition_func,
@@ -70,6 +77,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  salient_events=salient_events,
                                  task_agnostic=task_agnostic,
                                  goal_state=self.goal_state,
+                                 start_salient_event=start_state_salient_event
                                  )
 
     def _reward_func(self, state, action):

@@ -8,7 +8,7 @@ from copy import copy
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance,
-                 dense_reward,  salient_events, task_agnostic, goal_state=None):
+                 dense_reward,  salient_events, task_agnostic, goal_state=None, start_salient_event=None):
 
         self._salient_events = salient_events
         self.task_agnostic = task_agnostic
@@ -21,11 +21,11 @@ class GoalDirectedMDP(MDP):
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state
 
-        self._initialize_salient_events()
+        self._initialize_salient_events(start_salient_event)
 
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
 
-    def _initialize_salient_events(self):
+    def _initialize_salient_events(self, start_salient_event):
         # Set the current target events in the MDP
         self.current_salient_events = copy(self._salient_events)
 
@@ -33,7 +33,8 @@ class GoalDirectedMDP(MDP):
         self.original_salient_events = copy(self._salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, name="Start State Salient")
+        self.start_state_salient_event = start_salient_event if start_salient_event is not None else \
+            SalientEvent(target_state=self.init_state.position, event_idx=0, name="Start State Salient")
 
         # Keep track of all the salient events ever created in this MDP
         self.all_salient_events_ever = copy(self._salient_events)
