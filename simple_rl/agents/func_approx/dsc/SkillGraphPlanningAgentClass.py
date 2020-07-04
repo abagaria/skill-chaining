@@ -901,16 +901,17 @@ class SkillGraphPlanningAgent(object):
             # start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             self.mdp.set_start_state(start_position)
 
-    def measure_success(self, goal_state, start_state=None, starting_episode=0, num_episodes=100):
+    def measure_success(self, goal_salient_event, start_state=None, starting_episode=0, num_episodes=100):
         successes = 0
         self.chainer.create_backward_options = False
         self.chainer.learn_backward_options_offline = False  # TODO: Need a better way to say that we should not create back options at test time
         for episode in range(num_episodes):
             step_number, reached_goal = self.planning_run_loop(start_episode=starting_episode + episode,
-                                                               goal_state=goal_state,
+                                                               goal_state=goal_salient_event.target_state,
                                                                start_state=start_state,
                                                                to_reset=True,
-                                                               eval_mode=True)
+                                                               eval_mode=True,
+                                                               goal_salient_event=goal_salient_event)
             if reached_goal:
                 successes += 1
         return successes

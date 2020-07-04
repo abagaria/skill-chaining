@@ -146,7 +146,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env.reset_to_new_start_state(start_pos=start_state)
         self.cur_state = LeapWrapperState(start_state[:3], start_state[3:], done=False)
 
-    def sample_random_start_state(self):
+    def sample_random_state(self):
         return np.random.uniform(self.env.goal_low, self.env.goal_high)
 
 

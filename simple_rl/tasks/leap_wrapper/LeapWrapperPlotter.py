@@ -8,7 +8,9 @@ import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 import ipdb
 
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp.MDPPlotterClass import MDPPlotter
+from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import get_puck_pos
 
 
 class LeapWrapperPlotter(MDPPlotter):
@@ -85,6 +87,25 @@ class LeapWrapperPlotter(MDPPlotter):
 
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted[i] = True
+
+    def generate_start_states(self, num_states):
+        return self.generate_random_states(num_states)
+
+    def generate_goal_salient_events(self, num_states):
+        goal_states = self.generate_random_states(num_states)
+
+        all_salient_events = self.mdp.get_all_target_events_ever()
+        start_idx = max([event.event_idx for event in all_salient_events]) + 1
+        goal_salient_events = []
+        for i, goal_state in enumerate(goal_states):
+            new_salient_event = SalientEvent(goal_state,
+                                             event_idx=i + start_idx,
+                                             name="Test-Time Salient",
+                                             get_relevant_position=get_puck_pos)
+            self.mdp.add_new_target_event(new_salient_event)
+            goal_salient_events.append(new_salient_event)
+
+        return goal_salient_events
 
     def _plot_option_policy(self, option, seed, episode):
         print(f"plotting {option.name}'s policy")

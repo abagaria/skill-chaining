@@ -51,23 +51,32 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     def plot_learning_curve(self, dsc_agent, episode):
         learning_curves = self.learning_curve(dsc_agent, episode, 100, True)
+        ipdb.set_trace()
 
     def learning_curve(self, agent, episodes, episode_interval, randomize_start_states=False):
-        start_states = self.generate_test_states(num_states=20)
-        goal_states = self.generate_test_states(num_states=20)
+        start_states = self.generate_start_states(num_states=20)
+        goal_salient_events = self.generate_goal_salient_events(num_states=20)
         all_runs = []
         for start_state in start_states:
-            for goal_state in goal_states:
+            for goal_salient_event in goal_salient_events:
                 start_state = start_state if randomize_start_states else None
-                single_run = self.success_curve(agent, start_state, goal_state, episodes, episode_interval)
+                single_run = self.success_curve(agent, start_state, goal_salient_event, episodes, episode_interval)
                 all_runs.append(single_run)
         return all_runs
 
+    @abc.abstractmethod
+    def generate_start_states(self, num_states):
+        pass
+
+    @abc.abstractmethod
+    def generate_goal_salient_events(self, num_states):
+        pass
+
     @staticmethod
-    def success_curve(dsg_agent, start_state, goal_state, episodes, episode_interval):
+    def success_curve(dsg_agent, start_state, goal_salient_event, episodes, episode_interval):
         success_rates_over_time = []
         for episode in range(episodes):
-            success_rate = dsg_agent.planning_agent.measure_success(goal_state=goal_state,
+            success_rate = dsg_agent.planning_agent.measure_success(goal_state=goal_salient_event,
                                                                     start_state=start_state,
                                                                     starting_episode=episode,
                                                                     num_episodes=episode_interval)
@@ -79,12 +88,11 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             success_rates_over_time.append(success_rate)
         return success_rates_over_time
 
-    def generate_test_states(self, num_states=10):
+    def generate_random_states(self, num_states):
         generated_states = []
         for i in range(num_states):
-            goal_position = self.mdp.sample_random_state()
-            # goal_position = mdp.sample_random_state()[:2]
-            generated_states.append(goal_position)
+            state = self.mdp.sample_random_state()
+            generated_states.append(state)
         return generated_states
 
     def save_option_success_rate(self, dsc_agent):

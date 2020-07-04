@@ -67,6 +67,7 @@ def learning_curve_outside_graph(agent, mdp, episodes, episode_interval, randomi
     all_runs = learning_curve_without_random_start_states(agent, goal_states, episodes, episode_interval)
     return all_runs
 
+
 def learning_curve_with_start_states(agent, start_states, goal_states, episodes, episode_interval):
     all_runs = []
     for start_state, goal_state in zip(start_states, goal_states):
@@ -77,6 +78,7 @@ def learning_curve_with_start_states(agent, start_states, goal_states, episodes,
                                    episode_interval)
         all_runs.append(single_run)
     return all_runs
+
 
 def learning_curve_without_random_start_states(agent, goal_states, episodes, episode_interval):
     all_runs = []
