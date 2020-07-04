@@ -855,11 +855,10 @@ class SkillGraphPlanningAgent(object):
             return selected_option
 
         def _distance_choose_event_too_fall_off_graph_from():
-            ipdb.set_trace() # TODO: Implement a valid distance metric for Sawyer
             candidate_events = self.get_events_in_known_part_of_the_graph()
             candidate_events = [event for event in candidate_events if event != goal_salient_event]
             # TODO: Eventually change this back to target_position instead of target_state
-            distances = [np.linalg.norm(event.get_target_state - goal_salient_event.get_target_state) for event in candidate_events]
+            distances = [event.distance_from_goal(goal_salient_event.target_state) for event in candidate_events]
             selected_idx = np.argmin(distances)
             selected_idx = distances[0] if isinstance(distances, np.ndarray) else selected_idx
             selected_event = candidate_events[selected_idx]
