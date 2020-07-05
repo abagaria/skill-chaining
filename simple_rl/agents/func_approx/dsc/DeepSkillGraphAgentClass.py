@@ -206,8 +206,8 @@ class DeepSkillGraphAgent(object):
 
         # TODO: Delete
         self.num_successive_rejections_history.append((episode, self.num_successive_rejections))
-        if len(self.num_successive_rejections_history) % 20 == 0:
-            ipdb.set_trace()
+        # if len(self.num_successive_rejections_history) % 20 == 0:
+        #     ipdb.set_trace()
 
         return reject
 
