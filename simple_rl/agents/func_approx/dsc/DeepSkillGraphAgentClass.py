@@ -282,7 +282,7 @@ class DeepSkillGraphAgent(object):
         # If we have tried to create an event outside the graph a lot of times and failed,
         # then that probably means that we are done with forward-chaining and we can now
         # begin learning our backward options
-        return self.num_successive_rejections >= 100 \
+        return self.num_successive_rejections >= 20 \
                and not self.dsc_agent.create_backward_options \
                and not self.dsc_agent.learn_backward_options_offline
 
