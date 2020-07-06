@@ -80,6 +80,7 @@ class LeapWrapperPlotter(MDPPlotter):
         for i, option in enumerate(dsc_agent.trained_options):
             self._plot_value_function(option, dsc_agent.seed, episode)
             self._plot_option_policy(option, dsc_agent.seed, episode)
+            self._plot_random_salients(dsc_agent, episode)
 
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
@@ -87,6 +88,27 @@ class LeapWrapperPlotter(MDPPlotter):
 
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted[i] = True
+
+
+    def _plot_random_salients(self, dsc_agent, episode):
+        # TODO: Remove hardcoding
+        if episode % 200 == 0:
+            all_options = dsc_agent.untrained_options.append(dsc_agent.trained_options)
+            all_targets = set([option.target_state for option in all_options if option.parent is None])
+
+            fig, (ax1, ax2) = self._setup_plot((1, 2))
+            
+            for target in all_targets:
+                endeff_circle = plt.Circle(target[:2], 0.06, alpha=0.3)
+                ax1.add_patch(endeff_circle)
+
+                puck_circle = plt.Circle(target[3:5], 0.06, alpha=0.3)
+                ax2.add_patch(puck_circle)
+
+            file_name = f"random_salient_locations_episode_{episode}.png"
+            plt.savefig(os.path.join(self.path, "random_salient_location_plots", file_name))
+            plt.close()
+
 
     def generate_start_states(self, num_states):
         return self.generate_random_states(num_states)
