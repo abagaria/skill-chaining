@@ -89,9 +89,7 @@ class LeapWrapperPlotter(MDPPlotter):
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted[i] = True
 
-
     def _plot_random_salients(self, dsc_agent, episode):
-        # TODO: Remove hardcoding
         if episode % 200 == 0:
 
             fig, ax = self._setup_plot((1, 1))
@@ -108,14 +106,13 @@ class LeapWrapperPlotter(MDPPlotter):
 
                 puck_circle = plt.Circle(target, 0.06, alpha=0.3, color=color)
                 ax.add_patch(puck_circle)
-
+                ax.text(target[0], target[1], str(option.option_idx), horizontalalignment='center', verticalalignment='center')
 
             self._plot_sawyer_features(ax)
             
             file_name = f"random_salient_locations_episode_{episode}.png"
             plt.savefig(os.path.join(self.path, "random_salient_location_plots", file_name))
             plt.close()
-
 
     def generate_start_states(self, num_states):
         return self.generate_random_states(num_states)

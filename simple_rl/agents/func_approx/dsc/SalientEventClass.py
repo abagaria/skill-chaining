@@ -27,6 +27,8 @@ class SalientEvent(object):
         self.use_additive_constants = use_additive_constants
         self.intersection_event = intersection_event
         self.name = name
+        if 'Start State' in name:
+            ipdb.set_trace()
 
         assert isinstance(event_idx, int)
         assert isinstance(target_state, np.ndarray)
