@@ -93,18 +93,18 @@ class LeapWrapperPlotter(MDPPlotter):
     def _plot_random_salients(self, dsc_agent, episode):
         # TODO: Remove hardcoding
         if episode % 200 == 0:
-            all_options = dsc_agent.untrained_options.append(dsc_agent.trained_options)
-            all_targets = set([option.target_state for option in all_options if option.parent is None])
+            all_options = dsc_agent.trained_options
+            all_targets = set([option.target_salient_event.get_target_position() for option in all_options if option.parent is None])
 
-            fig, (ax1, ax2) = self._setup_plot((1, 2))
+            fig, ax = self._setup_plot((1, 1))
             
             for target in all_targets:
-                endeff_circle = plt.Circle(target[:2], 0.06, alpha=0.3)
-                ax1.add_patch(endeff_circle)
+                puck_circle = plt.Circle(target, 0.06, alpha=0.3)
+                ax.add_patch(puck_circle)
 
-                puck_circle = plt.Circle(target[3:5], 0.06, alpha=0.3)
-                ax2.add_patch(puck_circle)
 
+            self._plot_sawyer_features(ax)
+            
             file_name = f"random_salient_locations_episode_{episode}.png"
             plt.savefig(os.path.join(self.path, "random_salient_location_plots", file_name))
             plt.close()
