@@ -368,7 +368,7 @@ if __name__ == "__main__":
     parser.add_argument("--wait_n_episodes_between_clips", type=int, help="The number of episodes to wait between clip generation",
                         default=0)
     parser.add_argument("--constant_noise", action="store_true", help="options will take a random action a fixed % of time", default=False)
-    parser.add_argument("--tast_agnostic", action="store_true", help="currently only for sawyer, force task agnostic", default=False)
+    parser.add_argument("--task_agnostic", action="store_true", help="currently only for sawyer, force task agnostic", default=False)
     args = parser.parse_args()
 
     mdp_plotter = None
