@@ -1,0 +1,68 @@
+option,salient event,num_goal_hits,num_executions,success_rate
+global_option,,0,732751,0.0
+goal_option_1,RRT Salient Episode 5,182,401,0.4538653366583541
+goal_option_2,RRT Salient Episode 5,13,100,0.13
+goal_option_3,RRT Salient Episode 55,11,711,0.015471167369901548
+option_1_0,,755,30664,0.024621706235324812
+goal_option_4,RRT Salient Episode 105,107,519,0.20616570327552985
+option_1_0_0,,23,28,0.8214285714285714
+goal_option_5,RRT Salient Episode 155,35,840,0.041666666666666664
+option_1_0_0_0,,228,526,0.43346007604562736
+option_1_0_0_0_0,,446,29818,0.014957408276879736
+goal_option_6,RRT Salient Episode 205,29,223,0.13004484304932734
+option_1_0_0_0_0_0,,189,910,0.2076923076923077
+option_4_0,,437,1027,0.4255111976630964
+goal_option_7,RRT Salient Episode 255,249,1438,0.17315716272600834
+goal_option_8,RRT Salient Episode 345,4,37,0.10810810810810811
+goal_option_9,RRT Salient Episode 346,34,137,0.24817518248175183
+goal_option_10,RRT Salient Episode 426,200,854,0.234192037470726
+goal_option_11,RRT Salient Episode 470,3,131,0.022900763358778626
+goal_option_12,RRT Salient Episode 550,19,412,0.04611650485436893
+goal_option_13,RRT Salient Episode 600,8,436,0.01834862385321101
+goal_option_14,RRT Salient Episode 660,12,131,0.0916030534351145
+option_9_0,,163,354,0.4604519774011299
+goal_option_15,RRT Salient Episode 710,6,120,0.05
+option_5_0,,480,1094,0.43875685557586835
+goal_option_16,RRT Salient Episode 760,3,58,0.05172413793103448
+option_6_0,,143,1041,0.1373679154658982
+chain_17_backward_option,Start State Salient,61,32,1.90625
+chain_17_backward_option_0,,355,117,3.034188034188034
+chain_17_backward_option_0_0,,135,63,2.142857142857143
+chain_17_backward_option_0_0_0,,15,5,3.0
+chain_17_backward_option_0_0_0_0,,494,5,98.8
+chain_17_backward_option_0_0_0_0_0,,119,32,3.71875
+chain_17_backward_option_0_0_0_0_0_0,,14,98,0.14285714285714285
+chain_18_backward_option,Start State Salient,13,8,1.625
+chain_19_backward_option,Start State Salient,142,225,0.6311111111111111
+chain_19_backward_option_0,,30,13,2.3076923076923075
+chain_19_backward_option_0_0,,90,218,0.41284403669724773
+chain_20_backward_option,Start State Salient,48,251,0.19123505976095617
+chain_20_backward_option_0,,383,1137,0.3368513632365875
+chain_20_backward_option_0_0,,142,278,0.5107913669064749
+chain_21_backward_option,Start State Salient,43,309,0.13915857605177995
+chain_22_backward_option,Start State Salient,4,0,1.0
+chain_23_backward_option,Start State Salient,30,26,1.1538461538461537
+chain_23_backward_option_0,,19,9,2.111111111111111
+chain_23_backward_option_0_0,,9,85,0.10588235294117647
+chain_24_backward_option,Start State Salient,73,432,0.16898148148148148
+chain_20_backward_option_0_0_0,,151,298,0.5067114093959731
+goal_option_25,RRT Salient Episode 990,3,3,1.0
+chain_17_backward_option_0_0_0_0_0_0_0,,177,455,0.389010989010989
+option_6_0_0,,534,1536,0.34765625
+chain_26_backward_option,Start State Salient,10,585,0.017094017094017096
+chain_17_backward_option_0_0_0_0_0_0_0_0,,160,469,0.3411513859275053
+goal_option_27,RRT Salient Episode 1100,4,26,0.15384615384615385
+option_14_0,,26,147,0.17687074829931973
+option_12_0,,106,220,0.4818181818181818
+chain_28_backward_option,RRT Salient Episode 5,109,370,0.2945945945945946
+chain_28_backward_option_0,,8,0,1.0
+chain_28_backward_option_0_0,,58,180,0.32222222222222224
+option_3_0,,17,81,0.20987654320987653
+chain_29_backward_option,Start State Salient,8,130,0.06153846153846154
+chain_29_backward_option_0,,10,0,1.0
+chain_29_backward_option_0_0,,7,30,0.23333333333333334
+option_3_0_0,,4,2,2.0
+goal_option_30,RRT Salient Episode 1710,4,75,0.05333333333333334
+chain_23_backward_option_0_0_0,,22,69,0.3188405797101449
+chain_31_backward_option,RRT Salient Episode 5,9,10,0.9
+chain_31_backward_option_0,,3,15,0.2
