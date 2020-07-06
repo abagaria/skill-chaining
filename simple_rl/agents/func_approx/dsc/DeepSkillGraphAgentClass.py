@@ -206,8 +206,6 @@ class DeepSkillGraphAgent(object):
 
         # TODO: Delete
         self.num_successive_rejections_history.append((episode, self.num_successive_rejections))
-        # if len(self.num_successive_rejections_history) % 20 == 0:
-        #     ipdb.set_trace()
 
         return reject
 
@@ -282,7 +280,7 @@ class DeepSkillGraphAgent(object):
         # If we have tried to create an event outside the graph a lot of times and failed,
         # then that probably means that we are done with forward-chaining and we can now
         # begin learning our backward options
-        return self.num_successive_rejections >= 20 \
+        return self.num_successive_rejections >= 6 \
                and not self.dsc_agent.create_backward_options \
                and not self.dsc_agent.learn_backward_options_offline
 
@@ -368,6 +366,7 @@ if __name__ == "__main__":
     parser.add_argument("--wait_n_episodes_between_clips", type=int, help="The number of episodes to wait between clip generation",
                         default=0)
     parser.add_argument("--constant_noise", action="store_true", help="options will take a random action a fixed % of time", default=False)
+    parser.add_argument("--task_agnostic", action="store_true", help="currently only for sawyer, force task agnostic", default=False)
     args = parser.parse_args()
 
     mdp_plotter = None
@@ -420,11 +419,8 @@ if __name__ == "__main__":
         action_dim = 2
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
-
-        task_agnostic = 'agnostic' in args.env.lower()
-
         overall_mdp = LeapWrapperMDP(
-            task_agnostic=task_agnostic,
+            task_agnostic=args.task_agnostic,
             episode_length=args.steps,
             use_hard_coded_events=args.use_hard_coded_events,
             dense_reward=args.dense_reward,
@@ -500,5 +496,5 @@ if __name__ == "__main__":
 
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)
     if args.generate_plots:
-        mdp_plotter.generate_final_experiment_plots(chainer, args.episodes)
+        mdp_plotter.generate_final_experiment_plots(dsg_agent, args.episodes)
     ipdb.set_trace()
