@@ -896,6 +896,7 @@ class SkillGraphPlanningAgent(object):
 
         if start_state is not None:
             start_position = start_state.position if isinstance(start_state, State) else start_state
+            ipdb.set_trace()
             # start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             self.mdp.reset_to_start_state(start_position)
 

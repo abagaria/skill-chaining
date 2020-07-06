@@ -46,7 +46,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             dsg_agent (DeepSkillGraphAgent): the skill chaining agent we want to plot
             episode (int): the current episode
         """
-        self.save_option_success_rate(dsg_agent.chainer)
+        self.save_option_success_rate(dsg_agent.dsc_agent)
         self.plot_learning_curve(dsg_agent, episode)
 
     def plot_learning_curve(self, dsg_agent, episode):
@@ -76,7 +76,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
     def success_curve(dsg_agent, start_state, goal_salient_event, episodes, episode_interval):
         success_rates_over_time = []
         for episode in range(episodes):
-            success_rate = dsg_agent.planning_agent.measure_success(goal_state=goal_salient_event,
+            success_rate = dsg_agent.planning_agent.measure_success(goal_salient_event=goal_salient_event,
                                                                     start_state=start_state,
                                                                     starting_episode=episode,
                                                                     num_episodes=episode_interval)

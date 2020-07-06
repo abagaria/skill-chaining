@@ -206,8 +206,6 @@ class DeepSkillGraphAgent(object):
 
         # TODO: Delete
         self.num_successive_rejections_history.append((episode, self.num_successive_rejections))
-        # if len(self.num_successive_rejections_history) % 20 == 0:
-        #     ipdb.set_trace()
 
         return reject
 
@@ -282,7 +280,7 @@ class DeepSkillGraphAgent(object):
         # If we have tried to create an event outside the graph a lot of times and failed,
         # then that probably means that we are done with forward-chaining and we can now
         # begin learning our backward options
-        return self.num_successive_rejections >= 20 \
+        return self.num_successive_rejections >= 6 \
                and not self.dsc_agent.create_backward_options \
                and not self.dsc_agent.learn_backward_options_offline
 
@@ -500,5 +498,5 @@ if __name__ == "__main__":
 
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)
     if args.generate_plots:
-        mdp_plotter.generate_final_experiment_plots(chainer, args.episodes)
+        mdp_plotter.generate_final_experiment_plots(dsg_agent, args.episodes)
     ipdb.set_trace()
