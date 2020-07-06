@@ -93,13 +93,20 @@ class LeapWrapperPlotter(MDPPlotter):
     def _plot_random_salients(self, dsc_agent, episode):
         # TODO: Remove hardcoding
         if episode % 200 == 0:
-            all_options = dsc_agent.trained_options
-            all_targets = set([option.target_salient_event.get_target_position() for option in all_options if option.parent is None])
 
             fig, ax = self._setup_plot((1, 1))
             
-            for target in all_targets:
-                puck_circle = plt.Circle(target, 0.06, alpha=0.3)
+            parent_options = [x for x in dsc_agent.trained_options if x.parent is None]
+            for option in parent_options:
+                target = option.target_salient_event.get_target_position()
+                phase = option.get_training_phase()
+                color = "r"
+                if phase == "gestation":
+                    color = "g"
+                if phase == "initiation":
+                    color = "b"
+
+                puck_circle = plt.Circle(target, 0.06, alpha=0.3, color=color)
                 ax.add_patch(puck_circle)
 
 
