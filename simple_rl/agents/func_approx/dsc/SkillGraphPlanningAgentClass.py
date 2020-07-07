@@ -432,7 +432,7 @@ class SkillGraphPlanningAgent(object):
 
     def planner_rollout(self, *, state, goal_state, target_option, inside_graph,
                         goal_salient_event, episode_number, step_number, eval_mode):
-
+        ipdb.set_trace()
         should_terminate_run_loop = False
 
         while not should_terminate_run_loop and step_number < self.chainer.max_steps:
