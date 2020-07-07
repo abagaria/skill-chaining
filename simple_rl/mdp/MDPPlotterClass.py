@@ -51,7 +51,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     def plot_learning_curve(self, dsg_agent, episode):
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, episode, 1, True)
+        learning_curves = self.learning_curve(dsg_agent, episode, 1, True, 2)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
@@ -66,9 +66,9 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         plt.savefig(os.path.join(self.path, "final_results", file_name))
         plt.close()
 
-    def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False):
-        start_states = self.generate_start_states(num_states=20)
-        goal_salient_events = self.generate_goal_salient_events(num_states=20)
+    def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False, num_states=20):
+        start_states = self.generate_start_states(num_states)
+        goal_salient_events = self.generate_goal_salient_events(num_states)
         all_runs = []
         for start_state, goal_salient_event in zip(start_states, goal_salient_events):
             start_state = start_state if randomize_start_states else None
