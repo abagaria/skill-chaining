@@ -50,18 +50,17 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.plot_learning_curve(dsg_agent, episode)
 
     def plot_learning_curve(self, dsg_agent, episode):
-        learning_curves = self.learning_curve(dsg_agent, episode, 100, True)
+        learning_curves = self.learning_curve(dsg_agent, episode, 1, True)
         ipdb.set_trace()
 
     def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False):
         start_states = self.generate_start_states(num_states=20)
         goal_salient_events = self.generate_goal_salient_events(num_states=20)
         all_runs = []
-        for start_state in start_states:
-            for goal_salient_event in goal_salient_events:
-                start_state = start_state if randomize_start_states else None
-                single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
-                all_runs.append(single_run)
+        for start_state, goal_salient_event in zip(start_states, goal_salient_events):
+            start_state = start_state if randomize_start_states else None
+            single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
+            all_runs.append(single_run)
         return all_runs
 
     @abc.abstractmethod
