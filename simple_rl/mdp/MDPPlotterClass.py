@@ -50,12 +50,18 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.plot_learning_curve(dsg_agent, episode)
 
     def plot_learning_curve(self, dsg_agent, episode):
+        print('*' * 80)
+        print("Training learning curves...")
+        print('*' * 80)
         # train learning curves and calculate average
         learning_curves = self.learning_curve(dsg_agent, episode, 1, True, 2)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
         # plot learning curves
+        print('*' * 80)
+        print("Plotting learning curves...")
+        print('*' * 80)
         fig, ax = plt.subplots()
         ax.plot(range(episode), mean, '-')
         ax.fill_between(range(episode), mean - std_err, mean + std_err, alpha=0.2)
