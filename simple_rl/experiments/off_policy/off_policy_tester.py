@@ -60,8 +60,8 @@ if __name__ == "__main__":
     parser.add_argument("--dense_reward", help="Whether to use dense/sparse rewards", action="store_true", default=False)
     parser.add_argument("--env", type=str, help="name of gym environment", default="point-env")
     parser.add_argument("--render", help="render environment training", action="store_true", default=False)
-    parser.add_argument("--episodes", type=int, help="number of training episodes", default=2)
-    parser.add_argument("--steps", type=int, help="number of steps per episode", default=2)
+    parser.add_argument("--episodes", type=int, help="number of training episodes")
+    parser.add_argument("--steps", type=int, help="number of steps per episode")
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     args = parser.parse_args()
     # make MDP with five seeds

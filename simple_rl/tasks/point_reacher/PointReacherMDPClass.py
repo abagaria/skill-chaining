@@ -68,9 +68,9 @@ class PointReacherMDP(MDP):
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
-        if self.dense_reward:
-            return -1.
-        return reward + 1  # TODO: Changing the reward function to return 0 step penalty and 1 reward
+        # if self.dense_reward:
+        #     return -1.
+        return 1. if done else 0  # TODO: Changing the reward function to return 0 step penalty and 1 reward
 
     def _transition_func(self, state, action):
         return self.next_state
