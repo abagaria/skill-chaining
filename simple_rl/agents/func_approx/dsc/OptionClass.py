@@ -615,6 +615,7 @@ class Option(object):
         assert not s.is_terminal(), "Terminal state did not terminate at some point"
 
         if self.is_term_true(s):
+            ipdb.set_trace()
             print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
             return
 
