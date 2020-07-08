@@ -15,7 +15,6 @@ class OffPolicyExperiment:
             from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
             goal_pos = (8, 8)
             self.mdp = PointReacherMDP(seed=seeds[0], render=render, dense_reward=dense_reward, goal_pos=goal_pos)
-        ipdb.set_trace()
 
         if algorithm == 'DDPG':
             self.solvers = [DDPGAgent(self.mdp.state_space_size(),

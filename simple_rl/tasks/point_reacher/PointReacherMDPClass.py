@@ -67,7 +67,7 @@ class PointReacherMDP(MDP):
 
     def _reward_func(self, state, action):
         next_state, reward, _, _ = self.env.step(action)
-        done = np.linalg.norm(self.next_state.position - self.goal_pos) < self.tolerance
+        done = np.linalg.norm(next_state[:2] - self.goal_pos) < self.tolerance
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
