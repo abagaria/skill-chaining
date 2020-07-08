@@ -13,7 +13,8 @@ class OffPolicyExperiment:
     def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm):
         if mdp_name == "point-reacher":
             from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
-            self.mdp = PointReacherMDP(seed=seeds[0], render=render, dense_reward=dense_reward)
+            goal_pos = (8, 8)
+            self.mdp = PointReacherMDP(seed=seeds[0], render=render, dense_reward=dense_reward, goal_pos=goal_pos)
         ipdb.set_trace()
 
         if algorithm == 'DDPG':
