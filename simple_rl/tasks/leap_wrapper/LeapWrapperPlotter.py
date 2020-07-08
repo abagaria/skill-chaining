@@ -319,7 +319,7 @@ class LeapWrapperPlotter(MDPPlotter):
         ax.set_xticks(np.linspace(self.axis_x_range[0], self.axis_x_range[1], 8))
         ax.set_yticks(np.linspace(self.axis_y_range[0], self.axis_y_range[1], 7))
 
-        for ax in axs.flat():
+        for ax in axs.flat:
             ax.set_aspect("equal")
         return fig, axs
 
