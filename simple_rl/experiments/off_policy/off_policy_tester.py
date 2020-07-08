@@ -50,8 +50,8 @@ class OffPolicyExperiment:
                 last_10_durations.append(step)
                 per_episode_durations.append(step)
 
-                print(f"\rEpisode {episode}\tAverage Score: {np.round(np.mean(last_10_scores), 2)}\tAverage Duration: "
-                      f"{np.round(np.mean(last_10_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
+            print(f"\rEpisode {episode}\tAverage Score: {np.round(np.mean(last_10_scores), 2)}\tAverage Duration: "
+                  f"{np.round(np.mean(last_10_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
         save_model(solver, episodes, "plots", best=False)
 
 
