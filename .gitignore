@@ -9,3 +9,10 @@ update.py
 .DS_Store
 to_update_instr.txt
 examples/blank_example.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# vscode project settings
+.vscode/
