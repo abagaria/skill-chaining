@@ -92,15 +92,16 @@ class LeapWrapperPlotter(MDPPlotter):
     def _plot_random_salients(self, dsc_agent, episode):
         fig, ax = self._setup_plot((1, 1))
 
-        parent_options = [x for x in dsc_agent.trained_options if x.parent is None]
+        parent_options = [x for x in dsc_agent.trained_options if x.target_salient_event is not None]
         for option in parent_options:
             target = option.target_salient_event.get_target_position()
             phase = option.get_training_phase()
-            color = "r"
             if phase == "gestation":
                 color = "g"
-            if phase == "initiation":
+            elif phase == "initiation":
                 color = "b"
+            else:
+                color = "r"
 
             puck_circle = plt.Circle(target, 0.06, alpha=0.3, color=color)
             ax.add_patch(puck_circle)
