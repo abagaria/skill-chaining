@@ -308,14 +308,18 @@ class LeapWrapperPlotter(MDPPlotter):
         fig, axs = plt.subplots(shape[0], shape[1], sharex='all', sharey='all', constrained_layout=True)
         fig.set_size_inches(shape[1] * GRAPH_WIDTH, shape[0] * GRAPH_WIDTH)
 
+        # lets us call flatten
+        if shape[0] == 1 and shape[1] == 1:
+            axs = [axs]
+
         # doesn't matter which axis we set these for because sharey and sharex are true
-        ax = axs.flat[0] if shape[0] > 1 or shape[1] > 1 else axs
+        ax = axs.flat[0]
         ax.set_xlim(self.axis_x_range)
         ax.set_ylim(self.axis_y_range)
         ax.set_xticks(np.linspace(self.axis_x_range[0], self.axis_x_range[1], 8))
         ax.set_yticks(np.linspace(self.axis_y_range[0], self.axis_y_range[1], 7))
 
-        for ax in axs.flatten():
+        for ax in axs.flat():
             ax.set_aspect("equal")
         return fig, axs
 
