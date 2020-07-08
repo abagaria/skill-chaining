@@ -24,7 +24,7 @@ class OffPolicyExperiment:
                                       name=f"DDPG_{seed}",
                                       exploration=None) for seed in seeds]
 
-    def train_solvers(self, episodes, steps):
+    def train_solvers(self, episodes, steps, generate_plots):
         per_episode_scores = []
         per_episode_durations = []
         last_10_scores = deque(maxlen=50)
@@ -53,7 +53,8 @@ class OffPolicyExperiment:
 
             print(f"\rEpisode {episode}\tAverage Score: {np.round(np.mean(last_10_scores), 2)}\tAverage Duration: "
                   f"{np.round(np.mean(last_10_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
-        save_model(solver, episodes, "plots", best=False)
+        if generate_plots:
+            save_model(solver, episodes, "plots", best=False)
 
 
 if __name__ == "__main__":
@@ -64,6 +65,7 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, help="number of training episodes")
     parser.add_argument("--steps", type=int, help="number of steps per episode")
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
+    parser.add_argument("--generate_plots", help="save pickled files", action="store_true", default=False)
     args = parser.parse_args()
     # make MDP with five seeds
     # train MDP for X episodes and pickle the training data
@@ -75,5 +77,5 @@ if __name__ == "__main__":
                                                 seeds=range(5),
                                                 device=args.device,
                                                 algorithm="DDPG")
-    off_policy_experiment.train_solvers(args.episodes, args.steps)
+    off_policy_experiment.train_solvers(args.episodes, args.steps, args.generate_plots)
     ipdb.set_trace()
