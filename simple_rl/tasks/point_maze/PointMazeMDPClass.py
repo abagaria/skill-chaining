@@ -144,6 +144,10 @@ class PointMazeMDP(MDP):
         init_state_array = self.env.reset()
         self.init_state = self._get_state(init_state_array, done=False)
         super(PointMazeMDP, self).reset()
+    
+    def sample_random_action(self):
+        size = (self.action_space_size(),)
+        return np.random.uniform(-1., 1., size=size)
 
     def __str__(self):
         return self.env_name
