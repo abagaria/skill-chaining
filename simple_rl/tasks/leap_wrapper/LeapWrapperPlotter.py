@@ -64,7 +64,7 @@ class LeapWrapperPlotter(MDPPlotter):
         self.final_initiation_set_has_been_plotted = []
 
         super().__init__(task_name, experiment_name,
-                         ["initiation_set_plots", "value_function_plots", "option_policy_plots"],
+                         ["initiation_set_plots", "value_function_plots", "option_policy_plots", "salient_event_locations"],
                          mdp)
 
     def generate_episode_plots(self, dsc_agent, episode):
@@ -110,7 +110,7 @@ class LeapWrapperPlotter(MDPPlotter):
         self._plot_sawyer_features(ax)
 
         file_name = f"random_salient_locations_episode_{episode}.png"
-        plt.savefig(os.path.join(self.path, "random_salient_location_plots", file_name))
+        plt.savefig(os.path.join(self.path, "salient_event_locations", file_name))
         plt.close()
 
     def generate_start_states(self, num_states):
