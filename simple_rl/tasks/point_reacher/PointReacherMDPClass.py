@@ -12,12 +12,14 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class PointReacherMDP(MDP):
-    def __init__(self, seed, color_str="", dense_reward=False, render=False, use_hard_coded_events=False):
+    def __init__(self, seed, goal_pos, color_str="", dense_reward=False, render=False, use_hard_coded_events=False):
         self.env_name = "point_reacher"
         self.seed = seed
         self.dense_reward = dense_reward
         self.render = render
         self.use_hard_coded_events = use_hard_coded_events
+        self.goal_pos = goal_pos
+        self.tolerance = 0.5
 
         random.seed(seed)
         np.random.seed(seed)
@@ -64,13 +66,14 @@ class PointReacherMDP(MDP):
             assert id(e1) == id(e2) == id(e3)
 
     def _reward_func(self, state, action):
-        next_state, reward, done, _ = self.env.step(action)
+        next_state, reward, _, _ = self.env.step(action)
+        done = np.linalg.norm(self.next_state.position - self.goal_pos) < self.tolerance
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
         # if self.dense_reward:
         #     return -1.
-        return 1. if done else 0  # TODO: Changing the reward function to return 0 step penalty and 1 reward
+        return 1. if done else -1  # TODO: Changing the reward function to return 0 step penalty and 1 reward
 
     def _transition_func(self, state, action):
         return self.next_state
