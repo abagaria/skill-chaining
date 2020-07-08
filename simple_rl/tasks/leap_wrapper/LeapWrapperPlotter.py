@@ -90,29 +90,27 @@ class LeapWrapperPlotter(MDPPlotter):
                     self.final_initiation_set_has_been_plotted[i] = True
 
     def _plot_random_salients(self, dsc_agent, episode):
-        if episode % 200 == 0:
+        fig, ax = self._setup_plot((1, 1))
 
-            fig, ax = self._setup_plot((1, 1))
-            
-            parent_options = [x for x in dsc_agent.trained_options if x.parent is None]
-            for option in parent_options:
-                target = option.target_salient_event.get_target_position()
-                phase = option.get_training_phase()
-                color = "r"
-                if phase == "gestation":
-                    color = "g"
-                if phase == "initiation":
-                    color = "b"
+        parent_options = [x for x in dsc_agent.trained_options if x.parent is None]
+        for option in parent_options:
+            target = option.target_salient_event.get_target_position()
+            phase = option.get_training_phase()
+            color = "r"
+            if phase == "gestation":
+                color = "g"
+            if phase == "initiation":
+                color = "b"
 
-                puck_circle = plt.Circle(target, 0.06, alpha=0.3, color=color)
-                ax.add_patch(puck_circle)
-                ax.text(target[0], target[1], str(option.option_idx), horizontalalignment='center', verticalalignment='center')
+            puck_circle = plt.Circle(target, 0.06, alpha=0.3, color=color)
+            ax.add_patch(puck_circle)
+            ax.text(target[0], target[1], str(option.option_idx), horizontalalignment='center', verticalalignment='center')
 
-            self._plot_sawyer_features(ax)
-            
-            file_name = f"random_salient_locations_episode_{episode}.png"
-            plt.savefig(os.path.join(self.path, "random_salient_location_plots", file_name))
-            plt.close()
+        self._plot_sawyer_features(ax)
+
+        file_name = f"random_salient_locations_episode_{episode}.png"
+        plt.savefig(os.path.join(self.path, "random_salient_location_plots", file_name))
+        plt.close()
 
     def generate_start_states(self, num_states):
         return self.generate_random_states(num_states)
@@ -311,7 +309,7 @@ class LeapWrapperPlotter(MDPPlotter):
         fig.set_size_inches(shape[1] * GRAPH_WIDTH, shape[0] * GRAPH_WIDTH)
 
         # doesn't matter which axis we set these for because sharey and sharex are true
-        ax = axs.flat[0]
+        ax = axs.flat[0] if shape[0] > 1 or shape[1] > 1 else axs
         ax.set_xlim(self.axis_x_range)
         ax.set_ylim(self.axis_y_range)
         ax.set_xticks(np.linspace(self.axis_x_range[0], self.axis_x_range[1], 8))
