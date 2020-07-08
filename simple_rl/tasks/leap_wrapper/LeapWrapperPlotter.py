@@ -91,6 +91,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
     def _plot_random_salients(self, dsc_agent, episode):
         fig, ax = self._setup_plot((1, 1))
+        ax = ax[0]
 
         parent_options = [x for x in dsc_agent.trained_options if x.parent is None]
         for option in parent_options:
@@ -305,12 +306,8 @@ class LeapWrapperPlotter(MDPPlotter):
     def _setup_plot(self, shape):
         GRAPH_WIDTH = 6
         # set up figure and axes
-        fig, axs = plt.subplots(shape[0], shape[1], sharex='all', sharey='all', constrained_layout=True)
+        fig, axs = plt.subplots(shape[0], shape[1], sharex='all', sharey='all', constrained_layout=True, squeeze=False)
         fig.set_size_inches(shape[1] * GRAPH_WIDTH, shape[0] * GRAPH_WIDTH)
-
-        # lets us call flatten
-        if shape[0] == 1 and shape[1] == 1:
-            axs = [axs]
 
         # doesn't matter which axis we set these for because sharey and sharex are true
         ax = axs.flat[0]
