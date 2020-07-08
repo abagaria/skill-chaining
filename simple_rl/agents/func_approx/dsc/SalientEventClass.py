@@ -27,7 +27,7 @@ class SalientEvent(object):
         self.use_additive_constants = use_additive_constants
         self.intersection_event = intersection_event
         self.name = name
-        if 'Start State' in name:
+        if name is not None and 'Start State' in name:
             ipdb.set_trace()
 
         assert isinstance(event_idx, int)

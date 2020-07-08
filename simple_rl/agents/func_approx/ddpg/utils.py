@@ -26,8 +26,8 @@ def save_model(ddpg_agent, episode_number, logdir, best=True):
         "state_dict": ddpg_agent.target_critic.state_dict()
     }
 
-    if not os.path.exists("saved_runs"):
-        os.makedirs("saved_runs")
+    if not os.path.exists(os.path.join(logdir, "saved_runs")):
+        os.makedirs(os.path.join(logdir, "saved_runs"))
 
     prefix = "best_" if best else "final_"
     name = prefix + ddpg_agent.name

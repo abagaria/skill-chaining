@@ -1171,7 +1171,8 @@ if __name__ == '__main__':
                             experiment_name=args.experiment_name,
                             plotter=mdp_plotter,
                             fixed_option_epsilon=args.fixed_option_epsilon,
-                            init_dqn_epsilon=args.init_dqn_epsilon)
+                            init_dqn_epsilon=args.init_dqn_epsilon,
+                            constant_noise=False)
     episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
     # Log performance metrics
