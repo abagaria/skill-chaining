@@ -81,7 +81,7 @@ class TrainOffPolicy:
     @staticmethod
     def plot_learning_curves(scores, labels, episodes):
         def moving_average(arr, window_size):
-            return np.convolve(arr, np.ones(window_size), 'same') / window_size
+            return np.convolve(arr, np.ones(window_size)) / window_size
 
         print('*' * 80)
         print("Plotting learning curves...")
