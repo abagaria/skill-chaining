@@ -181,7 +181,7 @@ class TrainOffPolicy:
         # train baseline on policy solver
         baseline_on_policy_solvers = self._make_solvers(num_off_policy_seeds, off_policy=True)
         baseline_on_policy_episode_scores = self.train_solvers(baseline_on_policy_solvers, episodes, steps, generate_plots, new_goal)
-
+        ipdb.set_trace()
         self.plot_learning_curves(
             [off_policy_episode_scores, baseline_on_policy_episode_scores],
             ["off policy", "on policy baseline"],
