@@ -67,7 +67,7 @@ class PointReacherMDP(MDP):
 
     def _reward_func(self, state, action):
         next_state, reward, _, _ = self.env.step(action)
-        done = np.linalg.norm(next_state[:2] - self.goal_pos) < self.tolerance
+        done = self.is_goal_state(next_state)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
@@ -112,17 +112,17 @@ class PointReacherMDP(MDP):
             self.all_salient_events_ever.append(new_event)
 
     def is_goal_state(self, state):
-        # return any([predicate(state) for predicate in self.get_current_target_events()])
-        return False
+        state = state.position if isinstance(state, PointReacherState) else state[:2]
+        return np.linalg.norm(state - self.goal_pos) < self.tolerance
 
     def is_start_state(self, state):
         pos = self._get_position(state)
         s0 = self.init_state.position
-        return np.linalg.norm(pos - s0) <= 0.6
+        return np.linalg.norm(pos - s0) <= self.tolerance
 
     def batched_is_start_state(self, position_matrix):
         s0 = self.init_state.position
-        in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= 0.6
+        in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= self.tolerance
         return in_start_pos.squeeze(1)
 
     def get_start_state_salient_event(self):
