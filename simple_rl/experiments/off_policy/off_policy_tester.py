@@ -63,10 +63,9 @@ class OffPolicyExperiment:
                 print(f"\rEpisode {episode}\tAverage Duration:{np.round(np.mean(last_50_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
             if generate_plots:
                 save_model(solver, episodes, "plots", best=False, save_ddpg=False)
+        return per_episode_scores
 
-
-        ipdb.set_trace()
-
+    @staticmethod
     def plot_learning_curves(self, scores, labels, episodes):
         def discrete_cmap(N, base_cmap=None):
             """Create an N-bin discrete colormap from the specified input map
@@ -118,4 +117,5 @@ if __name__ == "__main__":
                                                 seeds=range(5),
                                                 device=args.device,
                                                 algorithm="DDPG")
-    off_policy_experiment.train_solvers(args.episodes, args.steps, args.generate_plots)
+    episode_scores = off_policy_experiment.train_solvers(args.episodes, args.steps, args.generate_plots)
+    off_policy_experiment.plot_learning_curves([episode_scores], ["baseline (8, 8)"], args.episodes)
