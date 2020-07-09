@@ -118,4 +118,4 @@ if __name__ == "__main__":
                                                 device=args.device,
                                                 algorithm="DDPG")
     episode_scores = off_policy_experiment.train_solvers(args.episodes, args.steps, args.generate_plots)
-    off_policy_experiment.plot_learning_curves(["baseline (8, 8)"], args.episodes)
+    off_policy_experiment.plot_learning_curves(episode_scores, ["baseline (8, 8)"], args.episodes)
