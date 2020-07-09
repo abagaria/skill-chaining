@@ -24,6 +24,8 @@ class OffPolicyExperiment:
                                       name=f"DDPG_{seed}",
                                       exploration=None) for seed in seeds]
 
+        self.secondary_goal_states = []
+
     def train_solvers(self, episodes, steps, generate_plots):
         per_episode_scores = []
         per_episode_durations = []
@@ -46,10 +48,10 @@ class OffPolicyExperiment:
                 if state.is_terminal():
                     break
 
-                last_10_scores.append(score)
-                per_episode_scores.append(score)
-                last_10_durations.append(step)
-                per_episode_durations.append(step)
+            last_10_scores.append(score)
+            per_episode_scores.append(score)
+            last_10_durations.append(step)
+            per_episode_durations.append(step)
             ipdb.set_trace()
 
             print(f"\rEpisode {episode}\tAverage Score: {np.round(np.mean(last_10_scores), 2)}\tAverage Duration: "
