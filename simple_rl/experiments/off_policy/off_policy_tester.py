@@ -64,23 +64,38 @@ class OffPolicyExperiment:
             if generate_plots:
                 save_model(solver, episodes, "plots", best=False, save_ddpg=False)
 
-        fig, axs = plt.subplots()
-        mean = np.mean(per_episode_scores, axis=0)
-        std_err = np.std(per_episode_scores, axis=0)
 
-        # plot learning curves
+        ipdb.set_trace()
+
+    def plot_learning_curves(self, scores, labels, episodes):
+        def discrete_cmap(N, base_cmap=None):
+            """Create an N-bin discrete colormap from the specified input map
+
+            Note that if base_cmap is a string or None, you can simply do
+               return plt.cm.get_cmap(base_cmap, N)
+            The following works for string, None, or a colormap instance.
+            """
+            base = plt.cm.get_cmap(base_cmap)
+            color_list = base(np.linspace(0, 1, N))
+            cmap_name = base.name + str(N)
+            return base.from_list(cmap_name, color_list, N)
+
         print('*' * 80)
         print("Plotting learning curves...")
         print('*' * 80)
-        fig, ax = plt.subplots()
-        ax.plot(range(episodes), mean, '-')
-        ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
-        ax.set_xlim(0, episodes)
 
+        fig, ax = plt.subplots()
+        ax.set_xlim(0, episodes)
+        cmap = discrete_cmap(len(scores), 'cubehelix')
+        for i, (label, goal_scores) in enumerate(zip(labels, scores)):
+            mean = np.mean(scores, axis=-1)
+            std_err = np.std(scores, axis=-1)
+            ax.plot(range(episodes), mean, '-', label=label, c=i, cmap=cmap)
+            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), c=i, cmap=cmap, alpha=0.2)
+        ax.legend()
         file_name = "learning_curves.png"
         plt.savefig(os.path.join("plots", "saved_runs", file_name))
         plt.close()
-        ipdb.set_trace()
 
 
 if __name__ == "__main__":
