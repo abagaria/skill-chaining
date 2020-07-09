@@ -112,7 +112,7 @@ class OffPolicyExperiment:
         ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.3)
 
         # plot goal
-        goal_state = plt.Circle(self.goal_pos, self.tolerance, alpha=0.1, color='g')
+        goal_state = plt.Circle(self.goal_pos, self.tolerance, alpha=1.0, color='g')
         ax.add_patch(goal_state)
 
         # save file
