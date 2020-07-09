@@ -87,8 +87,8 @@ class OffPolicyExperiment:
         ax.set_xlim(0, episodes)
         cmap = discrete_cmap(len(scores), 'cubehelix')
         for i, (label, goal_scores) in enumerate(zip(labels, scores)):
-            mean = np.mean(scores, axis=-1)
-            std_err = np.std(scores, axis=-1)
+            mean = np.mean(scores, axis=0)
+            std_err = np.std(scores, axis=0)
             ax.plot(range(episodes), mean, '-', label=label, c=i, cmap=cmap)
             ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), c=i, cmap=cmap, alpha=0.2)
         ax.legend()
