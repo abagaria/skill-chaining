@@ -206,7 +206,7 @@ if __name__ == "__main__":
                                       seeds=range(args.num_seeds),
                                       device=args.device,
                                       algorithm="DDPG")
-    if args.preload_buffer:
+    if not args.preload_buffer:
         train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
 
     filename = os.path.join("plots", "off_policy", "combined_replay_buffers.pkl")
