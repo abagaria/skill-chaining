@@ -103,7 +103,7 @@ class OffPolicyExperiment:
         positions = np.array([(state[0], state[1]) for state in states])
 
         # set up plots
-        fig, ax = plt.subplots(size=(6, 6))
+        fig, ax = plt.subplots(figsize=(6, 6))
         ax.set_aspect = 'equal'
         ax.set_xlim(-10, 10)
         ax.set_ylim(-10, 10)
