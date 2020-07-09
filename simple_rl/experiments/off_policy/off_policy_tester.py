@@ -103,13 +103,13 @@ class OffPolicyExperiment:
         positions = np.array([(state[0], state[1]) for state in states])
 
         # set up plots
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(size=(6, 6))
         ax.set_aspect = 'equal'
         ax.set_xlim(-10, 10)
         ax.set_ylim(-10, 10)
 
         # plot scatter
-        ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.3)
+        ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.1)
 
         # plot goal
         goal_state = plt.Circle(self.goal_pos, self.tolerance, alpha=1.0, color='g')
