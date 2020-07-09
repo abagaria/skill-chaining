@@ -9,6 +9,7 @@ import torch
 import matplotlib.pyplot as plt
 import pickle
 from scipy.ndimage.filters import uniform_filter1d
+from tqdm import tqdm
 
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.ddpg.utils import save_model, create_log_dir
@@ -131,7 +132,7 @@ class TrainOffPolicy:
         self.mdp.goal_pos = new_goal
         off_policy_solvers = self._make_solvers(num_seeds)
         for solver in off_policy_solvers:
-            for (state, action, _, next_state, _) in experiences:
+            for (state, action, _, next_state, _) in tqdm(experiences, desc=f"Pretraining {solver.name}"):
                 is_terminal = self.mdp.is_goal_state(next_state)
                 reward = 1 if is_terminal else -1
                 solver.step(state, action, reward, next_state, is_terminal)
@@ -205,7 +206,8 @@ if __name__ == "__main__":
                                       seeds=range(args.num_seeds),
                                       device=args.device,
                                       algorithm="DDPG")
-    train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+    if args.preload_buffer:
+        train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
 
     filename = os.path.join("plots", "off_policy", "combined_replay_buffers.pkl")
     train_off_policy.test_off_policy_training(filename, range(args.num_seeds), args.episodes, args.steps, args.generate_plots, (5, 8))
