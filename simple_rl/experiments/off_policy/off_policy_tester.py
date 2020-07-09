@@ -8,6 +8,7 @@ import ipdb
 import torch
 import matplotlib.pyplot as plt
 import pickle
+from scipy.ndimage.filters import uniform_filter1d
 
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.ddpg.utils import save_model, create_log_dir
@@ -81,7 +82,12 @@ class TrainOffPolicy:
     @staticmethod
     def plot_learning_curves(scores, labels, episodes):
         def moving_average(arr, window_size):
-            return np.convolve(arr, np.ones(window_size)) / window_size
+            moving_average_arr = []
+            for i, val in enumerate(arr):
+                min_bound = max(i - window_size + 1, 0)
+                arr_slice = arr[min_bound:i + 1]
+                moving_average_arr.append(sum(arr_slice) / len(arr_slice))
+            return moving_average_arr
 
         print('*' * 80)
         print("Plotting learning curves...")
@@ -90,10 +96,10 @@ class TrainOffPolicy:
         fig, ax = plt.subplots()
         ax.set_xlim(0, episodes)
         for label, goal_scores in zip(labels, scores):
-            mean = np.mean(goal_scores, axis=0)
-            std_err = np.std(goal_scores, axis=0)
-            smooth_mean = moving_average(mean, 10)
-            smooth_std_err = moving_average(std_err, 10)
+            mean = np.mean(goal_scores, axis=0, dtype=float)
+            std_err = np.std(goal_scores, axis=0, dtype=float)
+            smooth_mean = uniform_filter1d(mean, 10, mode='nearest')
+            smooth_std_err = uniform_filter1d(std_err, 10, mode='nearest')
             ax.plot(range(episodes), smooth_mean, '-', label=label)
             ax.fill_between(range(episodes),
                             smooth_mean - smooth_std_err,
