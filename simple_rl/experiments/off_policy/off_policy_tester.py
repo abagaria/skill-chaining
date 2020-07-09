@@ -66,7 +66,7 @@ class OffPolicyExperiment:
         return per_episode_scores
 
     @staticmethod
-    def plot_learning_curves(self, scores, labels, episodes):
+    def plot_learning_curves(scores, labels, episodes):
         def discrete_cmap(N, base_cmap=None):
             """Create an N-bin discrete colormap from the specified input map
 
@@ -118,4 +118,4 @@ if __name__ == "__main__":
                                                 device=args.device,
                                                 algorithm="DDPG")
     episode_scores = off_policy_experiment.train_solvers(args.episodes, args.steps, args.generate_plots)
-    off_policy_experiment.plot_learning_curves([episode_scores], ["baseline (8, 8)"], args.episodes)
+    off_policy_experiment.plot_learning_curves(["baseline (8, 8)"], args.episodes)
