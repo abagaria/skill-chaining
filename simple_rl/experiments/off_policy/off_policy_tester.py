@@ -67,6 +67,7 @@ class OffPolicyExperiment:
                 print(f"\rEpisode {episode}\tAverage Duration:{np.round(np.mean(last_50_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
             if generate_plots:
                 save_model(solver, episodes, "plots", best=False, save_ddpg=False)
+                self.plot_buffer(solver.replay_buffer)
         return per_episode_scores
 
     @staticmethod
@@ -113,6 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, help="number of steps per episode")
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--generate_plots", help="save pickled files", action="store_true", default=False)
+    parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
     args = parser.parse_args()
     # make MDP with five seeds
     # train MDP for X episodes and pickle the training data
@@ -121,7 +123,7 @@ if __name__ == "__main__":
     off_policy_experiment = OffPolicyExperiment(mdp_name=args.env,
                                                 render=args.render,
                                                 dense_reward=args.dense_reward,
-                                                seeds=range(5),
+                                                seeds=range(args.num_seeds),
                                                 device=args.device,
                                                 algorithm="DDPG")
     episode_scores = off_policy_experiment.train_solvers(args.episodes, args.steps, args.generate_plots)
