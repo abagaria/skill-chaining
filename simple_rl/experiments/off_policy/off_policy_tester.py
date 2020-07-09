@@ -73,8 +73,7 @@ class TrainOffPolicy:
                 last_50_durations.append(step)
                 solver_per_episode_durations.append(step)
 
-                print(f"\r\tSolver: {solver.name}\tEpisode {episode}\tAverage Duration:{np.round(np.mean(last_50_durations), 2)}"
-                      f"\tEpsilon: {round(solver.epsilon, 2)}")
+                print(f"\rSolver: {solver.name}\tEpisode {episode}\tAverage Duration:{np.round(np.mean(last_50_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
             if generate_plots:
                 self._plot_buffer(solver.replay_buffer, goal_pos)
         return per_episode_scores
@@ -143,13 +142,17 @@ class TrainOffPolicy:
 
     def _save_combined_replay_buffers(self, solvers, num_training_examples=None):
         replay_buffers = [solver.replay_buffer for solver in solvers]
-        shared_experiences = deque()
+        shared_experiences = []
         for replay_buffer in replay_buffers:
             shared_experiences += replay_buffer.memory
         if num_training_examples is None:
             training_times = [len(replay_buffer.memory) for replay_buffer in replay_buffers]
             num_training_examples = sum(training_times) / len(training_times)
-        combined_replay_buffer = random.sample(list(shared_experiences), num_training_examples)
+        combined_replay_buffer = random.sample(shared_experiences, num_training_examples)
+
+        print('*' * 80)
+        print("Saving combined replay buffer...")
+        print('*' * 80)
 
         with open(os.path.join("plots", "off_policy", "combined_replay_buffers.pkl"), "wb") as f:
             pickle.dump(combined_replay_buffer, f)
@@ -176,7 +179,7 @@ class TrainOffPolicy:
         off_policy_episode_scores = self.train_solvers(initialized_off_policy_solvers, episodes, steps, generate_plots, new_goal)
 
         # train baseline on policy solver
-        baseline_on_policy_solvers = self._make_solvers(num_off_policy_seeds)
+        baseline_on_policy_solvers = self._make_solvers(num_off_policy_seeds, off_policy=True)
         baseline_on_policy_episode_scores = self.train_solvers(baseline_on_policy_solvers, episodes, steps, generate_plots, new_goal)
 
         self.plot_learning_curves(
