@@ -67,30 +67,17 @@ class OffPolicyExperiment:
 
     @staticmethod
     def plot_learning_curves(scores, labels, episodes):
-        def discrete_cmap(N, base_cmap=None):
-            """Create an N-bin discrete colormap from the specified input map
-
-            Note that if base_cmap is a string or None, you can simply do
-               return plt.cm.get_cmap(base_cmap, N)
-            The following works for string, None, or a colormap instance.
-            """
-            base = plt.cm.get_cmap(base_cmap)
-            color_list = base(np.linspace(0, 1, N))
-            cmap_name = base.name + str(N)
-            return base.from_list(cmap_name, color_list, N)
-
         print('*' * 80)
         print("Plotting learning curves...")
         print('*' * 80)
 
         fig, ax = plt.subplots()
         ax.set_xlim(0, episodes)
-        cmap = discrete_cmap(len(scores), 'cubehelix')
         for i, (label, goal_scores) in enumerate(zip(labels, scores)):
             mean = np.mean(goal_scores, axis=0)
             std_err = np.std(goal_scores, axis=0)
-            ax.plot(range(episodes), mean, '-', label=label, c=i, cmap=cmap)
-            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), c=i, cmap=cmap, alpha=0.2)
+            ax.plot(range(episodes), mean, '-', label=label, c=i)
+            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), c=i, alpha=0.2)
         ax.legend()
         file_name = "learning_curves.png"
         plt.savefig(os.path.join("plots", "saved_runs", file_name))
