@@ -77,6 +77,9 @@ class OffPolicyExperiment:
 
     @staticmethod
     def plot_learning_curves(scores, labels, episodes):
+        def moving_average(arr, window_size):
+            return np.convolve(arr, np.ones(window_size), 'same') / window_size
+
         print('*' * 80)
         print("Plotting learning curves...")
         print('*' * 80)
@@ -86,8 +89,13 @@ class OffPolicyExperiment:
         for label, goal_scores in zip(labels, scores):
             mean = np.mean(goal_scores, axis=0)
             std_err = np.std(goal_scores, axis=0)
-            ax.plot(range(episodes), mean, '-', label=label)
-            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.1)
+            smooth_mean = moving_average(mean, 10)
+            smooth_std_err = moving_average(std_err, 10)
+            ax.plot(range(episodes), smooth_mean, '-', label=label)
+            ax.fill_between(range(episodes),
+                            np.maximum(smooth_mean - smooth_std_err, 0),
+                            np.minimum(smooth_mean + smooth_std_err, 1),
+                            alpha=0.3)
         ax.legend()
         file_name = "learning_curves.png"
         plt.savefig(os.path.join("plots", "saved_runs", file_name))
@@ -109,7 +117,7 @@ class OffPolicyExperiment:
         ax.set_ylim(-10, 10)
 
         # plot scatter
-        ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.1)
+        ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.2)
 
         # plot goal
         goal_state = plt.Circle(self.goal_pos, self.tolerance, alpha=1.0, color='g')
