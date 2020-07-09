@@ -179,7 +179,6 @@ class TrainOffPolicy:
         # train baseline on policy solver
         baseline_on_policy_solvers = self._make_solvers(num_off_policy_seeds, off_policy=True)
         baseline_on_policy_episode_scores = self.train_solvers(baseline_on_policy_solvers, episodes, steps, generate_plots, new_goal)
-        ipdb.set_trace()
         self.plot_learning_curves(
             [off_policy_episode_scores, baseline_on_policy_episode_scores],
             ["off policy", "on policy baseline"],
@@ -196,6 +195,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--generate_plots", help="save pickled files", action="store_true", default=False)
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
+    parser.add_argument("--preload_buffer", help="train fresh on policy solver for new data", action="store_true", default=False)
     args = parser.parse_args()
 
     create_log_dir("plots/off_policy")
