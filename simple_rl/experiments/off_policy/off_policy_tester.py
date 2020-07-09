@@ -80,15 +80,7 @@ class TrainOffPolicy:
         return per_episode_scores
 
     @staticmethod
-    def plot_learning_curves(scores, labels, episodes):
-        def moving_average(arr, window_size):
-            moving_average_arr = []
-            for i, val in enumerate(arr):
-                min_bound = max(i - window_size + 1, 0)
-                arr_slice = arr[min_bound:i + 1]
-                moving_average_arr.append(sum(arr_slice) / len(arr_slice))
-            return moving_average_arr
-
+    def plot_learning_curves(scores, labels, episodes, file_name="learning_curves.png"):
         print('*' * 80)
         print("Plotting learning curves...")
         print('*' * 80)
@@ -106,7 +98,6 @@ class TrainOffPolicy:
                             smooth_mean + smooth_std_err,
                             alpha=0.3)
         ax.legend()
-        file_name = "learning_curves.png"
         plt.savefig(os.path.join("plots", "off_policy", file_name))
         plt.close()
 
@@ -171,7 +162,8 @@ class TrainOffPolicy:
     def generate_on_policy_pickled_buffers(self, num_on_policy_seeds, episodes, steps, generate_plots):
         # Train on policy solvers for n episodes and pickle the replay buffers
         on_policy_solvers = self._make_solvers(num_on_policy_seeds)
-        self.train_solvers(on_policy_solvers, episodes, steps, generate_plots, self.on_policy_goal)
+        scores = self.train_solvers(on_policy_solvers, episodes, steps, generate_plots, self.on_policy_goal)
+        self.plot_learning_curves(scores=[scores], labels=["on policy reference"], episodes=episodes, file_name="on_policy_learning_curves.png")
 
         # save all original replay buffers and also combine all replay buffers into 1 and save the sampled replay buffer
         for solver in on_policy_solvers:
