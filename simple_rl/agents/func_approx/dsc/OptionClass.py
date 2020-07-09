@@ -671,12 +671,12 @@ class Option(object):
 
                 if not warmup_phase or (self.name == "global_option" and self.update_global_solver):
                     self.update_option_solver(state, action, reward, next_state)
+                    self.solver.update_epsilon()
 
                 if self.name != "global_option" and self.update_global_solver:
                     self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
                     self.global_solver.update_epsilon()
 
-                self.solver.update_epsilon()
                 option_transitions.append((state, action, reward, next_state))
                 visited_states.append(state)
 

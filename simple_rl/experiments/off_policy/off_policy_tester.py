@@ -6,9 +6,13 @@ import numpy as np
 import ipdb
 import torch
 import matplotlib.pyplot as plt
+import pickle
 
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.ddpg.utils import save_model
+
+
+plt.style.use('default')
 
 
 class OffPolicyExperiment:
@@ -83,6 +87,22 @@ class OffPolicyExperiment:
         plt.savefig(os.path.join("plots", "saved_runs", file_name))
         plt.close()
 
+    @staticmethod
+    def get_replay_buffer(file):
+        with open(file, 'rb'):
+            return pickle.load(file)
+
+    @staticmethod
+    def plot_buffer(replay_buffer):
+        states = np.array(replay_buffer.memory)[:, 0]
+        positions = np.array([(state[0], state[1]) for state in states])
+        fig, ax = plt.subplots()
+        ax.set_xlim(-10, 10)
+        ax.set_ylim(-10, 10)
+        ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.3)
+        file_name = f"{replay_buffer.name}.png"
+        plt.savefig(os.path.join("plots", "saved_runs", file_name))
+        plt.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
