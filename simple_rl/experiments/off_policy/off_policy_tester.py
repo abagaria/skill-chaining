@@ -204,8 +204,8 @@ if __name__ == "__main__":
                                       seeds=range(args.num_seeds),
                                       device=args.device,
                                       algorithm="DDPG")
-    train_off_policy.generate_on_policy_pickled_buffers(args.num_seeds, args.episodes, args.steps, args.generate_plots)
+    train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
 
     filename = os.path.join("plots", "off_policy", "combined_replay_buffers.pkl")
-    train_off_policy.test_off_policy_training(filename, args.num_seeds, args.episodes, args.steps, args.generate_plots, (5, 8))
+    train_off_policy.test_off_policy_training(filename, range(args.num_seeds), args.episodes, args.steps, args.generate_plots, (5, 8))
     ipdb.set_trace()
