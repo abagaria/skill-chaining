@@ -3,38 +3,40 @@ import torch
 import pickle
 
 
-def save_model(ddpg_agent, episode_number, logdir, best=True):
-    actor_state = {
-        "epoch": episode_number,
-        "state_dict": ddpg_agent.actor.state_dict(),
-        "optimizer": ddpg_agent.actor_optimizer.state_dict()
-    }
-
-    critic_state = {
-        "epoch": episode_number,
-        "state_dict": ddpg_agent.critic.state_dict(),
-        "optimizer": ddpg_agent.critic_optimizer.state_dict()
-    }
-
-    target_actor_state = {
-        "epoch": episode_number,
-        "state_dict": ddpg_agent.target_actor.state_dict()
-    }
-
-    target_critic_state = {
-        "epoch": episode_number,
-        "state_dict": ddpg_agent.target_critic.state_dict()
-    }
-
+def save_model(ddpg_agent, episode_number, logdir, best=True, save_ddpg=True):
     if not os.path.exists(os.path.join(logdir, "saved_runs")):
         os.makedirs(os.path.join(logdir, "saved_runs"))
 
     prefix = "best_" if best else "final_"
     name = prefix + ddpg_agent.name
-    torch.save(actor_state, os.path.join(logdir, "saved_runs", f"{name}_actor.pkl"))
-    torch.save(critic_state, os.path.join(logdir, "saved_runs", f"{name}_critic.pkl"))
-    torch.save(target_actor_state, os.path.join(logdir, "saved_runs", f"{name}_target_actor.pkl"))
-    torch.save(target_critic_state, os.path.join(logdir, "saved_runs", f"{name}_target_critic.pkl"))
+
+    if save_ddpg:
+        actor_state = {
+            "epoch": episode_number,
+            "state_dict": ddpg_agent.actor.state_dict(),
+            "optimizer": ddpg_agent.actor_optimizer.state_dict()
+        }
+
+        critic_state = {
+            "epoch": episode_number,
+            "state_dict": ddpg_agent.critic.state_dict(),
+            "optimizer": ddpg_agent.critic_optimizer.state_dict()
+        }
+
+        target_actor_state = {
+            "epoch": episode_number,
+            "state_dict": ddpg_agent.target_actor.state_dict()
+        }
+
+        target_critic_state = {
+            "epoch": episode_number,
+            "state_dict": ddpg_agent.target_critic.state_dict()
+        }
+
+        torch.save(actor_state, os.path.join(logdir, "saved_runs", f"{name}_actor.pkl"))
+        torch.save(critic_state, os.path.join(logdir, "saved_runs", f"{name}_critic.pkl"))
+        torch.save(target_actor_state, os.path.join(logdir, "saved_runs", f"{name}_target_actor.pkl"))
+        torch.save(target_critic_state, os.path.join(logdir, "saved_runs", f"{name}_target_critic.pkl"))
 
     with open(os.path.join(logdir, "saved_runs", f"{name}_replay_buffer.pkl"), "wb") as f:
         pickle.dump(ddpg_agent.replay_buffer, f)

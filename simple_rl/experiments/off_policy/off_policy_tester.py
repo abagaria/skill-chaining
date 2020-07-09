@@ -50,11 +50,12 @@ class OffPolicyExperiment:
                 per_episode_scores.append(score)
                 last_10_durations.append(step)
                 per_episode_durations.append(step)
+            ipdb.set_trace()
 
             print(f"\rEpisode {episode}\tAverage Score: {np.round(np.mean(last_10_scores), 2)}\tAverage Duration: "
                   f"{np.round(np.mean(last_10_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
         if generate_plots:
-            save_model(solver, episodes, "plots", best=False)
+            save_model(solver, episodes, "plots", best=False, save_ddpg=False)
 
 
 if __name__ == "__main__":
