@@ -147,7 +147,7 @@ class TrainOffPolicy:
             shared_experiences += replay_buffer.memory
         if num_training_examples is None:
             training_times = [len(replay_buffer.memory) for replay_buffer in replay_buffers]
-            num_training_examples = sum(training_times) / len(training_times)
+            num_training_examples = int(sum(training_times) / len(training_times))
         combined_replay_buffer = random.sample(shared_experiences, num_training_examples)
 
         print('*' * 80)
