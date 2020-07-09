@@ -73,11 +73,11 @@ class OffPolicyExperiment:
 
         fig, ax = plt.subplots()
         ax.set_xlim(0, episodes)
-        for i, (label, goal_scores) in enumerate(zip(labels, scores)):
+        for label, goal_scores in zip(labels, scores):
             mean = np.mean(goal_scores, axis=0)
             std_err = np.std(goal_scores, axis=0)
-            ax.plot(range(episodes), mean, '-', label=label, c=i)
-            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), c=i, alpha=0.2)
+            ax.plot(range(episodes), mean, '-', label=label)
+            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
         ax.legend()
         file_name = "learning_curves.png"
         plt.savefig(os.path.join("plots", "saved_runs", file_name))
