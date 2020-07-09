@@ -1,9 +1,11 @@
 import argparse
+import os
 from collections import deque
 from copy import deepcopy
 import numpy as np
 import ipdb
 import torch
+import matplotlib.pyplot as plt
 
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.ddpg.utils import save_model
@@ -29,35 +31,56 @@ class OffPolicyExperiment:
     def train_solvers(self, episodes, steps, generate_plots):
         per_episode_scores = []
         per_episode_durations = []
-        last_10_scores = deque(maxlen=50)
-        last_10_durations = deque(maxlen=50)
 
-        # for solver in self.solvers:
-        solver = self.solvers[0]
-        for episode in range(episodes):
-            self.mdp.reset()
-            state = deepcopy(self.mdp.init_state)
-            score = 0.
-            for step in range(steps):
-                action = solver.act(state.features())
-                reward, next_state = self.mdp.execute_agent_action(action)
-                solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-                solver.update_epsilon()
-                state = next_state
-                score += reward
-                if state.is_terminal():
-                    break
+        for solver in self.solvers:
+            # variables to save reward
+            solver_per_episode_scores = []
+            per_episode_scores.append(solver_per_episode_scores)
+            solver_per_episode_durations = []
+            per_episode_durations.append(solver_per_episode_durations)
+            last_50_scores = deque(maxlen=50)
+            last_50_durations = deque(maxlen=50)
 
-            last_10_scores.append(score)
-            per_episode_scores.append(score)
-            last_10_durations.append(step)
-            per_episode_durations.append(step)
-            if len(per_episode_durations) % 10 == 0:
-                ipdb.set_trace()
+            for episode in range(episodes):
+                self.mdp.reset()
+                state = deepcopy(self.mdp.init_state)
+                score = 0.
+                for step in range(steps):
+                    action = solver.act(state.features())
+                    reward, next_state = self.mdp.execute_agent_action(action)
+                    solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+                    solver.update_epsilon()
+                    state = next_state
+                    score += reward
+                    if state.is_terminal():
+                        break
 
-            print(f"\rEpisode {episode}\tAverage Duration:{np.round(np.mean(last_10_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
-        if generate_plots:
-            save_model(solver, episodes, "plots", best=False, save_ddpg=False)
+                last_50_scores.append(score)
+                solver_per_episode_scores.append(score)
+                last_50_durations.append(step)
+                solver_per_episode_durations.append(step)
+
+                print(f"\rEpisode {episode}\tAverage Duration:{np.round(np.mean(last_50_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
+            if generate_plots:
+                save_model(solver, episodes, "plots", best=False, save_ddpg=False)
+
+        fig, axs = plt.subplots()
+        mean = np.mean(per_episode_scores, axis=0)
+        std_err = np.std(per_episode_scores, axis=0)
+
+        # plot learning curves
+        print('*' * 80)
+        print("Plotting learning curves...")
+        print('*' * 80)
+        fig, ax = plt.subplots()
+        ax.plot(range(episodes), mean, '-')
+        ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
+        ax.set_xlim(0, episodes)
+
+        file_name = "learning_curves.png"
+        plt.savefig(os.path.join("plots", "saved_runs", file_name))
+        plt.close()
+        ipdb.set_trace()
 
 
 if __name__ == "__main__":
@@ -81,4 +104,3 @@ if __name__ == "__main__":
                                                 device=args.device,
                                                 algorithm="DDPG")
     off_policy_experiment.train_solvers(args.episodes, args.steps, args.generate_plots)
-    ipdb.set_trace()
