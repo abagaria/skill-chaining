@@ -19,8 +19,13 @@ class OffPolicyExperiment:
     def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm):
         if mdp_name == "point-reacher":
             from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
-            goal_pos = (8, 8)
-            self.mdp = PointReacherMDP(seed=seeds[0], render=render, dense_reward=dense_reward, goal_pos=goal_pos)
+            self.goal_pos = (8, 8)
+            self.tolerance = 0.5
+            self.mdp = PointReacherMDP(seed=seeds[0],
+                                       render=render,
+                                       dense_reward=dense_reward,
+                                       goal_pos=self.goal_pos,
+                                       tolerance=self.tolerance)
 
         if algorithm == 'DDPG':
             self.solvers = [DDPGAgent(self.mdp.state_space_size(),
@@ -82,7 +87,7 @@ class OffPolicyExperiment:
             mean = np.mean(goal_scores, axis=0)
             std_err = np.std(goal_scores, axis=0)
             ax.plot(range(episodes), mean, '-', label=label)
-            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
+            ax.fill_between(range(episodes), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.1)
         ax.legend()
         file_name = "learning_curves.png"
         plt.savefig(os.path.join("plots", "saved_runs", file_name))
@@ -93,17 +98,28 @@ class OffPolicyExperiment:
         with open(file, 'rb'):
             return pickle.load(file)
 
-    @staticmethod
-    def plot_buffer(replay_buffer):
+    def plot_buffer(self, replay_buffer):
         states = np.array(replay_buffer.memory)[:, 0]
         positions = np.array([(state[0], state[1]) for state in states])
+
+        # set up plots
         fig, ax = plt.subplots()
+        ax.set_aspect = 'equal'
         ax.set_xlim(-10, 10)
         ax.set_ylim(-10, 10)
+
+        # plot scatter
         ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.3)
+
+        # plot goal
+        goal_state = plt.Circle(self.goal_pos, self.tolerance, alpha=0.1, color='g')
+        ax.add_patch(goal_state)
+
+        # save file
         file_name = f"{replay_buffer.name}.png"
         plt.savefig(os.path.join("plots", "saved_runs", file_name))
         plt.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
