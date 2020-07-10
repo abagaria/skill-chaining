@@ -234,7 +234,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--generate_plots", help="save pickled files", action="store_true", default=False)
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
-    parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", action="store_true", default="")
+    parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     args = parser.parse_args()
 
     train_off_policy = TrainOffPolicy(mdp_name=args.env,
