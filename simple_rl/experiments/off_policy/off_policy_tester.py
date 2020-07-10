@@ -23,10 +23,11 @@ plt.style.use('default')
 
 
 class TrainOffPolicy:
-    def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm, experiment_name):
+    def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm, experiment_name, off_policy_targets):
         self.device = device
         self.algorithm = algorithm
         self.path = rotate_file_name(os.path.join("plots", "off_policy", experiment_name))
+        self.off_policy_targets = off_policy_targets
         for subdirectory in ['pickles', 'replay_buffers', 'learning_curves']:
             create_log_dir(os.path.join(self.path, subdirectory))
 
@@ -135,15 +136,19 @@ class TrainOffPolicy:
         handles = []
         on_policy_goal_marker = Line2D([], [], marker="o", linestyle="none", color='k', markersize=12, label="original on-policy goal")
         handles.append(on_policy_goal_marker)
-        on_policy_goal = plt.Circle(self.on_policy_goal, self.tolerance, alpha=1.0, color='k')
+        on_policy_goal = plt.Circle(self.on_policy_goal, self.tolerance, alpha=0.7, color='k')
         ax.add_patch(on_policy_goal)
 
         if goal_pos is not None:
-            goal_state = plt.Circle(goal_pos, self.tolerance, alpha=1.0, color='gold')
-            curr_goal_marker = Line2D([], [], marker="o", linestyle="none", color='gold', markersize=12, label="current goal")
-            handles.append(curr_goal_marker)
+            goal_state = plt.Circle(goal_pos, self.tolerance, alpha=0.7, color='gold')
             ax.add_patch(goal_state)
+        else:
+            for goal_pos in self.off_policy_targets:
+                goal_state = plt.Circle(goal_pos, self.tolerance, alpha=0.7, color='gold')
+                ax.add_patch(goal_state)
 
+        curr_goal_marker = Line2D([], [], marker="o", linestyle="none", color='gold', markersize=12, label="current goal")
+        handles.append(curr_goal_marker)
         ax.legend(handles=handles, loc="upper right")
 
         # save file
@@ -195,11 +200,11 @@ class TrainOffPolicy:
             self._save_solver(solver)
         self._save_combined_replay_buffers(on_policy_solvers)
 
-    def test_off_policy_training(self, pickled_buffers_dir, num_off_policy_seeds, episodes, steps, generate_plots, new_goals):
+    def test_off_policy_training(self, pickled_buffers_dir, num_off_policy_seeds, episodes, steps, generate_plots):
         # collect off policy training data, pretrain policies, and then train normally (to compare to baseline)
         on_policy_training_data = self._get_replay_buffer(pickled_buffers_dir)  # type: []
 
-        for new_goal in new_goals:
+        for new_goal in self.off_policy_targets:
             initialized_off_policy_solvers = self._train_off_policy_on_data(num_off_policy_seeds, new_goal, on_policy_training_data)
             off_policy_episode_scores = self.train_solvers(initialized_off_policy_solvers, episodes, steps, generate_plots, new_goal)
 
@@ -237,11 +242,11 @@ if __name__ == "__main__":
                                       seeds=range(args.num_seeds),
                                       device=args.device,
                                       algorithm="DDPG",
-                                      experiment_name=args.experiment_name)
+                                      experiment_name=args.experiment_name,
+                                      off_policy_targets=[(5, 8), (8, 5), (5, 5), (10, 10), (0, 8), (8, 0)])
     if not args.preload_buffer:
         train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
 
     file_dir = os.path.join("plots", "off_policy", "combined_replay_buffers.pkl")
-    train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots,
-                                              [(5, 8), (8, 5), (10, 10), (0, 8), (8, 0)]
+    train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
     ipdb.set_trace()
