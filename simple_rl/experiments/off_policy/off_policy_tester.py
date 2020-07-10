@@ -210,7 +210,7 @@ class TrainOffPolicy:
         # collect off policy training data, pretrain policies, and then train normally (to compare to baseline)
 
         on_policy_training_data = self._get_replay_buffer(
-            os.path.join("plots", "off_policy", pickled_buffers_dir, "pickles", "combined_replay_buffers.pkl"))
+            os.path.join(pickled_buffers_dir, "pickles", "combined_replay_buffers.pkl"))
 
         for new_goal in self.off_policy_targets:
             initialized_off_policy_solvers = self._train_off_policy_on_data(num_off_policy_seeds, new_goal, on_policy_training_data)
@@ -256,7 +256,7 @@ if __name__ == "__main__":
         train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
         file_dir = train_off_policy.path
     else:
-        file_dir = args.preload_buffer_experiment_name
+        file_dir = os.path.join("plots", "off_policy", args.preload_buffer_experiment_name)
 
     train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
     ipdb.set_trace()
