@@ -107,7 +107,7 @@ class TrainOffPolicy:
                             smooth_mean + smooth_std_err,
                             alpha=0.3)
         ax.legend()
-        plt.savefig(os.path.join(self.path, file_name + '.png'))
+        plt.savefig(os.path.join(self.path, 'learning_curves', file_name + '.png'))
         plt.close()
 
     @staticmethod
@@ -149,7 +149,7 @@ class TrainOffPolicy:
 
         curr_goal_marker = Line2D([], [], marker="o", linestyle="none", color='gold', markersize=12, label="current goal")
         handles.append(curr_goal_marker)
-        ax.legend(handles=handles, loc="upper right")
+        ax.legend(handles=handles)
 
         # save file
         plt.savefig(os.path.join(self.path, 'replay_buffers', file_name))
