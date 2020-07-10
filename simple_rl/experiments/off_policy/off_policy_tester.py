@@ -1,6 +1,7 @@
 import argparse
 import os
 import random
+import sys
 from collections import deque
 from copy import deepcopy
 import numpy as np
@@ -30,6 +31,11 @@ class TrainOffPolicy:
         self.off_policy_targets = off_policy_targets
         for subdirectory in ['pickles', 'replay_buffers', 'learning_curves']:
             create_log_dir(os.path.join(self.path, subdirectory))
+
+        # save command used to run experiments
+        f = open(os.path.join(self.path, "run_command.txt"), 'w')
+        f.write(' '.join(str(arg) for arg in sys.argv))
+        f.close()
 
         if mdp_name == "point-reacher":
             from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
@@ -244,7 +250,7 @@ if __name__ == "__main__":
                                       device=args.device,
                                       algorithm="DDPG",
                                       experiment_name=args.experiment_name,
-                                      off_policy_targets=[(5, 8), (8, 5), (5, 5), (10, 10), (0, 8), (8, 0)])
+                                      off_policy_targets=[(5, 8), (8, 5), (5, 5), (9.5, 9.5), (0, 8), (8, 0)])
     if args.preload_buffer_experiment_name == "":
         train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
         file_dir = train_off_policy.path
