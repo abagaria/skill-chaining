@@ -232,7 +232,7 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, help="number of training episodes")
     parser.add_argument("--steps", type=int, help="number of steps per episode")
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
-    parser.add_argument("--generate_plots", help="save pickled files", action="store_true", default=False)
+    parser.add_argument("--plot_replay_buffers", help="save pickled files", action="store_true", default=False)
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     args = parser.parse_args()
@@ -245,11 +245,11 @@ if __name__ == "__main__":
                                       algorithm="DDPG",
                                       experiment_name=args.experiment_name,
                                       off_policy_targets=[(5, 8), (8, 5), (5, 5), (10, 10), (0, 8), (8, 0)])
-    if args.preload_buffer == "":
-        train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+    if args.preload_buffer_experiment_name == "":
+        train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
         file_dir = train_off_policy.path
     else:
-        file_dir = args.preload_buffer
+        file_dir = args.preload_buffer_experiment_name
 
-    train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+    train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
     ipdb.set_trace()
