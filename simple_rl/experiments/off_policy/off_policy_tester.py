@@ -202,7 +202,8 @@ class TrainOffPolicy:
 
     def test_off_policy_training(self, pickled_buffers_dir, num_off_policy_seeds, episodes, steps, generate_plots):
         # collect off policy training data, pretrain policies, and then train normally (to compare to baseline)
-        on_policy_training_data = self._get_replay_buffer(pickled_buffers_dir)  # type: []
+
+        on_policy_training_data = self._get_replay_buffer(os.path.join(pickled_buffers_dir, "pickles", "combined_replay_buffers.pkl"))
 
         for new_goal in self.off_policy_targets:
             initialized_off_policy_solvers = self._train_off_policy_on_data(num_off_policy_seeds, new_goal, on_policy_training_data)
@@ -233,7 +234,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--generate_plots", help="save pickled files", action="store_true", default=False)
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
-    parser.add_argument("--preload_buffer", help="train fresh on policy solver for new data", action="store_true", default=False)
+    parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", action="store_true", default=None)
     args = parser.parse_args()
 
     train_off_policy = TrainOffPolicy(mdp_name=args.env,
@@ -244,9 +245,11 @@ if __name__ == "__main__":
                                       algorithm="DDPG",
                                       experiment_name=args.experiment_name,
                                       off_policy_targets=[(5, 8), (8, 5), (5, 5), (10, 10), (0, 8), (8, 0)])
-    if not args.preload_buffer:
+    if args.preload_buffer is None:
         train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+        file_dir = train_off_policy.path
+    else:
+        file_dir = args.preload_buffer
 
-    file_dir = os.path.join("plots", "off_policy", "combined_replay_buffers.pkl")
     train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
     ipdb.set_trace()
