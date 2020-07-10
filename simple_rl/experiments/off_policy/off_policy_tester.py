@@ -117,12 +117,12 @@ class TrainOffPolicy:
     def _plot_buffer(self, replay_buffer, goal_pos=None):
         if type(replay_buffer) is ReplayBuffer:
             states = self._get_states(replay_buffer)
-            positions = np.array([(state[0], state[1]) for state in states])
             file_name = f"{replay_buffer.name}_{goal_pos}.png"
         else:
-            positions = np.array(replay_buffer)
+            states = np.array(replay_buffer)[:, 0]
             file_name = f"combined_replay_buffer_{goal_pos}.png"
 
+        positions = np.array([(state[0], state[1]) for state in states])
         # set up plots
         fig, ax = plt.subplots(figsize=(4, 4))
         ax.set_aspect = 'equal'
