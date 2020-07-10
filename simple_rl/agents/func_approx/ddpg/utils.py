@@ -76,15 +76,14 @@ def compute_gradient_norm(model):
     return total_norm
 
 
-def create_log_dir(experiment_name):
-    path = os.path.join(os.getcwd(), experiment_name)
+def create_log_dir(directory_path):
     try:
-        os.mkdir(path)
+        os.makedirs(directory_path)
     except OSError:
-        print("Creation of the directory %s failed" % path)
+        print("Creation of the directory %s failed" % directory_path)
     else:
-        print("Successfully created the directory %s " % path)
-    return path
+        print("Successfully created the directory %s " % directory_path)
+    return directory_path
 
 
 def save_all_scores(scores, durations, log_dir, seed):
