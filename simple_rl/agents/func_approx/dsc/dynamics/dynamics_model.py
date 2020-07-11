@@ -28,7 +28,7 @@ if __name__== "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     training_generator = DataLoader(rollout, batch_size=32, shuffle=True, drop_last=True)
 
-    for epoch in range(1, 100):
+    for epoch in range(1, 1000):
         total_loss = 0
         for states, actions, states_p in training_generator:
             states = states.to(device).float()

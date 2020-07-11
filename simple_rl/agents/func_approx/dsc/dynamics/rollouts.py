@@ -3,7 +3,7 @@ import numpy as np
 from copy import deepcopy
 from sklearn import preprocessing
 from torch.utils.data import Dataset
-from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
+from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
 
 class RolloutDataset(Dataset):
     def __init__(self, states, actions, states_p):
@@ -21,7 +21,8 @@ def collect_random_rollout(epochs=10):
     """
     TODO: add noise to inputs
     """
-    mdp = PointMazeMDP(seed=0, render=False)
+    mdp = D4RLPointMazeMDP(seed=0, render=False)
+    # test set change start point
     
     # collect data
     buffer = []
