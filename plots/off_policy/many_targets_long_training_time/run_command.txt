@@ -1,0 +1,1 @@
+simple_rl/experiments/off_policy/off_policy_tester.py --env=point-reacher --steps=400 --episodes=260 --device=cuda:1 --plot_replay_buffers --num_seeds=5 --experiment_name=many_targets_long_training_time
