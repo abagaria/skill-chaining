@@ -60,6 +60,8 @@ class TrainOffPolicy:
             self.mdp = AntReacherMDP(seed=seeds[0],
                                      render=render,
                                      tolerance=self.tolerance)
+        else:
+            raise NotImplementedError
 
     def _make_solvers(self, num_seeds, name_suffix=""):
         if self.algorithm == 'DDPG':
@@ -257,7 +259,7 @@ class TrainOffPolicy:
         ax.scatter(states[:, 0], states[:, 1], c=qvalues)
         ax.set_xlim(self.xlim)
         ax.set_ylim(self.ylim)
-        ax.colorbar()
+        fig.colorbar()
         self._plot_features(ax, goal_pos)
         file_name = f"{solver.name}_value_function.png"
         plt.savefig(os.path.join(self.path, "value_functions", file_name))
