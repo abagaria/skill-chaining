@@ -8,6 +8,7 @@ import numpy as np
 import ipdb
 import torch
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import pickle
 
 from matplotlib.lines import Line2D
@@ -29,7 +30,7 @@ class TrainOffPolicy:
         self.algorithm = algorithm
         self.path = rotate_file_name(os.path.join("plots", "off_policy", experiment_name))
         self.off_policy_targets = off_policy_targets
-        for subdirectory in ['pickles', 'replay_buffers', 'learning_curves']:
+        for subdirectory in ['pickles', 'replay_buffers', 'learning_curves', 'value_functions']:
             create_log_dir(os.path.join(self.path, subdirectory))
 
         # save command used to run experiments
@@ -46,6 +47,18 @@ class TrainOffPolicy:
                                        dense_reward=dense_reward,
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
+            self.center_points, self.grid_boundaries = self.setup_value_function_constants()
+
+    @staticmethod
+    def setup_value_function_constants(resolution=0.2):
+        axes_low = [-10, -10]
+        axes_high = [10, 10]
+        mesh_axes = [np.arange(axis_min, axis_max, resolution) for axis_min, axis_max in zip(axes_low, axes_high)]
+        grid_rects = np.meshgrid(*mesh_axes)
+        center_points = np.array(mesh_axes) + resolution / 2
+        center_points = [center_points[0][:-1], center_points[1][:-1]]
+        center_points = np.column_stack(list(map(np.ravel, np.meshgrid(*center_points))))
+        return center_points, grid_rects
 
     def _make_solvers(self, num_seeds, name_suffix=""):
         if self.algorithm == 'DDPG':
@@ -94,6 +107,7 @@ class TrainOffPolicy:
                     f"\rSolver: {solver.name}\tEpisode {episode}\tAverage Duration:{np.round(np.mean(last_50_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
             if generate_plots:
                 self._plot_buffer(solver.replay_buffer, goal_pos=goal_pos)
+                self._plot_value_function(solver, goal_pos)
         return per_episode_scores
 
     def plot_learning_curves(self, scores, labels, episodes, file_name="learning_curves"):
@@ -121,24 +135,7 @@ class TrainOffPolicy:
     def _get_states(replay_buffer):
         return np.array(replay_buffer.memory)[:, 0]
 
-    def _plot_buffer(self, replay_buffer, goal_pos=None):
-        if type(replay_buffer) is ReplayBuffer:
-            states = self._get_states(replay_buffer)
-            file_name = f"{replay_buffer.name}_{goal_pos}.png"
-        else:
-            states = np.array(replay_buffer)[:, 0]
-            file_name = f"combined_replay_buffer_{goal_pos}.png"
-
-        positions = np.array([(state[0], state[1]) for state in states])
-        # set up plots
-        fig, ax = plt.subplots(figsize=(4, 4))
-        ax.set_aspect = 'equal'
-        ax.set_xlim(-10, 10)
-        ax.set_ylim(-10, 10)
-
-        # plot scatter
-        ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.16)
-
+    def _plot_features(self, ax, goal_pos=None):
         # plot goal
         handles = []
         on_policy_goal_marker = Line2D([], [], marker="o", linestyle="none", color='k', markersize=12, label="original on-policy goal")
@@ -157,6 +154,25 @@ class TrainOffPolicy:
         curr_goal_marker = Line2D([], [], marker="o", linestyle="none", color='gold', markersize=12, label="current goal")
         handles.append(curr_goal_marker)
         ax.legend(handles=handles)
+
+    def _plot_buffer(self, replay_buffer, goal_pos):
+        if type(replay_buffer) is ReplayBuffer:
+            states = self._get_states(replay_buffer)
+            file_name = f"{replay_buffer.name}_{goal_pos}.png"
+        else:
+            states = np.array(replay_buffer)[:, 0]
+            file_name = f"combined_replay_buffer_{goal_pos}.png"
+
+        positions = np.array([(state[0], state[1]) for state in states])
+        # set up plots
+        fig, ax = plt.subplots(figsize=(4, 4))
+        ax.set_aspect = 'equal'
+        ax.set_xlim(-10, 10)
+        ax.set_ylim(-10, 10)
+
+        # plot scatter
+        ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.16)
+        self._plot_features(ax, goal_pos)
 
         # save file
         plt.savefig(os.path.join(self.path, 'replay_buffers', file_name))
@@ -181,7 +197,7 @@ class TrainOffPolicy:
             training_times = [len(replay_buffer.memory) for replay_buffer in replay_buffers]
             num_training_examples = int(sum(training_times) / len(training_times))
         combined_replay_buffer = random.sample(shared_experiences, num_training_examples)
-        self._plot_buffer(combined_replay_buffer)
+        self._plot_buffer(combined_replay_buffer, self.on_policy_goal)
 
         print('*' * 80)
         print("Saving combined replay buffer...")
@@ -230,6 +246,45 @@ class TrainOffPolicy:
         with open(os.path.join(self.path, "pickles", f"{solver.name}_replay_buffer.pkl"), "wb") as f:
             pickle.dump(solver.replay_buffer, f)
 
+    def _plot_value_function(self, solver, goal_pos=None):
+        def get_value_function_values():
+            CHUNK_SIZE = 250
+
+            # Chunk up the inputs so as to conserve GPU memory
+            num_chunks = int(np.ceil(self.center_points.shape[0] / CHUNK_SIZE))
+            state_chunks = np.array_split(self.center_points, num_chunks, axis=0)
+            values = np.zeros((self.center_points.shape[0],))
+            current_idx = 0
+            actions = [[1.0, 0.], [1.0, -1], [1.0, 1.0]]
+
+            # get values for each state
+            for chunk_number, state_chunk in enumerate(state_chunks):
+                # To get from Q(s, a) to V(s), we take the argmax across actions. This is a continuous
+                # state space, so we are just taking the argmax across going left, right, up, or down.
+                current_chunk_size = len(state_chunk)
+                repeated_states = np.repeat(state_chunk, 3, axis=0)
+                repeated_actions = np.tile(actions, (current_chunk_size, 1))
+                ipdb.set_trace()
+                state_chunk = torch.from_numpy(repeated_states).float().to(solver.device)
+                action_chunk = torch.from_numpy(repeated_actions).float().to(solver.device)
+                # argmax across actions
+                chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=1)
+                values[current_idx:current_idx + current_chunk_size] = chunk_values
+                current_idx += current_chunk_size
+            return values
+
+        v = get_value_function_values()
+        cmap = "inferno"
+        fig, ax = plt.subplots(figsize=(4, 4))
+        ax.set_aspect = 'equal'
+        fig.suptitle(f"{solver.name} Value Function Plot")
+        fig.colorbar(cm.ScalarMappable(cmap=cmap), ax=ax, aspect=40)
+        ax.pcolormesh(self.grid_boundaries[0], self.grid_boundaries[1], v, cmap=cmap)
+        self._plot_features(ax, goal_pos)
+        file_name = f"{solver.name}_{goal_pos}.png"
+        plt.savefig(os.path.join(self.path, 'value_functions', file_name))
+        plt.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -246,8 +301,8 @@ if __name__ == "__main__":
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     args = parser.parse_args()
 
-    off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
-                          (9.5, 9.5), (-9, -9), (-9, 9), (9, -9), (9, 9), (0, 9), (9, 0), (-9, 0), (0, -9)]
+    task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
+                               (-9, -9), (-9, 9), (9, -9), (9, 9), (0, 9), (9, 0), (-9, 0), (0, -9)]
     train_off_policy = TrainOffPolicy(mdp_name=args.env,
                                       render=args.render,
                                       dense_reward=args.dense_reward,
@@ -255,7 +310,7 @@ if __name__ == "__main__":
                                       device=args.device,
                                       algorithm="DDPG",
                                       experiment_name=args.experiment_name,
-                                      off_policy_targets=off_policy_targets)
+                                      off_policy_targets=task_off_policy_targets)
 
     if args.preload_buffer_experiment_name == "":
         train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
