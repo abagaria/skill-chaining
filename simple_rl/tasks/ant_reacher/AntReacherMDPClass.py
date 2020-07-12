@@ -8,7 +8,7 @@ from simple_rl.tasks.ant_reacher.AntReacherStateClass import AntReacherState
 
 
 class AntReacherMDP(GoalDirectedMDP):
-    def __init__(self, use_hard_coded_events=False, seed=0, render=False):
+    def __init__(self, use_hard_coded_events=False, seed=0, render=False, tolerance=0.6):
         self.env_name = "ant-reacher"
         self.use_hard_coded_events = use_hard_coded_events
         self.seed = seed
@@ -49,9 +49,10 @@ class AntReacherMDP(GoalDirectedMDP):
                                  self._transition_func,
                                  self._reward_func,
                                  self.init_state,
+                                 tolerance,
+                                 False,
                                  salient_positions,
-                                 task_agnostic=True,
-                                 goal_tolerance=0.6)
+                                 task_agnostic=True)
 
     def _reward_func(self, state, action):
 
@@ -113,8 +114,8 @@ class AntReacherMDP(GoalDirectedMDP):
         self.init_state = deepcopy(self.cur_state)
 
     def _determine_x_y_lims(self):
-        self.xlims = (-5, 5)
-        self.ylims = (-5, 5)
+        self.xlims = (-6, 6)
+        self.ylims = (-6, 6)
 
     def get_x_y_low_lims(self):
         return self.xlims[0], self.ylims[0]

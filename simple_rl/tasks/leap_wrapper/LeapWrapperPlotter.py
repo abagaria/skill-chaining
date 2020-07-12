@@ -181,7 +181,7 @@ class LeapWrapperPlotter(MDPPlotter):
             # To get from Q(s, a) to V(s), we take the argmax across actions. This is a continuous
             # state space, so we are just taking the argmax across going left, right, up, or down.
             current_chunk_size = len(state_chunk)
-            repeated_states = np.repeat(state_chunk, 4, axis=0)
+            repeated_states = np.repeat(state_chunk, len(actions), axis=0)
             repeated_actions = np.tile(actions, (current_chunk_size, 1))
             state_chunk = torch.from_numpy(repeated_states).float().to(solver.device)
             action_chunk = torch.from_numpy(repeated_actions).float().to(solver.device)

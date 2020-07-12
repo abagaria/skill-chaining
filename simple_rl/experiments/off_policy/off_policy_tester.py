@@ -19,13 +19,16 @@ import datetime
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.utils import create_log_dir
+from simple_rl.agents.func_approx.dsc.utils import visualize_ddpg_replay_buffer
 from simple_rl.mdp.MDPPlotterClass import rotate_file_name
+from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
 
 plt.style.use('default')
 
 
 class TrainOffPolicy:
     def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm, experiment_name, off_policy_targets):
+        self.mdp_name = mdp_name
         self.device = device
         self.algorithm = algorithm
         self.path = rotate_file_name(os.path.join("plots", "off_policy", experiment_name))
@@ -42,23 +45,21 @@ class TrainOffPolicy:
             from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
             self.on_policy_goal = (8, 8)
             self.tolerance = 0.5
+            self.xlim = (-10, 10)
+            self.ylim = (-10, 10)
             self.mdp = PointReacherMDP(seed=seeds[0],
                                        render=render,
                                        dense_reward=dense_reward,
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
-            self.center_points, self.grid_boundaries = self.setup_value_function_constants()
-
-    @staticmethod
-    def setup_value_function_constants(resolution=0.2):
-        axes_low = [-10, -10]
-        axes_high = [10, 10]
-        mesh_axes = [np.arange(axis_min, axis_max, resolution) for axis_min, axis_max in zip(axes_low, axes_high)]
-        grid_rects = np.meshgrid(*mesh_axes)
-        center_points = np.array(mesh_axes) + resolution / 2
-        center_points = [center_points[0][:-1], center_points[1][:-1]]
-        center_points = np.column_stack(list(map(np.ravel, np.meshgrid(*center_points))))
-        return center_points, grid_rects
+        elif mdp_name == "ant-maze":
+            self.on_policy_goal = (5, 5)
+            self.tolerance = 0.5
+            self.xlim = (-6, 6)
+            self.ylim = (-6, 6)
+            self.mdp = AntReacherMDP(seed=seeds[0],
+                                     render=render,
+                                     tolerance=self.tolerance)
 
     def _make_solvers(self, num_seeds, name_suffix=""):
         if self.algorithm == 'DDPG':
@@ -167,8 +168,8 @@ class TrainOffPolicy:
         # set up plots
         fig, ax = plt.subplots(figsize=(4, 4))
         ax.set_aspect = 'equal'
-        ax.set_xlim(-10, 10)
-        ax.set_ylim(-10, 10)
+        ax.set_xlim(self.xlim[0], self.xlim[1])
+        ax.set_ylim(self.ylim[0], self.ylim[1])
 
         # plot scatter
         ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.16)
@@ -246,43 +247,20 @@ class TrainOffPolicy:
         with open(os.path.join(self.path, "pickles", f"{solver.name}_replay_buffer.pkl"), "wb") as f:
             pickle.dump(solver.replay_buffer, f)
 
-    def _plot_value_function(self, solver, goal_pos=None):
-        def get_value_function_values():
-            CHUNK_SIZE = 250
-
-            # Chunk up the inputs so as to conserve GPU memory
-            num_chunks = int(np.ceil(self.center_points.shape[0] / CHUNK_SIZE))
-            state_chunks = np.array_split(self.center_points, num_chunks, axis=0)
-            values = np.zeros((self.center_points.shape[0],))
-            current_idx = 0
-            actions = [[1.0, 0.], [1.0, -1], [1.0, 1.0]]
-
-            # get values for each state
-            for chunk_number, state_chunk in enumerate(state_chunks):
-                # To get from Q(s, a) to V(s), we take the argmax across actions. This is a continuous
-                # state space, so we are just taking the argmax across going left, right, up, or down.
-                current_chunk_size = len(state_chunk)
-                repeated_states = np.repeat(state_chunk, 3, axis=0)
-                repeated_actions = np.tile(actions, (current_chunk_size, 1))
-                ipdb.set_trace()
-                state_chunk = torch.from_numpy(repeated_states).float().to(solver.device)
-                action_chunk = torch.from_numpy(repeated_actions).float().to(solver.device)
-                # argmax across actions
-                chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=1)
-                values[current_idx:current_idx + current_chunk_size] = chunk_values
-                current_idx += current_chunk_size
-            return values
-
-        v = get_value_function_values()
-        cmap = "inferno"
-        fig, ax = plt.subplots(figsize=(4, 4))
-        ax.set_aspect = 'equal'
-        fig.suptitle(f"{solver.name} Value Function Plot")
-        fig.colorbar(cm.ScalarMappable(cmap=cmap), ax=ax, aspect=40)
-        ax.pcolormesh(self.grid_boundaries[0], self.grid_boundaries[1], v, cmap=cmap)
+    def _plot_value_function(self, solver, goal_pos):
+        states = np.array([exp[0] for exp in solver.replay_buffer.memory])
+        actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
+        states_tensor = torch.from_numpy(states).float().to(solver.device)
+        actions_tensor = torch.from_numpy(actions).float().to(solver.device)
+        qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
+        fig, ax = plt.subplots()
+        ax.scatter(states[:, 0], states[:, 1], c=qvalues)
+        ax.xlim(self.xlim)
+        ax.ylim(self.ylim)
+        ax.colorbar()
         self._plot_features(ax, goal_pos)
-        file_name = f"{solver.name}_{goal_pos}.png"
-        plt.savefig(os.path.join(self.path, 'value_functions', file_name))
+        file_name = f"{solver.name}_value_function.png"
+        plt.savefig(os.path.join(self.path, "value_functions", file_name))
         plt.close()
 
 
@@ -296,7 +274,7 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, help="number of training episodes")
     parser.add_argument("--steps", type=int, help="number of steps per episode")
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
-    parser.add_argument("--plot_replay_buffers", help="save pickled files", action="store_true", default=False)
+    parser.add_argument("--generate_plots", help="plot value functions and replay buffers", action="store_true", default=False)
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     args = parser.parse_args()
@@ -320,3 +298,10 @@ if __name__ == "__main__":
 
     train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
     ipdb.set_trace()
+
+    # MDP-specific functions
+    # plot value function (both of these use the same setup plot)
+
+    # shared functions
+    # plot learning curves
+    # train MDP

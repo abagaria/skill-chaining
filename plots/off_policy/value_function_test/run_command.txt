@@ -1,1 +1,0 @@
-simple_rl/experiments/off_policy/off_policy_tester.py --env=point-reacher --steps=10 --episodes=1 --device=cuda:0 --plot_replay_buffers --num_seeds=1 --experiment_name=value_function_test
