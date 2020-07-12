@@ -281,8 +281,9 @@ if __name__ == "__main__":
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     args = parser.parse_args()
 
-    task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
-                               (-9, -9), (-9, 9), (9, -9), (9, 9), (0, 9), (9, 0), (-9, 0), (0, -9)]
+    task_off_policy_targets = [(5, 0)]
+    # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
+    #                            (-9, -9), (-9, 9), (9, -9), (9, 9), (0, 9), (9, 0), (-9, 0), (0, -9)]
     train_off_policy = TrainOffPolicy(mdp_name=args.env,
                                       render=args.render,
                                       dense_reward=args.dense_reward,
