@@ -52,7 +52,7 @@ class TrainOffPolicy:
                                        dense_reward=dense_reward,
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
-        elif mdp_name == "ant-maze":
+        elif mdp_name == "ant-reacher":
             self.on_policy_goal = (5, 5)
             self.tolerance = 0.5
             self.xlim = (-6, 6)
@@ -291,12 +291,12 @@ if __name__ == "__main__":
                                       off_policy_targets=task_off_policy_targets)
 
     if args.preload_buffer_experiment_name == "":
-        train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
+        train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
         file_dir = train_off_policy.path
     else:
         file_dir = os.path.join("plots", "off_policy", args.preload_buffer_experiment_name)
 
-    train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.plot_replay_buffers)
+    train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
     ipdb.set_trace()
 
     # MDP-specific functions
