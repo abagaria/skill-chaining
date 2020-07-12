@@ -256,10 +256,10 @@ class TrainOffPolicy:
         actions_tensor = torch.from_numpy(actions).float().to(solver.device)
         qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
         fig, ax = plt.subplots()
-        ax.scatter(states[:, 0], states[:, 1], c=qvalues)
+        scatter = ax.scatter(states[:, 0], states[:, 1], c=qvalues)
+        colorbar = fig.colorbar(scatter, ax=ax)
         ax.set_xlim(self.xlim)
         ax.set_ylim(self.ylim)
-        plt.colorbar()
         self._plot_features(ax, goal_pos)
         file_name = f"{solver.name}_value_function.png"
         plt.savefig(os.path.join(self.path, "value_functions", file_name))
