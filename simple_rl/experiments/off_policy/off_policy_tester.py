@@ -255,8 +255,8 @@ class TrainOffPolicy:
         qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
         fig, ax = plt.subplots()
         ax.scatter(states[:, 0], states[:, 1], c=qvalues)
-        ax.xlim(self.xlim)
-        ax.ylim(self.ylim)
+        ax.set_xlim(self.xlim)
+        ax.set_ylim(self.ylim)
         ax.colorbar()
         self._plot_features(ax, goal_pos)
         file_name = f"{solver.name}_value_function.png"
