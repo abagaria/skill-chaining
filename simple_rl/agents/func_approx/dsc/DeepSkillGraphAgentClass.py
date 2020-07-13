@@ -557,6 +557,6 @@ if __name__ == "__main__":
                                     plotter=mdp_plotter)
 
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)
-    # if args.generate_plots:
-    #     mdp_plotter.generate_final_experiment_plots(dsg_agent, args.episodes)
+    if args.generate_plots:
+        mdp_plotter.generate_final_experiment_plots(dsg_agent, args.episodes)
     ipdb.set_trace()
