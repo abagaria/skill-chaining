@@ -318,6 +318,68 @@ class DeepSkillGraphAgent(object):
                                                done, 1)
 
 
+def run_everything(steps=1000, experiment_name='profiler_test', device="cuda:0", salient_event_freq=200, episodes=1000):
+    from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
+    overall_mdp = LeapWrapperMDP(
+        task_agnostic=True,
+        episode_length=steps,
+        use_hard_coded_events=False,
+        dense_reward=False,
+        render=True,
+        generate_n_clips=10,
+        wait_n_episodes_between_clips=100,
+        movie_output_folder=experiment_name)
+    overall_mdp.env.seed(0)
+    from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+    mdp_plotter = LeapWrapperPlotter("sawyer", experiment_name, overall_mdp)
+    overall_mdp.movie_renderer.create_folder(mdp_plotter.path)
+
+    chainer = SkillChaining(overall_mdp, steps, 1e-4, 1e-3, 64,
+                            constant_noise=False,
+                            seed=0, subgoal_reward=10,
+                            num_subgoal_hits_required=3,
+                            enable_option_timeout=True, init_q=0,
+                            use_full_smdp_update=True,
+                            tensor_log=False,
+                            device=device, buffer_length=20,
+                            start_state_salience=True,
+                            option_intersection_salience=False,
+                            event_intersection_salience=True,
+                            pretrain_option_policies=False,
+                            create_backward_options=False,
+                            learn_backward_options_offline=False,
+                            dense_reward=False,
+                            update_global_solver=False,
+                            use_warmup_phase=True,
+                            experiment_name=experiment_name,
+                            plotter=mdp_plotter)
+
+    planner = SkillGraphPlanningAgent(mdp=overall_mdp,
+                                      chainer=chainer,
+                                      experiment_name=experiment_name,
+                                      seed=0,
+                                      initialize_graph=False,
+                                      pretrain_option_policies=False,
+                                      use_ucb=False,
+                                      max_qvalue=10)
+
+    dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
+                                    dsc_agent=chainer,
+                                    planning_agent=planner,
+                                    salient_event_freq=salient_event_freq,
+                                    event_after_reject_freq=10,
+                                    use_hard_coded_events=False,
+                                    use_dco=False,
+                                    dco_use_xy_prior=False,
+                                    experiment_name=experiment_name,
+                                    seed=0,
+                                    threshold=0.1,
+                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer,
+                                    plotter=mdp_plotter)
+    num_successes = dsg_agent.dsg_run_loop(episodes=episodes, num_steps=steps)
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")

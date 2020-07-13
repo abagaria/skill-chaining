@@ -114,8 +114,8 @@ class AntReacherMDP(GoalDirectedMDP):
         self.init_state = deepcopy(self.cur_state)
 
     def _determine_x_y_lims(self):
-        self.xlims = (-6, 6)
-        self.ylims = (-6, 6)
+        self.xlims = (-5, 5)
+        self.ylims = (-5, 5)
 
     def get_x_y_low_lims(self):
         return self.xlims[0], self.ylims[0]

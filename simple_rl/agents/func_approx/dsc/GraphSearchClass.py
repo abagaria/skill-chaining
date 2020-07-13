@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+import ipdb
 import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
@@ -16,6 +17,7 @@ class GraphSearch(object):
         self.salient_nodes = []
 
     def add_node(self, node):
+        ipdb.set_trace()
         if node not in self.plan_graph.nodes:
             self.plan_graph.add_node(node)
 

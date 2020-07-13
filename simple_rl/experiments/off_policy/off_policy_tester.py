@@ -53,10 +53,10 @@ class TrainOffPolicy:
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
         elif mdp_name == "ant-reacher":
-            self.on_policy_goal = (5, 5)
+            self.on_policy_goal = (2.5, 2.5)
             self.tolerance = 0.5
-            self.xlim = (-6, 6)
-            self.ylim = (-6, 6)
+            self.xlim = (-5, 5)
+            self.ylim = (-5, 5)
             self.mdp = AntReacherMDP(seed=seeds[0],
                                      render=render,
                                      tolerance=self.tolerance)
@@ -281,7 +281,7 @@ if __name__ == "__main__":
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     args = parser.parse_args()
 
-    task_off_policy_targets = [(5, 0)]
+    task_off_policy_targets = [(2.5, 0)]
     # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
     #                            (-9, -9), (-9, 9), (9, -9), (9, 9), (0, 9), (9, 0), (-9, 0), (0, -9)]
     train_off_policy = TrainOffPolicy(mdp_name=args.env,
