@@ -84,7 +84,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         assert isinstance(action, np.ndarray), type(action)
         next_state, reward, done, _ = self.env.step(action)
         self.next_state = self._get_state(next_state, done)
-        if self.render:
+        if self.render and not self.movie_renderer.should_wait():
             frame = self.env.sim.render(
                 camera_name='topview',
                 width=self.movie_width,

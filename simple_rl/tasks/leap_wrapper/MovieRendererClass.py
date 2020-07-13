@@ -47,7 +47,7 @@ class MovieRenderer(object):
         self.movie[self.frame_index, :, :, :] = frame
         self.frame_index += 1
 
-    def _should_wait(self):
+    def should_wait(self):
         if self.wait_index is not None:
             if self.wait_index < self.wait_between_clips:
                 self.wait_index += 1
@@ -61,7 +61,7 @@ class MovieRenderer(object):
     def add_frame(self, frame):
         assert (frame.shape == self.clip_dimensions[1:])
 
-        if self.clip_index < self.num_clips and not self._should_wait():
+        if self.clip_index < self.num_clips:
             self._add_frame(frame)
 
     def create_folder(self, folder):
