@@ -53,8 +53,8 @@ class TrainOffPolicy:
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
         elif mdp_name == "ant-reacher":
-            self.on_policy_goal = (2.5, 2.5)
-            self.tolerance = 0.5
+            self.on_policy_goal = (2, 2)
+            self.tolerance = 1.0
             self.xlim = (-5, 5)
             self.ylim = (-5, 5)
             self.mdp = AntReacherMDP(seed=seeds[0],
@@ -279,7 +279,10 @@ if __name__ == "__main__":
     parser.add_argument("--generate_plots", help="plot value functions and replay buffers", action="store_true", default=False)
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
+    parser.add_argument("--skip_off_policy", help="only train on policy DDPG (for verifying env works)", default=False, action="store_true")
     args = parser.parse_args()
+
+    assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
 
     task_off_policy_targets = [(2.5, 0)]
     # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
@@ -299,7 +302,8 @@ if __name__ == "__main__":
     else:
         file_dir = os.path.join("plots", "off_policy", args.preload_buffer_experiment_name)
 
-    train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+    if args.skip_off_policy:
+        train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
     ipdb.set_trace()
 
     # MDP-specific functions
