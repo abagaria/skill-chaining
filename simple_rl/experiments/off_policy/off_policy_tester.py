@@ -57,7 +57,8 @@ class TrainOffPolicy:
             self.tolerance = 1.0
             self.xlim = (-5, 5)
             self.ylim = (-5, 5)
-            self.mdp = AntReacherMDP(seed=seeds[0],
+            self.mdp = AntReacherMDP(goal_pos=self.on_policy_goal,
+                                     seed=seeds[0],
                                      render=render,
                                      tolerance=self.tolerance)
         else:
