@@ -303,7 +303,7 @@ if __name__ == "__main__":
     else:
         file_dir = os.path.join("plots", "off_policy", args.preload_buffer_experiment_name)
 
-    if args.skip_off_policy:
+    if not args.skip_off_policy:
         train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
     ipdb.set_trace()
 
