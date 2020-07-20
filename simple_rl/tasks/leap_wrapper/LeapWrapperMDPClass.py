@@ -17,15 +17,15 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 class LeapWrapperMDP(GoalDirectedMDP):
     """ Class for Leap Wrapper MDPs """
 
-    # Just for testing
-    self.already_done = False
-
     def __init__(self, episode_length, use_hard_coded_events, render, dense_reward, generate_n_clips,
                  wait_n_episodes_between_clips, movie_output_folder, task_agnostic):
         self.env_name = "sawyer"
         self.render = render
         dense_reward = False
         salient_tolerance = 0.06
+
+        # Just for testing
+        self.already_done = False
 
         if self.render:
             self.movie_width = 512
