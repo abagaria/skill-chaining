@@ -17,6 +17,9 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 class LeapWrapperMDP(GoalDirectedMDP):
     """ Class for Leap Wrapper MDPs """
 
+    # Just for testing
+    self.already_done = False
+
     def __init__(self, episode_length, use_hard_coded_events, render, dense_reward, generate_n_clips,
                  wait_n_episodes_between_clips, movie_output_folder, task_agnostic):
         self.env_name = "sawyer"
@@ -143,8 +146,15 @@ class LeapWrapperMDP(GoalDirectedMDP):
         return np.random.uniform(-1., 1., size=size)
 
     def sample_salient_event(self, episode):
+        # Overriding randomness for testing -Kiran
         event_idx = len(self.all_salient_events_ever) + 1
-        target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
+        #target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
+        if not self.already_done:
+            target_state = np.array([0,0,0,-0.1,0.6])
+            self.already_done = True
+        else:
+            target_state = np.array([0,0,0,0.1,0.6])
+
         return SalientEvent(target_state=target_state,
                             event_idx=event_idx,
                             get_relevant_position=get_puck_pos,
