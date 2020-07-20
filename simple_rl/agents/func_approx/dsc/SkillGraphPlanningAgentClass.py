@@ -217,7 +217,7 @@ class SkillGraphPlanningAgent(object):
                                   When it is outside the graph, the DSC agent can execute this
                                   option from anywhere.
         """
-        ipdb.set_trace()
+        #ipdb.set_trace()
         if goal_event_inside_graph:
             if not isinstance(target_option, Option):
                 ipdb.set_trace()
@@ -655,8 +655,8 @@ class SkillGraphPlanningAgent(object):
             for s, a, r, sp, done in in_graph_option.solver.replay_buffer:
                 if done:
                     return sp
-            return np.array([0, 0])
-            # return self.mdp.start_state_salient_event.get_target_position()
+            #return np.array([0, 0])
+            return self.mdp.start_state_salient_event.get_target_position()
 
         # Create a new chain
         init_salient_event = train_goal_option.is_init_true  # TODO: Create a Salient Event out of this

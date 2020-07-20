@@ -55,7 +55,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print("Training learning curves...")
         print('*' * 80)
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, episode, episode_interval=50, randomize_start_states=True, num_states=5)
+        learning_curves = self.learning_curve(dsg_agent, episode, episode_interval=50, randomize_start_states=True, num_states=2)
         #ipdb.set_trace()
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
