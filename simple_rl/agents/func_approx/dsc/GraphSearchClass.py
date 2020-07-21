@@ -17,7 +17,6 @@ class GraphSearch(object):
         self.salient_nodes = []
 
     def add_node(self, node):
-        ipdb.set_trace()
         if node not in self.plan_graph.nodes:
             self.plan_graph.add_node(node)
 
