@@ -66,10 +66,14 @@ class TrainOffPolicy:
                                      tolerance=self.tolerance,
                                      dense_reward=dense_reward)
         elif mdp_name == "swimmer":
-            self.mdp = SwimmerMDP(goal_pos=(1.5, 1.5),
+            self.on_policy_goal = (1.5, 1.5)
+            self.tolerance = 0.6
+            self.xlim = (-5, 5)
+            self.ylim = (-5, 5)
+            self.mdp = SwimmerMDP(goal_pos=self.on_policy_goal,
                                   seed=seeds[0],
                                   render=render,
-                                  tolerance=0.6,
+                                  tolerance=self.tolerance,
                                   dense_reward=dense_reward)
         else:
             raise NotImplementedError
