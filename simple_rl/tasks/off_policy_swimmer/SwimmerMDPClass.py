@@ -32,7 +32,10 @@ class SwimmerMDP(MDP):
         self.tolerance = tolerance
         self.render = render
         self.dense_reward = dense_reward
-        MDP.__init__(self, range(self.env.action_space.shape[0]), self._transition_func, self._reward_func, init_state=GymState(self.env.reset()))
+        init_state = self.env.reset()
+        pos = self.env.sim.data.qpos[:2]
+        MDP.__init__(self, range(self.env.action_space.shape[0]), self._transition_func, self._reward_func,
+                     init_state=SwimmerMDPState(pos, init_state, False))
 
     def _reward_func(self, state, action):
         '''
