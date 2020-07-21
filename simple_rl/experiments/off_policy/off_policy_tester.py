@@ -311,7 +311,7 @@ if __name__ == "__main__":
                                       algorithm="DDPG",
                                       experiment_name=args.experiment_name,
                                       off_policy_targets=task_off_policy_targets,
-                                      fixed_epsilon=fixed_epsilon)
+                                      fixed_epsilon=args.fixed_epsilon)
     
     if args.preload_buffer_experiment_name == "":
         train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
