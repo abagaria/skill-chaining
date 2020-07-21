@@ -14,7 +14,6 @@ class SwimmerMDPState(State):
         """
         self.position = position
         self.others = others
-        self.is_terminal = is_terminal
         features = list(position) + list(others)
 
         State.__init__(self, data=features, is_terminal=is_terminal)
