@@ -35,6 +35,7 @@ class TrainOffPolicy:
         self.algorithm = algorithm
         self.path = rotate_file_name(os.path.join("plots", "off_policy", experiment_name))
         self.off_policy_targets = off_policy_targets
+        self.fixed_epsilon = fixed_epsilon
         for subdirectory in ['pickles', 'replay_buffers', 'learning_curves', 'value_functions']:
             create_log_dir(os.path.join(self.path, subdirectory))
 
