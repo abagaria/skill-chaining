@@ -50,15 +50,13 @@ class SwimmerMDP(MDP):
         pos = self.env.sim.data.qpos[:2]
         is_terminal = self.is_goal_state(pos)
         if self.dense_reward:
-            reward = np.linalg.norm(state - self.goal_pos) * -1 
+            reward = np.linalg.norm(self._get_position(state) - self.goal_pos) * -1
         else:
             reward = 10 if is_terminal else -1
 
         if self.render:
             self.env.render()
 
-        # Okay, this needs to be modified to be the new information
-        #self.next_state = GymState(obs, is_terminal=is_terminal)
         self.next_state = SwimmerMDPState(pos, obs, is_terminal)
         return reward
 
@@ -90,3 +88,8 @@ class SwimmerMDP(MDP):
 
     def __str__(self):
         return "gym-" + str(self.env_name)
+
+    @staticmethod
+    def _get_position(state):
+        position = state.position if isinstance(state, SwimmerMDPState) else state[:2]
+        return position
