@@ -5,31 +5,22 @@ import numpy as np
 from simple_rl.mdp.StateClass import State
 
 class SwimmerMDPState(State):
-    def __init__(self, position, theta, velocity, theta_dot, done):
+    def __init__(self, position, others, is_terminal):
         """
         Args:
             position (np.ndarray)
-            theta (float)
-            velocity (np.ndarray)
-            theta_dot (float)
-            done (bool)
+            others (np.ndarray)
+            is_terminal (bool)
         """
         self.position = position
-        self.theta = theta
-        self.velocity = velocity
-        self.theta_dot = theta_dot
-        features = [position[0], position[1], theta, velocity[0], velocity[1], theta_dot]
+        self.others = others
+        self.is_terminal = is_terminal
+        features = list(position) + list(others)
 
-        State.__init__(self, data=features, is_terminal=done)
+        State.__init__(self, data=features, is_terminal=is_terminal)
 
     def __str__(self):
-        return "x: {}\ty: {}\ttheta: {}\txdot: {}\tydot: {}\tthetadot: {}\tterminal: {}\n".format(self.position[0],
-                                                                                                  self.position[1],
-                                                                                                  self.theta,
-                                                                                                  self.velocity[0],
-                                                                                                  self.velocity[1],
-                                                                                                  self.theta_dot,
-                                                                                                  self.is_terminal())
+        return f"position: {self.position}, terminal: {self.is_terminal}"
 
     def __repr__(self):
         return str(self)

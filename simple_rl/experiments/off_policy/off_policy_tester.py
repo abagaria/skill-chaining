@@ -23,12 +23,13 @@ from simple_rl.agents.func_approx.dsc.utils import visualize_ddpg_replay_buffer
 from simple_rl.mdp.MDPPlotterClass import rotate_file_name
 from simple_rl.tasks import GymMDP
 from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
+from simple_rl.tasks.off_policy_swimmer.SwimmerMDPClass import SwimmerMDP
 
 plt.style.use('default')
 
 
 class TrainOffPolicy:
-    def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm, experiment_name, off_policy_targets):
+    def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm, experiment_name, off_policy_targets, fixed_epsilon):
         self.mdp_name = mdp_name
         self.device = device
         self.algorithm = algorithm
@@ -61,12 +62,16 @@ class TrainOffPolicy:
             self.mdp = AntReacherMDP(goal_pos=self.on_policy_goal,
                                      seed=seeds[0],
                                      render=render,
-                                     tolerance=self.tolerance)
+                                     tolerance=self.tolerance,
+                                     dense_reward=dense_reward)
+        elif mdp_name == "swimmer":
+            self.mdp = SwimmerMDP(goal_pos=(1.5, 1.5),
+                                  seed=seeds[0],
+                                  render=render,
+                                  tolerance=0.6,
+                                  dense_reward=dense_reward)
         else:
-            self.mdp = GymMDP(goal_pos=self.on_policy_goal,
-                                     seed=seeds[0],
-                                     render=render,
-                                     tolerance=self.tolerance)
+            raise NotImplementedError
 
     def _make_solvers(self, num_seeds, name_suffix=""):
         if self.algorithm == 'DDPG':
@@ -97,7 +102,12 @@ class TrainOffPolicy:
                 score = 0
                 step = 0
                 for step in range(steps):
-                    action = solver.act(state.features())
+                    if self.fixed_epsilon and np.random.uniform() < 0.4:
+                        action_dim = self.mdp.action_space_size()
+                        action = np.random.uniform([-1] * action_dim, [1] * action_dim)
+                    else:
+                        action = solver.act(state.features())
+                    
                     reward, next_state = self.mdp.execute_agent_action(action)
                     solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
                     solver.update_epsilon()
@@ -272,49 +282,51 @@ class TrainOffPolicy:
 
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--dense_reward", help="Whether to use dense/sparse rewards", action="store_true", default=False)
-    # parser.add_argument("--env", type=str, help="name of gym environment", default="point-env")
-    # parser.add_argument("--experiment_name", type=str, help="name of experiment",
-    #                     default=datetime.datetime.now().strftime("%I:%M%p_%B_%d_%Y"))
-    # parser.add_argument("--render", help="render environment training", action="store_true", default=False)
-    # parser.add_argument("--episodes", type=int, help="number of training episodes")
-    # parser.add_argument("--steps", type=int, help="number of steps per episode")
-    # parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
-    # parser.add_argument("--generate_plots", help="plot value functions and replay buffers", action="store_true", default=False)
-    # parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
-    # parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
-    # parser.add_argument("--skip_off_policy", help="only train on policy DDPG (for verifying env works)", default=False, action="store_true")
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dense_reward", help="Whether to use dense/sparse rewards", action="store_true", default=False)
+    parser.add_argument("--env", type=str, help="name of gym environment", default="point-env")
+    parser.add_argument("--experiment_name", type=str, help="name of experiment",
+                        default=datetime.datetime.now().strftime("%I:%M%p_%B_%d_%Y"))
+    parser.add_argument("--render", help="render environment training", action="store_true", default=False)
+    parser.add_argument("--episodes", type=int, help="number of training episodes")
+    parser.add_argument("--steps", type=int, help="number of steps per episode")
+    parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
+    parser.add_argument("--generate_plots", help="plot value functions and replay buffers", action="store_true", default=False)
+    parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
+    parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
+    parser.add_argument("--skip_off_policy", help="only train on policy DDPG (for verifying env works)", default=False, action="store_true")
+    parser.add_argument("--fixed_epsilon", help="whether to use a fixed or decaying epsilon", type=bool, default=False, action="store_true")
+    args = parser.parse_args()
+    
+    assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
+    
+    task_off_policy_targets = [(1.5, 0)]
+    # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
+    #                            (-9, -9), (-9, 9), (9, -9), (9, 9), (0, 9), (9, 0), (-9, 0), (0, -9)]
+    train_off_policy = TrainOffPolicy(mdp_name=args.env,
+                                      render=args.render,
+                                      dense_reward=args.dense_reward,
+                                      seeds=range(args.num_seeds),
+                                      device=args.device,
+                                      algorithm="DDPG",
+                                      experiment_name=args.experiment_name,
+                                      off_policy_targets=task_off_policy_targets,
+                                      fixed_epsilon=fixed_epsilon)
+    
+    if args.preload_buffer_experiment_name == "":
+        train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+        file_dir = train_off_policy.path
+    else:
+        file_dir = os.path.join("plots", "off_policy", args.preload_buffer_experiment_name)
+    
+    if not args.skip_off_policy:
+        train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+    ipdb.set_trace()
     #
-    # assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
-    #
-    # task_off_policy_targets = [(1.5, 0)]
-    # # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
-    # #                            (-9, -9), (-9, 9), (9, -9), (9, 9), (0, 9), (9, 0), (-9, 0), (0, -9)]
-    # train_off_policy = TrainOffPolicy(mdp_name=args.env,
-    #                                   render=args.render,
-    #                                   dense_reward=args.dense_reward,
-    #                                   seeds=range(args.num_seeds),
-    #                                   device=args.device,
-    #                                   algorithm="DDPG",
-    #                                   experiment_name=args.experiment_name,
-    #                                   off_policy_targets=task_off_policy_targets)
-    #
-    # if args.preload_buffer_experiment_name == "":
-    #     train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
-    #     file_dir = train_off_policy.path
-    # else:
-    #     file_dir = os.path.join("plots", "off_policy", args.preload_buffer_experiment_name)
-    #
-    # if not args.skip_off_policy:
-    #     train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
-    # ipdb.set_trace()
-    #
-    mdp = GymMDP("Swimmer-v2", True)
-    for episode in range(10):
-        mdp.reset()
-        for step in range(150):
-            action = np.random.uniform([-1] * 2, [1] * 2)
-            ipdb.set_trace()
-            reward, next_state = mdp.execute_agent_action(action)
+    # mdp = GymMDP("Swimmer-v2", True)
+    # for episode in range(10):
+    #     mdp.reset()
+    #     for step in range(150):
+    #         action = np.random.uniform([-1] * 2, [1] * 2)
+    #         ipdb.set_trace()
+    #         reward, next_state = mdp.execute_agent_action(action)

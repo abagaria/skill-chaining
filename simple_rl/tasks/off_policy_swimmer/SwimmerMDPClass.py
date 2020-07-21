@@ -12,19 +12,26 @@ import numpy as np
 # Other imports.
 import gym
 from simple_rl.mdp.MDPClass import MDP
-from simple_rl.tasks.gym.GymStateClass import GymState
+from simple_rl.tasks.off_policy_swimmer.SwimmerMDPStateClass import SwimmerMDPState
 
 
 class SwimmerMDP(MDP):
     ''' Class for Gym MDPs '''
 
-    def __init__(self, goal_state, tolerance, render=False):
+    def __init__(self, goal_pos, seed, tolerance, render=False, dense_reward=False):
         '''
         Args:
             env_name (str)
         '''
+        random.seed(seed)
+        np.random.seed(seed)
+
         self.env = gym.make("Swimmer-v2")
+        self.env_name = "swimmer"
+        self.goal_pos = goal_pos
+        self.tolerance = tolerance
         self.render = render
+        self.dense_reward = dense_reward
         MDP.__init__(self, range(self.env.action_space.shape[0]), self._transition_func, self._reward_func, init_state=GymState(self.env.reset()))
 
     def _reward_func(self, state, action):
@@ -36,20 +43,33 @@ class SwimmerMDP(MDP):
         Returns
             (float)
         '''
-        obs, _, _, info = self.env.step(action)
+        obs, _, _, _ = self.env.step(action)
         pos = self.env.sim.data.qpos[:2]
-        done = self.is_goal_state(pos)
-
-
+        is_terminal = self.is_goal_state(pos)
+        if self.dense_reward:
+            reward = np.linalg.norm(state - self.goal_pos) * -1 
+        else:
+            reward = 10 if is_terminal else -1
 
         if self.render:
             self.env.render()
 
-        self.next_state = GymState(obs, is_terminal=is_terminal)
-        return 1. if done else -1
+        # Okay, this needs to be modified to be the new information
+        #self.next_state = GymState(obs, is_terminal=is_terminal)
+        self.next_state = SwimmerMDPState(pos, obs, is_terminal)
+        return reward
 
     def is_goal_state(self, state):
         return np.linalg.norm(state - self.goal_pos) < self.tolerance
+        # execute agent action
+
+    @staticmethod
+    def state_space_size():
+        return 10
+    
+    @staticmethod
+    def action_space_size():
+        return 2
 
     def _transition_func(self, state, action):
         '''

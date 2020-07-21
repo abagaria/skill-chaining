@@ -8,13 +8,14 @@ from simple_rl.tasks.ant_reacher.AntReacherStateClass import AntReacherState
 
 
 class AntReacherMDP(GoalDirectedMDP):
-    def __init__(self, goal_pos, use_hard_coded_events=False, seed=0, render=False, tolerance=0.6):
+    def __init__(self, goal_pos, use_hard_coded_events=False, seed=0, render=False, tolerance=0.6, dense_reward=False):
         self.tolerance = tolerance
         self.goal_pos = goal_pos
         self.env_name = "ant-reacher"
         self.use_hard_coded_events = use_hard_coded_events
         self.seed = seed
         self.render = render
+        self.dense_reward = dense_reward
 
         random.seed(seed)
         np.random.seed(seed)
@@ -62,13 +63,18 @@ class AntReacherMDP(GoalDirectedMDP):
 
         action = 30. * action  # Need to scale the actions so they lie between -30 and 30 and not just -1 and 1
 
-        next_state, reward, _, _ = self.env.step(action)
+        next_state, _, _, _ = self.env.step(action)
         done = self.is_goal_state(next_state)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
 
-        return 1. if done else -1
+        if self.dense_reward:
+            reward = np.linalg.norm(state - self.goal_pos) * -1
+        else:
+            reward = 10 if done else -1
+
+        return reward
 
     def is_goal_state(self, state):
         state = state.position if isinstance(state, AntReacherState) else state[:2]
