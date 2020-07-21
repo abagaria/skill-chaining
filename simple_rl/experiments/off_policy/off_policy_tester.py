@@ -306,10 +306,10 @@ if __name__ == "__main__":
     if not args.skip_off_policy:
         train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
     ipdb.set_trace()
-
-    # MDP-specific functions
-    # plot value function (both of these use the same setup plot)
-
-    # shared functions
-    # plot learning curves
-    # train MDP
+    #
+    # mdp = AntReacherMDP(goal_pos=(1.5, 1.5), seed=0, render=True, tolerance=0.6)
+    # for episode in range(10):
+    #     mdp.reset()
+    #     for step in range(150):
+    #         action = np.random.uniform([-1] * 8, [1] * 8)
+    #         reward, next_state = mdp.execute_agent_action(action)
