@@ -295,7 +295,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     parser.add_argument("--skip_off_policy", help="only train on policy DDPG (for verifying env works)", default=False, action="store_true")
-    parser.add_argument("--fixed_epsilon", help="whether to use a fixed or decaying epsilon", type=bool, default=False, action="store_true")
+    parser.add_argument("--fixed_epsilon", help="whether to use a fixed or decaying epsilon", default=False, action="store_true")
     args = parser.parse_args()
     
     assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
