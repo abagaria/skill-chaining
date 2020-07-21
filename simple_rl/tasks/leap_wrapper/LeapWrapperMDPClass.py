@@ -24,6 +24,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
         dense_reward = False
         salient_tolerance = 0.06
 
+        # Just for testing
+        self.already_done = False
+
         if self.render:
             self.movie_width = 512
             self.movie_height = 512
@@ -143,8 +146,15 @@ class LeapWrapperMDP(GoalDirectedMDP):
         return np.random.uniform(-1., 1., size=size)
 
     def sample_salient_event(self, episode):
+        # Overriding randomness for testing -Kiran
         event_idx = len(self.all_salient_events_ever) + 1
-        target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
+        #target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
+        if not self.already_done:
+            target_state = np.array([0,0,0,-0.1,0.6])
+            self.already_done = True
+        else:
+            target_state = np.array([0,0,0,0.1,0.6])
+
         return SalientEvent(target_state=target_state,
                             event_idx=event_idx,
                             get_relevant_position=get_puck_pos,
