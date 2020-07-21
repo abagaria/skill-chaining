@@ -81,6 +81,57 @@ class DDPGAgent(Agent):
 
         Agent.__init__(self, name, [], gamma=GAMMA)
 
+    def __getstate__(self):
+        actor_state = self.actor.state_dict()
+        actor_optimizer = self.actor_optimizer.state_dict()
+
+        critic_state = self.critic.state_dict()
+        critic_optimizer = self.critic_optimizer.state_dict()
+
+        target_actor_state = self.target_actor.state_dict()
+        target_critic_state = self.target_critic.state_dict()
+
+        return {"name": self.name,
+                "epsilon": self.epsilon,
+                "actor_state": actor_state,
+                "critic_state": critic_state,
+                "target_actor_state": target_actor_state,
+                "target_critic_state": target_critic_state,
+                "actor_optimizer": actor_optimizer,
+                "critic_optimizer": critic_optimizer,
+                "replay_buffer": self.replay_buffer,
+                "state_size": self.state_size,
+                "action_size": self.action_size,
+                "device": self.device,
+                "lr_critic": self.critic_learning_rate,
+                "lr_actor": self.actor_learning_rate}
+
+    def __setstate__(self, state_dictionary):
+        self.name = state_dictionary["name"]
+        self.epsilon = state_dictionary["epsilon"]
+        self.state_size = state_dictionary["state_size"]
+        self.action_size = state_dictionary["action_size"]
+        self.device = state_dictionary["device"]
+        self.critic_learning_rate = state_dictionary["lr_critic"]
+        self.actor_learning_rate = state_dictionary["lr_actor"]
+
+        self.actor = Actor(self.state_size, self.action_size, device=self.device)
+        self.critic = Critic(self.state_size, self.action_size, device=self.device)
+        self.target_actor = Actor(self.state_size, self.action_size, device=self.device)
+        self.target_critic = Critic(self.state_size, self.action_size, device=self.device)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate, weight_decay=1e-2)
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.actor_learning_rate)
+
+        self.actor.load_state_dict(state_dictionary["actor_state"])
+        self.critic.load_state_dict(state_dictionary["critic_state"])
+        self.target_actor.load_state_dict(state_dictionary["target_actor_state"])
+        self.target_critic.load_state_dict(state_dictionary["target_critic_state"])
+
+        self.actor_optimizer.load_state_dict(state_dictionary["actor_optimizer"])
+        self.critic_optimizer.load_state_dict(state_dictionary["critic_optimizer"])
+
+        self.replay_buffer = state_dictionary["replay_buffer"]
+
     def add_noise_to_action(self, action):
 
         if self.use_fixed_noise:

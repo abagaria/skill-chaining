@@ -145,6 +145,21 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
+	def __getstate__(self):
+		excluded_keys = ("parent", "global_solver", "children", "overall_mdp")
+		parent_option_idx = self.parent.option_idx if self.parent is not None else None
+		children_option_idx = [child.option_idx for child in self.children if child is not None]
+		state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+		state_dictionary["parent_option_idx"] = parent_option_idx
+		state_dictionary["children_option_idx"] = children_option_idx
+		return state_dictionary
+
+	def __setstate__(self, state_dictionary):
+		excluded_keys = ("parent", "global_solver", "children", "overall_mdp")
+		for key in state_dictionary:
+			if key not in excluded_keys:
+				self.__dict__[key] = state_dictionary[key]
+
 	def _get_epsilon_greedy_epsilon(self):
 		if "point" in self.overall_mdp.env_name:
 			return 0.1

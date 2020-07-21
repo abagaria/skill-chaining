@@ -2,6 +2,8 @@ import random
 import pickle
 import numpy as np
 import itertools
+import glob
+import os
 
 from simple_rl.agents.func_approx.dsc.DeepSkillGraphAgentClass import DeepSkillGraphAgent
 
@@ -157,3 +159,22 @@ def learning_curve_without_random_start_states(agent, goal_states, episodes, epi
                                    episode_interval)
         all_runs.append(single_run)
     return all_runs
+
+
+def save_options(options, dir_path):
+    for option in options:
+        with open(f"{dir_path}/{option.name}.pkl", "wb+") as f:
+            pickle.dump(option, f)
+    print(f"Done saving {options}")
+
+
+def load_options(dir_path):
+    """ Given a directory path, return all the options pickled in that directory. """
+    path_name = os.path.join(dir_path, "*.pkl")
+    options = []
+    for file_name in glob.glob(path_name):
+        with open(file_name, "rb") as f:
+            option = pickle.load(f)
+        print(f"Loaded {option} from {file_name}")
+        options.append(option)
+    return options
