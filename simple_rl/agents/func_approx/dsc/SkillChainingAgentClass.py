@@ -1139,7 +1139,7 @@ if __name__ == '__main__':
         overall_mdp = LeapWrapperMDP(args.steps, dense_reward=args.dense_reward, render=args.render)
         overall_mdp.env.seed(args.seed)
         if args.generate_plots:
-            from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+            from simple_rl.tasks.leap_wrapper.LeapWrapperPlotterClass import LeapWrapperPlotter
             mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP

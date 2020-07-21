@@ -331,7 +331,7 @@ def run_everything(steps=1000, experiment_name='profiler_test', device="cuda:0",
         wait_n_episodes_between_clips=100,
         movie_output_folder=experiment_name)
     overall_mdp.env.seed(0)
-    from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+    from simple_rl.tasks.leap_wrapper.LeapWrapperPlotterClass import LeapWrapperPlotter
     mdp_plotter = LeapWrapperPlotter("sawyer", experiment_name, overall_mdp)
     overall_mdp.movie_renderer.create_folder(mdp_plotter.path)
 
@@ -493,7 +493,7 @@ if __name__ == "__main__":
             movie_output_folder=args.experiment_name)
         overall_mdp.env.seed(args.seed)
         if args.generate_plots:
-            from simple_rl.tasks.leap_wrapper.LeapWrapperPlotter import LeapWrapperPlotter
+            from simple_rl.tasks.leap_wrapper.LeapWrapperPlotterClass import LeapWrapperPlotter
 
             mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
             if args.render:
