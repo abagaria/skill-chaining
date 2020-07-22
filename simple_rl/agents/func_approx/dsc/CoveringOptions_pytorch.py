@@ -175,7 +175,7 @@ class SpectrumNetwork(torch.nn.Module):
                  delta=0.1, conv=False, name="spectrum"):
         # Beta  : Lagrange multiplier. Higher beta would make the vector more orthogonal.
         # delta : Orthogonality parameter.
-        super(Model, self).__init__()
+        super(SpectrumNetwork, self).__init__()
 
         self.learning_rate = learning_rate
         self.obs_dim = obs_dim
@@ -194,9 +194,13 @@ class SpectrumNetwork(torch.nn.Module):
 
         self.next_f_value = tf.placeholder(tf.float32, [None, 1], name=name + "_next_f")
 
-        
-
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate) 
+
+    def loss(self, f_value, next_f_value):
+        torch.nn.MSELoss()(f_value, next_f_value) \
+        + self.beta * torch.mean((f_value - self.delta) * (next_f_value - self.delta)) \
+        + self.beta * torch.mean(f_value * f_value * next_f_value * next_f_value) \
+        + self.beta * torch.max((f_value - next_f_value), 0.0)
 
     def forward(self, inputs): # similar to call function
         """
@@ -220,18 +224,18 @@ class SpectrumNetwork(torch.nn.Module):
                                         np.argmax(labels, 1))
         return np.mean(correct_prediction)
 
-    def train(self, train_input, train_labels):
-        """
-        Runs through one epoch - all training examples
-        """
-        for j in range(num_batches):
-            imgs, anss = get_next_batch(j, train_input, train_labels)
-            imgs = torch.tensor(imgs) # turns it into torch tensor, cannot directly pass in numpy arrays
-            logits = self(imgs) # not probabilities!
-            l = self.loss(logits, torch.tensor(anss))
-            self.optimizer.zero_grad()
-            l.backward()
-            self.optimizer.step() # can be thought of as gradient descent
+def train(self, train_input, train_labels):
+    """
+    Runs through one epoch - all training examples
+    """
+    for j in range(num_batches):
+        imgs, anss = get_next_batch(j, train_input, train_labels)
+        imgs = torch.tensor(imgs) # turns it into torch tensor, cannot directly pass in numpy arrays
+        logits = self(imgs) # not probabilities!
+        l = self.loss(logits, torch.tensor(anss))
+        self.optimizer.zero_grad()
+        l.backward()
+        self.optimizer.step() # can be thought of as gradient descent
 
 class SpectrumNetwork(nn.Module):
 
