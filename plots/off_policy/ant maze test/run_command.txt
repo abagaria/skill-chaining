@@ -1,1 +1,0 @@
-simple_rl/experiments/off_policy/off_policy_tester.py --env=ant-reacher --steps=2000 --episodes=2000 --device=cuda:0 --generate_plots --num_seeds=1 --experiment_name=ant maze test --skip_off_policy
