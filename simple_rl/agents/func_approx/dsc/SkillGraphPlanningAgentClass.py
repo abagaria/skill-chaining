@@ -227,7 +227,7 @@ class SkillGraphPlanningAgent(object):
 
         # Visualize the new graph with the new option node
         if self.plotter is not None:
-            self.plotter.visualize_plan_graph(self.plan_graph, self.seed, episode=episode)
+            self.plotter.visualize_plan_graph(self.plan_graph.plan_graph, self.seed, episode=episode)
 
         return new_option
 
