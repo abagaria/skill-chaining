@@ -207,7 +207,7 @@ class TrainOffPolicy:
         for solver in off_policy_solvers:
             for (state, action, _, next_state, _) in tqdm(experiences, desc=f"Pretraining {solver.name}"):
                 is_terminal = self.mdp.is_goal_state(next_state)
-                reward = 1 if is_terminal else -1
+                reward = 10 if is_terminal else -1
                 solver.step(state, action, reward, next_state, is_terminal)
         return off_policy_solvers
 
@@ -306,7 +306,8 @@ if __name__ == "__main__":
     assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
 
     # ant-reacher:
-    task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5)]
+    # Source target was (1.5,1.5)
+    task_off_policy_targets = [(-3.5,3.5), (3.5,-3.5), (-3.5,-3.5), (4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5)]
     # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
     #                            (2, 2), (-2, 2), (2, -2), (-2, -2)]
 
