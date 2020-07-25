@@ -23,7 +23,7 @@ from typing import List, Tuple, Callable
 ################################################################################
 
 def parse_goal_states(goal_dimension: int, goal_indices: List[float]) -> List[np.ndarray]:
-    assert(len(goal_indices) % goal_dimension == 0, 'Invalid goal indices')
+    assert(len(goal_indices) % goal_dimension == 0)
 
     goal_states = []
     for i in range(0, len(goal_indices), goal_dimension):
@@ -38,9 +38,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--environment', type=str)
     parser.add_argument('--num_episodes', type=int)
     parser.add_argument('--num_steps', type=int)
-    parser.add_argument('--save_plots', type=bool, action='store_true', default=False)
-    parser.add_argument('--save_pickles', type=bool, action='store_true', default=False)
-    parser.add_argument('--dense_reward', type=bool, action='store_true', default=False)
+    parser.add_argument('--save_plots', action='store_true', default=False)
+    parser.add_argument('--save_pickles', action='store_true', default=False)
+    parser.add_argument('--dense_reward', action='store_true', default=False)
     parser.add_argument('--goal_threshold', type=int)
     parser.add_argument('--goal_indices', nargs='+', type=float)
     return parser.parse_args()
