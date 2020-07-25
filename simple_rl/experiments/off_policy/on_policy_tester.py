@@ -135,6 +135,7 @@ def get_ball_reward_metric(
 
 def main():
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
+    os.mkdir(directory)
 
     if args.environment == 'ant':
         environment = gym.make('Ant-v2')
@@ -169,6 +170,7 @@ def main():
 
         # And save our results
         subdirectory = directory / f'goal_{i}'
+        os.mkdir(subdirectory)
         if args.save_plots:
             plot_learning_curve(subdirectory, results)
             plot_value_function(subdirectory, solver)
