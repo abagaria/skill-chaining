@@ -52,7 +52,7 @@ args = parser.parse_args()
 
 def plot_learning_curve(directory: Path, results: np.ndarray) -> None:
     episode_nums = np.arange(results.shape[0])
-    smooth_scores = uniform_filter1d(results[:,1])
+    smooth_scores = uniform_filter1d(results[:,1], 10, mode='nearest')
 
     fig, ax = plt.subplots()
     ax.plot(episode_nums, smooth_scores)
