@@ -92,7 +92,7 @@ def train_solver(
     num_steps: int, 
     ) -> Tuple[DDPGAgent, np.ndarray]:
     
-    results = np.zeros(num_episodes, 2)
+    results = np.zeros((num_episodes, 2))
     for episode in range(num_episodes):
         state = environment.reset()
         for _ in range(num_steps):
