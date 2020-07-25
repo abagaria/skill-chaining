@@ -100,7 +100,7 @@ def train_solver(
             next_state, _, _, _ = environment.step(action)
             reward, is_terminal = reward_metric(next_state)
 
-            solver.step(state, action, reward, next_state, reward, is_terminal)
+            solver.step(state, action, reward, next_state, is_terminal)
             results[episode] += 1, reward
 
             state = next_state
