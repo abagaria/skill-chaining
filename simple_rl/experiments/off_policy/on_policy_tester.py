@@ -143,6 +143,8 @@ def main():
 
     goal_states = parse_goal_states(goal_dimension, args.goal_indices)
 
+    ipdb.set_trace()
+
     for i, goal_state in enumerate(goal_states):
         # Set up our goal state
         reward_metric = get_ball_reward_metric(
