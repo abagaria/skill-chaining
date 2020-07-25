@@ -94,6 +94,7 @@ def train_solver(
     
     results = np.zeros((num_episodes, 2))
     for episode in range(num_episodes):
+        print(f'Executing episode {episode}/{num_episodes}')
         state = environment.reset()
         for _ in range(num_steps):
             action = solver.act(state)
@@ -106,6 +107,7 @@ def train_solver(
             state = next_state
             if is_terminal:
                 break
+        print(f'Episode terminated in {results[episode,0]} steps with reward {results[episode,1]}')
     
     return solver, results
 
