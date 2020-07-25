@@ -65,8 +65,8 @@ def plot_value_function(directory: Path, solver: DDPGAgent) -> None:
     states = np.array([x[0] for x in buffer])
     actions = np.array([x[1] for x in buffer])
 
-    states_tensor = torch.from_numpy(states).float.to(solver.device)
-    actions_tensor = torch.from_numpy(actions).float.to(solver.device)
+    states_tensor = torch.from_numpy(states).float().to(solver.device)
+    actions_tensor = torch.from_numpy(actions).float().to(solver.device)
     qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy.squeeze(1)
     
     fig, ax = plt.subplots()
