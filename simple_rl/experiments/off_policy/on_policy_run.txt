@@ -1,0 +1,1 @@
+%run simple_rl/experiments/off_policy/on_policy_tester.py --experiment_name="kiran_test" --seed=0 --environment="ant" --num_episodes=100 --num_steps=100 --save_plots -save_pickles --goal_threshold=0.6 --goal_indices 0.5 0.5

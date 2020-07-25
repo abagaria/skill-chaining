@@ -87,7 +87,7 @@ def pickle_run(directory: Path, solver: DDPGAgent, results: np.ndarray) -> None:
 def train_solver(
     solver: DDPGAgent,
     environment, # Gym Environment
-    reward_metric: Callable[np.ndarray, Tuple[float, bool]],
+    reward_metric: Callable[[np.ndarray], Tuple[float, bool]],
     num_episodes: int, 
     num_steps: int, 
     ) -> Tuple[...,np.ndarray]:
@@ -176,7 +176,7 @@ def main():
         
         if args.save_pickles:
             pickle_run(subdirectory, solver, results)
-            
+
 
 if __name__ == '__main__':
     main()
