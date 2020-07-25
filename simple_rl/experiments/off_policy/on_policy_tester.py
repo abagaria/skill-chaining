@@ -31,19 +31,18 @@ def parse_goal_states(goal_dimension: int, goal_indices: List[float]) -> List[np
 
     return goal_states
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment_name', type=str)
-    parser.add_argument('--seed', type=int)
-    parser.add_argument('--environment', type=str)
-    parser.add_argument('--num_episodes', type=int)
-    parser.add_argument('--num_steps', type=int)
-    parser.add_argument('--save_plots', action='store_true', default=False)
-    parser.add_argument('--save_pickles', action='store_true', default=False)
-    parser.add_argument('--dense_reward', action='store_true', default=False)
-    parser.add_argument('--goal_threshold', type=float)
-    parser.add_argument('--goal_indices', nargs='+', type=float)
-    return parser.parse_args()
+parser = argparse.ArgumentParser()
+parser.add_argument('--experiment_name', type=str)
+parser.add_argument('--seed', type=int)
+parser.add_argument('--environment', type=str)
+parser.add_argument('--num_episodes', type=int)
+parser.add_argument('--num_steps', type=int)
+parser.add_argument('--save_plots', action='store_true', default=False)
+parser.add_argument('--save_pickles', action='store_true', default=False)
+parser.add_argument('--dense_reward', action='store_true', default=False)
+parser.add_argument('--goal_threshold', type=float)
+parser.add_argument('--goal_indices', nargs='+', type=float)
+args = parser.parse_args()
 
 ################################################################################
 # PLOTTING AND PICKLING FUNCTIONS
@@ -134,7 +133,6 @@ def get_ball_reward_metric(
     return reward_metric
 
 def main():
-    args = parse_args()
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
 
     if args.environment == 'ant':
