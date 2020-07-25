@@ -90,7 +90,7 @@ def train_solver(
     reward_metric: Callable[[np.ndarray], Tuple[float, bool]],
     num_episodes: int, 
     num_steps: int, 
-    ) -> Tuple[...,np.ndarray]:
+    ) -> Tuple[DDPGAgent, np.ndarray]:
     
     results = np.zeros(num_episodes, 2)
     for episode in range(num_episodes):
