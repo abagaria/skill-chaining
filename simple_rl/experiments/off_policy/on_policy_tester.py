@@ -119,7 +119,7 @@ def get_ball_reward_metric(
     goal_threshold: float, 
     goal_state: np.ndarray, 
     dense_reward: bool
-    ) -> Callable[np.ndarray, float]:
+    ) -> Callable[[np.ndarray], float]:
 
     def reward_metric(state):
         distance = np.linalg.norm(goal_state[:goal_dimension] - state[:goal_dimension])
