@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--save_plots', action='store_true', default=False)
     parser.add_argument('--save_pickles', action='store_true', default=False)
     parser.add_argument('--dense_reward', action='store_true', default=False)
-    parser.add_argument('--goal_threshold', type=int)
+    parser.add_argument('--goal_threshold', type=float)
     parser.add_argument('--goal_indices', nargs='+', type=float)
     return parser.parse_args()
 
