@@ -147,8 +147,8 @@ class SkillChaining(object):
 		# Keep track of which chain each created option belongs to
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
 		self.s0 = start_state_salient_event.trigger_points
-		self.chains = [SkillChain(start_states=self.s0, options=[], chain_id=(i+1),
-		 			   			  intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
+		self.chains = [SkillChain(options=[], chain_id=(i+1),
+		 			   			  intersecting_options=[], is_backward_chain=False,
 								  target_salient_event=salient_event, init_salient_event=start_state_salient_event,
 								  option_intersection_salience=option_intersection_salience,
 								  event_intersection_salience=event_intersection_salience)
@@ -206,8 +206,8 @@ class SkillChaining(object):
 							 target_salient_event=salient_event)
 		self.untrained_options.append(goal_option)
 
-		new_chain = SkillChain(start_states=self.s0, options=[], chain_id=chain_id,
-							   intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
+		new_chain = SkillChain(options=[], chain_id=chain_id,
+							   intersecting_options=[], is_backward_chain=False,
 							   target_salient_event=salient_event,
 							   init_salient_event=init_salient_event,
 							   option_intersection_salience=self.option_intersection_salience,
@@ -664,8 +664,7 @@ class SkillChaining(object):
 			target_salient_event = self.mdp.get_start_state_salient_event()
 
 			# No need to check for intersections for backward chains
-			new_chain = SkillChain(start_states=start_states, mdp_start_states=self.s0,
-								   target_salient_event=target_salient_event,
+			new_chain = SkillChain(target_salient_event=target_salient_event,
 								   init_salient_event=init_salient_event,
 								   options=[], chain_id=len(self.chains)+1,
 								   intersecting_options=[], is_backward_chain=True,
@@ -716,14 +715,12 @@ class SkillChaining(object):
 
 		"""
 		# No need to check for intersections if you are a backward chain
-		back_chain = SkillChain(start_states=start_event.trigger_points,
-								  mdp_start_states=self.s0,
-								  target_salient_event=target_event,
-								  init_salient_event=start_event,
-								  options=[], chain_id=len(self.chains) + 1,
-								  intersecting_options=[], is_backward_chain=True,
-								  option_intersection_salience=False,
-								  event_intersection_salience=False)
+		back_chain = SkillChain(target_salient_event=target_event,
+								init_salient_event=start_event,
+								options=[], chain_id=len(self.chains) + 1,
+								intersecting_options=[], is_backward_chain=True,
+								option_intersection_salience=False,
+								event_intersection_salience=False)
 		self.add_skill_chain(back_chain)
 
 		# Create a new option and equip the SkillChainingAgent with it
@@ -823,7 +820,7 @@ class SkillChaining(object):
 							chain.is_chain_completed(self.chains) and not chain.is_backward_chain]
 			if event != option_target_event and \
 					len(event_chains) > 0 and \
-					SkillChain.detect_intersection_between_option_and_event(option, event):
+					SkillChain.should_exist_edge_from_event_to_option(event, option):
 				intersecting_events.append(event)
 
 		trained_backward_options = []

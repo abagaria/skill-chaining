@@ -83,7 +83,7 @@ class GraphSearch(object):
             for key in labels:
                 labels[key] = np.round(labels[key], 2)
 
-            plt.figure(figsize=(16, 10))
+            plt.figure(figsize=(18, 16))
 
             nx.draw_networkx(self.plan_graph, pos)
             nx.draw_networkx_edge_labels(self.plan_graph, pos, edge_labels=labels)

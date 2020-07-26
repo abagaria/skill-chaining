@@ -432,9 +432,7 @@ if __name__ == "__main__":
                                       chainer=chainer,
                                       experiment_name=args.experiment_name,
                                       seed=args.seed,
-                                      initialize_graph=False,
-                                      pretrain_option_policies=args.pretrain_option_policies,
-                                      use_ucb=args.use_ucb)
+                                      pretrain_option_policies=args.pretrain_option_policies)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
                                     dsc_agent=chainer,

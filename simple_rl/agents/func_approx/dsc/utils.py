@@ -562,7 +562,7 @@ def get_intersecting_events(source_chain, events):
     connecting_events = []
     for event in events:
         for option in source_chain.options:
-            if source_chain.detect_intersection_between_option_and_event(option, event) and \
+            if source_chain.should_exist_edge_from_option_to_event(option, event) and \
                     event != source_chain.init_salient_event:
                 connecting_events.append(event)
     return connecting_events
