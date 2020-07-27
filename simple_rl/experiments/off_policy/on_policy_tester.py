@@ -42,7 +42,7 @@ args = parser.parse_args()
 
 def plot_learning_curve(
     directory: Path, 
-    results: np.ndarra, 
+    results: np.ndarray, 
     num_steps: int) -> None:
 
     episode_nums = np.arange(results.shape[0])
