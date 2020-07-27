@@ -111,7 +111,6 @@ def reward_metric(
     dense_reward: bool
     ) -> Tuple[float, bool]:
 
-    ipdb.set_trace()
     distance = np.linalg.norm(state[:goal_dimension] - goal_state)
     is_terminal = distance <= goal_threshold
     if dense_reward:
