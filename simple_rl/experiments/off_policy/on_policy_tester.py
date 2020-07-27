@@ -49,7 +49,7 @@ def parse_goal(goal):
             assert goal[1] == 'targeting'
             goal_state = np.array(goal[2:d + 2], dtype=np.float)
 
-            assert goal[d + 2] == 'sampling'
+            assert goal[d + 2] == 'sample'
             num_samples = goal[d + 3]
 
             assert goal[d + 4] == 'from'
