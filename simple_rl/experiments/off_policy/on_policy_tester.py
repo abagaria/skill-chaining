@@ -22,6 +22,52 @@ from typing import List, Tuple, Callable
 # ARGUMENT PARSING
 ################################################################################
 
+def parse_goal(goal):
+    d = args.goal_dimension
+
+    if len(goal) <= d + 2:
+        try:
+            assert goal[0] in ('sparse', 'dense')
+            dense_reward = goal[0] == 'dense'
+
+            assert goal[1] == 'targeting'
+            goal_state = np.array(goal[2:], dtype=np.float)
+
+            pretrain = False
+
+            num_samples = None
+
+            source_goals = None
+        except:
+            raise argparse.ArgumentTypeError('Goal not in format: \'(sparse/dense) \
+                                              targeting <goal indices>\'')
+    else:
+        try:
+            assert goal[0] in ('sparse', 'dense')
+            dense_reward = goal[0] == 'dense'
+
+            assert goal[1] == 'targeting'
+            goal_state = np.array(goal[2:d + 2], dtype=np.float)
+
+            assert goal[d + 2] == 'sampling'
+            num_samples = goal[d + 3]
+
+            assert goal[d + 4] == 'from'
+            source_goals = []
+            for source_goal in goal[d + 5:]:
+                try:
+                    i = int(source_goal)
+                    source_goals.append(i)
+                except:
+                    i = str(source_goal)
+                    source_goals.append(i)
+        except:
+            raise argparse.ArgumentTypeError('Goal not in format: \'(sparse/dense) \
+                                              targeting <goal indices> sampling <num samples> \
+                                              from <source goals>\'')
+
+    return dense_reward, goal_state, pretrain, num_samples, source_goals
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--experiment_name', type=str)
 parser.add_argument('--seed', type=int)
@@ -33,7 +79,8 @@ parser.add_argument('--save_plots', action='store_true', default=False)
 parser.add_argument('--save_pickles', action='store_true', default=False)
 parser.add_argument('--render', action='store_true', default=False)
 parser.add_argument('--fixed_epsilon', type=float, default=0)
-parser.add_argument('--goal_dimension', type=int)
+parser.add_argument('--goal_threshold', type=float, default=0.6)
+parser.add_argument('--goal_dimension', type=int, default=2)
 parser.add_argument('--add_goal', action='append', nargs='+')
 args = parser.parse_args()
 
@@ -54,7 +101,6 @@ def plot_learning_curve(
 
     ax.set(xlabel='score', ylabel='episode', title=f'{num_steps} per episode')
     fig.savefig(directory / 'learning_curve.png')
-
 
 def plot_value_function(
     directory: Path, 
@@ -89,7 +135,7 @@ def plot_value_function(
     ax.add_patch(
         plt.Circle(goal_state, goal_threshold, alpha=0.7, color='gold'))
     
-    reward_name = "dense" if dense_reward else "sparse"
+    reward_name = 'dense' if dense_reward else 'sparse'
     ax.set(xlabel='x axis', ylabel='y axis', title=f'{reward_name} targeting {goal_state}')
 
     plt.savefig(directory / 'value_function.png')
@@ -171,6 +217,53 @@ def train_solver(
     
     return solver, results
 
+################################################################################
+# OFF-POLICY PRE-TRAINING
+################################################################################
+
+def unpickle_combined_buffer(directory: Path, source_goals):
+    combined_buffer = []
+    for i in source_goals:
+        if isinstance(i, int):
+            buffer_path = directory / f'goal_{i}' / 'buffer.pkl'
+        else:
+            buffer_path = i
+            
+        if os.path.exists(buffer_path):
+            buffer = pickle.load(open(buffer_path, 'rb'))
+            combined_buffer += buffer
+        else:
+            print(f'Invalid goal {i}')
+    
+    return combined_buffer
+
+def pretrain_solver(
+    solver: DDPGAgent,
+    directory: Path, 
+    num_samples: int, 
+    source_goals, 
+    goal_dimension: int,
+    goal_threshold: float,
+    goal_state: np.ndarray,
+    dense_reward: bool
+    ) -> None:
+
+    combined_buffer = unpickle_combined_buffer(directory, source_goals)
+    num_samples = min(num_samples, len(combined_buffer))
+    
+    for n in num_samples:
+        print(f'Pretraining on sample {n}/{num_samples}')
+        state, action, _, next_state, _ = np.random.choice(combined_buffer, replace=False)
+        reward, is_terminal = reward_metric(
+                next_state, 
+                goal_dimension, 
+                goal_threshold, 
+                goal_state, 
+                dense_reward
+                )
+        
+        solver.step(state, action, reward, next_state, is_terminal)
+
 
 ################################################################################
 # MAIN FUNCTION
@@ -185,10 +278,13 @@ def main():
     environment.seed(args.seed)
 
     for i, goal in enumerate(args.add_goal):
-        # (i) Set up our goal state
-        goal_threshold = float(goal[0])
-        goal_state = np.array(goal[1:1 + args.goal_dimension], dtype=np.float)
-        dense_reward = goal[3] == 'True'
+        # (i) Parse info about this goal
+        (dense_reward, 
+        goal_state, 
+        pretrain, 
+        num_samples, 
+        source_goals
+        ) = parse_goal(goal)
 
         # (ii) Set up our DDPG
         solver = DDPGAgent(
@@ -197,13 +293,26 @@ def main():
             args.seed,
             args.device
             )
+
+        # *Optional* pretrain our DDPG
+        if pretrain:
+            pretrain_solver(
+                solver, 
+                directory, 
+                num_samples, 
+                source_goals,
+                args.goal_dimension,
+                args.goal_threshold,
+                goal_state,
+                dense_reward
+                )
         
         # (iii) Run our training
         solver, results = train_solver(
             solver,
             environment,
             args.goal_dimension,
-            goal_threshold,
+            args.goal_threshold,
             goal_state,
             dense_reward,
             args.fixed_epsilon,
@@ -227,8 +336,8 @@ def main():
                 environment, 
                 solver, 
                 args.goal_dimension,
-                goal_threshold, 
-                goal_state, 
+                args.goal_threshold, 
+                goal_state,
                 dense_reward
                 )
         
