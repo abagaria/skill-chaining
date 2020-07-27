@@ -22,15 +22,6 @@ from typing import List, Tuple, Callable
 # ARGUMENT PARSING
 ################################################################################
 
-def parse_goal_states(goal_dimension: int, goal_indices: List[float]) -> List[np.ndarray]:
-    assert(len(goal_indices) % goal_dimension == 0)
-
-    goal_states = []
-    for i in range(0, len(goal_indices), goal_dimension):
-        goal_states.append(np.array(goal_indices[i:i+goal_dimension]))
-
-    return goal_states
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--experiment_name', type=str)
 parser.add_argument('--seed', type=int)
@@ -40,27 +31,39 @@ parser.add_argument('--num_steps', type=int)
 parser.add_argument('--device', type=str, default='cpu')
 parser.add_argument('--save_plots', action='store_true', default=False)
 parser.add_argument('--save_pickles', action='store_true', default=False)
-parser.add_argument('--dense_reward', action='store_true', default=False)
-parser.add_argument('--goal_threshold', type=float)
-parser.add_argument('--goal_indices', nargs='+', type=float)
+parser.add_argument('--render', action='store_true', default=False)
+parser.add_argument('--fixed_epsilon', type=float, default=0)
+parser.add_argument('--add_goal', action='append', nargs='+')
 args = parser.parse_args()
 
 ################################################################################
 # PLOTTING AND PICKLING FUNCTIONS
 ################################################################################
 
+def plot_learning_curve(
+    directory: Path, 
+    results: np.ndarra, 
+    num_steps: int) -> None:
 
-def plot_learning_curve(directory: Path, results: np.ndarray) -> None:
     episode_nums = np.arange(results.shape[0])
     smooth_scores = uniform_filter1d(results[:,1], 10, mode='nearest')
 
     fig, ax = plt.subplots()
     ax.plot(episode_nums, smooth_scores)
 
-    ax.set(xlabel='score', ylabel='episode')
+    ax.set(xlabel='score', ylabel='episode', title=f'{num_steps} per episode')
     fig.savefig(directory / 'learning_curve.png')
 
-def plot_value_function(directory: Path, solver: DDPGAgent) -> None:
+
+def plot_value_function(
+    directory: Path, 
+    environment, 
+    solver: DDPGAgent,
+    goal_threshold: float,
+    goal_state: np.ndarray,
+    dense_reward: bool
+    ) -> None:
+
     buffer = solver.replay_buffer.memory
     states = np.array([x[0] for x in buffer])
     actions = np.array([x[1] for x in buffer])
@@ -73,6 +76,16 @@ def plot_value_function(directory: Path, solver: DDPGAgent) -> None:
     scatter = ax.scatter(states[:, 0], states[:, 1], c = qvalues)
     fig.colorbar(scatter, ax=ax)
 
+    box = environment.observation_space
+    ax.set_xlim((box.low[0], box.high[0]))
+    ax.set_ylim((box.low[1], box.high[1]))
+
+    ax.add_patch(
+        plt.Circle(goal_state, goal_threshold, alpha=0.7, color='gold'))
+    
+    reward_name = "dense" if dense_reward else "sparse"
+    ax.set(xlabel='x axis', ylabel='y axis', title=f'{reward_name} targeting {goal_state}')
+
     plt.savefig(directory / 'value_function.png')
 
 def pickle_run(directory: Path, solver: DDPGAgent, results: np.ndarray) -> None:
@@ -84,12 +97,32 @@ def pickle_run(directory: Path, solver: DDPGAgent, results: np.ndarray) -> None:
 # TRAIN OUR DDPG
 ################################################################################
 
+def reward_metric(
+    state: np.ndarray,
+    goal_threshold: float,
+    goal_state: np.ndarray,
+    dense_reward: bool
+    ) -> Tuple[float, bool]:
+
+    distance = np.linalg.norm(state - goal_state)
+    is_terminal = distance <= goal_threshold
+    if dense_reward:
+        reward = distance * -1
+    else:
+        reward = 10 if is_terminal else 0
+    
+    return reward, is_terminal
+
 def train_solver(
     solver: DDPGAgent,
     environment, # Gym Environment
-    reward_metric: Callable[[np.ndarray], Tuple[float, bool]],
+    goal_threshold: float,
+    goal_state: np.ndarray,
+    dense_reward: bool,
+    fixed_epsilon: float,
     num_episodes: int, 
     num_steps: int, 
+    render: bool,
     ) -> Tuple[DDPGAgent, np.ndarray]:
     
     results = np.zeros((num_episodes, 2))
@@ -97,16 +130,29 @@ def train_solver(
         print(f'Executing episode {episode}/{num_episodes}')
         state = environment.reset()
         for _ in range(num_steps):
-            action = solver.act(state)
-            next_state, _, _, _ = environment.step(action)
-            reward, is_terminal = reward_metric(next_state)
+            # (i) Render the current state
+            if render:
+                environment.render()
 
+            # (ii) Get our next action
+            if fixed_epsilon < np.random.random():
+                action = environment.action_space.sample()
+            else:
+                action = solver.act(state)
+            
+            # (iii) Take a step and get our rewards
+            next_state, _, _, _ = environment.step(action)
+            reward, is_terminal = reward_metric(next_state, goal_threshold, goal_state, dense_reward)
+
+            # (iv) Train on and log our transition
             solver.step(state, action, reward, next_state, is_terminal)
             results[episode] += 1, reward
 
+            # Iterate to the next state
             state = next_state
             if is_terminal:
                 break
+            
         print(f'Episode terminated in {results[episode,0]} steps with reward {results[episode,1]}')
     
     return solver, results
@@ -116,45 +162,21 @@ def train_solver(
 # MAIN FUNCTION
 ################################################################################
 
-def get_ball_reward_metric(
-    goal_dimension: int,
-    goal_threshold: float, 
-    goal_state: np.ndarray, 
-    dense_reward: bool
-    ) -> Callable[[np.ndarray], float]:
-
-    def reward_metric(state):
-        distance = np.linalg.norm(goal_state[:goal_dimension] - state[:goal_dimension])
-        is_terminal = distance < goal_threshold
-        if dense_reward:
-            reward = -1 * distance
-        else:
-            reward = 10 if is_terminal else -1
-
-        return reward, is_terminal
-
-    return reward_metric
-
 def main():
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
     if args.environment == 'ant':
         environment = gym.make('Ant-v2')
-        goal_dimension = 2
+    
+    np.random.seed(args.seed)
+    environment.seed(args.seed)
 
-    goal_states = parse_goal_states(goal_dimension, args.goal_indices)
+    for i, goal in enumerate(args.add_goal):
+        # (i) Set up our goal state
+        goal_threshold, goal_state, dense_reward = goal
 
-    for i, goal_state in enumerate(goal_states):
-        # Set up our goal state
-        reward_metric = get_ball_reward_metric(
-            goal_dimension, 
-            args.goal_threshold, 
-            goal_state, 
-            args.dense_reward
-            )
-
-        # Set up our DDPG
+        # (ii) Set up our DDPG
         solver = DDPGAgent(
             environment.observation_space.shape[0],
             environment.action_space.shape[0],
@@ -162,20 +184,25 @@ def main():
             args.device
             )
         
-        # Run our training
+        # (iii) Run our training
         solver, results = train_solver(
             solver,
             environment,
-            reward_metric,
+            goal_threshold,
+            goal_state,
+            dense_reward,
+            args.fixed_epsilon,
             args.num_episodes,
-            args.num_steps)
+            args.num_steps,
+            args.render
+            )
 
-        # And save our results
+        # (iv) And save our results
         subdirectory = directory / f'goal_{i}'
         os.mkdir(subdirectory)
         if args.save_plots:
-            plot_learning_curve(subdirectory, results)
-            plot_value_function(subdirectory, solver)
+            plot_learning_curve(subdirectory, results, args.num_steps)
+            plot_value_function(subdirectory, environment, solver, *goal)
         
         if args.save_pickles:
             pickle_run(subdirectory, solver, results)
