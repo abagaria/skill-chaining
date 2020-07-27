@@ -33,6 +33,7 @@ parser.add_argument('--save_plots', action='store_true', default=False)
 parser.add_argument('--save_pickles', action='store_true', default=False)
 parser.add_argument('--render', action='store_true', default=False)
 parser.add_argument('--fixed_epsilon', type=float, default=0)
+parser.add_argument('--goal_dimension', type=int)
 parser.add_argument('--add_goal', action='append', nargs='+')
 args = parser.parse_args()
 
@@ -59,10 +60,15 @@ def plot_value_function(
     directory: Path, 
     environment, 
     solver: DDPGAgent,
+    goal_dimension: int,
     goal_threshold: float,
     goal_state: np.ndarray,
     dense_reward: bool
     ) -> None:
+
+    if goal_dimension != 2:
+        print('We don\'t have code to plot an n-d value function for n != 2')
+        return
 
     buffer = solver.replay_buffer.memory
     states = np.array([x[0] for x in buffer])
@@ -99,13 +105,14 @@ def pickle_run(directory: Path, solver: DDPGAgent, results: np.ndarray) -> None:
 
 def reward_metric(
     state: np.ndarray,
+    goal_dimension,
     goal_threshold: float,
     goal_state: np.ndarray,
     dense_reward: bool
     ) -> Tuple[float, bool]:
 
     ipdb.set_trace()
-    distance = np.linalg.norm(state - goal_state)
+    distance = np.linalg.norm(state[:goal_dimension] - goal_state)
     is_terminal = distance <= goal_threshold
     if dense_reward:
         reward = distance * -1
@@ -117,6 +124,7 @@ def reward_metric(
 def train_solver(
     solver: DDPGAgent,
     environment, # Gym Environment
+    goal_dimension: int,
     goal_threshold: float,
     goal_state: np.ndarray,
     dense_reward: bool,
@@ -143,7 +151,13 @@ def train_solver(
             
             # (iii) Take a step and get our rewards
             next_state, _, _, _ = environment.step(action)
-            reward, is_terminal = reward_metric(next_state, goal_threshold, goal_state, dense_reward)
+            reward, is_terminal = reward_metric(
+                next_state, 
+                goal_dimension, 
+                goal_threshold, 
+                goal_state, 
+                dense_reward
+                )
 
             # (iv) Train on and log our transition
             solver.step(state, action, reward, next_state, is_terminal)
@@ -167,17 +181,15 @@ def main():
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
-    if args.environment == 'ant':
-        environment = gym.make('Ant-v2')
-    
+    environment = gym.make(args.environment)
     np.random.seed(args.seed)
     environment.seed(args.seed)
 
     for i, goal in enumerate(args.add_goal):
         # (i) Set up our goal state
-        goal_threshold = goal[0]
-        goal_state = np.array((goal[1], goal[2]))
-        dense_reward = goal[3]
+        goal_threshold = float(goal[0])
+        goal_state = np.array(goal[1:1 + args.goal_dimension], dtype=np.float)
+        dense_reward = bool(goal[3])
 
         # (ii) Set up our DDPG
         solver = DDPGAgent(
@@ -191,6 +203,7 @@ def main():
         solver, results = train_solver(
             solver,
             environment,
+            args.goal_dimension,
             goal_threshold,
             goal_state,
             dense_reward,
@@ -214,6 +227,7 @@ def main():
                 subdirectory, 
                 environment, 
                 solver, 
+                args.goal_dimension,
                 goal_threshold, 
                 goal_state, 
                 dense_reward
