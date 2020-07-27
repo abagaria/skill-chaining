@@ -49,6 +49,8 @@ def parse_goal(goal):
             assert goal[1] == 'targeting'
             goal_state = np.array(goal[2:d + 2], dtype=np.float)
 
+            pretrain = True
+
             assert goal[d + 2] == 'sample'
             num_samples = goal[d + 3]
 
