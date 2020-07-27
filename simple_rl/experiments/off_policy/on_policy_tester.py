@@ -174,7 +174,9 @@ def main():
 
     for i, goal in enumerate(args.add_goal):
         # (i) Set up our goal state
-        goal_threshold, goal_state, dense_reward = goal
+        goal_threshold = goal[0]
+        goal_state = np.array((goal[1], goal[2]))
+        dense_reward = goal[3]
 
         # (ii) Set up our DDPG
         solver = DDPGAgent(
@@ -201,8 +203,20 @@ def main():
         subdirectory = directory / f'goal_{i}'
         os.mkdir(subdirectory)
         if args.save_plots:
-            plot_learning_curve(subdirectory, results, args.num_steps)
-            plot_value_function(subdirectory, environment, solver, *goal)
+            plot_learning_curve(
+                subdirectory, 
+                results, 
+                args.num_steps
+                )
+
+            plot_value_function(
+                subdirectory, 
+                environment, 
+                solver, 
+                goal_threshold, 
+                goal_state, 
+                dense_reward
+                )
         
         if args.save_pickles:
             pickle_run(subdirectory, solver, results)
