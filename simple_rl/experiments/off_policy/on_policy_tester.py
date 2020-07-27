@@ -116,7 +116,7 @@ def reward_metric(
     if dense_reward:
         reward = distance * -1
     else:
-        reward = 10 if is_terminal else 0
+        reward = 10 if is_terminal else -1
     
     return reward, is_terminal
 
