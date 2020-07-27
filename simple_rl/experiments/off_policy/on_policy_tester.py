@@ -188,7 +188,7 @@ def main():
         # (i) Set up our goal state
         goal_threshold = float(goal[0])
         goal_state = np.array(goal[1:1 + args.goal_dimension], dtype=np.float)
-        dense_reward = bool(goal[3])
+        dense_reward = goal[3] == 'True'
 
         # (ii) Set up our DDPG
         solver = DDPGAgent(
