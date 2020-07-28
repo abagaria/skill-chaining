@@ -56,7 +56,7 @@ class TrainOffPolicy:
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
         elif mdp_name == "ant-reacher":
-            self.on_policy_goal = (3.5, 3.5)
+            self.on_policy_goal = (2, 2)
             self.tolerance = 0.6
             self.xlim = (-5, 5)
             self.ylim = (-5, 5)
@@ -307,7 +307,7 @@ if __name__ == "__main__":
 
     # ant-reacher:
     # Source target was (1.5,1.5)
-    task_off_policy_targets = [(-3.5,3.5), (3.5,-3.5), (-3.5,-3.5), (4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5)]
+    # task_off_policy_targets = [(-3.5,3.5), (3.5, -3.5), (-3.5,-3.5), (4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5)]
     # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
     #                            (2, 2), (-2, 2), (2, -2), (-2, -2)]
 
