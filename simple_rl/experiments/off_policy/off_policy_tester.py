@@ -128,7 +128,7 @@ class TrainOffPolicy:
                 solver_per_episode_durations.append(step)
 
                 print(
-                    f"\rSolver: {solver.name}\tEpisode {episode}\tAverage Duration:{np.round(score, 2)}\tEpsilon: {round(solver.epsilon, 2)}")
+                    f"\rSolver: {solver.name}\tEpisode {episode}\tDuration:{np.round(score, 2)}\tEpsilon: {round(solver.epsilon, 2)}")
             if self.plot_vf:
                 self._plot_value_function(solver, goal_pos)
             if self.plot_buffers:
@@ -296,7 +296,6 @@ class TrainOffPolicy:
         states = np.array([exp[0] for exp in solver.replay_buffer.memory])
         actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
         qvalues = get_value_function_values()
-        ipdb.set_trace()
         fig, ax = plt.subplots()
         ax.scatter(states[:, 0], states[:, 1], c=qvalues)
         ax.set_xlim(self.xlim)
