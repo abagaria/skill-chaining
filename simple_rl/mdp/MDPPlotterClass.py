@@ -56,7 +56,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print("Training learning curves...")
         print('*' * 80)
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, episodes=100, episode_interval=1, randomize_start_states=True, num_states=2)
+        learning_curves = self.learning_curve(dsg_agent, episodes=100, episode_interval=1, randomize_start_states=True, num_states=10)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
@@ -75,14 +75,17 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         plt.close()
 
     def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False, num_states=20):
-        start_states = self.generate_start_states(num_states)
+        start_states = self.generate_start_states(num_states) if randomize_start_states else [None] * num_states
         goal_salient_events = self.generate_goal_salient_events(num_states)
+        self.plot_test_salients(start_states, goal_salient_events)
         all_runs = []
         for start_state, goal_salient_event in zip(start_states, goal_salient_events):
-            start_state = start_state if randomize_start_states else None
             single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
             all_runs.append(single_run)
         return all_runs
+
+    @abc.abstractmethod
+    def plot_test_salients(self, start_states, goal_salients):
 
     @abc.abstractmethod
     def generate_start_states(self, num_states):
@@ -211,9 +214,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         forward_chains = [chain for chain in chains if not chain.is_backward_chain and _completed(chain)]
         for chain in forward_chains:
             _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
-
-            plt.xticks([])
-            plt.yticks([])
 
         file_name = f"event_graphs_episode_{self.kGraphIterationNumber}.png"
         plt.savefig(os.path.join(self.path, "event_graphs", file_name))

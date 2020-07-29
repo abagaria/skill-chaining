@@ -73,7 +73,7 @@ class LeapWrapperPlotter(MDPPlotter):
         """
         Args:
             dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
-            episode (int)
+            episode
         """
         # only want to plot the final initiation set of each option once
         while len(self.final_initiation_set_has_been_plotted) < len(dsc_agent.trained_options):
@@ -82,7 +82,7 @@ class LeapWrapperPlotter(MDPPlotter):
         for i, option in enumerate(dsc_agent.trained_options):
             self._plot_value_function(option, dsc_agent.seed, episode)
             self._plot_option_policy(option, dsc_agent.seed, episode)
-            self._plot_random_salients(dsc_agent, episode)
+            self._plot_option_salients(dsc_agent, episode)
 
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
                     option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
@@ -91,7 +91,30 @@ class LeapWrapperPlotter(MDPPlotter):
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted[i] = True
 
-    def _plot_random_salients(self, dsc_agent, episode):
+    def plot_test_salients(self, start_states, goal_salients):
+        def _plot_event_pair(start, goal):
+            x = [start[3], goal[3]]
+            y = [start[4].goal[4]]
+            ax.plot(x, y, "-", c="black")
+
+        fig, ax = self._setup_plot((1, 1))
+
+        for i, (start_state, goal_salient) in enumerate(zip(start_states, goal_salients)):
+            goal_state = goal_salient.get_target_position()
+            if start_state is not None:
+                _plot_event_pair(start_state, goal_state)
+                puck_circle = plt.Circle(start_state, 0.06, alpha=0.3, color='y')
+                ax.add_patch(puck_circle)
+                ax.text(start_state[0], start_state[1] - 0.03, str(f"S{i}"), horizontalalignment='center', verticalalignment='center')
+            puck_circle = plt.Circle(goal_state, 0.06, alpha=0.3, color='tab:orange')
+            ax.add_patch(puck_circle)
+            ax.text(goal_state[0], goal_state[1] - 0.03, str(f"G{i}"), horizontalalignment='center', verticalalignment='center')
+
+        self._plot_sawyer_features(ax)
+        plt.savefig(os.path.join(self.path, "final_results", "test_time_targets.png"))
+        plt.close()
+
+    def _plot_option_salients(self, dsc_agent, episode):
         fig, ax = self._setup_plot((1, 1))
 
         parent_options = [x for x in dsc_agent.trained_options if x.target_salient_event is not None]
