@@ -279,7 +279,7 @@ class TrainOffPolicy:
             num_chunks = int(np.ceil(states.shape[0] / CHUNK_SIZE))
             state_chunks = np.array_split(np.array(states), num_chunks, axis=0)
             action_chunks = np.array_split(np.array(actions), num_chunks, axis=0)
-            values = np.zeros((state_chunks.shape[0],))
+            values = np.zeros(len(states))
             current_idx = 0
 
             # get values for each state
