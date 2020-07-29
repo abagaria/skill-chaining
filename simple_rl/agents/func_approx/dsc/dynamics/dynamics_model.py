@@ -14,6 +14,7 @@ class DynamicsModel(nn.Module):
         self.model = nn.Sequential(
             nn.Linear(state_size + action_size, 500),
             nn.LeakyReLU(),
+            nn.Dropout(p=0.1),
             nn.Linear(500, 500),
             nn.LeakyReLU(),
             nn.Linear(500, state_size)
@@ -27,6 +28,10 @@ class DynamicsModel(nn.Module):
         action = (action - self.mean_y) / self.std_y
         cat = torch.cat([state, action], dim=1)
         return self.model(cat)
+    
+    def predict_next_state(self, state, action):
+        pred = self.forward(state, action)
+        return (pred * self.std_z) + self.mean_z + state
     
     def set_standardization_vars(self, mean_x, mean_y, mean_z, std_x, std_y, std_z):
         self.mean_x = self._numpy_to_torch(mean_x)
@@ -61,7 +66,7 @@ if __name__== "__main__":
     test_sameloc_list = []
     test_diffloc_list = []
 
-    for epoch in range(1, 1000):
+    for epoch in range(1, 200):
         total_loss = 0
         for states, actions, states_p in training_gen:
             states = states.to(device).float()
@@ -78,35 +83,37 @@ if __name__== "__main__":
         
         train_list.append(total_loss.cpu().detach().item())
         
-        with torch.no_grad():
-            total_loss2 = 0
-            for states, actions, states_p in test_sameloc_gen:
-                states = states.to(device).float()
-                actions = actions.to(device).float()
-                states_p = states_p.to(device).float()
-                
-                # states_pred = model.forward(states, actions)
-                # loss = loss_function(states_p, states_pred) 
-                total_loss2 += loss_function(*model.compare_state(states, actions, states_p))
-            
-            test_sameloc_list.append(total_loss2.cpu().detach().item())
-            
-            test_loss = 0
-            for states, actions, states_p in test_diffloc_gen:
-                states = states.to(device).float()
-                actions = actions.to(device).float()
-                states_p = states_p.to(device).float()
-                
-                # states_pred = model.forward(states, actions)
-                # loss = loss_function(states_p, states_pred) 
-                test_loss += loss_function(*model.compare_state(states, actions, states_p))
-            
-            test_diffloc_list.append(test_loss.cpu().detach().item())
+#        with torch.no_grad():
+#            total_loss2 = 0
+#            for states, actions, states_p in test_sameloc_gen:
+#                states = states.to(device).float()
+#                actions = actions.to(device).float()
+#                states_p = states_p.to(device).float()
+#                
+#                # states_pred = model.forward(states, actions)
+#                # loss = loss_function(states_p, states_pred) 
+#                total_loss2 += loss_function(*model.compare_state(states, actions, states_p))
+#            
+#            test_sameloc_list.append(total_loss2.cpu().detach().item())
+#            
+#            test_loss = 0
+#            for states, actions, states_p in test_diffloc_gen:
+#                states = states.to(device).float()
+#                actions = actions.to(device).float()
+#                states_p = states_p.to(device).float()
+#                
+#                # states_pred = model.forward(states, actions)
+#                # loss = loss_function(states_p, states_pred) 
+#                test_loss += loss_function(*model.compare_state(states, actions, states_p))
+#            
+#            test_diffloc_list.append(test_loss.cpu().detach().item())
         
         print("Epoch {} total loss {}".format(epoch, total_loss / 10))
-        print("Epoch {} test loss {}".format(epoch, total_loss2))
-        print("Epoch {} test diff point loss {}".format(epoch, test_loss))
-        print("")
+#        print("Epoch {} test loss {}".format(epoch, total_loss2))
+#        print("Epoch {} test diff point loss {}".format(epoch, test_loss))
+#        print("")
+    
+    torch.save(model, "./model.pth")
     
     import matplotlib.pyplot as plt
     for i in range(len(train_list)):
