@@ -651,7 +651,6 @@ class SkillGraphPlanningAgent(object):
         """
 
         def _get_start_state_for_new_chain(in_graph_option):
-            # This might be an issue -Kiran
             for s, a, r, sp, done in in_graph_option.solver.replay_buffer:
                 if done:
                     return sp

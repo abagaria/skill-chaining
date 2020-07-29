@@ -12,7 +12,7 @@ import ipdb
 
 
 class MDPPlotter(metaclass=abc.ABCMeta):
-    def __init__(self, task_name, experiment_name, subdirectories, mdp):
+    def __init__(self, task_name, experiment_name, subdirectories, mdp, x_range, y_range):
         """
         Args:
             task_name (str): The name of the current task, so we know where to save plots
@@ -26,6 +26,8 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.save_args()
         self.kGraphIterationNumber = 0
         self.mdp = mdp
+        self.axis_x_range = x_range
+        self.axis_y_range = y_range
 
     @abc.abstractmethod
     def generate_episode_plots(self, dsc_agent, episode):
@@ -54,7 +56,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print("Training learning curves...")
         print('*' * 80)
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, 1, episode_interval=50, randomize_start_states=True, num_states=2)
+        learning_curves = self.learning_curve(dsg_agent, episodes=100, episode_interval=1, randomize_start_states=True, num_states=2)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
@@ -220,7 +222,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.kGraphIterationNumber += 1
 
     def visualize_plan_graph(self, plan_graph, seed, episode=None):
-        ipdb.set_trace()
         pos = nx.planar_layout(plan_graph)
         labels = nx.get_edge_attributes(plan_graph, "weight")
 
@@ -229,6 +230,8 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             labels[key] = np.round(labels[key], 2)
 
         plt.figure(figsize=(16, 10))
+        plt.xlim(self.axis_x_range)
+        plt.ylim(self.axis_y_range)
 
         nx.draw_networkx(plan_graph, pos)
         nx.draw_networkx_edge_labels(plan_graph, pos, edge_labels=labels)
