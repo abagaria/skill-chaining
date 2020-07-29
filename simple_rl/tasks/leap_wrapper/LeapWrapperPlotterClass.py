@@ -94,7 +94,7 @@ class LeapWrapperPlotter(MDPPlotter):
     def plot_test_salients(self, start_states, goal_salients):
         def _plot_event_pair(start, goal):
             x = [start[3], goal[3]]
-            y = [start[4].goal[4]]
+            y = [start[4], goal[4]]
             ax.plot(x, y, "-", c="black")
 
         fig, ax = self._setup_plot((1, 1))
