@@ -1,0 +1,5 @@
+option,salient event,num_goal_hits,num_executions,success_rate
+global_option,,0,238056,0.0
+goal_option_1,RRT Salient Episode 0,45,380,0.11842105263157894
+goal_option_2,RRT Salient Episode 0,6,66,0.09090909090909091
+option_1_0,,149,1266,0.11769352290679305
