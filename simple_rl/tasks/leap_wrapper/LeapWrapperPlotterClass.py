@@ -27,8 +27,8 @@ class LeapWrapperPlotter(MDPPlotter):
         self.puck_goal = mdp.goal_state[3:]
 
         # bounds of possible endeff positions (smaller than possible puck positions)
-        axis_x_range = (-0.28, 0.28)
-        axis_y_range = (0.3, 0.9)
+        self.axis_x_range = (-0.28, 0.28)
+        self.axis_y_range = (0.3, 0.9)
         self.axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
 
         # Tolerance of being within goal state or salient events. This is used to plot the
@@ -66,8 +66,8 @@ class LeapWrapperPlotter(MDPPlotter):
         super().__init__(task_name, experiment_name,
                          ["initiation_set_plots", "value_function_plots", "option_policy_plots", "salient_event_locations"],
                          mdp,
-                         axis_x_range,
-                         axis_y_range)
+                         self.axis_x_range,
+                         self.axis_y_range)
 
     def generate_episode_plots(self, dsc_agent, episode):
         """
