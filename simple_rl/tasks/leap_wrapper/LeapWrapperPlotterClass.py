@@ -100,7 +100,7 @@ class LeapWrapperPlotter(MDPPlotter):
         fig, ax = self._setup_plot((1, 1))
 
         for i, (start_state, goal_salient) in enumerate(zip(start_states, goal_salients)):
-            goal_state = goal_salient.get_target_position()
+            goal_state = goal_salient.target_state
             if start_state is not None:
                 _plot_event_pair(start_state, goal_state)
                 puck_circle = plt.Circle(start_state, 0.06, alpha=0.3, color='y')
