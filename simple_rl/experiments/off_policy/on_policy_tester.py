@@ -70,6 +70,7 @@ def parse_goal(goal):
 
     return dense_reward, goal_state, pretrain, num_samples, source_goals
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--experiment_name', type=str)
 parser.add_argument('--seed', type=int)

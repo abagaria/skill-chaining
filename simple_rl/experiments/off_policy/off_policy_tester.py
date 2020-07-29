@@ -56,7 +56,7 @@ class TrainOffPolicy:
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
         elif mdp_name == "ant-reacher":
-            self.on_policy_goal = (2.5, 2.5)
+            self.on_policy_goal = (1.5, 1.5)
             self.tolerance = 0.6
             self.xlim = (-5, 5)
             self.ylim = (-5, 5)
@@ -277,7 +277,6 @@ class TrainOffPolicy:
         qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
         fig, ax = plt.subplots()
         scatter = ax.scatter(states[:, 0], states[:, 1], c=qvalues)
-        colorbar = fig.colorbar(scatter, ax=ax)
         ax.set_xlim(self.xlim)
         ax.set_ylim(self.ylim)
         self._plot_features(ax, goal_pos)
