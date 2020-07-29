@@ -56,7 +56,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print("Training learning curves...")
         print('*' * 80)
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, episodes=100, episode_interval=1, randomize_start_states=True, num_states=10)
+        learning_curves = self.learning_curve(dsg_agent, episodes=5, episode_interval=1, randomize_start_states=True, num_states=2)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
@@ -86,6 +86,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def plot_test_salients(self, start_states, goal_salients):
+        pass
 
     @abc.abstractmethod
     def generate_start_states(self, num_states):
