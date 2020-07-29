@@ -42,21 +42,21 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # high level shaped rewards
         pass
 
-    def generate_final_experiment_plots(self, dsg_agent, episode):
+    def generate_final_experiment_plots(self, dsg_agent):
         """
         Args:
             dsg_agent (DeepSkillGraphAgent): the skill chaining agent we want to plot
-            episode (int): the current episode
         """
         self.save_option_success_rate(dsg_agent.dsc_agent)
-        self.plot_learning_curve(dsg_agent, episode)
+        self.plot_learning_curve(dsg_agent, train_time=5)
+        self..generate_episode_plots(dsg_agent, 'post_testing')
 
-    def plot_learning_curve(self, dsg_agent, episode):
+    def plot_learning_curve(self, dsg_agent, train_time):
         print('*' * 80)
         print("Training learning curves...")
         print('*' * 80)
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, episodes=5, episode_interval=1, randomize_start_states=True, num_states=2)
+        learning_curves = self.learning_curve(dsg_agent, episodes=train_time, episode_interval=1, randomize_start_states=True, num_states=2)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
@@ -65,9 +65,9 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print("Plotting learning curves...")
         print('*' * 80)
         fig, ax = plt.subplots()
-        ax.plot(range(episode), mean, '-')
-        ax.fill_between(range(episode), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
-        ax.set_xlim(0, episode)
+        ax.plot(range(train_time), mean, '-')
+        ax.fill_between(range(train_time), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
+        ax.set_xlim(0, train_time)
         ax.set_ylim(0, 1)
 
         file_name = "learning_curves.png"
