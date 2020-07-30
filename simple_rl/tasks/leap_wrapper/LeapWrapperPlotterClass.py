@@ -98,7 +98,7 @@ class LeapWrapperPlotter(MDPPlotter):
             ax.plot(x, y, "-", c="black")
 
         fig, ax = self._setup_plot((1, 1))
-
+        ipdb.set_trace()
         for i, (start_state, goal_salient) in enumerate(zip(start_states, goal_salients)):
             goal_state = goal_salient.target_state
             if start_state is not None:
