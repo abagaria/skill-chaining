@@ -52,27 +52,49 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.generate_episode_plots(dsg_agent.dsc_agent, 'post_testing')
 
     def plot_learning_curve(self, dsg_agent, train_time):
+        def plot_learning_curves():
+            fig, ax = plt.subplots()
+            ax.plot(range(train_time), mean, '-')
+            ax.fill_between(range(train_time), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
+            ax.set_xlim(0, train_time)
+            ax.set_ylim(0, 1)
+            file_name = "learning_curves.png"
+            plt.savefig(os.path.join(self.path, "final_results", file_name))
+            plt.close()
+
+        def save_test_parameters():
+            fields = ['start state', 'goal state', 'avg success rate']
+            rows = [(start_state[3:] if start_state is not None else None,
+                     goal_salient.get_target_position(),
+                     average_success
+                     for start_state, goal_salient, average_success
+                     in zip(start_states, goal_salients, np.mean(learning_curves, axis=1)))]
+            with open(os.path.join(self.path, "final_results", "option_results.csv"), "w") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(fields)
+                csv_writer.writerows(rows)
+
+            with open(os.path.join(self.path, "final_results", "learning_curves.pkl"), "w+") as pickle_file:
+                pickle.dump(learning_curves, pickle_file)
+
         print('*' * 80)
         print("Training learning curves...")
         print('*' * 80)
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, episodes=train_time, episode_interval=1, randomize_start_states=True, num_states=5)
+        learning_curves, start_states, goal_salients = self.learning_curve(dsg_agent,
+                                                                           episodes=train_time,
+                                                                           episode_interval=1,
+                                                                           randomize_start_states=True,
+                                                                           num_states=5)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
-        # plot learning curves
         print('*' * 80)
         print("Plotting learning curves...")
         print('*' * 80)
-        fig, ax = plt.subplots()
-        ax.plot(range(train_time), mean, '-')
-        ax.fill_between(range(train_time), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
-        ax.set_xlim(0, train_time)
-        ax.set_ylim(0, 1)
+        plot_learning_curves()
 
-        file_name = "learning_curves.png"
-        plt.savefig(os.path.join(self.path, "final_results", file_name))
-        plt.close()
+        save_test_parameters()
 
     def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False, num_states=20):
         start_states = self.generate_start_states(num_states) if randomize_start_states else [None] * num_states
@@ -82,7 +104,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         for start_state, goal_salient_event in zip(start_states, goal_salient_events):
             single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
             all_runs.append(single_run)
-        return all_runs
+        return all_runs, start_states, goal_salient_events
 
     @abc.abstractmethod
     def plot_test_salients(self, start_states, goal_salients):
