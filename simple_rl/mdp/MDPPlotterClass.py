@@ -64,12 +64,12 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
         def save_test_parameters():
             fields = ['start state', 'goal state', 'avg success rate']
-            rows = [(start_state[3:] if start_state is not None else None,
-                     goal_salient.get_target_position(),
+            rows = [(np.round(start_state[3:], 3) if start_state is not None else None,
+                     np.round(goal_salient.get_target_position(), 3),
                      average_success)
                     for start_state, goal_salient, average_success
                     in zip(start_states, goal_salients, np.mean(learning_curves, axis=1))]
-            with open(os.path.join(self.path, "final_results", "option_results.csv"), "w") as csv_file:
+            with open(os.path.join(self.path, "final_results", "learning_curves.csv"), "w") as csv_file:
                 csv_writer = csv.writer(csv_file)
                 csv_writer.writerow(fields)
                 csv_writer.writerows(rows)
