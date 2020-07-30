@@ -95,7 +95,7 @@ class LeapWrapperPlotter(MDPPlotter):
         def _plot_event_pair(start, goal):
             x = [start[3], goal[3]]
             y = [start[4], goal[4]]
-            ax.plot(x, y, "-", c="black")
+            ax.plot(x, y, "o-", c="black")
 
         fig, ax = self._setup_plot((1, 1))
         ipdb.set_trace()
@@ -103,10 +103,10 @@ class LeapWrapperPlotter(MDPPlotter):
             goal_state = goal_salient.target_state
             if start_state is not None:
                 _plot_event_pair(start_state, goal_state)
-                puck_circle = plt.Circle(start_state, 0.06, alpha=0.3, color='y')
+                puck_circle = plt.Circle(start_state[3:], 0.06, alpha=0.3, color='y')
                 ax.add_patch(puck_circle)
                 ax.text(start_state[0], start_state[1] - 0.03, str(f"S{i}"), horizontalalignment='center', verticalalignment='center')
-            puck_circle = plt.Circle(goal_state, 0.06, alpha=0.3, color='tab:orange')
+            puck_circle = plt.Circle(goal_state[3:], 0.06, alpha=0.3, color='tab:orange')
             ax.add_patch(puck_circle)
             ax.text(goal_state[0], goal_state[1] - 0.03, str(f"G{i}"), horizontalalignment='center', verticalalignment='center')
 
