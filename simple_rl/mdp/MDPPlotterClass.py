@@ -48,7 +48,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             dsg_agent (DeepSkillGraphAgent): the skill chaining agent we want to plot
         """
         self.save_option_success_rate(dsg_agent.dsc_agent)
-        self.plot_learning_curve(dsg_agent, train_time=5)
+        self.plot_learning_curve(dsg_agent, train_time=200)
         self.generate_episode_plots(dsg_agent.dsc_agent, 'post_testing')
 
     def plot_learning_curve(self, dsg_agent, train_time):
@@ -85,7 +85,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
                                                                            episodes=train_time,
                                                                            episode_interval=1,
                                                                            randomize_start_states=True,
-                                                                           num_states=5)
+                                                                           num_states=7)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
