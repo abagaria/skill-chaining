@@ -1,0 +1,3 @@
+option,salient event,num_goal_hits,num_executions,success_rate
+global_option,,0,2,0.0
+goal_option_1,RRT Salient Episode 0,0,1,0.0
