@@ -98,17 +98,16 @@ class LeapWrapperPlotter(MDPPlotter):
             ax.plot(x, y, "o-", c="black")
 
         fig, ax = self._setup_plot((1, 1))
-        ipdb.set_trace()
         for i, (start_state, goal_salient) in enumerate(zip(start_states, goal_salients)):
             goal_state = goal_salient.target_state
             if start_state is not None:
                 _plot_event_pair(start_state, goal_state)
-                puck_circle = plt.Circle(start_state[3:], 0.06, alpha=0.3, color='y')
+                puck_circle = plt.Circle(start_state[3:], 0.06, alpha=0.3, color='c')
                 ax.add_patch(puck_circle)
-                ax.text(start_state[0], start_state[1] - 0.03, str(f"S{i}"), horizontalalignment='center', verticalalignment='center')
+                ax.text(start_state[3], start_state[4] - 0.03, str(f"S{i}"), horizontalalignment='center', verticalalignment='center')
             puck_circle = plt.Circle(goal_state[3:], 0.06, alpha=0.3, color='tab:orange')
             ax.add_patch(puck_circle)
-            ax.text(goal_state[0], goal_state[1] - 0.03, str(f"G{i}"), horizontalalignment='center', verticalalignment='center')
+            ax.text(goal_state[3], goal_state[4] - 0.03, str(f"G{i}"), horizontalalignment='center', verticalalignment='center')
 
         self._plot_sawyer_features(ax)
         plt.savefig(os.path.join(self.path, "final_results", "test_time_targets.png"))
