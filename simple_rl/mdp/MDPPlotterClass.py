@@ -76,6 +76,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
             with open(os.path.join(self.path, "final_results", "learning_curves.pkl"), "wb") as pickle_file:
                 pickle.dump(learning_curves, pickle_file)
+            ipdb.set_trace()
 
         print('*' * 80)
         print("Training learning curves...")
