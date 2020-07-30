@@ -74,7 +74,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
                 csv_writer.writerow(fields)
                 csv_writer.writerows(rows)
 
-            with open(os.path.join(self.path, "final_results", "learning_curves.pkl"), "w+") as pickle_file:
+            with open(os.path.join(self.path, "final_results", "learning_curves.pkl"), "wb") as pickle_file:
                 pickle.dump(learning_curves, pickle_file)
 
         print('*' * 80)
