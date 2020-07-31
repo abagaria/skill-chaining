@@ -671,7 +671,7 @@ class SkillGraphPlanningAgent(object):
             self.chainer.add_skill_chain(new_forward_chain)
 
         # Create a new option
-        name = f"goal_option_{target_salient_event.event_idx}"
+        name = f"goal_option_{chain_id}"
         new_untrained_option = Option(self.mdp, name=name, global_solver=self.chainer.global_option.solver,
                                       lr_actor=train_goal_option.solver.actor_learning_rate,
                                       lr_critic=train_goal_option.solver.critic_learning_rate,
@@ -744,7 +744,7 @@ class SkillGraphPlanningAgent(object):
             self.chainer.add_skill_chain(new_skill_chain)
 
         # Create the root option for this new skill-chain
-        name = f"goal_option_{target_salient_event.event_idx}"
+        name = f"goal_option_{chain_id}"
         new_untrained_option = Option(self.mdp, name=name, global_solver=self.chainer.global_option.solver,
                                       lr_actor=self.chainer.global_option.solver.actor_learning_rate,
                                       lr_critic=self.chainer.global_option.solver.critic_learning_rate,

@@ -145,8 +145,8 @@ class TrainOffPolicy:
         for label, goal_scores in zip(labels, scores):
             mean = np.mean(goal_scores, axis=0, dtype=float)
             std_err = np.std(goal_scores, axis=0, dtype=float)
-            smooth_mean = uniform_filter1d(mean, 10, mode='nearest')
-            smooth_std_err = uniform_filter1d(std_err, 10, mode='nearest')
+            smooth_mean = uniform_filter1d(mean, 20, mode='nearest')
+            smooth_std_err = uniform_filter1d(std_err, 20, mode='nearest')
             ax.plot(range(episodes), smooth_mean, '-', label=label)
             ax.fill_between(range(episodes),
                             smooth_mean - smooth_std_err,
