@@ -143,10 +143,11 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     def save_option_success_rate(self, dsc_agent):
         def write_options_csv():
-            fields = ['option', 'salient event', 'num_goal_hits', 'num_executions', 'success_rate']
+            fields = ['option', 'salient event', 'num_goal_hits', 'num_on_policy_goal_hits', 'num_executions', 'success_rate']
             rows = [(o.name,
                      o.target_salient_event.name if o.target_salient_event is not None else None,
                      o.num_goal_hits,
+                     o.num_on_policy_goal_hits,
                      o.num_executions,
                      o.get_option_success_rate()) for o in dsc_agent.trained_options]
             with open(os.path.join(self.path, "final_results", "option_results.csv"), "w") as csv_file:

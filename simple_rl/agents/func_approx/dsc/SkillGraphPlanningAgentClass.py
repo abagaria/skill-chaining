@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 from copy import deepcopy
 
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
 from simple_rl.mdp.StateClass import State
 from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
@@ -658,7 +658,14 @@ class SkillGraphPlanningAgent(object):
             return self.mdp.start_state_salient_event.get_target_position()
 
         # Create a new chain
-        init_salient_event = train_goal_option.is_init_true  # TODO: Create a Salient Event out of this
+        # Create a new init salient event
+        if len(train_goal_option.children) > 0:
+            init_salient_option = train_goal_option.children[0]  # type: Option
+            event_idx = len(self.mdp.get_all_target_events_ever())
+            init_salient_event = DSCOptionSalientEvent(option=init_salient_option,
+                                                       event_idx=event_idx)
+        else:  # Leaf node
+            init_salient_event = self.chainer.chains[train_goal_option.chain_id - 1].init_salient_event
         start_state = _get_start_state_for_new_chain(train_goal_option)
         chain_id = max([chain.chain_id for chain in self.chainer.chains]) + 1
         new_forward_chain = SkillChain(start_states=[start_state], mdp_start_states=[self.mdp.init_state],

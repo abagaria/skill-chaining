@@ -145,14 +145,13 @@ class SalientEvent(object):
 
 class LearnedSalientEvent(SalientEvent):
     def __init__(
-            self, state_set, event_idx, tolerance=0.6,
-            intersection_event=False, name=None
+            self, state_set, event_idx, intersection_event=False, name=None
     ):
         self.state_set = state_set
         self.classifier = self._classifier_on_state_set()
 
         SalientEvent.__init__(self, target_state=None, event_idx=event_idx,
-                              tolerance=tolerance, intersection_event=intersection_event, name=name)
+                              intersection_event=intersection_event, name=name)
 
     def is_init_true(self, state):
         position = self._get_position(state)
@@ -181,7 +180,7 @@ class LearnedSalientEvent(SalientEvent):
 
 
 class DCOSalientEvent(SalientEvent):
-    def __init__(self, covering_option, event_idx, replay_buffer, is_low, tolerance=2.0, intersection_event=False, name=None):
+    def __init__(self, covering_option, event_idx, replay_buffer, is_low, intersection_event=False, name=None):
         self.covering_option = covering_option
         self.is_low = is_low
 
@@ -191,8 +190,7 @@ class DCOSalientEvent(SalientEvent):
 
         target_state = states[np.argmin(values) if is_low else np.argmax(values)]
 
-        SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx,
-                              tolerance=tolerance, intersection_event=intersection_event, name=name)
+        SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx, intersection_event=intersection_event, name=name)
 
     def __eq__(self, other):
         if not isinstance(other, SalientEvent):
@@ -207,3 +205,39 @@ class DCOSalientEvent(SalientEvent):
 
     def __hash__(self):
         return self.event_idx
+
+
+class DSCOptionSalientEvent(SalientEvent):
+    def __init__(self, option, event_idx):
+        """
+        Args:
+            option (Option)
+        """
+        self.option = option
+        self._initialize_trigger_points()
+        SalientEvent.__init__(self,
+                              target_state=None,
+                              event_idx=event_idx,
+                              intersection_event=False)
+
+    def _initialize_trigger_points(self):
+        self.trigger_points = self.option.effect_set
+
+    def is_init_true(self, state):
+        return self.option.is_init_true(state)
+
+    def batched_is_init_true(self, position_matrix):
+        self.option.batched_is_init_true(position_matrix)
+
+    def __eq__(self, other):
+        return self is other
+
+    def __hash__(self):
+        return self.event_idx
+
+    def __repr__(self):
+        return f"SalientEvent corresponding to {self.option}"
+
+    @staticmethod
+    def _get_position(state):
+        raise NotImplementedError("DSCOptionSalientEvent does not have a target state - it just wraps around an option")
