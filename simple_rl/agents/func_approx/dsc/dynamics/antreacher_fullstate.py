@@ -103,8 +103,6 @@ class RandomRolloutCollector:
         self._roundup()
         
         # uncomment if want noise to be added
-        # states = self._add_noise(np.array(states))
-        # states_p = self._add_noise(np.array(states_p))
         states_p = np.nan_to_num((states_p - self.mean_z) / self.std_z)
         
         dataset = RolloutDataset(states, actions, states_p)
@@ -148,11 +146,11 @@ testing_gen = DataLoader(test, batch_size=512, shuffle=False)
 model = DynamicsModel(31, 8, *collector.get_standardization_vars())
 model.to(device)
 loss_function = nn.MSELoss().to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
 train_list = []
 
-for epoch in range(1, 1000):
+for epoch in range(1, 100):
     total_loss = 0
     test_loss = 0
     for states, actions, states_p in training_gen:
@@ -207,102 +205,7 @@ num_steps = 5
 
 results = np.zeros((num_rollouts, num_steps))
 
-# dropout uncertainty plotting
-# 0.00022379143089372574 for no monte carlo
-# 0.00010050453958282986 for with monte carlo
-#with torch.no_grad():
-#    mdp.reset()
-#    s = mdp.cur_state
-#    a = mdp.sample_random_action()
-#    state = torch.from_numpy(np.array([s])).cuda()
-#    action = torch.from_numpy(np.array([a])).cuda()
-#    # model_traj = []
-#    next_state = model.predict_next_state(state.float(), action.float())
-#    n_s = next_state.cpu().squeeze().numpy()[:2]
-#    # for _ in range(100):
-#    #     next_state = model.predict_next_state(state.float(), action.float())
-#    #     model_traj.append(next_state.cpu().squeeze().numpy())
-#    # traj = np.array(model_traj)
-#    plt.figure()
-#    # plt.scatter(traj[:,0], traj[:,1])
-#    plt.scatter(n_s[0], n_s[1])
-#    mdp.execute_agent_action(a)
-#    x, y = mdp.cur_state.position
-#    plt.scatter(x, y, color='red')
-#    # _t = np.median(traj, axis=0)
-#    # plt.scatter(_t[0], _t[1], color='orange')
-#    
-#    other_error += (x - n_s[0]) ** 2 + (y - n_s[1]) ** 2
-#    other_count += 1
-#
-#(other_error - error) / error
-#other_error / error
-#
-## TODO plot what it looks like for the planner 
-with torch.no_grad():
-    mdp.set_xy(mdp.sample_random_state()[0:2])
-    # mdp.reset()
-    s = mdp.cur_state
-    model_traj = [s.position]
-    act_traj = [s.position]
-    action_history = []
-    state = torch.from_numpy(np.array([s])).cuda()
-    for i in range(num_steps):
-        a = mdp.sample_random_action() 
-        action_history.append(a)
-        action = torch.from_numpy(np.array([a])).cuda()
-        
-        # next_state = model.predict_next_state(state.float(), action.float())
-        
-        median_tracker = []
-        for _ in range(100):
-            next_state = model.predict_next_state(state.float(), action.float())
-            median_tracker.append(next_state.cpu().squeeze().numpy())
-        temp = np.array(median_tracker)
-        median = np.median(temp, axis=0)
-        model_traj.append(median[:2])
-        
-        state = torch.from_numpy(np.array([median])).cuda()
-        model_traj.append(state.cpu().squeeze().numpy()[:2])
-    
-    for action in action_history:
-        mdp.execute_agent_action(action)
-        s = deepcopy(mdp.cur_state)
-        act_traj.append(s.position)
-    
-    traj = np.array(act_traj)
-    traj2 = np.array(model_traj)
-
-    plt.figure()
-    plt.plot(traj[:,0], traj[:,1])
-    plt.plot(traj2[:,0], traj2[:,1], color='green')
-    plt.show()
-#    
-#with torch.no_grad():
-#    mdp.reset()
-#    s = mdp.cur_state
-#    model_traj = [s.position]
-#    act_traj = [s.position]
-#    state = torch.from_numpy(np.array([s])).cuda()
-#    for i in range(num_steps):
-#        a = mdp.sample_random_action() 
-#        action = torch.from_numpy(np.array([a])).cuda()
-#        next_state = model.predict_next_state(state.float(), action.float())
-#        model_traj.append(next_state.cpu().squeeze().numpy()[:2])
-#
-#        mdp.execute_agent_action(a)
-#        s = mdp.cur_state
-#        state = torch.from_numpy(np.array([s])).cuda()
-#        act_traj.append(s.position)
-#    
-#    traj = np.array(act_traj)
-#    traj2 = np.array(model_traj)
-#
-#    plt.figure()
-#    plt.plot(traj[:,0], traj[:,1])
-#    plt.plot(traj2[:,0], traj2[:,1], color='green')
-#    plt.show()
-
+# mpc rollout
 with torch.no_grad():
     while abs(sx - goal_x) >= thres or abs(sy - goal_y) >= thres:
         # sample actions for all steps
@@ -351,11 +254,7 @@ with torch.no_grad():
         
         print("action taken!")
     print("done!")
-
-# TODO baseline random walk
-# TODO plot various errors mean, median, gamma=0.95 etc to pick decision function
-# TODO compare timesteps between here and nagabandi paper
-
+    
 # plot results
 traj = np.array(trajectory)
 traj2 = np.array(model_trajectory)
@@ -364,3 +263,61 @@ plt.figure()
 plt.plot(traj[:,0], traj[:,1])
 plt.plot(traj2[:,0], traj2[:,1], color='green')
 plt.show()
+    
+# TODO plot metrics
+    # plot number of steps to reach goal (x = length of mpc horizon, or number of action seq, y = number of steps it takes)
+    # plot original distance to goal
+        # based on loc of goal, how many steps it take MPC to reach goal (bar plot, mean, std) (5x5)
+
+# model prediction error on trajectory (x = horizon, y = error of x,y pos)
+from simple_rl.agents.func_approx.dsc.dynamics.plot_utils import model_trajectory_prediction_error
+
+model_traj, actual_traj = model_trajectory_prediction_error(model, mdp, 100, 100)
+diff_traj = model_traj - actual_traj
+def loss(a):
+    return np.sqrt(a[0] ** 2 + a[1] ** 2)
+test = np.apply_along_axis(loss, 2, diff_traj)
+test = np.mean(test, axis=0)
+%matplotlib qt
+plt.figure()
+plt.xlabel("horizon step")
+plt.ylabel("MSE loss")
+plt.xticks(np.arange(0, 100, 1))
+plt.plot(test)
+
+from simple_rl.agents.func_approx.dsc.dynamics.plot_utils import num_steps_per_horizon
+
+res = num_steps_per_horizon(model, mdp, goal_x, goal_y, thres, 14000, 3, 5, runs_per=2)
+
+# dropout uncertainty plotting
+# 0.00022379143089372574 for no monte carlo
+# 0.00010050453958282986 for with monte carlo
+#with torch.no_grad():
+#    mdp.reset()
+#    s = mdp.cur_state
+#    a = mdp.sample_random_action()
+#    state = torch.from_numpy(np.array([s])).cuda()
+#    action = torch.from_numpy(np.array([a])).cuda()
+#    # model_traj = []
+#    next_state = model.predict_next_state(state.float(), action.float())
+#    n_s = next_state.cpu().squeeze().numpy()[:2]
+#    # for _ in range(100):
+#    #     next_state = model.predict_next_state(state.float(), action.float())
+#    #     model_traj.append(next_state.cpu().squeeze().numpy())
+#    # traj = np.array(model_traj)
+#    plt.figure()
+#    # plt.scatter(traj[:,0], traj[:,1])
+#    plt.scatter(n_s[0], n_s[1])
+#    mdp.execute_agent_action(a)
+#    x, y = mdp.cur_state.position
+#    plt.scatter(x, y, color='red')
+#    # _t = np.median(traj, axis=0)
+#    # plt.scatter(_t[0], _t[1], color='orange')
+#    
+#    other_error += (x - n_s[0]) ** 2 + (y - n_s[1]) ** 2
+#    other_count += 1
+#
+#(other_error - error) / error
+#other_error / error
+#
+
