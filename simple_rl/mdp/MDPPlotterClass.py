@@ -246,7 +246,10 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.kGraphIterationNumber += 1
 
     def visualize_plan_graph(self, plan_graph, seed, episode=None):
-        pos = nx.planar_layout(plan_graph)
+        try:
+            pos = nx.planar_layout(x)
+        except nx.NetworkXException:
+            pos = nx.random_layout(x)
         labels = nx.get_edge_attributes(plan_graph, "weight")
 
         # Truncate the labels to 2 decimal places
