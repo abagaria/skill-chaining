@@ -9,6 +9,7 @@ import ipdb
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from matplotlib.colors import Normalize
 import pickle
 
 from matplotlib.lines import Line2D
