@@ -716,7 +716,7 @@ class Option(object):
         elif "ant" in self.overall_mdp.env_name:
             eligible_phase = self.get_training_phase() != "initiation_done"
         elif "sawyer" in self.overall_mdp.env_name:
-            eligible_phase = self.get_training_phase() == "gestation"
+            eligible_phase = self.get_training_phase() != "initiation_done"
         else:
             raise NotImplementedError(self.overall_mdp)
 

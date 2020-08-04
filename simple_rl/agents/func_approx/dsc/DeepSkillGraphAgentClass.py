@@ -271,18 +271,19 @@ class DeepSkillGraphAgent(object):
         return True
 
     def should_set_off_learning_backward_options(self):
-        if len(self.mdp.get_original_target_events()) > 0:
-            assert self.use_hard_coded_events, "Expected original events to be hard coded ones"
-            return self.are_all_original_salient_events_forward_chained() \
-                   and not self.dsc_agent.create_backward_options \
-                   and not self.dsc_agent.learn_backward_options_offline
-
-        # If we have tried to create an event outside the graph a lot of times and failed,
-        # then that probably means that we are done with forward-chaining and we can now
-        # begin learning our backward options
-        return self.num_successive_rejections >= 6 \
-               and not self.dsc_agent.create_backward_options \
-               and not self.dsc_agent.learn_backward_options_offline
+        return False
+        # if len(self.mdp.get_original_target_events()) > 0:
+        #     assert self.use_hard_coded_events, "Expected original events to be hard coded ones"
+        #     return self.are_all_original_salient_events_forward_chained() \
+        #            and not self.dsc_agent.create_backward_options \
+        #            and not self.dsc_agent.learn_backward_options_offline
+        #
+        # # If we have tried to create an event outside the graph a lot of times and failed,
+        # # then that probably means that we are done with forward-chaining and we can now
+        # # begin learning our backward options
+        # return self.num_successive_rejections >= 6 \
+        #        and not self.dsc_agent.create_backward_options \
+        #        and not self.dsc_agent.learn_backward_options_offline
 
     def set_off_learning_backward_options(self):
         self.dsc_agent.create_backward_options = True
