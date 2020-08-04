@@ -137,9 +137,9 @@ class TrainOffPolicy:
                 print(
                     f"\rSolver: {solver.name}\tEpisode {episode}\tDuration:{np.round(score, 2)}\tEpsilon: {round(solver.epsilon, 2)}")
             if self.plot_vf:
-                self._plot_value_function(solver, goal_pos, episodes, success_rate=mean(solver_per_episode_scores))
+                self._plot_value_function(solver, goal_pos, episodes, success_rate=np.mean(solver_per_episode_scores))
             if self.plot_buffers:
-                self._plot_buffer(solver.replay_buffer, goal_pos, episodes, success_rate=mean(solver_per_episode_scores))
+                self._plot_buffer(solver.replay_buffer, goal_pos, episodes, success_rate=np.mean(solver_per_episode_scores))
         return per_episode_scores
 
     def plot_learning_curves(self, scores, labels, episodes, file_name="learning_curves"):
