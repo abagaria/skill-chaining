@@ -320,7 +320,7 @@ class TrainOffPolicy:
         ax.set_ylim(self.ylim)
         self._plot_features(ax, goal_pos)
         suffix = f"_score={str(success_rate)}" if success_rate is not None else ''
-        fig.suptitle(solver.name if type(replay_buffer) is ReplayBuffer else "combined_replay_buffer")
+        fig.suptitle(solver.name)
         fig.colorbar(cm.ScalarMappable(norm=Normalize(vmin=min(qvalues), vmax=max(qvalues)), cmap="inferno"), ax=ax, aspect=40)
         file_name = f"{solver.name}_value_function_episode={episode}{suffix}.png"
         plt.savefig(os.path.join(self.path, "value_functions", file_name))
