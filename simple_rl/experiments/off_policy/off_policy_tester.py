@@ -307,6 +307,9 @@ class TrainOffPolicy:
 
             return values
 
+        if len(solver.replay_buffer.memory) == 0:
+            return
+
         states = np.array([exp[0] for exp in solver.replay_buffer.memory])
         actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
         qvalues = get_value_function_values()
