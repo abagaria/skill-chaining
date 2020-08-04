@@ -1,1 +1,0 @@
-simple_rl/experiments/off_policy/off_policy_tester.py --env=ant-reacher --steps=500 --episodes=10 --device=cuda:1 --plot_vf --num_seeds=1 --experiment_name=vf_plot_test --fixed_epsilon --skip_off_policy

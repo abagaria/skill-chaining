@@ -350,10 +350,12 @@ if __name__ == "__main__":
     assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
 
     # ant-reacher:
-    # task_off_policy_targets = [(0, 1.5), (1.5, 0), (1.5, 1.5)]
+    task_off_policy_targets = [(0, 1.5), (1.5, 0), (1.5, 1.5)]
     # task_off_policy_targets = [(-1.5, 1.5), (1.5, -1.5), (-1.5, -1.5)]
-    # task_off_policy_targets = [(2, 0), (0, 2)]
-    task_off_policy_targets = [(2, 2), (2.5, 2.5), (3, 3)]
+    # task_off_policy_targets = [(1.74, 1.21), (1.21, 1.74), (1.9, 0.95)]
+    # task_off_policy_targets = [(2.03, 0.61), (0.61, 2.03), (0.95, 1.9)]
+    # task_off_policy_targets = [(2.1, 0.28), (0.28, 2.1)]
+    # task_off_policy_targets = [(2, 2), (2.5, 2.5), (3, 3)]
 
     # point reacher:
     # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
