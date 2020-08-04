@@ -144,8 +144,8 @@ def plot_value_function(
 
 def pickle_run(directory: Path, solver: DDPGAgent, results: np.ndarray) -> None:
     buffer = solver.replay_buffer.memory
-    pickle.dump(buffer, open('buffer.pkl', 'wb'))
-    pickle.dump(results, open('results.pkl', 'wb'))
+    pickle.dump(buffer, open(directory / 'buffer.pkl', 'wb'))
+    pickle.dump(results, open(directory / 'results.pkl', 'wb'))
 
 ################################################################################
 # TRAIN OUR DDPG
@@ -270,6 +270,22 @@ def pretrain_solver(
 ################################################################################
 # MAIN FUNCTION
 ################################################################################
+
+# def rotate_file_name(file_path):
+#     if os.path.isdir(file_path):
+#         suffix = 1
+#         file_path += "_" + str(suffix)
+#         while os.path.isdir(file_path):
+#             suffix += 1
+#             file_path = file_path.rsplit("_", 1)[0] + "_" + str(suffix)
+#         return file_path
+#     else:
+#         return file_path
+
+# # save command used to run experiments
+# f = open(os.path.join(self.path, "run_command.txt"), 'w')
+# f.write(' '.join(str(arg) for arg in sys.argv))
+# f.close()
 
 def main():
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
