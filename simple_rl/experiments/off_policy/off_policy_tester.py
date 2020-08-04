@@ -212,7 +212,7 @@ class TrainOffPolicy:
         # plot scatter
         ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.16)
         self._plot_features(ax, goal_pos)
-        fig.suptitle(f"{solver.name} Replay Buffer Plot{suffix}")
+        fig.suptitle(file_name)
 
         # save file
         plt.savefig(os.path.join(self.path, 'replay_buffers', file_name))
