@@ -213,7 +213,7 @@ class Option(object):
                 if len(self.solver.replay_buffer) > 0:
                     sampled_experience = random.choice(self.solver.replay_buffer.memory)
                 elif len(self.experience_buffer) > 0:
-                    sampled_experience = random.choice(self.experience_buffer)
+                    sampled_experience = random.choice(self.experience_buffer)[0].serialize()
                 else:
                     continue
                 sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
