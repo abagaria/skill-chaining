@@ -171,7 +171,8 @@ class SkillChain(object):
     def is_intersecting(self, other_chain):
         """ Boolean wrapper around detect_intersection(). """
         if self.option_intersection_salience:
-            return self.get_intersecting_options(other_chain) is not None
+            intersecting = self.get_intersecting_options(other_chain) is not None
+            return intersecting
         assert self.event_intersection_salience, "set event_intersection_salience or option_intersection_salience"
         return self.get_intersecting_option_and_event(other_chain) is not None
 

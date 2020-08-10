@@ -252,7 +252,7 @@ class SkillChaining(object):
 		Returns:
 			any_init_in_option (bool)
 		"""
-		start_states = self.chains[option.chain_id - 1].start_states
+		start_states = self.chains[option.chain_id - 1].init_salient_event.trigger_points
 		if len(start_states) == 0:
 			ipdb.set_trace()
 		starts_chained = [option.is_init_true(state) for state in start_states]
@@ -552,12 +552,13 @@ class SkillChaining(object):
 		""" Iterate through all the skill chains and return all pairs of options that have intersecting initiation sets. """
 		intersecting_pairs = []
 		for chain in self.chains:  # type: SkillChain
-			intersecting_options = chain.detect_intersection_with_other_chains(self.chains)
-			if intersecting_options is not None:
+			for other_chain in self.chains:  # type: SkillChain
+				intersecting_options = chain.get_intersecting_options(other_chain)
+				if intersecting_options is not None:
 
-				# Only care about intersections between forward chains
-				if not intersecting_options[0].backward_option and not intersecting_options[1].backward_option:
-					intersecting_pairs.append(intersecting_options)
+					# Only care about intersections between forward chains
+					if not intersecting_options[0].backward_option and not intersecting_options[1].backward_option:
+						intersecting_pairs.append(intersecting_options)
 
 		return intersecting_pairs
 
@@ -657,7 +658,6 @@ class SkillChaining(object):
 			# 1. The new skill chain will chain back until it covers `start_states`
 			# 2. The options in this new backward chain will use `start_predicate` as the
 			#	 default initiation set during gestation
-			start_states = chain.target_salient_event.trigger_points
 			init_salient_event = chain.target_salient_event
 
 			# These target predicates are used to determine the goal of the new skill chain
@@ -770,7 +770,7 @@ class SkillChaining(object):
 				chain2.has_backward_chain = True
 
 				# Add this new salient event to the MDP - so that we can plan to and from it
-				common_states = intersecting_options[1].effect_set
+				common_states = intersecting_options[0].effect_set
 				all_salient_events = self.mdp.get_all_target_events_ever()
 				all_salient_event_idx = [event.event_idx for event in all_salient_events]
 
@@ -779,6 +779,8 @@ class SkillChaining(object):
 																 intersection_event=True)
 
 				self.mdp.add_new_target_event(intersection_salient_event)
+
+				long_chain = chain1 if chain1.is_chain_completed(self.chains) else chain2
 
 				# Create the following skill-chains:
 				# 1. Chain from beta1 to beta-intersection
@@ -789,7 +791,7 @@ class SkillChaining(object):
 				self.create_backward_skill_chain(start_event=chain2.target_salient_event,
 												 target_event=intersection_salient_event)
 				self.create_backward_skill_chain(start_event=intersection_salient_event,
-												 target_event=self.mdp.get_start_state_salient_event())  # TODO: This has to be the init_salient_event of the long_chain
+												 target_event=long_chain.init_salient_event)
 
 				self.rewire_intersecting_chains(intersecting_chains, intersecting_options, intersection_salient_event)
 
@@ -891,43 +893,6 @@ class SkillChaining(object):
 		#
 		# # Change the termination condition of options that target the `intersecting_options`
 		# pass
-
-	def conclude_option_initiation_phase(self, untrained_option, episode):
-		"""
-
-		Args:
-			untrained_option (Option)
-			episode (int)
-
-		Returns:
-			completed_option (Option)
-			should_create_children (bool)
-
-		"""
-		# In the skill-graph setting, we have to check if the current option's chain
-		# is still accepting new options
-
-		if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done" \
-				and self.chains[untrained_option.chain_id - 1].should_continue_chaining(self.chains):
-
-				# We fix the learned option's initiation set and remove it from the list of target events
-				self.untrained_options.remove(untrained_option)
-
-				# Debug visualization
-				plot_two_class_classifier(untrained_option, episode, self.experiment_name)
-
-				return untrained_option, True
-
-		elif untrained_option.get_training_phase() == "initiation_done":
-			# Debug visualization
-			plot_two_class_classifier(untrained_option, episode, self.experiment_name)
-
-			# We fix the learned option's initiation set and remove it from the list of target events
-			self.untrained_options.remove(untrained_option)
-
-			return untrained_option, False
-
-		return None, False
 
 	def finish_option_initiation_phase(self, untrained_option, episode):
 		"""

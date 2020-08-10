@@ -718,7 +718,7 @@ class Option(object):
 
 	def is_eligible_for_off_policy_triggers(self):
 		if "point" in self.overall_mdp.env_name:
-			eligible_phase = self.get_training_phase() != "initiation_done"  # TODO: Trying this for DCO
+			eligible_phase = self.get_training_phase() == "gestation"
 		elif "ant" in self.overall_mdp.env_name:
 			eligible_phase = self.get_training_phase() != "initiation_done"
 		else:
@@ -738,6 +738,7 @@ class Option(object):
 					episode != self.last_episode_term_triggered and self.is_eligible_for_off_policy_triggers():
 
 				print(f"Triggered termination condition for {self}")
+				self.effect_set.append(next_state)
 
 				if self.parent is None and self.is_term_true(next_state):
 					print(f"[{self}] Adding {next_state.position} to {self.target_salient_event}'s trigger points")
