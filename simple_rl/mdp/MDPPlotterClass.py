@@ -84,7 +84,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         learning_curves, start_states, goal_salients = self.learning_curve(dsg_agent,
                                                                            episodes=train_time,
                                                                            episode_interval=1,
-                                                                           randomize_start_states=True,
+                                                                           randomize_start_states=False,
                                                                            num_states=7)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
@@ -96,7 +96,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
         save_test_parameters()
 
-    def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False, num_states=20):
+    def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states, num_states=20):
         start_states = self.generate_start_states(num_states) if randomize_start_states else [None] * num_states
         goal_salient_events = self.generate_goal_salient_events(num_states)
         self.plot_test_salients(start_states, goal_salient_events)
@@ -247,9 +247,9 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     def visualize_plan_graph(self, plan_graph, seed, episode=None):
         try:
-            pos = nx.planar_layout(x)
+            pos = nx.planar_layout(plan_graph)
         except nx.NetworkXException:
-            pos = nx.random_layout(x)
+            pos = nx.random_layout(plan_graph)
         labels = nx.get_edge_attributes(plan_graph, "weight")
 
         # Truncate the labels to 2 decimal places

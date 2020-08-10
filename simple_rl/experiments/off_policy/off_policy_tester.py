@@ -9,6 +9,7 @@ import ipdb
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from matplotlib.colors import Normalize
 import pickle
 
 from matplotlib.lines import Line2D
@@ -40,6 +41,7 @@ class TrainOffPolicy:
         self.plot_vf = plot_vf
         self.plot_buffers = plot_buffers
         self.save_pickles = save_pickles
+        self.plot_freq = 500
 
         for subdirectory in ['pickles', 'replay_buffers', 'learning_curves', 'value_functions']:
             create_log_dir(os.path.join(self.path, subdirectory))
@@ -105,6 +107,12 @@ class TrainOffPolicy:
             per_episode_durations.append(solver_per_episode_durations)
 
             for episode in range(episodes):
+                if episode % self.plot_freq == 0:
+                    if self.plot_vf:
+                        self._plot_value_function(solver, goal_pos, episode)
+                    if self.plot_buffers:
+                        self._plot_buffer(solver.replay_buffer, goal_pos, episode)
+
                 self.mdp.reset()
                 state = deepcopy(self.mdp.init_state)
                 score = 0
@@ -130,9 +138,9 @@ class TrainOffPolicy:
                 print(
                     f"\rSolver: {solver.name}\tEpisode {episode}\tDuration:{np.round(score, 2)}\tEpsilon: {round(solver.epsilon, 2)}")
             if self.plot_vf:
-                self._plot_value_function(solver, goal_pos)
+                self._plot_value_function(solver, goal_pos, episodes, success_rate=np.mean(solver_per_episode_scores))
             if self.plot_buffers:
-                self._plot_buffer(solver.replay_buffer, goal_pos=goal_pos)
+                self._plot_buffer(solver.replay_buffer, goal_pos, episodes, success_rate=np.mean(solver_per_episode_scores))
         return per_episode_scores
 
     def plot_learning_curves(self, scores, labels, episodes, file_name="learning_curves"):
@@ -180,13 +188,19 @@ class TrainOffPolicy:
         handles.append(curr_goal_marker)
         ax.legend(handles=handles)
 
-    def _plot_buffer(self, replay_buffer, goal_pos):
+    def _plot_buffer(self, replay_buffer, goal_pos, episode=None, success_rate=None):
+        suffix = ''
+        if episode is not None:
+            suffix += f"_episode={episode}"
+        if success_rate is not None:
+            suffix += f"_success_rate={success_rate}"
+
         if type(replay_buffer) is ReplayBuffer:
             states = self._get_states(replay_buffer)
-            file_name = f"{replay_buffer.name}_{goal_pos}.png"
+            file_name = f"{replay_buffer.name}_{goal_pos}{suffix}.png"
         else:
             states = np.array(replay_buffer)[:, 0]
-            file_name = f"combined_replay_buffer_{goal_pos}.png"
+            file_name = f"combined_replay_buffer_{goal_pos}{suffix}.png"
 
         positions = np.array([(state[0], state[1]) for state in states])
         # set up plots
@@ -198,6 +212,7 @@ class TrainOffPolicy:
         # plot scatter
         ax.scatter(x=positions[:, 0], y=positions[:, 1], color='b', alpha=0.16)
         self._plot_features(ax, goal_pos)
+        fig.suptitle(replay_buffer.name if type(replay_buffer) is ReplayBuffer else "combined_replay_buffer")
 
         # save file
         plt.savefig(os.path.join(self.path, 'replay_buffers', file_name))
@@ -271,7 +286,7 @@ class TrainOffPolicy:
         with open(os.path.join(self.path, "pickles", f"{solver.name}_replay_buffer.pkl"), "wb") as f:
             pickle.dump(solver.replay_buffer, f)
 
-    def _plot_value_function(self, solver, goal_pos):
+    def _plot_value_function(self, solver, goal_pos, episode, success_rate=None):
         def get_value_function_values():
             CHUNK_SIZE = 250
 
@@ -293,6 +308,9 @@ class TrainOffPolicy:
 
             return values
 
+        if len(solver.replay_buffer.memory) == 0:
+            return
+
         states = np.array([exp[0] for exp in solver.replay_buffer.memory])
         actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
         qvalues = get_value_function_values()
@@ -301,7 +319,10 @@ class TrainOffPolicy:
         ax.set_xlim(self.xlim)
         ax.set_ylim(self.ylim)
         self._plot_features(ax, goal_pos)
-        file_name = f"{solver.name}_value_function.png"
+        suffix = f"_score={str(success_rate)}" if success_rate is not None else ''
+        fig.suptitle(solver.name)
+        fig.colorbar(cm.ScalarMappable(norm=Normalize(vmin=min(qvalues), vmax=max(qvalues)), cmap="inferno"), ax=ax, aspect=40)
+        file_name = f"{solver.name}_value_function_episode={episode}{suffix}.png"
         plt.savefig(os.path.join(self.path, "value_functions", file_name))
         plt.close()
 
@@ -329,10 +350,8 @@ if __name__ == "__main__":
     assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
 
     # ant-reacher:
-    # task_off_policy_targets = [(0, 1.5), (1.5, 0), (1.5, 1.5)]
-    # task_off_policy_targets = [(-1.5, 1.5), (1.5, -1.5), (-1.5, -1.5)]
-    # task_off_policy_targets = [(2, 0), (0, 2)]
-    task_off_policy_targets = [(2, 2), (2.5, 2.5), (3, 3)]
+    # task_off_policy_targets = [(0, 1.5), (1.5, 0), (1.5, 1.5), (1.5, -1.5), (-1.5, -1.5), (2.5, 2.5)]
+    task_off_policy_targets = [(1.74, 1.21), (1.21, 1.74), (1.9, 0.95), (2.03, 0.61), (0.61, 2.03), (0.95, 1.9), (3, 3)]
 
     # point reacher:
     # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
