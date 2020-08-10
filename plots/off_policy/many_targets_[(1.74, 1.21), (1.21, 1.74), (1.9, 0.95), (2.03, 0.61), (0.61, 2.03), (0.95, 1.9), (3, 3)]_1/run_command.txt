@@ -1,1 +1,0 @@
-simple_rl/experiments/off_policy/off_policy_tester.py --env=ant-reacher --steps=1500 --episodes=1000 --device=cuda:1 --plot_vf --num_seeds=8 --experiment_name=many_targets_[(1.74, 1.21), (1.21, 1.74), (1.9, 0.95), (2.03, 0.61), (0.61, 2.03), (0.95, 1.9), (3, 3)] --fixed_epsilon --preload_buffer_experiment_name=ant_reacher_generating_pickles
