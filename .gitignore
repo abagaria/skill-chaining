@@ -16,3 +16,6 @@ examples/blank_example.py
 
 # vscode project settings
 .vscode/
+
+*.png
+*.pkl

@@ -136,7 +136,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from simple_rl.agents.func_approx.dsc.dynamics.dynamics_model import DynamicsModel
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 collector = RandomRolloutCollector(10)
 train = collector.get_train_data()
 test = collector.construct_data(epochs=10, random_position=False)
@@ -186,8 +186,85 @@ mdp.reset()
 
 thres = 0.6
 goal = mdp.sample_random_state()
-goal_x = goal[0]
-goal_y = goal[1]
+# goal_x = goal[0]
+# goal_y = goal[1]
+
+goals = []
+step_200 = []
+
+for _ in range(20):
+    mdp.reset()
+    goal = mdp.sample_random_state()
+    goals.append(goal)
+    goal_x = goal[0]
+    goal_y = goal[1]
+
+    # setup starting variables
+    trajectory = []
+    s = mdp.cur_state
+    trajectory.append(s.position)
+
+    s = mdp.cur_state
+    s = mdp.cur_state
+    sx, sy = s.position
+
+    num_rollouts = 14000
+    num_steps = 7
+
+    results = np.zeros((num_rollouts, num_steps))
+
+    # mpc rollout
+    with torch.no_grad():
+        while (abs(sx - goal_x) >= thres or abs(sy - goal_y) >= thres) and len(trajectory) < 201:
+            # sample actions for all steps
+            np_actions = np.zeros((num_rollouts, num_steps, 8))
+            np_states = np.repeat(np.array([s]), num_rollouts, axis=0)
+            for i in range(num_rollouts):
+                for j in range(num_steps):
+                    np_actions[i,j,:] = mdp.sample_random_action()
+            
+            # compute next states for each step
+            for j in range(num_steps):
+                actions = np_actions[:,j,:]
+                states_t = torch.from_numpy(np_states)
+                actions_t= torch.from_numpy(actions)
+                # transfer to gpu
+                states_t = states_t.to(device)
+                actions_t = actions_t.to(device)
+
+                pred = model.predict_next_state(states_t.float(), actions_t.float())
+                np_states = pred.cpu().numpy()
+                # update results with whatever distance metric
+                results[:,j] = (goal_x - np_states[:,0]) ** 2 + (goal_y - np_states[:,1]) ** 2
+            
+            # choose next action to execute
+            gammas = np.power(0.95 * np.ones(num_steps), np.arange(0, num_steps))
+            summed_results = np.sum(results * gammas, axis=1)
+            index = np.argmin(summed_results) # retrieve action with least trajectory distance to goal
+            action = np_actions[index,0,:] # grab action corresponding to least distance
+            
+            # execute action in mdp
+            mdp.execute_agent_action(action)
+            
+            # update s for new state
+            s = mdp.cur_state
+            sx, sy = s.position
+            
+            trajectory.append(s.position)
+            
+            print("action taken!, {}".format(len(trajectory)))
+        print("done!")
+    
+    step_200.append(trajectory)
+
+for i in range(len(goals)):
+    goal_x, goal_y = goals[i]
+    traj = step_200[i]
+    t = np.array(traj)
+    plt.figure()
+    plt.scatter(goal_x, goal_y, color='green')
+    plt.plot(t[:,0], t[:,1])
+    plt.savefig('plots/{}'.format(i))
 
 # setup starting variables
 trajectory = []
@@ -201,7 +278,7 @@ s = mdp.cur_state
 sx, sy = s.position
 
 num_rollouts = 14000
-num_steps = 5
+num_steps = 7
 
 results = np.zeros((num_rollouts, num_steps))
 
@@ -221,17 +298,9 @@ with torch.no_grad():
             states_t = torch.from_numpy(np_states)
             actions_t= torch.from_numpy(actions)
             # transfer to gpu
-            states_t = states_t.cuda()
-            actions_t = actions_t.cuda()
-            # monte carlo
-            # pred_distribution = []
-            # for _ in range(100):
-                # run inference
-                # pred = model.predict_next_state(states_t.float(), actions_t.float())
-                # pred_distribution.append(pred)
-            # b = torch.stack(pred_distribution)
-            # predictions = b.cpu().numpy()
-            # np_states = np.median(predictions, axis=0)
+            states_t = states_t.to(device)
+            actions_t = actions_t.to(device)
+
             pred = model.predict_next_state(states_t.float(), actions_t.float())
             np_states = pred.cpu().numpy()
             # update results with whatever distance metric
@@ -252,7 +321,7 @@ with torch.no_grad():
         
         trajectory.append(s.position)
         
-        print("action taken!")
+        print("action taken!, {}".format(len(trajectory)))
     print("done!")
     
 # plot results
@@ -265,9 +334,15 @@ plt.plot(traj2[:,0], traj2[:,1], color='green')
 plt.show()
     
 # TODO plot metrics
-    # plot number of steps to reach goal (x = length of mpc horizon, or number of action seq, y = number of steps it takes)
     # plot original distance to goal
         # based on loc of goal, how many steps it take MPC to reach goal (bar plot, mean, std) (5x5)
+import pickle
+from simple_rl.agents.func_approx.dsc.dynamics.plot_utils import num_steps_per_goal
+goals = []
+for _ in range(30):
+    goals.append(mdp.sample_random_state())
+res = num_steps_per_goal(model, mdp, goals, thres, 14000, 7, runs_per=5)
+pickle.dump(res, open("res_goal.pkl", "wb"))
 
 # model prediction error on trajectory (x = horizon, y = error of x,y pos)
 from simple_rl.agents.func_approx.dsc.dynamics.plot_utils import model_trajectory_prediction_error
@@ -285,9 +360,11 @@ plt.ylabel("MSE loss")
 plt.xticks(np.arange(0, 100, 1))
 plt.plot(test)
 
+# plot number of steps to reach goal (x = length of mpc horizon, or number of action seq, y = number of steps it takes)
+import pickle
 from simple_rl.agents.func_approx.dsc.dynamics.plot_utils import num_steps_per_horizon
-
-res = num_steps_per_horizon(model, mdp, goal_x, goal_y, thres, 14000, 3, 5, runs_per=2)
+res = num_steps_per_horizon(model, mdp, goal_x, goal_y, thres, 14000, 3, 15, runs_per=10)
+pickle.dump(res, open("res.pkl", "wb"))
 
 # dropout uncertainty plotting
 # 0.00022379143089372574 for no monte carlo
