@@ -78,7 +78,10 @@ class GraphSearch(object):
             self.shortest_paths = shortest_paths.shortest_path(self.plan_graph)
 
     def visualize_plan_graph(self, file_name=None):
-        pos = nx.planar_layout(self.plan_graph)
+        try:
+            pos = nx.planar_layout(self.plan_graph)
+        except nx.NetworkXException:
+            pos = nx.random_layout(self.plan_graph)
         labels = nx.get_edge_attributes(self.plan_graph, "weight")
 
         # Truncate the labels to 2 decimal places

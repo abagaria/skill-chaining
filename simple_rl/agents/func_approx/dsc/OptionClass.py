@@ -124,6 +124,7 @@ class Option(object):
 
         # Debug member variables
         self.num_executions = 0
+        self.num_on_policy_goal_hits = 0
         self.num_test_executions = 0
         self.num_successful_test_executions = 0
 
@@ -286,8 +287,7 @@ class Option(object):
                 if self.is_term_true(state):
                     continue
                 if self.is_term_true(next_state):
-                    # probably can delete this case but will check later
-                    ipdb.set_trace()
+                    # TODO: probably can delete this case but will check later
                     self.solver.step(state, action, self.subgoal_reward, next_state, True)
                 else:
                     subgoal_reward = self.get_subgoal_reward(next_state)
@@ -695,6 +695,7 @@ class Option(object):
 
             if self.is_term_true(state) and self.last_episode_term_triggered != episode:  # and self.is_valid_init_data(visited_states):
                 self.num_goal_hits += 1
+                self.num_on_policy_goal_hits += 1
                 self.last_episode_term_triggered = episode
                 self.effect_set.append(state)
 
@@ -715,7 +716,7 @@ class Option(object):
         elif "ant" in self.overall_mdp.env_name:
             eligible_phase = self.get_training_phase() != "initiation_done"
         elif "sawyer" in self.overall_mdp.env_name:
-            eligible_phase = self.get_training_phase() == "gestation"
+            eligible_phase = self.get_training_phase() != "initiation_done"
         else:
             raise NotImplementedError(self.overall_mdp)
 
@@ -797,5 +798,5 @@ class Option(object):
         if self.num_test_executions > 0:
             return self.num_successful_test_executions / self.num_test_executions
         elif self.num_executions > 0:
-            return self.num_goal_hits / self.num_executions
+            return self.num_on_policy_goal_hits / self.num_executions
         return 1.

@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 from copy import deepcopy
 
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
 from simple_rl.mdp.StateClass import State
 from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
@@ -651,7 +651,6 @@ class SkillGraphPlanningAgent(object):
         """
 
         def _get_start_state_for_new_chain(in_graph_option):
-            # This might be an issue -Kiran
             for s, a, r, sp, done in in_graph_option.solver.replay_buffer:
                 if done:
                     return sp
@@ -659,7 +658,14 @@ class SkillGraphPlanningAgent(object):
             return self.mdp.start_state_salient_event.get_target_position()
 
         # Create a new chain
-        init_salient_event = train_goal_option.is_init_true  # TODO: Create a Salient Event out of this
+        # Create a new init salient event
+        if len(train_goal_option.children) > 0:
+            init_salient_option = train_goal_option.children[0]  # type: Option
+            event_idx = len(self.mdp.get_all_target_events_ever())
+            init_salient_event = DSCOptionSalientEvent(option=init_salient_option,
+                                                       event_idx=event_idx)
+        else:  # Leaf node
+            init_salient_event = self.chainer.chains[train_goal_option.chain_id - 1].init_salient_event
         start_state = _get_start_state_for_new_chain(train_goal_option)
         chain_id = max([chain.chain_id for chain in self.chainer.chains]) + 1
         new_forward_chain = SkillChain(start_states=[start_state], mdp_start_states=[self.mdp.init_state],
@@ -672,7 +678,7 @@ class SkillGraphPlanningAgent(object):
             self.chainer.add_skill_chain(new_forward_chain)
 
         # Create a new option
-        name = f"goal_option_{target_salient_event.event_idx}"
+        name = f"goal_option_{chain_id}"
         new_untrained_option = Option(self.mdp, name=name, global_solver=self.chainer.global_option.solver,
                                       lr_actor=train_goal_option.solver.actor_learning_rate,
                                       lr_critic=train_goal_option.solver.critic_learning_rate,
@@ -745,7 +751,7 @@ class SkillGraphPlanningAgent(object):
             self.chainer.add_skill_chain(new_skill_chain)
 
         # Create the root option for this new skill-chain
-        name = f"goal_option_{target_salient_event.event_idx}"
+        name = f"goal_option_{chain_id}"
         new_untrained_option = Option(self.mdp, name=name, global_solver=self.chainer.global_option.solver,
                                       lr_actor=self.chainer.global_option.solver.actor_learning_rate,
                                       lr_critic=self.chainer.global_option.solver.critic_learning_rate,
@@ -899,7 +905,7 @@ class SkillGraphPlanningAgent(object):
             # start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             self.mdp.reset_to_start_state(start_position)
 
-    def measure_success(self, goal_salient_event, start_state=None, starting_episode=0, num_episodes=100):
+    def measure_success(self, goal_salient_event, start_state, starting_episode=0, num_episodes=100):
         successes = 0
         self.chainer.create_backward_options = False
         self.chainer.learn_backward_options_offline = False  # TODO: Need a better way to say that we should not create back options at test time

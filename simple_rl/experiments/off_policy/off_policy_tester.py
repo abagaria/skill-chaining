@@ -29,13 +29,18 @@ plt.style.use('default')
 
 
 class TrainOffPolicy:
-    def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm, experiment_name, off_policy_targets, fixed_epsilon):
+    def __init__(self, mdp_name, render, dense_reward, seeds, device, algorithm, experiment_name, off_policy_targets, fixed_epsilon,
+                 plot_vf, plot_buffers, save_pickles):
         self.mdp_name = mdp_name
         self.device = device
         self.algorithm = algorithm
         self.path = rotate_file_name(os.path.join("plots", "off_policy", experiment_name))
         self.off_policy_targets = off_policy_targets
         self.fixed_epsilon = fixed_epsilon
+        self.plot_vf = plot_vf
+        self.plot_buffers = plot_buffers
+        self.save_pickles = save_pickles
+
         for subdirectory in ['pickles', 'replay_buffers', 'learning_curves', 'value_functions']:
             create_log_dir(os.path.join(self.path, subdirectory))
 
@@ -56,7 +61,7 @@ class TrainOffPolicy:
                                        goal_pos=self.on_policy_goal,
                                        tolerance=self.tolerance)
         elif mdp_name == "ant-reacher":
-            self.on_policy_goal = (3.5, 3.5)
+            self.on_policy_goal = (1.5, 1.5)
             self.tolerance = 0.6
             self.xlim = (-5, 5)
             self.ylim = (-5, 5)
@@ -87,7 +92,7 @@ class TrainOffPolicy:
                               name=f"DDPG_{seed}_{name_suffix}",
                               exploration=None) for seed in num_seeds]
 
-    def train_solvers(self, solvers, episodes, steps, generate_plots, goal_pos):
+    def train_solvers(self, solvers, episodes, steps, goal_pos):
         per_episode_scores = []
         per_episode_durations = []
         self.mdp.goal_pos = goal_pos
@@ -98,8 +103,6 @@ class TrainOffPolicy:
             per_episode_scores.append(solver_per_episode_scores)
             solver_per_episode_durations = []
             per_episode_durations.append(solver_per_episode_durations)
-            last_50_scores = deque(maxlen=50)
-            last_50_durations = deque(maxlen=50)
 
             for episode in range(episodes):
                 self.mdp.reset()
@@ -121,16 +124,15 @@ class TrainOffPolicy:
                     if state.is_terminal():
                         break
 
-                last_50_scores.append(score)
                 solver_per_episode_scores.append(score)
-                last_50_durations.append(step)
                 solver_per_episode_durations.append(step)
 
                 print(
-                    f"\rSolver: {solver.name}\tEpisode {episode}\tAverage Duration:{np.round(np.mean(last_50_durations), 2)}\tEpsilon: {round(solver.epsilon, 2)}")
-            if generate_plots:
-                self._plot_buffer(solver.replay_buffer, goal_pos=goal_pos)
+                    f"\rSolver: {solver.name}\tEpisode {episode}\tDuration:{np.round(score, 2)}\tEpsilon: {round(solver.epsilon, 2)}")
+            if self.plot_vf:
                 self._plot_value_function(solver, goal_pos)
+            if self.plot_buffers:
+                self._plot_buffer(solver.replay_buffer, goal_pos=goal_pos)
         return per_episode_scores
 
     def plot_learning_curves(self, scores, labels, episodes, file_name="learning_curves"):
@@ -143,8 +145,8 @@ class TrainOffPolicy:
         for label, goal_scores in zip(labels, scores):
             mean = np.mean(goal_scores, axis=0, dtype=float)
             std_err = np.std(goal_scores, axis=0, dtype=float)
-            smooth_mean = uniform_filter1d(mean, 10, mode='nearest')
-            smooth_std_err = uniform_filter1d(std_err, 10, mode='nearest')
+            smooth_mean = uniform_filter1d(mean, 20, mode='nearest')
+            smooth_std_err = uniform_filter1d(std_err, 20, mode='nearest')
             ax.plot(range(episodes), smooth_mean, '-', label=label)
             ax.fill_between(range(episodes),
                             smooth_mean - smooth_std_err,
@@ -211,7 +213,8 @@ class TrainOffPolicy:
                 solver.step(state, action, reward, next_state, is_terminal)
         return off_policy_solvers
 
-    def _save_combined_replay_buffers(self, solvers, num_training_examples=None):
+    @staticmethod
+    def _generate_combined_replay_buffers(solvers, num_training_examples=None):
         replay_buffers = [solver.replay_buffer for solver in solvers]
         shared_experiences = []
         for replay_buffer in replay_buffers:
@@ -220,45 +223,44 @@ class TrainOffPolicy:
             training_times = [len(replay_buffer.memory) for replay_buffer in replay_buffers]
             num_training_examples = int(sum(training_times) / len(training_times))
         combined_replay_buffer = random.sample(shared_experiences, num_training_examples)
-        self._plot_buffer(combined_replay_buffer, self.on_policy_goal)
-
-        print('*' * 80)
-        print("Saving combined replay buffer...")
-        print('*' * 80)
-
-        with open(os.path.join(self.path, 'pickles', "combined_replay_buffers.pkl"), "wb") as f:
-            pickle.dump(combined_replay_buffer, f)
+        return combined_replay_buffer
 
     @staticmethod
     def _get_replay_buffer(filename):
         with open(filename, 'rb') as file:
             return pickle.load(file)
 
-    def generate_on_policy_pickled_buffers(self, num_on_policy_seeds, episodes, steps, generate_plots):
+    def collect_on_policy_data(self, num_on_policy_seeds, episodes, steps):
         # Train on-policy solvers for n episodes and pickle the replay buffers
         name_suffix = f"original_on_policy_targeting_original_goal_{self.on_policy_goal}"
         on_policy_solvers = self._make_solvers(num_on_policy_seeds, name_suffix=name_suffix)
-        scores = self.train_solvers(on_policy_solvers, episodes, steps, generate_plots, self.on_policy_goal)
+        scores = self.train_solvers(on_policy_solvers, episodes, steps, self.on_policy_goal)
         self.plot_learning_curves(scores=[scores], labels=["on policy reference"], episodes=episodes,
                                   file_name="original_goal_on_policy_learning_curves")
 
         # save all original replay buffers and also combine all replay buffers into 1 and save the sampled replay buffer
-        for solver in on_policy_solvers:
-            self._save_solver(solver)
-        self._save_combined_replay_buffers(on_policy_solvers)
+        combined_replay_buffer = self._generate_combined_replay_buffers(on_policy_solvers)
+        self._plot_buffer(combined_replay_buffer, self.on_policy_goal)
 
-    def test_off_policy_training(self, pickled_buffers_dir, num_off_policy_seeds, episodes, steps, generate_plots):
+        if self.save_pickles:
+            for solver in on_policy_solvers:
+                self._save_solver(solver)
+
+            with open(os.path.join(self.path, 'pickles', "combined_replay_buffers.pkl"), "wb") as f:
+                pickle.dump(combined_replay_buffer, f)
+
+    def test_off_policy_training(self, pickled_buffers_dir, num_off_policy_seeds, episodes, steps):
         # collect off policy training data, pretrain policies, and then train normally (to compare to baseline)
         full_pickled_buffers_dir = os.path.join(pickled_buffers_dir, "pickles", "combined_replay_buffers.pkl")
         on_policy_training_data = self._get_replay_buffer(full_pickled_buffers_dir)
 
         for new_goal in self.off_policy_targets:
             initialized_off_policy_solvers = self._train_off_policy_on_data(num_off_policy_seeds, new_goal, on_policy_training_data)
-            off_policy_episode_scores = self.train_solvers(initialized_off_policy_solvers, episodes, steps, generate_plots, new_goal)
+            off_policy_episode_scores = self.train_solvers(initialized_off_policy_solvers, episodes, steps, new_goal)
 
             # train baseline on policy solver
             baseline_on_policy_solvers = self._make_solvers(num_off_policy_seeds, name_suffix=f"on_policy_baseline_targeting_{new_goal}")
-            baseline_on_policy_episode_scores = self.train_solvers(baseline_on_policy_solvers, episodes, steps, generate_plots, new_goal)
+            baseline_on_policy_episode_scores = self.train_solvers(baseline_on_policy_solvers, episodes, steps, new_goal)
             self.plot_learning_curves(
                 [off_policy_episode_scores, baseline_on_policy_episode_scores],
                 ["off policy", "on policy baseline"],
@@ -270,14 +272,32 @@ class TrainOffPolicy:
             pickle.dump(solver.replay_buffer, f)
 
     def _plot_value_function(self, solver, goal_pos):
+        def get_value_function_values():
+            CHUNK_SIZE = 250
+
+            # Chunk up the inputs so as to conserve GPU memory
+            num_chunks = int(np.ceil(states.shape[0] / CHUNK_SIZE))
+            state_chunks = np.array_split(np.array(states), num_chunks, axis=0)
+            action_chunks = np.array_split(np.array(actions), num_chunks, axis=0)
+            values = np.zeros(len(states))
+            current_idx = 0
+
+            # get values for each state
+            for state_chunk, action_chunk in zip(state_chunks, action_chunks):
+                current_chunk_size = len(state_chunk)
+                state_tensor = torch.from_numpy(state_chunk).float().to(solver.device)
+                action_tensor = torch.from_numpy(action_chunk).float().to(solver.device)
+                value_chunk = solver.get_qvalues(state_tensor, action_tensor).cpu().numpy().squeeze(1)
+                values[current_idx:current_idx + current_chunk_size] = value_chunk
+                current_idx += current_chunk_size
+
+            return values
+
         states = np.array([exp[0] for exp in solver.replay_buffer.memory])
         actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
-        states_tensor = torch.from_numpy(states).float().to(solver.device)
-        actions_tensor = torch.from_numpy(actions).float().to(solver.device)
-        qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
+        qvalues = get_value_function_values()
         fig, ax = plt.subplots()
-        scatter = ax.scatter(states[:, 0], states[:, 1], c=qvalues)
-        colorbar = fig.colorbar(scatter, ax=ax)
+        ax.scatter(states[:, 0], states[:, 1], c=qvalues)
         ax.set_xlim(self.xlim)
         ax.set_ylim(self.ylim)
         self._plot_features(ax, goal_pos)
@@ -296,20 +316,23 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, help="number of training episodes")
     parser.add_argument("--steps", type=int, help="number of steps per episode")
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
-    parser.add_argument("--generate_plots", help="plot value functions and replay buffers", action="store_true", default=False)
+    parser.add_argument("--plot_buffers", help="plot replay buffers (combined buffer always plotted)", action="store_true", default=False)
+    parser.add_argument("--plot_vf", help="plot value functions", action="store_true", default=False)
+    parser.add_argument("--save_pickles", help="save pickled files", action="store_true", default=False)
     parser.add_argument("--num_seeds", type=int, help="number of seeds to run", default=5)
     parser.add_argument("--preload_buffer_experiment_name", type=str, help="path to solver", default="")
     parser.add_argument("--skip_off_policy", help="only train on policy DDPG (for verifying env works)", default=False, action="store_true")
     parser.add_argument("--fixed_epsilon", help="whether to use a fixed or decaying epsilon", default=False, action="store_true")
+    # parser.add_argument("--")
     args = parser.parse_args()
     
     assert not (args.skip_off_policy and len(args.preload_buffer_experiment_name) > 0)
 
     # ant-reacher:
-    # Source target was (1.5,1.5)
-    task_off_policy_targets = [(-3.5,3.5), (3.5,-3.5), (-3.5,-3.5), (4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5)]
-    # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
-    #                            (2, 2), (-2, 2), (2, -2), (-2, -2)]
+    # task_off_policy_targets = [(0, 1.5), (1.5, 0), (1.5, 1.5)]
+    # task_off_policy_targets = [(-1.5, 1.5), (1.5, -1.5), (-1.5, -1.5)]
+    # task_off_policy_targets = [(2, 0), (0, 2)]
+    task_off_policy_targets = [(2, 2), (2.5, 2.5), (3, 3)]
 
     # point reacher:
     # task_off_policy_targets = [(4.5, 4.5), (-4.5, 4.5), (4.5, -4.5), (-4.5, -4.5), (0, 4.5), (4.5, 0), (-4.5, 0), (0, -4.5),
@@ -322,16 +345,19 @@ if __name__ == "__main__":
                                       algorithm="DDPG",
                                       experiment_name=args.experiment_name,
                                       off_policy_targets=task_off_policy_targets,
-                                      fixed_epsilon=args.fixed_epsilon)
+                                      fixed_epsilon=args.fixed_epsilon,
+                                      plot_vf=args.plot_vf,
+                                      plot_buffers=args.plot_buffers,
+                                      save_pickles=args.save_pickles)
     
     if args.preload_buffer_experiment_name == "":
-        train_off_policy.generate_on_policy_pickled_buffers(range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+        train_off_policy.collect_on_policy_data(range(args.num_seeds), args.episodes, args.steps)
         file_dir = train_off_policy.path
     else:
         file_dir = os.path.join("plots", "off_policy", args.preload_buffer_experiment_name)
     
     if not args.skip_off_policy:
-        train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps, args.generate_plots)
+        train_off_policy.test_off_policy_training(file_dir, range(args.num_seeds), args.episodes, args.steps)
     ipdb.set_trace()
     #
     # mdp = GymMDP("Swimmer-v2", True)

@@ -12,7 +12,7 @@ import ipdb
 
 
 class MDPPlotter(metaclass=abc.ABCMeta):
-    def __init__(self, task_name, experiment_name, subdirectories, mdp):
+    def __init__(self, task_name, experiment_name, subdirectories, mdp, x_range, y_range):
         """
         Args:
             task_name (str): The name of the current task, so we know where to save plots
@@ -26,6 +26,8 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.save_args()
         self.kGraphIterationNumber = 0
         self.mdp = mdp
+        self.axis_x_range = x_range
+        self.axis_y_range = y_range
 
     @abc.abstractmethod
     def generate_episode_plots(self, dsc_agent, episode):
@@ -40,49 +42,73 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # high level shaped rewards
         pass
 
-    def generate_final_experiment_plots(self, dsg_agent, episode):
+    def generate_final_experiment_plots(self, dsg_agent):
         """
         Args:
             dsg_agent (DeepSkillGraphAgent): the skill chaining agent we want to plot
-            episode (int): the current episode
         """
         self.save_option_success_rate(dsg_agent.dsc_agent)
-        self.plot_learning_curve(dsg_agent, episode)
+        self.plot_learning_curve(dsg_agent, train_time=200)
+        self.generate_episode_plots(dsg_agent.dsc_agent, 'post_testing')
 
-    def plot_learning_curve(self, dsg_agent, episode):
-        ipdb.set_trace()
+    def plot_learning_curve(self, dsg_agent, train_time):
+        def plot_learning_curves():
+            fig, ax = plt.subplots()
+            ax.plot(range(train_time), mean, '-')
+            ax.fill_between(range(train_time), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
+            ax.set_xlim(0, train_time)
+            ax.set_ylim(0, 1)
+            file_name = "learning_curves.png"
+            plt.savefig(os.path.join(self.path, "final_results", file_name))
+            plt.close()
+
+        def save_test_parameters():
+            fields = ['start state', 'goal state', 'avg success rate']
+            rows = [(np.round(start_state[3:], 3) if start_state is not None else None,
+                     np.round(goal_salient.get_target_position(), 3),
+                     average_success)
+                    for start_state, goal_salient, average_success
+                    in zip(start_states, goal_salients, np.mean(learning_curves, axis=1))]
+            with open(os.path.join(self.path, "final_results", "learning_curves.csv"), "w") as csv_file:
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(fields)
+                csv_writer.writerows(rows)
+
+            with open(os.path.join(self.path, "final_results", "learning_curves.pkl"), "wb") as pickle_file:
+                pickle.dump(learning_curves, pickle_file)
+
         print('*' * 80)
         print("Training learning curves...")
         print('*' * 80)
         # train learning curves and calculate average
-        learning_curves = self.learning_curve(dsg_agent, episode, episode_interval=50, randomize_start_states=True, num_states=2)
-        #ipdb.set_trace()
+        learning_curves, start_states, goal_salients = self.learning_curve(dsg_agent,
+                                                                           episodes=train_time,
+                                                                           episode_interval=1,
+                                                                           randomize_start_states=True,
+                                                                           num_states=7)
         mean = np.mean(learning_curves, axis=0)
         std_err = np.std(learning_curves, axis=0)
 
-        # plot learning curves
         print('*' * 80)
         print("Plotting learning curves...")
         print('*' * 80)
-        fig, ax = plt.subplots()
-        ax.plot(range(episode), mean, '-')
-        ax.fill_between(range(episode), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
-        ax.set_xlim(0, episode)
-        ax.set_ylim(0, 1)
+        plot_learning_curves()
 
-        file_name = "learning_curves.png"
-        plt.savefig(os.path.join(self.path, "final_results", file_name))
-        plt.close()
+        save_test_parameters()
 
     def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states=False, num_states=20):
-        start_states = self.generate_start_states(num_states)
+        start_states = self.generate_start_states(num_states) if randomize_start_states else [None] * num_states
         goal_salient_events = self.generate_goal_salient_events(num_states)
+        self.plot_test_salients(start_states, goal_salient_events)
         all_runs = []
         for start_state, goal_salient_event in zip(start_states, goal_salient_events):
-            start_state = start_state if randomize_start_states else None
             single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
             all_runs.append(single_run)
-        return all_runs
+        return all_runs, start_states, goal_salient_events
+
+    @abc.abstractmethod
+    def plot_test_salients(self, start_states, goal_salients):
+        pass
 
     @abc.abstractmethod
     def generate_start_states(self, num_states):
@@ -117,10 +143,11 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     def save_option_success_rate(self, dsc_agent):
         def write_options_csv():
-            fields = ['option', 'salient event', 'num_goal_hits', 'num_executions', 'success_rate']
+            fields = ['option', 'salient event', 'num_goal_hits', 'num_on_policy_goal_hits', 'num_executions', 'success_rate']
             rows = [(o.name,
                      o.target_salient_event.name if o.target_salient_event is not None else None,
                      o.num_goal_hits,
+                     o.num_on_policy_goal_hits,
                      o.num_executions,
                      o.get_option_success_rate()) for o in dsc_agent.trained_options]
             with open(os.path.join(self.path, "final_results", "option_results.csv"), "w") as csv_file:
@@ -212,9 +239,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         for chain in forward_chains:
             _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
 
-            plt.xticks([])
-            plt.yticks([])
-
         file_name = f"event_graphs_episode_{self.kGraphIterationNumber}.png"
         plt.savefig(os.path.join(self.path, "event_graphs", file_name))
         plt.close()
@@ -222,8 +246,10 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.kGraphIterationNumber += 1
 
     def visualize_plan_graph(self, plan_graph, seed, episode=None):
-        ipdb.set_trace()
-        pos = nx.planar_layout(plan_graph)
+        try:
+            pos = nx.planar_layout(x)
+        except nx.NetworkXException:
+            pos = nx.random_layout(x)
         labels = nx.get_edge_attributes(plan_graph, "weight")
 
         # Truncate the labels to 2 decimal places
@@ -231,6 +257,8 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             labels[key] = np.round(labels[key], 2)
 
         plt.figure(figsize=(16, 10))
+        plt.xlim(self.axis_x_range)
+        plt.ylim(self.axis_y_range)
 
         nx.draw_networkx(plan_graph, pos)
         nx.draw_networkx_edge_labels(plan_graph, pos, edge_labels=labels)

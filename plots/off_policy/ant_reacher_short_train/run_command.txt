@@ -1,1 +1,0 @@
-simple_rl/experiments/off_policy/off_policy_tester.py --env=ant-reacher --steps=2000 --episodes=1000 --device=cuda:0 --generate_plots --num_seeds=5 --experiment_name=ant_reacher_short_train --fixed_epsilon
