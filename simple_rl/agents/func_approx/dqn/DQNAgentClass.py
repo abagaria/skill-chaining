@@ -480,7 +480,7 @@ class DQNAgent(Agent):
 
         optimizer_state = self.optimizer.state_dict()
         
-        excluded_keys = ("policy_network", "target_network", "optimizer")
+        excluded_keys = ("policy_network", "Experience", "target_network", "optimizer")
         state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
         state_dictionary["policy_state"] = policy_state
         state_dictionary["target_state"] = target_state
@@ -489,7 +489,7 @@ class DQNAgent(Agent):
         return state_dictionary
 
     def __setstate__(self, state_dictionary):
-        excluded_keys = ("policy_network", "target_network", "optimizer", "policy_state", "target_state", "optimizer_state")
+        excluded_keys = ("policy_network", "Experience", "target_network", "optimizer", "policy_state", "target_state", "optimizer_state")
         for key in state_dictionary:
             if key not in excluded_keys:
                 self.__dict__[key] = state_dictionary[key]
