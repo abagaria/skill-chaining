@@ -351,8 +351,8 @@ if __name__ == "__main__":
 
     # ant-reacher:
     # task_off_policy_targets = [(1.5, -1.5), (-1.5, -1.5), (2.5, 2.5)]
-    task_off_policy_targets = [(3, 3), (1.21, 1.74), (2.03, 0.61)]
-    # task_off_policy_targets = [(0.61, 2.03), (0.95, 1.9), (3, 3)]
+    # task_off_policy_targets = [(3, 3), (1.21, 1.74), (2.03, 0.61)]
+    task_off_policy_targets = [(0.61, 2.03), (0.95, 1.9), (3, 3)]
 
 
     # point reacher:
