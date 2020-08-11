@@ -474,6 +474,36 @@ class DQNAgent(Agent):
         if self.tensor_log:
             self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
 
+    def __getstate__(self):
+        policy_state = self.policy_network.state_dict()
+        target_state = self.target_network.state_dict()
+
+        optimizer_state = self.optimizer.state_dict()
+        
+        excluded_keys = ("policy_network", "target_network", "optimizer")
+        state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+        state_dictionary["policy_state"] = policy_state
+        state_dictionary["target_state"] = target_state
+        state_dictionary["optimizer_state"] = optimizer_state
+        
+        return state_dictionary
+
+    def __setstate__(self, state_dictionary):
+        excluded_keys = ("policy_network", "target_network", "optimizer", "policy_state", "target_state", "optimizer_state")
+        for key in state_dictionary:
+            if key not in excluded_keys:
+                self.__dict__[key] = state_dictionary[key]
+        
+        self.policy_network = QNetwork(state_size, action_size, seed).to(self.device)
+        self.target_network = QNetwork(state_size, action_size, seed).to(self.device)
+
+        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
+
+        self.policy_network.load_state_dict(state_dictionary["policy_state"])
+        self.target_network.load_state_dict(state_dictionary["target_state"])
+        self.optimizer.load_state_dict(state_dictionary["optimizer_state"])
+
+
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
