@@ -7,9 +7,6 @@ import ipdb
 
 
 class SalientEvent(object):
-    # All salient events for a single MDP should have the same tolerance (except maybe start and goal states)
-    tolerance = 0
-
     def __init__(self, target_state, event_idx, use_additive_constants=False, intersection_event=False,
                  get_relevant_position=None, name=None):
         """
@@ -127,7 +124,6 @@ class SalientEvent(object):
     @staticmethod
     def _get_position(state):
         position = state.features() if isinstance(state, State) else state
-        # position = state.features() if isinstance(state, State) else state[:2]
         assert isinstance(position, np.ndarray), type(position)
         return position
 

@@ -9,7 +9,9 @@ from collections import deque, defaultdict
 from copy import deepcopy
 import ipdb
 import argparse
+import os
 import random
+import numpy as np
 from tensorboardX import SummaryWriter
 
 # Other imports.
