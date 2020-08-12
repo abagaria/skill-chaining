@@ -1,4 +1,3 @@
-import random
 import numpy as np
 from simple_rl.mdp.StateClass import State
 from scipy.spatial import distance
@@ -87,9 +86,13 @@ class SalientEvent(object):
         Returns:
             distance (float)
         """
-        dist = np.linalg.norm(self.get_target_position() - other.get_target_position())
-        return dist
+        point1 = self.get_target_position()
 
+        if other.get_target_position() is not None:
+            point2 = other.get_target_position()
+            return self.point_to_point_distance(point1, point2)
+
+        return self.point_to_set_distance(point1, other.trigger_points)
 
     def distance_to_effect_set(self, effect_set):
         """
@@ -105,14 +108,33 @@ class SalientEvent(object):
             distance (float)
         """
         point = self._get_position(self.target_state)
+        return self.point_to_set_distance(point, effect_set)
 
-        assert isinstance(effect_set, list)
+    @staticmethod
+    def point_to_point_distance(point1, point2):
+        return np.linalg.norm(point1 - point2)
+
+    @staticmethod
+    def point_to_set_distance(point, state_set):
+        assert isinstance(state_set, list)
         assert isinstance(point, np.ndarray)
-        assert isinstance(effect_set[0], State)
 
-        point_set = [state.position for state in effect_set]
+        point_set = [SalientEvent._get_position(state) for state in state_set]
         point_array = np.array(point_set)
         distances = distance.cdist(point[None, :], point_array)
+
+        return distances.max()
+
+    @staticmethod
+    def set_to_set_distance(set1, set2):
+        assert isinstance(set1, list)
+        assert isinstance(set2, list)
+
+        positions1 = np.array([SalientEvent._get_position(state) for state in set1])
+        positions2 = np.array([SalientEvent._get_position(state) for state in set2])
+        distances = distance.cdist(positions1, positions2)
+        assert distances.shape == (len(set1), len(set2)), distances.shape
+
         return distances.max()
 
     def is_init_true(self, state):
@@ -156,6 +178,12 @@ class LearnedSalientEvent(SalientEvent):
         SalientEvent.__init__(self, target_state=None, event_idx=event_idx,
                               tolerance=tolerance, intersection_event=intersection_event)
 
+    def get_target_position(self):
+        return None
+
+    def _initialize_trigger_points(self):
+        self.trigger_points = [state.position for state in self.state_set]
+
     def is_init_true(self, state):
         position = self._get_position(state)
         return self.classifier.predict(position.reshape(1, -1))
@@ -174,6 +202,15 @@ class LearnedSalientEvent(SalientEvent):
         classifier = OneClassSVM(nu=0.01, gamma="scale")
         classifier.fit(positions)
         return classifier
+
+    def distance_to_effect_set(self, effect_set):
+        """ Compute the max distance from `state_set` to `effect_set`. """
+        return self.set_to_set_distance(self.state_set, effect_set)
+
+    def distance_to_other_event(self, other):
+        if other.get_target_position() is None:
+            return self.set_to_set_distance(self.state_set, other.trigger_points)
+        return self.point_to_set_distance(other.get_target_position(), self.state_set)
 
 
 class DCOSalientEvent(SalientEvent):
@@ -196,6 +233,12 @@ class DCOSalientEvent(SalientEvent):
 
     def __hash__(self):
         return self.event_idx
+
+    def distance_to_other_event(self, other):
+        if other.get_target_position() is not None:
+            return super(DCOSalientEvent, self).distance_to_other_event(other)
+        return self.point_to_set_distance(self.get_target_position(), other.trigger_points)
+
 
 class DSCOptionSalientEvent(SalientEvent):
     def __init__(self, option, event_idx, tolerance=0.6):
@@ -231,7 +274,18 @@ class DSCOptionSalientEvent(SalientEvent):
     def __repr__(self):
         return f"SalientEvent corresponding to {self.option}"
 
+    def get_target_position(self):
+        return None
+
     @staticmethod
     def _get_position(state):
-        raise NotImplementedError("DSCOptionSalientEvent does not have a target state - it just wraps around an option")
+        return None
+
+    def distance_to_effect_set(self, effect_set):
+        return self.set_to_set_distance(self.trigger_points, effect_set)
+
+    def distance_to_other_event(self, other):
+        if other.get_target_position() is not None:
+            return self.point_to_set_distance(other.get_target_position(), self.trigger_points)
+        return self.set_to_set_distance(self.trigger_points, other.trigger_points)
 

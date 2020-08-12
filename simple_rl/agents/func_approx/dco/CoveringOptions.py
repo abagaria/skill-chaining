@@ -36,7 +36,15 @@ class CoveringOptions(object):
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        # When beta is the lagrange multiplier, it must be a variable in the optimization
+        if self.loss_type == "lagrangian":
+            self.beta = torch.Tensor([beta]).to(self.device)
+            self.beta.requires_grad = True
+            params = list(self.model.parameters()) + [self.beta]
+            self.optimizer = optim.Adam(params, lr=lr)
+        else:
+            self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
+
         self.writer = SummaryWriter()
 
         self.max_f_value_state = None

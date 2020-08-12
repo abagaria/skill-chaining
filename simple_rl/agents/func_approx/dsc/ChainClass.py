@@ -28,7 +28,6 @@ class SkillChain(object):
         self.options = options
         self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
-        self.target_position = target_salient_event.target_state
         self.chain_id = chain_id
         self.intersecting_options = intersecting_options
 
@@ -214,10 +213,8 @@ class SkillChain(object):
                     event = intersecting_events[0]
                     self.init_salient_event = event  # Rewiring operation
                 elif len(intersecting_events) > 1:
-                    # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
-                    target_states = [to_position(event.target_state) for event in intersecting_events]
-                    chain_target_position = to_position(self.target_position)
-                    distances = [np.linalg.norm(s - chain_target_position) for s in target_states]
+                    # Find the distance between the target_salient_event and the intersecting_events
+                    distances = [self.target_salient_event.distance_to_other_event(e) for e in intersecting_events]
                     best_idx = np.argmin(distances)
                     best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
                     closest_event = intersecting_events[best_idx]
@@ -237,9 +234,6 @@ class SkillChain(object):
 
     def get_root_nodes_from_skill_chain(self):
         return [option for option in self.options if option.parent is None]
-
-    def get_target_position(self):
-        return self._get_position(self.target_position)
 
     @staticmethod
     def _get_position(state):

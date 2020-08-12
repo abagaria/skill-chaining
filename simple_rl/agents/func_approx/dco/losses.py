@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 
 def get_loss_fn(name):
-    if name == "corrected":
+    if name == "corrected" or name == "lagrangian":
         return _dco_corrected_paper_loss
     if name == "corrected-max":
         return _dco_corrected_paper_loss_with_max
