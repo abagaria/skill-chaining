@@ -14,8 +14,9 @@ class CoveringOptions(Option):
     # This class identifies a subgoal by Laplacian method.
     # We feed this option to the skill chaining as a parent and generate its child options.
 
-    def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm", subgoal_reward=0.,
-                 max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20, dense_reward=False:
+    def __init__(self, replay_buffer, obs_dim, feature=None, threshold=0.95, num_units=200, num_training_steps=1000,
+                 actor_learning_rate=0.0001, critic_learning_rate=0.0001, batch_size=64, option_idx=None,
+                 chain_id=1, name="covering-options", beta=0.0, use_xy_prior=False):
         self.obs_dim = obs_dim
         self.threshold = threshold
         self.num_units = num_units
@@ -295,7 +296,7 @@ class SpectrumNetwork():
     def save(self, directory, name='spectrum_nn'):
         self.saver.save(self.sess, directory + '/' + name)
 
-# This might be a problem -Kiran
+
 class Fourier(object):
     def __init__(self, state_dim, bound, order):
         assert (type(state_dim) is int)

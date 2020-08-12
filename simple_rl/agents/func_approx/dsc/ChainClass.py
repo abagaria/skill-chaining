@@ -215,7 +215,6 @@ class SkillChain(object):
                 self.init_salient_event = event  # Rewiring operation
             elif len(intersecting_events) > 1:
                 # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
-                # TODO: Eventually change this back to target_position instead of target_state
                 distances = [self.target_salient_event.distance_from_goal(event.target_state) for event in intersecting_events]
                 best_idx = np.argmin(distances)
                 best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
@@ -259,18 +258,13 @@ class SkillChain(object):
         return [option for option in self.options if option.parent is None]
 
     def get_target_position(self):
-        return self._get_position(self.target_salient_event.target_state)
-
-    @staticmethod
-    def _get_position(state):
+        state = self.target_salient_event.target_state
         position = state.features() if isinstance(state, State) else state
-        # position = state.position if isinstance(state, State) else state[:2]
         assert isinstance(position, np.ndarray), type(position)
         return position
 
     @staticmethod
     def get_position_matrix(states):
         to_position = lambda s: s.position if isinstance(s, State) else s
-        # to_position = lambda s: s.position if isinstance(s, State) else s[:2]
         positions = [to_position(state) for state in states]
         return np.array(positions)

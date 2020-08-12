@@ -15,8 +15,9 @@ class CoveringOptions(Option):
     # This class identifies a subgoal by Laplacian method.
     # We feed this option to the skill chaining as a parent and generate its child options.
 
-    def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm", subgoal_reward=0.,
-                 max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3):
+    def __init__(self, replay_buffer, obs_dim, feature=None, threshold=0.95, num_units=200, num_training_steps=1000,
+                 actor_learning_rate=0.0001, critic_learning_rate=0.0001, batch_size=64, option_idx=None,
+                 name="covering-options", beta=0.0):
         self.obs_dim = obs_dim
         self.threshold = threshold
         self.num_units = num_units
@@ -171,7 +172,7 @@ class CoveringOptions(Option):
         return low_threshold, high_threshold
 
 
-class SpectrumNetwork:
+class SpectrumNetwork():
 
     def __init__(self, obs_dim=None, learning_rate=0.0001, training_steps=100, batch_size=32, n_units=16, beta=0.0,
                  delta=0.1, conv=False, name="spectrum"):

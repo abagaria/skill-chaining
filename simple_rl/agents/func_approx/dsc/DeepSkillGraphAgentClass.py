@@ -3,12 +3,14 @@ import argparse
 import random
 from copy import deepcopy
 
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DCOSalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent, DCOSalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillGraphPlanningAgent
-from simple_rl.mdp import State
+from simple_rl.agents.func_approx.dsc.utils import *
+from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
+from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 
 
 class DeepSkillGraphAgent(object):
@@ -33,7 +35,6 @@ class DeepSkillGraphAgent(object):
         self.mdp = mdp
         self.dsc_agent = dsc_agent
         self.planning_agent = planning_agent
-        self.salient_event_freq = salient_event_freq
         self.event_after_reject_freq = event_after_reject_freq
         self.use_hard_coded_events = use_hard_coded_events
         self.use_dco = use_dco
@@ -41,6 +42,7 @@ class DeepSkillGraphAgent(object):
         self.experiment_name = experiment_name
         self.seed = seed
         self.threshold = threshold
+        self.salient_event_freq = salient_event_freq
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
         self.plotter = plotter
 
@@ -50,8 +52,6 @@ class DeepSkillGraphAgent(object):
         self.last_event_creation_episode = -1
         self.last_event_rejection_episode = -1
         self.num_successive_rejections = 0
-        # TODO: Delete
-        self.num_successive_rejections_history = []
 
         if self.use_hard_coded_events:
             assert not self.use_dco
@@ -150,29 +150,29 @@ class DeepSkillGraphAgent(object):
 
         if self.use_dco:
             ipdb.set_trace()
-            # c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
-            #                            num_training_steps=1000,
-            #                            option_idx=c_option_idx,
-            #                            name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
-            #                            threshold=self.threshold,
-            #                            beta=0.1)
-            # # use_xy_prior=self.dco_use_xy_prior)
-            #
-            # low_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            # low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
-            # reject_low = self.add_salient_event(low_salient_event, episode)
-            #
-            # high_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            # high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
-            # reject_high = self.add_salient_event(high_salient_event, episode)
-            #
-            # plot_dco_salient_event_comparison(low_salient_event,
-            #                                   high_salient_event,
-            #                                   replay_buffer,
-            #                                   episode,
-            #                                   reject_low,
-            #                                   reject_high,
-            #                                   self.experiment_name)
+            c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+                                       num_training_steps=1000,
+                                       option_idx=c_option_idx,
+                                       name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
+                                       threshold=self.threshold,
+                                       beta=0.1)
+            # use_xy_prior=self.dco_use_xy_prior)
+            
+            low_event_idx = len(self.mdp.all_salient_events_ever) + 1
+            low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
+            reject_low = self.add_salient_event(low_salient_event, episode)
+            
+            high_event_idx = len(self.mdp.all_salient_events_ever) + 1
+            high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
+            reject_high = self.add_salient_event(high_salient_event, episode)
+            
+            plot_dco_salient_event_comparison(low_salient_event,
+                                              high_salient_event,
+                                              replay_buffer,
+                                              episode,
+                                              reject_low,
+                                              reject_high,
+                                              self.experiment_name)
         else:
             low_salient_event = self.mdp.sample_salient_event(episode)
             reject_low = self.add_salient_event(low_salient_event, episode)
