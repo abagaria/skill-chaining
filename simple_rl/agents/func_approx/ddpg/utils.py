@@ -3,53 +3,50 @@ import torch
 import pickle
 
 
-def save_model(ddpg_agent, episode_number, logdir, best=True, save_ddpg=True):
-    if not os.path.exists(os.path.join(logdir, "saved_runs")):
-        os.makedirs(os.path.join(logdir, "saved_runs"))
+def save_model(ddpg_agent, episode_number, best=True):
+    actor_state = {
+        "epoch": episode_number,
+        "state_dict": ddpg_agent.actor.state_dict(),
+        "optimizer": ddpg_agent.actor_optimizer.state_dict()
+    }
+
+    critic_state = {
+        "epoch": episode_number,
+        "state_dict": ddpg_agent.critic.state_dict(),
+        "optimizer": ddpg_agent.critic_optimizer.state_dict()
+    }
+
+    target_actor_state = {
+        "epoch": episode_number,
+        "state_dict": ddpg_agent.target_actor.state_dict()
+    }
+
+    target_critic_state = {
+        "epoch": episode_number,
+        "state_dict": ddpg_agent.target_critic.state_dict()
+    }
+
+    if not os.path.exists("saved_runs"):
+        os.makedirs("saved_runs")
 
     prefix = "best_" if best else "final_"
     name = prefix + ddpg_agent.name
+    torch.save(actor_state, "saved_runs/{}_actor.pkl".format(name))
+    torch.save(critic_state, "saved_runs/{}_critic.pkl".format(name))
+    torch.save(target_actor_state, "saved_runs/{}_target_actor.pkl".format(name))
+    torch.save(target_critic_state, "saved_runs/{}_target_critic.pkl".format(name))
 
-    if save_ddpg:
-        actor_state = {
-            "epoch": episode_number,
-            "state_dict": ddpg_agent.actor.state_dict(),
-            "optimizer": ddpg_agent.actor_optimizer.state_dict()
-        }
-
-        critic_state = {
-            "epoch": episode_number,
-            "state_dict": ddpg_agent.critic.state_dict(),
-            "optimizer": ddpg_agent.critic_optimizer.state_dict()
-        }
-
-        target_actor_state = {
-            "epoch": episode_number,
-            "state_dict": ddpg_agent.target_actor.state_dict()
-        }
-
-        target_critic_state = {
-            "epoch": episode_number,
-            "state_dict": ddpg_agent.target_critic.state_dict()
-        }
-
-        torch.save(actor_state, os.path.join(logdir, "saved_runs", f"{name}_actor.pkl"))
-        torch.save(critic_state, os.path.join(logdir, "saved_runs", f"{name}_critic.pkl"))
-        torch.save(target_actor_state, os.path.join(logdir, "saved_runs", f"{name}_target_actor.pkl"))
-        torch.save(target_critic_state, os.path.join(logdir, "saved_runs", f"{name}_target_critic.pkl"))
-
-    with open(os.path.join(logdir, "saved_runs", f"{name}_replay_buffer.pkl"), "wb") as f:
+    with open("saved_runs/{}_replay_buffer.pkl".format(name), "wb") as f:
         pickle.dump(ddpg_agent.replay_buffer, f)
 
-
-def load_model(ddpg_agent, logdir, best=True):
+def load_model(ddpg_agent, best=True):
     prefix = "best_" if best else "final_"
     name = prefix + ddpg_agent.name
 
-    actor_state = torch.load(os.path.join(logdir, "saved_runs", f"{name}_actor.pkl"))
-    critic_state = torch.load(os.path.join(logdir, "saved_runs", f"{name}_critic.pkl"))
-    target_actor_state = torch.load(os.path.join(logdir, "saved_runs", f"{name}_target_actor.pkl"))
-    target_critic_state = torch.load(os.path.join(logdir, "saved_runs", f"{name}_target_critic.pkl"))
+    actor_state = torch.load("saved_runs/{}_actor.pkl".format(name))
+    critic_state = torch.load("saved_runs/{}_critic.pkl".format(name))
+    target_actor_state = torch.load("saved_runs/{}_target_actor.pkl".format(name))
+    target_critic_state = torch.load("saved_runs/{}_target_critic.pkl".format(name))
 
     ddpg_agent.actor.load_state_dict(actor_state["state_dict"])
     ddpg_agent.actor_optimizer.load_state_dict(actor_state["optimizer"])
@@ -61,7 +58,7 @@ def load_model(ddpg_agent, logdir, best=True):
     assert actor_state["epoch"] == critic_state["epoch"] == target_actor_state["epoch"] == target_critic_state["epoch"]
     episode = actor_state["epoch"]
 
-    with open(os.path.join(logdir, "saved_runs", f"{name}_replay_buffer.pkl"), "rb") as f:
+    with open("saved_runs/{}_replay_buffer.pkl".format(name), "rb") as f:
         ddpg_agent.replay_buffer = pickle.load(f)
 
     return episode, ddpg_agent
@@ -76,20 +73,21 @@ def compute_gradient_norm(model):
     return total_norm
 
 
-def create_log_dir(directory_path):
+def create_log_dir(experiment_name):
+    path = os.path.join(os.getcwd(), experiment_name)
     try:
-        os.makedirs(directory_path)
+        os.mkdir(path)
     except OSError:
-        print("Creation of the directory %s failed" % directory_path)
+        print("Creation of the directory %s failed" % path)
     else:
-        print("Successfully created the directory %s " % directory_path)
-    return directory_path
+        print("Successfully created the directory %s " % path)
+    return path
 
 
 def save_all_scores(scores, durations, log_dir, seed):
     print("\rSaving training scores and durations..")
-    training_scores_file_name = f"flat_ddpg_training_scores_{seed}"
-    training_durations_file_name = f"flat_ddpg_training_durations_{seed}"
+    training_scores_file_name = "flat_ddpg_training_scores_{}".format(seed)
+    training_durations_file_name = "flat_ddpg_training_durations_{}".format(seed)
 
     training_scores_file_name = os.path.join(log_dir, training_scores_file_name)
     training_durations_file_name = os.path.join(log_dir, training_durations_file_name)
