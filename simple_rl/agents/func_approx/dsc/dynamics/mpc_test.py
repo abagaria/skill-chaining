@@ -18,7 +18,7 @@ def generate_data(mdp, epochs):
             
             s_pos = np.array(s)
             sp_pos = np.array(sp)
-            data = [s_pos, a, sp_pos]
+            data = (s_pos, a, sp_pos)
         
             buffer.append(data)
             if sp.is_terminal():

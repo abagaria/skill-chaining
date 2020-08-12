@@ -21,7 +21,7 @@ class MPC:
         training_gen = DataLoader(self.dataset, batch_size=512, shuffle=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
-        for epoch in range(0, epochs):
+        for epoch in range(epochs):
             for states, actions, states_p in training_gen:
                 states = states.to(self.device).float()
                 actions = actions.to(self.device).float()
@@ -87,7 +87,7 @@ class MPC:
             actions.append(action)
             states_p.append(state_p)
 
-        states_delta = np.subtract(states_p, states)
+        states_delta = np.array(states_p) - np.array(states)
             
         self.mean_x = np.mean(states, axis=0)
         self.mean_y = np.mean(actions, axis=0)
@@ -96,10 +96,23 @@ class MPC:
         self.std_y = np.std(actions - self.mean_y, axis=0)
         self.std_z = np.std(states_delta - self.mean_z, axis=0)
 
-        norm_states_delta = np.nan_to_num((states_p - self.mean_z) / self.std_z)
+        self._roundup()
+
+        norm_states_delta = np.nan_to_num((states_delta - self.mean_z) / self.std_z)
 
         dataset = RolloutDataset(states, actions, norm_states_delta)
         return dataset
+
+    def _roundup(self, c=1e-5):
+        """
+        If any standarization variable is 0, add some constant to prevent NaN
+        """
+        self.mean_x[self.mean_x == 0] = c
+        self.mean_y[self.mean_y == 0] = c
+        self.mean_z[self.mean_z == 0] = c
+        self.std_x[self.std_x == 0] = c
+        self.std_y[self.std_y == 0] = c
+        self.std_z[self.std_z == 0] = c
 
     def _get_standardization_vars(self):
         return self.mean_x, self.mean_y, self.mean_z, self.std_x, self.std_y, self.std_z

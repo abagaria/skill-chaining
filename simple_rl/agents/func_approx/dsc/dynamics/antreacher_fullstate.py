@@ -102,7 +102,6 @@ class RandomRolloutCollector:
         self.std_z = np.std(states_p - self.mean_z, axis=0)
         self._roundup()
         
-        # uncomment if want noise to be added
         states_p = np.nan_to_num((states_p - self.mean_z) / self.std_z)
         
         dataset = RolloutDataset(states, actions, states_p)
