@@ -53,6 +53,12 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     def plot_learning_curve(self, dsg_agent, train_time):
         def plot_learning_curves():
+            # smooth learning curve over 20 episodes
+            smooth_learning_curve = uniform_filter1d(learning_curves, 20, mode='nearest', output=np.float)
+            mean = np.mean(smooth_learning_curve, axis=0)
+            std_err = np.std(smooth_learning_curve, axis=0)
+
+            # plot learning curve (with standard deviation)
             fig, ax = plt.subplots()
             ax.plot(range(train_time), mean, '-')
             ax.fill_between(range(train_time), np.maximum(mean - std_err, 0), np.minimum(mean + std_err, 1), alpha=0.2)
@@ -86,8 +92,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
                                                                            episode_interval=1,
                                                                            randomize_start_states=False,
                                                                            num_states=7)
-        mean = np.mean(learning_curves, axis=0)
-        std_err = np.std(learning_curves, axis=0)
 
         print('*' * 80)
         print("Plotting learning curves...")
