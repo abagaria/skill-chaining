@@ -3,10 +3,10 @@ import argparse
 import random
 from copy import deepcopy
 
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent, DCOSalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DCOSalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
-from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillGraphPlanningAgent
+from simple_rl.agents.func_approx.dsc.SkillGraphPlannerClass import SkillGraphPlanner
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
@@ -15,34 +15,36 @@ from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq, use_hard_coded_events, use_dco,
-                 dco_use_xy_prior, experiment_name, seed, threshold, use_smdp_replay_buffer, plotter):
+                 dco_use_xy_prior, allow_backward_options, experiment_name, seed, threshold, use_smdp_replay_buffer, plotter):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
         Args:
             mdp (GoalDirectedMDP)
             dsc_agent (SkillChaining)
-            planning_agent (SkillGraphPlanningAgent)
+            planning_agent (SkillGraphPlanner)            
             salient_event_freq (int)
             event_after_reject_freq (int)
             use_hard_coded_events (bool)
             use_dco (bool)
             dco_use_xy_prior (bool)
+            allow_backward_options (bool)
             experiment_name (str)
             seed (int)
-            plotter (SkillChainingPlotter)
+            plotter (MDPPlotter)
         """
         self.mdp = mdp
         self.dsc_agent = dsc_agent
         self.planning_agent = planning_agent
-        self.event_after_reject_freq = event_after_reject_freq
         self.use_hard_coded_events = use_hard_coded_events
         self.use_dco = use_dco
         self.dco_use_xy_prior = dco_use_xy_prior
+        self.allow_backward_options = allow_backward_options
         self.experiment_name = experiment_name
         self.seed = seed
         self.threshold = threshold
         self.salient_event_freq = salient_event_freq
+        self.event_after_reject_freq = event_after_reject_freq
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
         self.plotter = plotter
 
@@ -118,12 +120,12 @@ class DeepSkillGraphAgent(object):
                     step_number += 1
                     success = False
                 else:
-                    goal_state = goal_salient_event.target_state
-                    step_number, success = self.planning_agent.planning_run_loop(start_episode=episode,
-                                                                                 goal_state=goal_state,
-                                                                                 goal_salient_event=goal_salient_event,
-                                                                                 step_number=step_number,
-                                                                                 to_reset=False)
+                    step_number, success = self.planning_agent.run_loop(state=state,
+                                                                        goal_salient_event=goal_salient_event,
+                                                                        episode=episode,
+                                                                        step=step_number,
+                                                                        eval_mode=False,
+                                                                        to_reset=False)
 
                 state = deepcopy(self.mdp.cur_state)
 
@@ -142,37 +144,43 @@ class DeepSkillGraphAgent(object):
 
         return successes
 
-    def discover_new_salient_event(self, replay_buffer, episode):
+    def generate_new_salient_events(self, replay_buffer, episode):
         # currently threshold and beta are hardcoded
         c_option_idx = self.num_covering_options_generated
         self.num_covering_options_generated += 1
         buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
 
-        if self.use_dco:
-            ipdb.set_trace()
+        if self.use_dco and len(self.mdp.all_salient_events_ever) > 0:
             c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
                                        num_training_steps=1000,
                                        option_idx=c_option_idx,
                                        name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
                                        threshold=self.threshold,
                                        beta=0.1)
-            # use_xy_prior=self.dco_use_xy_prior)
+                                       # use_xy_prior=self.dco_use_xy_prior)
             
             low_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
+            low_salient_event = DCOSalientEvent(c_option, low_event_idx, is_low=True)
             reject_low = self.add_salient_event(low_salient_event, episode)
             
             high_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
+            high_salient_event = DCOSalientEvent(c_option, high_event_idx, is_low=False)
             reject_high = self.add_salient_event(high_salient_event, episode)
             
-            plot_dco_salient_event_comparison(low_salient_event,
-                                              high_salient_event,
-                                              replay_buffer,
-                                              episode,
-                                              reject_low,
-                                              reject_high,
-                                              self.experiment_name)
+            if reject_low or reject_high:
+                for _ in range(1000):
+                    self.dsc_agent.agent_over_options.step(low_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, high_salient_event.target_state, 0, 1)
+                    self.dsc_agent.agent_over_options.step(high_salient_event.target_state, self.dsc_agent.global_option.option_idx, 0, low_salient_event.target_state, 0, 1)
+
+            if not reject_low or not reject_high or args.plot_rejected_events:
+                # TODO: Add to plotter class
+                plot_dco_salient_event_comparison(low_salient_event,
+                                                  high_salient_event,
+                                                  replay_buffer,
+                                                  episode,
+                                                  reject_low,
+                                                  reject_high,
+                                                  self.experiment_name)
         else:
             low_salient_event = self.mdp.sample_salient_event(episode)
             reject_low = self.add_salient_event(low_salient_event, episode)
@@ -204,9 +212,6 @@ class DeepSkillGraphAgent(object):
             # Create a skill chain targeting the new event
             self.dsc_agent.create_chain_targeting_new_salient_event(salient_event)
 
-        # TODO: Delete
-        self.num_successive_rejections_history.append((episode, self.num_successive_rejections))
-
         return reject
 
     def should_reject_discovered_salient_event(self, salient_event):
@@ -219,15 +224,16 @@ class DeepSkillGraphAgent(object):
         Returns:
             should_reject (bool)
         """
-        if any([event(salient_event.target_state) for event in self.mdp.get_all_target_events_ever()]):
-            return True
+        existing_target_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        if any([event(salient_event.target_state) for event in existing_target_events]):
+             return True
 
         if self.dsc_agent.state_in_any_completed_option(salient_event.target_state):
             return True
 
         return False
 
-    def should_generate_new_salient_event(self, episode):
+    def should_generate_new_salient_events(self, episode):
         if episode < 5:
             return False
         elif episode == 5:
@@ -236,25 +242,25 @@ class DeepSkillGraphAgent(object):
         def _all_events_chained(low_event, high_event):
             chains = self.dsc_agent.chains
             chains_targeting_low_event = [chain for chain in chains if chain.target_salient_event == low_event and
-                                          chain.is_chain_completed(chains)]
+                                                                       chain.is_chain_completed(chains)]
             chains_targeting_high_event = [chain for chain in chains if chain.target_salient_event == high_event and
-                                           chain.is_chain_completed(chains)]
+                                                                        chain.is_chain_completed(chains)]
             return (
-                    not (low_event is None and high_event is None) and  # most_recent_events were not both rejected AND
-                    (len(chains_targeting_low_event) > 0 or low_event is None) and  # low_event is chained to or was rejected AND
-                    (len(chains_targeting_high_event) > 0 or high_event is None)  # high_event is chained to or was rejected
+                not (low_event is None and high_event is None) and  # most_recent_events were not both rejected AND
+                (len(chains_targeting_low_event) > 0 or low_event is None) and  # low_event is chained to or was rejected AND
+                (len(chains_targeting_high_event) > 0 or high_event is None)  # high_event is chained to or was rejected
             )
 
         most_recent_events = self.most_recent_generated_salient_events  # type: Tuple[DCOSalientEvent, DCOSalientEvent]
 
         return (
-                _all_events_chained(*most_recent_events) or
-                episode - self.last_event_creation_episode >= self.salient_event_freq or
-                (episode - self.last_event_rejection_episode >= self.event_after_reject_freq and self.last_event_rejection_episode != -1)
+            _all_events_chained(*most_recent_events) or
+            episode - self.last_event_creation_episode >= self.salient_event_freq or
+            (episode - self.last_event_rejection_episode >= self.event_after_reject_freq and self.last_event_rejection_episode != -1)
         )
 
     def generate_candidate_salient_events(self):  # TODO: This needs to happen multiple times, not just once
-        if self.should_set_off_learning_backward_options():
+        if self.should_set_off_learning_backward_options() and self.allow_backward_options:
             self.set_off_learning_backward_options()
 
             return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
@@ -264,26 +270,24 @@ class DeepSkillGraphAgent(object):
     def are_all_original_salient_events_forward_chained(self):
         original_salient_events = self.mdp.get_original_target_events()
         for event in original_salient_events:  # type: SalientEvent
-            forward_chains = [chain for chain in self.dsc_agent.chains if
-                              chain.target_salient_event == event and not chain.is_backward_chain]
+            forward_chains = [chain for chain in self.dsc_agent.chains if chain.target_salient_event == event and not chain.is_backward_chain]
             if any([not chain.is_chain_completed(self.dsc_agent.chains) for chain in forward_chains]):
                 return False
         return True
 
     def should_set_off_learning_backward_options(self):
-        return False
-        # if len(self.mdp.get_original_target_events()) > 0:
-        #     assert self.use_hard_coded_events, "Expected original events to be hard coded ones"
-        #     return self.are_all_original_salient_events_forward_chained() \
-        #            and not self.dsc_agent.create_backward_options \
-        #            and not self.dsc_agent.learn_backward_options_offline
-        #
-        # # If we have tried to create an event outside the graph a lot of times and failed,
-        # # then that probably means that we are done with forward-chaining and we can now
-        # # begin learning our backward options
-        # return self.num_successive_rejections >= 6 \
-        #        and not self.dsc_agent.create_backward_options \
-        #        and not self.dsc_agent.learn_backward_options_offline
+        if len(self.mdp.get_original_target_events()) > 0:
+            assert self.use_hard_coded_events, "Expected original events to be hard coded ones"
+            return self.are_all_original_salient_events_forward_chained() \
+                   and not self.dsc_agent.create_backward_options \
+                   and not self.dsc_agent.learn_backward_options_offline
+        
+        # If we have tried to create an event outside the graph a lot of times and failed,
+        # then that probably means that we are done with forward-chaining and we can now
+        # begin learning our backward options
+        return self.num_successive_rejections >= 6 \
+               and not self.dsc_agent.create_backward_options \
+               and not self.dsc_agent.learn_backward_options_offline
 
     def set_off_learning_backward_options(self):
         self.dsc_agent.create_backward_options = True
@@ -317,68 +321,6 @@ class DeepSkillGraphAgent(object):
         self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
         self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(),
                                                done, 1)
-
-
-def run_everything(steps=1000, experiment_name='profiler_test', device="cuda:0", salient_event_freq=200, episodes=1000):
-    from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
-    overall_mdp = LeapWrapperMDP(
-        task_agnostic=True,
-        episode_length=steps,
-        use_hard_coded_events=False,
-        dense_reward=False,
-        render=True,
-        generate_n_clips=10,
-        wait_n_episodes_between_clips=100,
-        movie_output_folder=experiment_name)
-    overall_mdp.env.seed(0)
-    from simple_rl.tasks.leap_wrapper.LeapWrapperPlotterClass import LeapWrapperPlotter
-    mdp_plotter = LeapWrapperPlotter("sawyer", experiment_name, overall_mdp)
-    overall_mdp.movie_renderer.create_folder(mdp_plotter.path)
-
-    chainer = SkillChaining(overall_mdp, steps, 1e-4, 1e-3, 64,
-                            constant_noise=False,
-                            seed=0, subgoal_reward=10,
-                            num_subgoal_hits_required=3,
-                            enable_option_timeout=True, init_q=0,
-                            use_full_smdp_update=True,
-                            tensor_log=False,
-                            device=device, buffer_length=20,
-                            start_state_salience=True,
-                            option_intersection_salience=False,
-                            event_intersection_salience=True,
-                            pretrain_option_policies=False,
-                            create_backward_options=False,
-                            learn_backward_options_offline=False,
-                            dense_reward=False,
-                            update_global_solver=False,
-                            use_warmup_phase=True,
-                            experiment_name=experiment_name,
-                            plotter=mdp_plotter)
-
-    planner = SkillGraphPlanningAgent(mdp=overall_mdp,
-                                      chainer=chainer,
-                                      experiment_name=experiment_name,
-                                      seed=0,
-                                      initialize_graph=False,
-                                      pretrain_option_policies=False,
-                                      use_ucb=False,
-                                      max_qvalue=10)
-
-    dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
-                                    dsc_agent=chainer,
-                                    planning_agent=planner,
-                                    salient_event_freq=salient_event_freq,
-                                    event_after_reject_freq=10,
-                                    use_hard_coded_events=False,
-                                    use_dco=False,
-                                    dco_use_xy_prior=False,
-                                    experiment_name=experiment_name,
-                                    seed=0,
-                                    threshold=0.1,
-                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer,
-                                    plotter=mdp_plotter)
-    num_successes = dsg_agent.dsg_run_loop(episodes=episodes, num_steps=steps)
-
 
 
 if __name__ == "__main__":
@@ -415,8 +357,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_warmup_phase", action="store_true", default=False)
     parser.add_argument("--update_global_solver", action="store_true", default=False)
     parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50)
-    parser.add_argument("--event_after_reject_freq", type=int,
-                        help="Create a salient event only event_after_reject_freq episodes after a double rejection", default=10)
+    parser.add_argument("--event_after_reject_freq", type=int, help="Create a salient event only event_after_reject_freq episodes after a double rejection", default=10)
     parser.add_argument("--use_hard_coded_events", action="store_true", help="Whether to use hard-coded salient events", default=False)
     parser.add_argument("--dco_use_xy_prior", action="store_true", default=False)
     parser.add_argument("--plot_rejected_events", action="store_true", default=False)
@@ -456,30 +397,23 @@ if __name__ == "__main__":
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
-    elif args.env == "d4rl-point-maze":
+    elif args.env == "d4rl-medium-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
 
-        overall_mdp = D4RLPointMazeMDP(seed=args.seed, render=args.render)
+        overall_mdp = D4RLPointMazeMDP(seed=args.seed,
+                                       render=args.render,
+                                       use_hard_coded_events=args.use_hard_coded_events,
+                                       difficulty="medium")
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
-    elif "reacher" in args.env.lower():
-        from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
-
-        overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
-        state_dim = overall_mdp.init_state.features().shape[0]
-        action_dim = overall_mdp.env.action_spec().minimum.shape[0]
-    elif "maze" in args.env.lower():
-        from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
-
-        overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
-        state_dim = 6
-        action_dim = 2
-    elif "point" in args.env.lower():
-        from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
-
-        overall_mdp = PointEnvMDP(control_cost=args.control_cost, render=args.render)
-        state_dim = 4
-        action_dim = 2
+    elif args.env == "d4rl-hard-point-maze":
+        from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+        overall_mdp = D4RLPointMazeMDP(seed=args.seed,
+                                       render=args.render,
+                                       use_hard_coded_events=args.use_hard_coded_events,
+                                       difficulty="hard")
+        state_dim = overall_mdp.state_space_size()
+        action_dim = overall_mdp.action_space_size()
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
         overall_mdp = LeapWrapperMDP(
@@ -498,14 +432,8 @@ if __name__ == "__main__":
             mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
             if args.render:
                 overall_mdp.movie_renderer.create_folder(mdp_plotter.path)
-
     else:
-        from simple_rl.tasks.gym.GymMDPClass import GymMDP
-
-        overall_mdp = GymMDP(args.env, render=args.render)
-        state_dim = overall_mdp.env.observation_space.shape[0]
-        action_dim = overall_mdp.env.action_space.shape[0]
-        overall_mdp.env.seed(args.seed)
+        raise NotImplementedError(args.env)
 
     print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
     print("MDP InitState = ", overall_mdp.init_state)
@@ -532,16 +460,13 @@ if __name__ == "__main__":
                             experiment_name=args.experiment_name,
                             plotter=mdp_plotter)
 
-    assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
+    assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])\
 
-    planner = SkillGraphPlanningAgent(mdp=overall_mdp,
-                                      chainer=chainer,
-                                      experiment_name=args.experiment_name,
-                                      seed=args.seed,
-                                      initialize_graph=False,
-                                      pretrain_option_policies=args.pretrain_option_policies,
-                                      use_ucb=args.use_ucb,
-                                      max_qvalue=args.subgoal_reward)
+    planner = SkillGraphPlanner(mdp=overall_mdp,
+                                chainer=chainer,
+                                experiment_name=args.experiment_name,
+                                seed=args.seed,
+                                pretrain_option_policies=args.pretrain_option_policies)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
                                     dsc_agent=chainer,
@@ -551,6 +476,7 @@ if __name__ == "__main__":
                                     use_hard_coded_events=args.use_hard_coded_events,
                                     use_dco=args.use_dco,
                                     dco_use_xy_prior=args.dco_use_xy_prior,
+                                    allow_backward_options=args.allow_backward_options
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
