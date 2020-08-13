@@ -30,7 +30,7 @@ class Option(object):
                     init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
                     gestation_init_predicates=None, is_backward_option=False, solver_type="ddpg", 
                     device=torch.device("cpu"), writer=None):
-           """
+           '''
            Args:
                overall_mdp (GoalDirectedMDP)
                name (str)
@@ -56,7 +56,7 @@ class Option(object):
                is_backward_option (bool)
                device (torch.device)
                writer (SummaryWriter)
-           """
+           '''
            if gestation_init_predicates is None:
                gestation_init_predicates = []
            self.name = name
@@ -148,6 +148,21 @@ class Option(object):
        def __ne__(self, other):
            return not self == other
 
+       def __getstate__(self):
+           excluded_keys = ("parent", "global_solver", "children", "overall_mdp")
+           parent_option_idx = self.parent.option_idx if self.parent is not None else None
+           children_option_idx = [child.option_idx for child in self.children if child is not None]
+           state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+           state_dictionary["parent_option_idx"] = parent_option_idx
+           state_dictionary["children_option_idx"] = children_option_idx
+           return state_dictionary
+
+       def __setstate__(self, state_dictionary):
+           excluded_keys = ("parent", "global_solver", "children", "overall_mdp")
+           for key in state_dictionary:
+               if key not in excluded_keys:
+                   self.__dict__[key] = state_dictionary[key]
+
        def _get_epsilon_greedy_epsilon(self):
            if self.constant_noise:
                if "point" in self.overall_mdp.env_name:
@@ -194,7 +209,7 @@ class Option(object):
                self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
                                        tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration,
                                        fixed_epsilon=self.fixed_epsilon)
-           elif _type == "td3":
+           elif self.solver_type == "td3":
                exploration_method = "shaping" if self.name == "global_option" else ""
                self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
                                  max_action=self.overall_mdp.env.action_space.high[0],
@@ -205,21 +220,31 @@ class Option(object):
 
        def sample_state(self):
            """ Return a state from the option's initiation set. """
+
+           def _get_state_from_experience(experience):
+               if isinstance(experience, list):
+                   experience = experience[0]
+               if isinstance(experience, Experience):
+                   return experience.state
+               return experience[0]
+
            if self.get_training_phase() != "initiation_done":
                return None
 
            sampled_state = None
            num_tries = 0
 
+
            while sampled_state is None and num_tries < 50:
                if isinstance(self.solver, DDPGAgent):
                    if len(self.solver.replay_buffer) > 0:
                        sampled_experience = random.choice(self.solver.replay_buffer.memory)
                    elif len(self.experience_buffer) > 0:
-                       sampled_experience = random.choice(self.experience_buffer)[0].serialize()
+                       sampled_experience = random.choice(self.experience_buffer)
                    else:
                        continue
-                   sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
+                   sampled_state = _get_state_from_experience(sampled_experience)
+                   sampled_state = sampled_state if self.is_init_true(sampled_state) else None
                elif isinstance(self.solver, TD3):
                    sampled_idx = random.randint(0, len(self.solver.replay_buffer) - 1)
                    sampled_experience = self.solver.replay_buffer[sampled_idx]
@@ -290,7 +315,6 @@ class Option(object):
                    if self.is_term_true(state):
                        continue
                    if self.is_term_true(next_state):
-                       # TODO: probably can delete this case but will check later
                        self.solver.step(state, action, self.subgoal_reward, next_state, True)
                    else:
                        subgoal_reward = self.get_subgoal_reward(next_state)
@@ -330,9 +354,6 @@ class Option(object):
 
            if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
                if self.backward_option:
-                   # TODO: Kshitij deleted
-                   # state_matrix = state_matrix[:, :2]
-
                    # When we treat the start state as a salient event, we pass in the
                    # init predicate that we are going to use during gestation
                    if self.init_salient_event is not None:
