@@ -1,0 +1,12 @@
+%run simple_rl/experiments/off_policy/on_policy_tester.py --experiment_name "equidistant_test" --seed 0 --environment "Ant-v2" --num_episodes 2000 --num_steps 2000 --device "cuda:1" --save_plots --save_pickles --fixed_epsilon 0.4 --goal_dimension 2 --goal_threshold 0.6
+
+# Equidistant circle-point run
+--add_goal sparse targeting 1.74 1.21
+
+--add_goal sparse targeting 1.21 1.74 sample 1000000 from 0
+--add_goal sparse targeting 1.9 0.95 sample 1000000 from 0
+--add_goal sparse targeting 2.03 0.61 sample 1000000 from 0
+
+--add_goal sparse targeting 0.61 2.03 sample 1000000 from 0
+--add_goal sparse targeting 0.95 1.9 sample 1000000 from 0
+--add_goal sparse targeting 3 3 sample 1000000 from 0
