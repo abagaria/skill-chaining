@@ -9,7 +9,24 @@ from copy import copy
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance,
-                 dense_reward, salient_events, task_agnostic, get_relevant_position, goal_state=None, start_salient_event=None):
+                 dense_reward, salient_events, task_agnostic, salient_event_factor_indices, init_classifier_factor_indices,
+                 goal_state=None, start_salient_event=None):
+
+        """
+        :params:
+            actions (int) : action space dimension
+            transition_func : the fundamental transion of the mdp
+            reward_func : the mdp reward function
+            init_state (np.ndarray) : the start state of the mdp
+            salient_tolerance (float) : the tolerance of the goal and for all salients (global variable)
+            dense_reward (bool) : True if we want dense reward, False otherwise
+            salient_events ([SalientEvent]) : hard-coded salient events we are targeting (if any)
+            task_agnostic (bool) : True if we don't care about the MDP's reward function while training, False otherwise
+            salient_event_factor_indices ([int]) : the relevant indices for classifying if a state is in the effect set of a salient event
+            init_classifier_factor_indices ([int]) : the relevant indices for classifying if a state is in the initiation set of an Option
+            goal_state (np.ndarray) : the center of the effect set of the final salient event that we are shooting towards, after training
+            start_salient_event (SalientEvent) : The salient event with an effect set centered around the starting position of the MDP
+        """
 
         self._salient_events = salient_events
         self.task_agnostic = task_agnostic
@@ -18,8 +35,8 @@ class GoalDirectedMDP(MDP):
 
         self.salient_tolerance = salient_tolerance
         SalientEvent.tolerance = salient_tolerance
-        self.get_init_classifier_factors = get_init_classifier_factors
-        self.get_salient_event_factors = get_salient_event_factors
+        self._salient_event_factor_indices = salient_event_factor_indices
+        self._init_classifier_factor_indices = init_classifier_factor_indices
 
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state
@@ -125,3 +142,19 @@ class GoalDirectedMDP(MDP):
         position = state.position if isinstance(state, State) else state
         # position = state.position if isinstance(state, State) else state[:2]
         return position
+
+    def get_state_factors(self, state, factors):
+        if isinstance(state, list):
+            return [self.get_salient_event_factors(x) for x in state]
+        elif isinstance(state, State):
+            return self.get_salient_event_factors(state.features())
+        elif isinstance(state, np.ndarray):
+            return state[factors]
+        else:
+            raise TypeError(f"state was of type {type(state)} but must be a State, np.ndarray, or list")
+
+    def get_salient_event_factors(self, state):
+        return self.get_state_factors(state, self._salient_event_factor_indices)
+
+    def get_init_classifier_factors(self, state):
+        return self.get_state_factors(state, self._init_classifier_factor_indices)
