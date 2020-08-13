@@ -12,16 +12,14 @@ class D4RLAntMazeState(State):
             others (np.ndarray)
             done (bool)
         """
-        self.position = position
-        self.others = others
-        features = self.position.tolist() + self.others.tolist()
+        features = position.tolist() + others.tolist()
 
         State.__init__(self, data=features, is_terminal=done)
 
     def __str__(self):
-        return "x: {}\ty: {}\tothers:{}\tterminal: {}\n".format(self.position[0],
-                                                                self.position[1],
-                                                                self.others,
+        return "x: {}\ty: {}\tothers:{}\tterminal: {}\n".format(self.features()[0],
+                                                                self.features()[1],
+                                                                self.features()[2:],
                                                                 self.is_terminal())
 
     def __repr__(self):

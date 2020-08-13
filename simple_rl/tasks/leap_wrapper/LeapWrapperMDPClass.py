@@ -162,10 +162,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
 def get_endeff_pos(state):
     if isinstance(state, LeapWrapperState):
         return state.endeff_pos
-    elif state.ndim == 2:
+    elif isinstance(state, np.ndarray):
+        # get last two dimensions of last dimension
         return state[:, :3]
-    elif state.ndim == 1:
-        return state[:3]
     else:
         ipdb.set_trace()
 

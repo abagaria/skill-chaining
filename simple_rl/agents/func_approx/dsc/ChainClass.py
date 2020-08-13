@@ -106,9 +106,8 @@ class SkillChain(object):
     @staticmethod
     def detect_intersection_between_options(my_option, other_option):
         if my_option.get_training_phase() == "initiation_done" and other_option.get_training_phase() == "initiation_done":
-            effect_set = other_option.effect_set  # list of states
-            effect_set_matrix = SkillChain.get_position_matrix(effect_set)
-            inits = my_option.batched_is_init_true(effect_set_matrix)
+            effect_set = np.array(other_option.effect_set)  # list of states
+            inits = my_option.batched_is_init_true(effect_set)
             is_intersecting = inits.all()
             return is_intersecting
         return False
@@ -117,7 +116,7 @@ class SkillChain(object):
     def detect_intersection_between_option_and_event(option, event):
         if option.get_training_phase() == "initiation_done":
             if len(event.trigger_points) > 0:  # Be careful: all([]) = True
-                state_matrix = SkillChain.get_position_matrix(event.trigger_points)
+                state_matrix = np.array(event.trigger_points)
                 inits = option.batched_is_init_true(state_matrix)
                 is_intersecting = inits.all()
                 return is_intersecting
@@ -236,7 +235,7 @@ class SkillChain(object):
             """ Given a target salient event from another chain and an option,
                 tell me if the event is a subset of the option's initiation set. """
             if o.get_training_phase() == "initiation_done":
-                if len(e.trigger_points) > 0: # Be careful: all([]) = True
+                if len(e.trigger_points) > 0:  # Be careful: all([]) = True
                     return all([o.is_init_true(s) for s in e.trigger_points])  # TODO: Batch this
                 return o.is_init_true(e.target_state)
             return False
@@ -262,9 +261,3 @@ class SkillChain(object):
         position = state.features() if isinstance(state, State) else state
         assert isinstance(position, np.ndarray), type(position)
         return position
-
-    @staticmethod
-    def get_position_matrix(states):
-        to_position = lambda s: s.position if isinstance(s, State) else s
-        positions = [to_position(state) for state in states]
-        return np.array(positions)

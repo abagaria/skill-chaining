@@ -2,13 +2,14 @@ import numpy as np
 from scipy.spatial import distance
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp import MDP, State
+from simple_rl.agents.func_approx.dsc.OptionClass import Option
 
 from copy import copy
 
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance,
-                 dense_reward,  salient_events, task_agnostic, goal_state=None, start_salient_event=None):
+                 dense_reward, salient_events, task_agnostic, get_relevant_position, goal_state=None, start_salient_event=None):
 
         self._salient_events = salient_events
         self.task_agnostic = task_agnostic
@@ -17,6 +18,8 @@ class GoalDirectedMDP(MDP):
 
         self.salient_tolerance = salient_tolerance
         SalientEvent.tolerance = salient_tolerance
+        self.get_init_classifier_factors = get_init_classifier_factors
+        self.get_salient_event_factors = get_salient_event_factors
 
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state

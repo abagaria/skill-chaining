@@ -7,8 +7,9 @@ import ipdb
 
 
 class SalientEvent(object):
-    def __init__(self, target_state, event_idx, use_additive_constants=False, intersection_event=False,
-                 get_relevant_position=None, name=None):
+    get_salient_event_pos = self._get_position
+
+    def __init__(self, target_state, event_idx, use_additive_constants=False, intersection_event=False, name=None):
         """
 
         Args:
@@ -32,19 +33,13 @@ class SalientEvent(object):
         self.trigger_points = []
         self._initialize_trigger_points()
 
-        # Kinda hacky, but currently salient events don't handle arbitrary predicates
-        if get_relevant_position is None:
-            self.get_relevant_position = self._get_position
-        else:
-            self.get_relevant_position = get_relevant_position
-
     def _initialize_trigger_points(self):
         # TODO: Right now, the extra trigger points only work for 2d
         trigger_points = []
         if self.use_additive_constants:
             r = self.tolerance
             d = r / np.sqrt(2)
-            target_position = self.get_relevant_position(self.target_state)
+            target_position = self.get_salient_event_pos(self.target_state)
             additive_constants = [np.array((r, 0)), np.array((0, r)),
                                   np.array((-r, 0)), np.array((0, -r)),
                                   np.array((d, d)), np.array((-d, -d)),
@@ -73,8 +68,8 @@ class SalientEvent(object):
 
     def __eq__(self, other):
         def _state_eq(s1, s2):
-            s1 = self.get_relevant_position(s1)
-            s2 = self.get_relevant_position(s2)
+            s1 = self.get_salient_event_pos(s1)
+            s2 = self.get_salient_event_pos(s2)
             return (s1 == s2).all()
 
         if not isinstance(other, SalientEvent):
@@ -85,18 +80,18 @@ class SalientEvent(object):
         # self.event_idx == other.event_idx
 
     def __hash__(self):
-        target_state = self.get_relevant_position(self.target_state)
+        target_state = self.get_salient_event_pos(self.target_state)
         return hash(tuple(target_state))
 
     def is_init_true(self, state):
-        position = self.get_relevant_position(state)
-        target_position = self.get_relevant_position(self.target_state)
+        position = self.get_salient_event_pos(state)
+        target_position = self.get_salient_event_pos(self.target_state)
         return np.linalg.norm(position - target_position) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
-        curr_positions = self.get_relevant_position(position_matrix)
-        goal_position = self.get_relevant_position(self.target_state)
+        curr_positions = self.get_salient_event_pos(position_matrix)
+        goal_position = self.get_salient_event_pos(self.target_state)
         in_goal_position = distance.cdist(curr_positions, goal_position[None, :]) <= self.tolerance
         return in_goal_position.squeeze(1)
 
@@ -119,7 +114,7 @@ class SalientEvent(object):
         return False
 
     def get_target_position(self):
-        return self.get_relevant_position(self.target_state)
+        return self.get_salient_event_pos(self.target_state)
 
     @staticmethod
     def _get_position(state):
@@ -134,8 +129,8 @@ class SalientEvent(object):
             return f"SalientEvent targeting {self.target_state} | {self.name}"
 
     def distance_from_goal(self, state):
-        goal_state = self.get_relevant_position(self.target_state)
-        curr_positions = self.get_relevant_position(state)
+        goal_state = self.get_salient_event_pos(self.target_state)
+        curr_positions = self.get_salient_event_pos(state)
         return np.linalg.norm(goal_state - curr_positions)
 
 
