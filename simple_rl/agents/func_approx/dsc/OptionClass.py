@@ -368,7 +368,7 @@ class Option(object):
 
             return np.ones((state_matrix.shape[0]))
 
-        position_matrix = self.get_init_classifier_pos(state_matrix)
+        position_matrix = GoalDirectedMDP.get_init_classifier_factors(state_matrix)
         return self.initiation_classifier.predict(position_matrix) == 1
 
     def batched_is_term_true(self, state_matrix):
@@ -407,7 +407,7 @@ class Option(object):
             return True
 
         # print('using svm for predicting if in initiation set.')
-        features = self.get_init_classifier_pos(ground_state)
+        features = GoalDirectedMDP.get_init_classifier_factors(ground_state)
         return self.initiation_classifier.predict([features])[0] == 1
 
     def is_term_true(self, ground_state):
@@ -618,7 +618,7 @@ class Option(object):
 
         # this is confusing because `target_salient_event.distance_from_goal` internally filters the dimensions, but
         # we need to do it explicitly for the initiation classifier
-        init_state_vector = self.get_init_classifier_pos(position_vector)
+        init_state_vector = GoalDirectedMDP.get_init_classifier_factors(position_vector)
         # For every other option, we use the negative distance to the parent's initiation set classifier
         dist = self.parent.initiation_classifier.decision_function(init_state_vector.reshape(1, -1))[0]
 
@@ -764,7 +764,7 @@ class Option(object):
                 self.effect_set.append(next_state)
 
                 if self.parent is None and self.is_term_true(next_state):
-                    print(f"[{self}] Adding {next_state.position} to {self.target_salient_event}'s trigger points")
+                    print(f"[{self}] Adding {GoalDirectedMDP.get_salient_event_factors(next_state)} to {self.target_salient_event}'s trigger points")
                     self.target_salient_event.trigger_points.append(next_state)
 
                 states_so_far.append(next_state)  # We want the terminal state to be part of the initiation classifier
@@ -829,8 +829,7 @@ class Option(object):
         return 1.
 
     def add_positive_examples(self, state_list):
-        for state in state_list:
-            self.positive_examples.append(GoalDirectedMDP.get_init_classifier_factors(state))
+        self.positive_examples.extend(GoalDirectedMDP.get_init_classifier_factors(state_list))
 
     def add_negative_example(self, state):
         self.negative_examples.append(GoalDirectedMDP.get_init_classifier_factors(state))

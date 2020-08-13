@@ -35,8 +35,8 @@ class GoalDirectedMDP(MDP):
 
         self.salient_tolerance = salient_tolerance
         SalientEvent.tolerance = salient_tolerance
-        self._salient_event_factor_indices = salient_event_factor_indices
-        self._init_classifier_factor_indices = init_classifier_factor_indices
+        GoalDirectedMDP.get_salient_event_factors = lambda state: GoalDirectedMDP._get_state_factors(state, salient_event_factor_indices)
+        GoalDirectedMDP.get_init_classifier_factors = lambda state: GoalDirectedMDP._get_state_factors(state, init_classifier_factor_indices)
 
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state
@@ -143,18 +143,13 @@ class GoalDirectedMDP(MDP):
         # position = state.position if isinstance(state, State) else state[:2]
         return position
 
-    def get_state_factors(self, state, factors):
+    @staticmethod
+    def _get_state_factors(state, factors):
         if isinstance(state, list):
-            return [self.get_salient_event_factors(x) for x in state]
+            return [GoalDirectedMDP._get_state_factors(x, factors) for x in state]
         elif isinstance(state, State):
-            return self.get_salient_event_factors(state.features())
+            return GoalDirectedMDP._get_state_factors(state.features(), factors)
         elif isinstance(state, np.ndarray):
-            return state[factors]
+            return state[..., factors]
         else:
             raise TypeError(f"state was of type {type(state)} but must be a State, np.ndarray, or list")
-
-    def get_salient_event_factors(self, state):
-        return self.get_state_factors(state, self._salient_event_factor_indices)
-
-    def get_init_classifier_factors(self, state):
-        return self.get_state_factors(state, self._init_classifier_factor_indices)
