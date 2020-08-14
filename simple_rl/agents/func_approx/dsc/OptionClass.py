@@ -58,8 +58,8 @@ class Option(object):
                device (torch.device)
                writer (SummaryWriter)
            """
-        if gestation_init_predicates is None:
-            gestation_init_predicates = []
+
+        self.gestation_init_predicates = [] if gestation_init_predicates else gestation_init_predicates
         self.name = name
         self.subgoal_reward = subgoal_reward
         self.max_steps = max_steps
@@ -76,7 +76,6 @@ class Option(object):
         self.target_salient_event = target_salient_event
         self.update_global_solver = update_global_solver
         self.use_warmup_phase = use_warmup_phase
-        self.gestation_init_predicates = gestation_init_predicates
         self.overall_mdp = overall_mdp
         self.device = device
         self.lr_actor = lr_actor

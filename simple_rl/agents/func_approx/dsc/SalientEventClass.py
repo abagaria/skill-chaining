@@ -7,27 +7,25 @@ import ipdb
 
 
 class SalientEvent(object):
-    get_salient_event_pos = self._get_position
-
-    def __init__(self, target_state, event_idx, use_additive_constants=False, intersection_event=False, name=None):
+    def __init__(self, target_state, event_idx, intersection_event=False, name=None, is_init_event=False):
         """
 
         Args:
-            target_state (np.ndarray):
+            target_state (np.ndarray): salient event factors, NOT the full state
             event_idx (int):
-            use_additive_constants (bool):
             intersection_event (bool):
             get_relevant_position (lambda):
             name (str):
+            is_init_event (bool):
         """
-        self.target_state = target_state
-        self.event_idx = event_idx
-        self.use_additive_constants = use_additive_constants
-        self.intersection_event = intersection_event
-        self.name = name
-
         assert isinstance(event_idx, int)
         assert isinstance(target_state, np.ndarray)
+
+        self.target_state = target_state
+        self.event_idx = event_idx
+        self.intersection_event = intersection_event
+        self.name = name
+        self.is_init_event = is_init_event
 
         # This is the union of the effect set of all the options targeting this salient event
         self.trigger_points = []
@@ -35,65 +33,50 @@ class SalientEvent(object):
 
     def _initialize_trigger_points(self):
         # TODO: Right now, the extra trigger points only work for 2d
-        trigger_points = []
-        if self.use_additive_constants:
-            r = self.tolerance
-            d = r / np.sqrt(2)
-            target_position = self.get_salient_event_pos(self.target_state)
+        # TODO: We don't need this after we have our graph checking daemon
+        r = self.tolerance
+        d = r / np.sqrt(2)
+        if self.is_init_event:
+            additive_constants = []
+        else:
             additive_constants = [np.array((r, 0)), np.array((0, r)),
                                   np.array((-r, 0)), np.array((0, -r)),
                                   np.array((d, d)), np.array((-d, -d)),
                                   np.array((-d, d)), np.array((d, -d))]
 
-            for constant in additive_constants:
-                trigger_points.append(target_position + constant)
-
+        trigger_points = [self.target_state + constant for constant in additive_constants]
         self.trigger_points = [self.target_state] + trigger_points
 
     def __call__(self, states):
         """
 
         Args:
-            states: this can either be an array representing a single state, or an array
+            states (np.ndarray): this can either be an array representing a single state, or an array
                     representing a batch of states or a State object
 
         Returns:
             is_satisfied: bool or bool array depending on the shape of states.
         """
-        if isinstance(states, State):
-            return self.is_init_true(states)
-        if len(states.shape) == 1:
-            return self.is_init_true(states)
-        return self.batched_is_init_true(states)
+        factors = GoalDirectedMDP.get_salient_event_factors(states)
+        if len(factors.shape) == 1:
+            return self.is_init_true(factors)
+        else:
+            return self.batched_is_init_true(factors)
 
     def __eq__(self, other):
-        def _state_eq(s1, s2):
-            s1 = self.get_salient_event_pos(s1)
-            s2 = self.get_salient_event_pos(s2)
-            return (s1 == s2).all()
-
         if not isinstance(other, SalientEvent):
             return False
 
-        return _state_eq(self.target_state, other.target_state) and \
-               self.tolerance == other.tolerance  # and \
+        return (self.target_state == other.target_state).all() and self.tolerance == other.tolerance
         # self.event_idx == other.event_idx
 
     def __hash__(self):
-        target_state = self.get_salient_event_pos(self.target_state)
-        return hash(tuple(target_state))
+        return hash(tuple(self.target_state))
 
-    def is_init_true(self, state):
-        position = self.get_salient_event_pos(state)
-        target_position = self.get_salient_event_pos(self.target_state)
-        return np.linalg.norm(position - target_position) <= self.tolerance
-
-    def batched_is_init_true(self, position_matrix):
-        assert isinstance(position_matrix, np.ndarray), type(position_matrix)
-        curr_positions = self.get_salient_event_pos(position_matrix)
-        goal_position = self.get_salient_event_pos(self.target_state)
-        in_goal_position = distance.cdist(curr_positions, goal_position[None, :]) <= self.tolerance
-        return in_goal_position.squeeze(1)
+    def is_subset(self, other_event):
+        """ I am a subset of `other_event` if all my trigger points are inside `other_event`. """
+        assert isinstance(other_event, SalientEvent)
+        return other_event.batched_is_init_true(self.trigger_points).all()
 
     def is_intersecting(self, option):
         """
@@ -112,6 +95,16 @@ class SalientEvent(object):
         if len(self.trigger_points) > 0 and option.get_training_phase() == "initiation_done":
             return all([option.is_init_true(s) for s in self.trigger_points])
         return False
+
+    def is_init_true(self, state):
+        target_position = self.get_salient_event_pos(self.target_state)
+        return np.linalg.norm(position - target_position) <= self.tolerance
+
+    def batched_is_init_true(self, position_matrix):
+        assert isinstance(position_matrix, np.ndarray), type(position_matrix)
+        goal_position = self.get_salient_event_pos(self.target_state)
+        in_goal_position = distance.cdist(curr_positions, goal_position[None, :]) <= self.tolerance
+        return in_goal_position.squeeze(1)
 
     def get_target_position(self):
         return self.get_salient_event_pos(self.target_state)
