@@ -6,7 +6,6 @@ import numpy as np
 import ipdb
 from copy import deepcopy
 import torch
-from sklearn import svm
 from tqdm import tqdm
 import itertools
 from scipy.spatial import distance
@@ -503,7 +502,7 @@ class Option(object):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
         # Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-        self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
+        self.initiation_classifier = OneClassInitiationSet(kernel="rbf", nu=self.nu, gamma="scale")
         self.initiation_classifier.fit(positive_feature_matrix)
 
         return True
@@ -523,14 +522,14 @@ class Option(object):
             kwargs = {"kernel": "rbf", "gamma": "scale"}
 
         # We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-        initiation_classifier = svm.SVC(**kwargs)
+        initiation_classifier = TwoClassInitiationSet(**kwargs)
         initiation_classifier.fit(X, Y)
 
         training_predictions = initiation_classifier.predict(X)
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
+            self.initiation_classifier = OneClassInitiationSet(kernel="rbf", nu=self.nu, gamma="scale")
             self.initiation_classifier.fit(positive_training_examples)
 
             self.classifier_type = "tcsvm"
@@ -540,14 +539,14 @@ class Option(object):
             kwargs = {"kernel": "rbf", "gamma": "scale"}
 
             # We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-            initiation_classifier = svm.SVC(**kwargs)
+            initiation_classifier = TwoClassInitiationSet(**kwargs)
             initiation_classifier.fit(X, Y)
 
             training_predictions = initiation_classifier.predict(X)
             positive_training_examples = X[training_predictions == 1]
 
             if positive_training_examples.shape[0] > 0:
-                self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
+                self.initiation_classifier = OneClassInitiationSet(kernel="rbf", nu=self.nu, gamma="scale")
                 self.initiation_classifier.fit(positive_training_examples)
 
                 self.classifier_type = "tcsvm"
