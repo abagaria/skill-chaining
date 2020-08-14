@@ -902,7 +902,6 @@ class SkillGraphPlanningAgent(object):
 
         if start_state is not None:
             start_position = start_state.position if isinstance(start_state, State) else start_state
-            # start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             self.mdp.reset_to_start_state(start_position)
 
     def measure_success(self, goal_salient_event, start_state, starting_episode=0, num_episodes=100):
