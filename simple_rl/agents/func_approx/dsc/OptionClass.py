@@ -18,6 +18,7 @@ from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.InitiationSetClass import OneClassInitiationSet, TwoClassInitiationSet
 
 
 class Option(object):
@@ -367,7 +368,6 @@ class Option(object):
 
             return np.ones((state_matrix.shape[0]))
 
-        position_matrix = GoalDirectedMDP.get_init_classifier_factors(state_matrix)
         return self.initiation_classifier.predict(position_matrix) == 1
 
     def batched_is_term_true(self, state_matrix):

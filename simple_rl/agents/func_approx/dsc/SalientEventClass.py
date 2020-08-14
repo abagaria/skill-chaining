@@ -7,6 +7,10 @@ import ipdb
 
 
 class SalientEvent(object):
+    tolerance = None
+    state_size = None
+    factor_indices = None
+
     def __init__(self, target_state, event_idx, intersection_event=False, name=None, is_init_event=False):
         """
 
@@ -18,6 +22,11 @@ class SalientEvent(object):
             name (str):
             is_init_event (bool):
         """
+
+        assert self.tolerance is not None
+        assert self.state_size is not None
+        assert self.factor_indices is not None
+
         assert isinstance(event_idx, int)
         assert isinstance(target_state, np.ndarray)
 
@@ -32,20 +41,18 @@ class SalientEvent(object):
         self._initialize_trigger_points()
 
     def _initialize_trigger_points(self):
-        # TODO: Right now, the extra trigger points only work for 2d
         # TODO: We don't need this after we have our graph checking daemon
-        r = self.tolerance
-        d = r / np.sqrt(2)
-        if self.is_init_event:
-            additive_constants = []
-        else:
-            additive_constants = [np.array((r, 0)), np.array((0, r)),
-                                  np.array((-r, 0)), np.array((0, -r)),
-                                  np.array((d, d)), np.array((-d, -d)),
-                                  np.array((-d, d)), np.array((d, -d))]
+        additive_constants = [self.target_state]
 
-        trigger_points = [self.target_state + constant for constant in additive_constants]
-        self.trigger_points = [self.target_state] + trigger_points
+        if not self.is_init_event:
+            for dim in range(self.state_size):
+                offset = np.zeros(self.state_size)
+                offset[dim] = self.tolerance
+                additive_constants.append(self.target_state + offset)
+                additive_constants.append(self.target_state - offset)
+
+        return additive_constants
+                
 
     def __call__(self, states):
         """
@@ -57,11 +64,10 @@ class SalientEvent(object):
         Returns:
             is_satisfied: bool or bool array depending on the shape of states.
         """
-        factors = GoalDirectedMDP.get_salient_event_factors(states)
-        if len(factors.shape) == 1:
-            return self.is_init_true(factors)
+        if len(states.shape) == 1:
+            return self.is_init_true(states)
         else:
-            return self.batched_is_init_true(factors)
+            return self.batched_is_init_true(states)
 
     def __eq__(self, other):
         if not isinstance(other, SalientEvent):
@@ -97,23 +103,15 @@ class SalientEvent(object):
         return False
 
     def is_init_true(self, state):
-        target_position = self.get_salient_event_pos(self.target_state)
-        return np.linalg.norm(position - target_position) <= self.tolerance
+        return self.distance_from_goal(state) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
-        goal_position = self.get_salient_event_pos(self.target_state)
-        in_goal_position = distance.cdist(curr_positions, goal_position[None, :]) <= self.tolerance
+        in_goal_position = self.distance_from_goal(position_matrix) <= self.tolerance
         return in_goal_position.squeeze(1)
 
     def get_target_position(self):
-        return self.get_salient_event_pos(self.target_state)
-
-    @staticmethod
-    def _get_position(state):
-        position = state.features() if isinstance(state, State) else state
-        assert isinstance(position, np.ndarray), type(position)
-        return position
+        return self.target_state
 
     def __repr__(self):
         if self.name is None:
@@ -121,10 +119,22 @@ class SalientEvent(object):
         else:
             return f"SalientEvent targeting {self.target_state} | {self.name}"
 
+    def _get_relevant_factors(self, state):
+        if isinstance(state, list):
+            return [self._get_relevant_factors(x) for x in state]
+        elif isinstance(state, State):
+            return self._get_relevant_factors(state.features())
+        elif isinstance(state, np.ndarray):
+            return state[..., self.factor_indices]
+        else:
+            raise TypeError(f"state was of type {type(state)} but must be a State, np.ndarray, or list")
+
     def distance_from_goal(self, state):
-        goal_state = self.get_salient_event_pos(self.target_state)
-        curr_positions = self.get_salient_event_pos(state)
-        return np.linalg.norm(goal_state - curr_positions)
+        factors = self._get_relevant_factors(state)
+        if len(state.shape) == 1:
+            return np.linalg.norm(self.target_state - factors)
+        else:
+            return distance.cdist(factors, self.target_state[None, :])
 
 
 class LearnedSalientEvent(SalientEvent):
@@ -138,8 +148,8 @@ class LearnedSalientEvent(SalientEvent):
                               intersection_event=intersection_event, name=name)
 
     def is_init_true(self, state):
-        position = self._get_position(state)
-        return self.classifier.predict(position.reshape(1, -1))
+        factors = self._get_relevant_factors(state)
+        return self.classifier.predict(factors.reshape(1, -1))
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
@@ -221,7 +231,3 @@ class DSCOptionSalientEvent(SalientEvent):
 
     def __repr__(self):
         return f"SalientEvent corresponding to {self.option}"
-
-    @staticmethod
-    def _get_position(state):
-        raise NotImplementedError("DSCOptionSalientEvent does not have a target state - it just wraps around an option")
