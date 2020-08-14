@@ -485,7 +485,7 @@ class SkillGraphPlanner(object):
 
         if start_state is not None:
             start_pos_array = start_state.features() if isinstance(start_state, State) else start_state
-            self.mdp.reset_to_start_state(start_pos_array)
+            self.mdp.reset_to_state(start_pos_array)
 
     def measure_success(self, goal_salient_event, start_state=None, num_episodes=100):
         successes = 0

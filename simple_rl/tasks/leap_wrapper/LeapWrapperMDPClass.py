@@ -151,7 +151,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                             get_relevant_position=get_puck_pos,
                             name=f"RRT Salient Episode {episode}")
 
-    def reset_to_start_state(self, start_state):
+    def reset_to_state(self, start_state):
         self.env.reset_to_new_start_state(start_pos=start_state)
         self.cur_state = LeapWrapperState(endeff_pos=start_state[:3], puck_pos=start_state[3:], done=False)
 

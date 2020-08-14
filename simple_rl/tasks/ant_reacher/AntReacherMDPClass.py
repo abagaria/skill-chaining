@@ -107,6 +107,7 @@ class AntReacherMDP(GoalDirectedMDP):
 
     def set_xy(self, position):
         """ Used at test-time only. """
+        position = position[:2]
         position = tuple(position)  # `maze_model.py` expects a tuple
         self.env.wrapped_env.set_xy(position)
 
