@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+import ipdb
 import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
@@ -24,6 +25,8 @@ class GraphSearch(object):
             self.option_nodes.append(node)
         elif isinstance(node, SalientEvent) and (node not in self.salient_nodes):
             self.salient_nodes.append(node)
+        else:
+            raise IOError(f"Got {node} of type {type(node)}, but expected either Option or SalientEvent")
 
     def add_edge(self, option1, option2, edge_weight=1.):
         self.plan_graph.add_edge(option1, option2)
@@ -77,21 +80,21 @@ class GraphSearch(object):
     def visualize_plan_graph(self, file_name=None):
         try:
             pos = nx.planar_layout(self.plan_graph)
-            labels = nx.get_edge_attributes(self.plan_graph, "weight")
+        except nx.NetworkXException:
+            pos = nx.random_layout(self.plan_graph)
+        labels = nx.get_edge_attributes(self.plan_graph, "weight")
 
-            # Truncate the labels to 2 decimal places
-            for key in labels:
-                labels[key] = np.round(labels[key], 2)
+        # Truncate the labels to 2 decimal places
+        for key in labels:
+            labels[key] = np.round(labels[key], 2)
 
-            plt.figure(figsize=(18, 16))
+        plt.figure(figsize=(16, 10))
 
-            nx.draw_networkx(self.plan_graph, pos)
-            nx.draw_networkx_edge_labels(self.plan_graph, pos, edge_labels=labels)
+        nx.draw_networkx(self.plan_graph, pos)
+        nx.draw_networkx_edge_labels(self.plan_graph, pos, edge_labels=labels)
 
-            plt.savefig(file_name) if file_name is not None else plt.show()
-            plt.close()
-        except:
-            print("Did not visualize the plan graph b/c it is no longer planar.")
+        plt.savefig(file_name) if file_name is not None else plt.show()
+        plt.close()
 
     def does_path_exist_between_nodes(self, node1, node2):
         return shortest_paths.has_path(self.plan_graph, node1, node2)

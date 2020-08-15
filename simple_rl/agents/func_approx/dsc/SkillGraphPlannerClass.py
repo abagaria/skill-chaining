@@ -479,14 +479,13 @@ class SkillGraphPlanner(object):
     # -----------------------------–––––––--------------
     # Evaluation Functions
     # -----------------------------–––––––--------------
-
     def reset(self, start_state=None):
         """ Reset the MDP to either the default start state or to the specified one. """
         self.mdp.reset()
 
         if start_state is not None:
-            start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
-            self.mdp.set_xy(start_position)
+            start_pos_array = start_state.features() if isinstance(start_state, State) else start_state
+            self.mdp.reset_to_state(start_pos_array)
 
     def measure_success(self, goal_salient_event, start_state=None, num_episodes=100):
         successes = 0

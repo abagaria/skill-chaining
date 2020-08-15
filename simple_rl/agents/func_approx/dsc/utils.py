@@ -1,5 +1,6 @@
 # Python imports.
-import pdb
+import os
+import ipdb
 import numpy as np
 import scipy.interpolate
 import matplotlib
@@ -10,7 +11,6 @@ import torch
 import imageio
 import seaborn as sns
 sns.set()
-sns.set_style("white")
 from PIL import Image
 from tqdm import tqdm
 import os
@@ -18,7 +18,6 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -128,43 +127,6 @@ def get_initiation_set_values(option):
 #     plt.savefig("value_function_plots/{}/{}_value_function.png".format(experiment_name, name))
 #     plt.close()
 
-def make_meshgrid(x, y, h=.02):
-    x_min, x_max = x.min() - 1, x.max() + 1
-    y_min, y_max = y.min() - 1, y.max() + 1
-    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-                         np.arange(y_min, y_max, h))
-    return xx, yy
-
-def plot_one_class_initiation_classifier(option, episode=None, experiment_name=""):
-
-    colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
-
-    plt.figure(figsize=(8.0, 5.0))
-    X = option.construct_feature_matrix(option.positive_examples)
-    X0, X1 = X[:, 0], X[:, 1]
-    xx, yy = make_meshgrid(X0, X1)
-    Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
-    Z1 = Z1.reshape(xx.shape)
-
-    color = colors[option.option_idx % len(colors)]
-    plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
-
-    plot_all_trajectories_in_initiation_data(option.positive_examples)
-
-    # background_image = imageio.imread("emaze_domain.png")
-    # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 18.])
-    #
-    # plt.xticks([])
-    # plt.yticks([])
-
-    plt.xlim((-10, 10))
-    plt.ylim((-10, 10))
-
-    plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
-    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-    plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
-    plt.close()
-
 
 def plot_two_class_classifier(option, episode, experiment_name):
     states = get_grid_states(option.overall_mdp)
@@ -183,11 +145,11 @@ def plot_two_class_classifier(option, episode, experiment_name):
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
 
-    # if positive_examples.shape[0] > 0:
-    #     plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
-    #
-    # if negative_examples.shape[0] > 0:
-    #     plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+    if positive_examples.shape[0] > 0:
+        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+
+    if negative_examples.shape[0] > 0:
+        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
@@ -222,6 +184,7 @@ def visualize_dqn_replay_buffer(solver, experiment_name=""):
     plt.title("# transitions = {}".format(len(solver.replay_buffer)))
     plt.savefig("value_function_plots/{}/{}_replay_buffer_analysis.png".format(experiment_name, solver.name))
     plt.close()
+
 
 def visualize_smdp_updates(global_solver, experiment_name=""):
     smdp_transitions = list(filter(lambda e: isinstance(e.action, int) and e.action > 0, global_solver.replay_buffer.memory))
@@ -287,34 +250,30 @@ def replay_trajectory(trajectory, dir_name):
         img.save("{}/frame{}.png".format(dir_name, i))
 
 
-def visualize_dqn_shaped_rewards(dqn_agent, option, episode, seed, experiment_name):
+def visualize_dqn_shaped_rewards(dqn_agent, option, episode, seed, logdir):
     next_states = np.array([exp.next_state for exp in dqn_agent.replay_buffer.memory])
     if option.should_target_with_bonus():
         shaped_rewards = 1.0 * option.batched_is_init_true(next_states)
-    else:
-        shaped_rewards = np.zeros_like(next_states[:, 0])
-    plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
-    plt.colorbar()
-    file_name = f"{option.name}_high_level_shaped_rewards_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
+        plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
+        plt.colorbar()
+        file_name = f"{option.name}_high_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
+        plt.close()
 
 
-def visualize_ddpg_shaped_rewards(global_option, other_option, episode, seed, experiment_name):
+def visualize_ddpg_shaped_rewards(global_option, other_option, episode, seed, logdir):
     ddpg_agent = global_option.solver
     next_states = np.array([exp[-2] for exp in ddpg_agent.replay_buffer])
     if other_option.should_target_with_bonus():
         shaped_rewards = 1. * other_option.batched_is_init_true(next_states)
-    else:
-        shaped_rewards = np.zeros_like(next_states[:, 0])
-    plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
-    plt.colorbar()
-    file_name = f"{other_option.name}_low_level_shaped_rewards_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
+        plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
+        plt.colorbar()
+        file_name = f"{other_option.name}_low_level_shaped_rewards_seed_{seed}_episode_{episode}.png"
+        plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
+        plt.close()
 
 
-def visualize_ddpg_replay_buffer(solver, episode, seed, experiment_name):
+def visualize_ddpg_replay_buffer(solver, episode, seed, logdir):
     states = np.array([exp[0] for exp in solver.replay_buffer.memory])
     actions = np.array([exp[1] for exp in solver.replay_buffer.memory])
     states_tensor = torch.from_numpy(states).float().to(solver.device)
@@ -322,12 +281,12 @@ def visualize_ddpg_replay_buffer(solver, episode, seed, experiment_name):
     qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
+    plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
     plt.close()
 
 
-def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experiment_name):
+def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, logdir):
     states = np.array([exp.state for exp in policy_over_options_dqn.replay_buffer.memory])
     states_tensor = torch.from_numpy(states).float().to(policy_over_options_dqn.device)
     options = policy_over_options_dqn.get_best_actions_batched(states_tensor).cpu().numpy()
@@ -335,11 +294,12 @@ def visualize_best_option_to_take(policy_over_options_dqn, episode, seed, experi
     y = [s[1] for s in states]
     plt.scatter(x, y, c=options, cmap=plt.cm.Dark2)
     plt.colorbar()
-    file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    file_name = f"{policy_over_options_dqn.name}_best_options_seed_{seed}_episode_{episode}.png"
+    plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
     plt.close()
 
-def visualize_buffer(option, episode, seed, experiment_name):
+
+def visualize_buffer(option, episode, seed, logdir):
     buffer = option.solver.replay_buffer.memory
     terminal_states = [transition[-2] for transition in buffer if transition[-1]]
     terminal_start_states = [transition[0] for transition in buffer if transition[-1]]
@@ -349,51 +309,10 @@ def visualize_buffer(option, episode, seed, experiment_name):
     plt.scatter([t[0] for t in terminal_states], [t[1] for t in terminal_states], alpha=1.0)
     plt.scatter([t[0] for t in terminal_start_states], [t[1] for t in terminal_start_states], alpha=1.0)
     plt.title(f"{option.solver.name}s replay buffer with length {len(buffer)}")
-    file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    file_name = f"{option.solver.name}_replay_buffer_seed_{seed}_episode_{episode}.png"
+    plt.savefig(os.path.join(logdir, "value_function_plots", file_name))
     plt.close()
 
-def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
-    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([exp[0] for exp in replay_buffer])
-    actions = np.array([exp[1] for exp in replay_buffer])
-
-    # Chunk up the inputs so as to conserve GPU memory
-    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
-
-    if num_chunks == 0:
-        return 0.
-
-    state_chunks = np.array_split(states, num_chunks, axis=0)
-    action_chunks = np.array_split(actions, num_chunks, axis=0)
-    qvalues = np.zeros((states.shape[0],))
-    current_idx = 0
-
-    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
-        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
-        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
-        current_chunk_size = len(state_chunk)
-        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
-        current_idx += current_chunk_size
-
-    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
-    plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
-
-    return qvalues.max()
-
-def create_log_dir(experiment_name):
-    path = os.path.join(os.getcwd(), experiment_name)
-    try:
-        os.mkdir(path)
-    except OSError:
-        print("Creation of the directory %s failed" % path)
-    else:
-        print("Successfully created the directory %s " % path)
-    return path
 
 def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     option = salient_event.covering_option
@@ -448,6 +367,7 @@ def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     plt.savefig("initiation_set_plots/{}/{}-{}_threshold-is_low={}.png".format(experiment_name, name, threshold, is_low))
     plt.close()
 
+
 def plot_effect_sets(options):
     plt.figure()
     for option in options:
@@ -457,40 +377,6 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
-kGraphIterationNumber = 0
-
-def visualize_graph(chains, experiment_name, plot_completed_events):
-
-    global kGraphIterationNumber
-
-    def _plot_event_pair(event1, event2):
-        x = [event1.target_state[0], event2.target_state[0]]
-        y = [event1.target_state[1], event2.target_state[1]]
-        plt.plot(x, y, "o-", c="black")
-
-    sns.set_style("white")
-
-    plt.figure()
-
-    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
-
-    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
-
-    for chain in forward_chains:
-        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
-
-    plt.xticks([]); plt.yticks([])
-
-    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
-
-    plt.xlim((x_low_lim, x_high_lim))
-    plt.ylim((y_low_lim, y_high_lim))
-
-    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
-    plt.close()
-
-    kGraphIterationNumber += 1
 
 def plot_dco_salient_event(ax, salient_event, states):
     option = salient_event.covering_option
@@ -498,32 +384,29 @@ def plot_dco_salient_event(ax, salient_event, states):
 
     target_state = salient_event.target_state
 
-    # option_term = option.batched_is_term_true(states, is_low)
-    # option_init_states, option_term_states = states[~option_term], states[option_term]
-    # option_init_values = option.initiation_classifier(option_init_states).flatten()
-    values = option.evaluate(states)
-
-    print(f"For {salient_event}, Max-F: {max(values)}, Min-F: {min(values)}")
+    option_term = option.batched_is_term_true(states, is_low)
+    option_init_states, option_term_states = states[~option_term], states[option_term]
+    option_init_values = option.initiation_classifier(option_init_states).flatten()
 
     cmap = matplotlib.cm.get_cmap('Blues')
-    normalize = matplotlib.colors.Normalize(vmin=min(values), vmax=max(values))
-    colors = [cmap(normalize(v)) for v in values]
+    normalize = matplotlib.colors.Normalize(vmin=min(option_init_values), vmax=max(option_init_values))
+    colors = [cmap(normalize(v)) for v in option_init_values]
 
-    ax.scatter(states[:, 0], states[:, 1], c=colors)
+    ax.scatter(option_init_states[:, 0], option_init_states[:, 1], c=colors)
 
-    # # salient event initiation set is a subset of the covering option termination set
-    # event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
-    # event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
-    #
-    # if len(event_not_init_states) > 0:
-    #     ax.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], c="orange")
-    # if len(event_init_states) > 0:
-    #     ax.scatter(event_init_states[:, 0], event_init_states[:, 1], c="green")
+    # salient event initiation set is a subset of the covering option termination set
+    event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
+    event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
+
+    if len(event_not_init_states) > 0:
+        ax.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], c="orange")
+    if len(event_init_states) > 0:
+        ax.scatter(event_init_states[:, 0], event_init_states[:, 1], c="green")
 
     ax.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
 
-    low_bound_x, up_bound_x = -10, 10
-    low_bound_y, up_bound_y = -10, 10
+    low_bound_x, up_bound_x = -15, 15
+    low_bound_y, up_bound_y = -15, 15
 
     ax.set_xlim((low_bound_x, up_bound_x))
     ax.set_ylim((low_bound_y, up_bound_y))
@@ -534,8 +417,7 @@ def plot_dco_salient_event(ax, salient_event, states):
 def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, episode, reject_low, reject_high, experiment_name=""):
     fig, axs = plt.subplots(2, figsize=(8, 10))
 
-    # states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
-    states = np.array([trans.state for trans in replay_buffer.memory])
+    states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
     plot_dco_salient_event(axs[0], low_event, states)
     plot_dco_salient_event(axs[1], high_event, states)
 
@@ -549,7 +431,7 @@ def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, epis
 
     option = low_event.covering_option
     name = option.name
-    threshold = 0. # option.threshold
+    threshold = option.threshold
     beta = option.beta
 
     axs[0].set_title(f"Min (replay buffer of size {len(replay_buffer)})")
@@ -557,62 +439,6 @@ def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, epis
     # axs[0, 1].set_title(f"SMDP Min (replay buffer of size {len(smdp_buffer)})")
     # axs[1, 1].set_title(f"SMDP Max (replay buffer of size {len(smdp_buffer)})")
 
-    if not os.path.isdir(f"initiation_set_plots/{experiment_name}"):
-        os.makedirs(f"initiation_set_plots/{experiment_name}")
-
     fig.suptitle(f"Salient events with threshold={threshold} and beta={beta:.4f}")
     plt.savefig("initiation_set_plots/{}/{}_threshold_{}-episode_{}-reject_({}, {}).png".format(experiment_name, name, threshold, episode, reject_low, reject_high))
-    plt.close()
-
-def get_intersecting_events(source_chain, events):
-    """ events come from the plan_graph """
-    connecting_events = []
-    for event in events:
-        for option in source_chain.options:
-            if source_chain.should_exist_edge_from_option_to_event(option, event) and \
-                    event != source_chain.init_salient_event:
-                connecting_events.append(event)
-    return connecting_events
-
-
-def visualize_graph_with_all_edges(planner, chains, experiment_name,
-                                   plot_completed_events, background_img_fname="ant_maze_big_domain"):
-
-    global kGraphIterationNumber
-
-    def _plot_event_pair(event1, event2):
-        if event1.target_state is not None and event2.target_state is not None:
-            x = [event1.target_state[0], event2.target_state[0]]
-            y = [event1.target_state[1], event2.target_state[1]]
-            plt.plot(x, y, "o-", c="black")
-
-    sns.set_style("white")
-
-    plt.figure()
-
-    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
-
-    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
-    events = [event for event in planner.plan_graph.plan_graph.nodes if isinstance(event, SalientEvent)]
-
-    for chain in forward_chains:
-        intersecting_events = get_intersecting_events(chain, events)
-        for event in intersecting_events:
-            _plot_event_pair(chain.init_salient_event, event)
-        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
-
-    plt.xticks([]); plt.yticks([])
-
-    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
-
-    filename = os.path.join(os.getcwd(), f"{background_img_fname}.png")
-    if os.path.isfile(filename):
-        background_image = imageio.imread(filename)
-        plt.imshow(background_image, zorder=0, alpha=0.5, extent=[x_low_lim, x_high_lim, y_low_lim, y_high_lim])
-
-    plt.xlim((x_low_lim, x_high_lim))
-    plt.ylim((y_low_lim, y_high_lim))
-
-    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
     plt.close()

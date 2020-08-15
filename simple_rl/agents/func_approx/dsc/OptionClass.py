@@ -1,11 +1,11 @@
 # Python imports.
 from __future__ import print_function
+
 import random
 import numpy as np
 import ipdb
 from copy import deepcopy
 import torch
-from sklearn import svm
 from tqdm import tqdm
 import itertools
 from scipy.spatial import distance
@@ -17,45 +17,49 @@ from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.InitiationSetClass import OneClassInitiationSet, TwoClassInitiationSet
 
 
 class Option(object):
+    fixed_epsilon = False
+    constant_noise = False
 
     def __init__(self, overall_mdp, name, global_solver, lr_actor, lr_critic, ddpg_batch_size, classifier_type="ocsvm",
                  subgoal_reward=0., max_steps=20000, seed=0, parent=None, num_subgoal_hits_required=3, buffer_length=20,
                  dense_reward=False, enable_timeout=True, timeout=200, initiation_period=5, option_idx=None,
                  chain_id=None, initialize_everywhere=True, max_num_children=3,
                  init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
-                 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg",
-                 generate_plots=False, device=torch.device("cpu"), writer=None):
-        '''
-        Args:
-            overall_mdp (GoalDirectedMDP)
-            name (str)
-            global_solver (DDPGAgent)
-            lr_actor (float)
-            lr_critic (float)
-            ddpg_batch_size (int)
-            classifier_type (str)
-            subgoal_reward (float)
-            max_steps (int)
-            seed (int)
-            parent (Option)
-            dense_reward (bool)
-            enable_timeout (bool)
-            timeout (int)
-            chain_id (int)
-            initialize_everywhere (bool)
-            init_salient_event (SalientEvent)
-            target_salient_event (SalientEvent)
-            update_global_solver (bool)
-            use_warmup_phase (bool)
-            gestation_init_predicates (list)
-            is_backward_option (bool)
-            generate_plots (bool)
-            device (torch.device)
-            writer (SummaryWriter)
-        '''
+                 gestation_init_predicates=None, is_backward_option=False, solver_type="ddpg",
+                 device=torch.device("cpu"), writer=None):
+        """
+           Args:
+               overall_mdp (GoalDirectedMDP)
+               name (str)
+               global_solver (DDPGAgent)
+               lr_actor (float)
+               lr_critic (float)
+               ddpg_batch_size (int)
+               classifier_type (str)
+               subgoal_reward (float)
+               max_steps (int)
+               seed (int)
+               parent (Option)
+               dense_reward (bool)
+               enable_timeout (bool)
+               timeout (int)
+               chain_id (int)
+               initialize_everywhere (bool)
+               init_salient_event (SalientEvent)
+               target_salient_event (SalientEvent)
+               update_global_solver (bool)
+               use_warmup_phase (bool)
+               gestation_init_predicates (list)
+               is_backward_option (bool)
+               device (torch.device)
+               writer (SummaryWriter)
+           """
+
+        self.gestation_init_predicates = [] if gestation_init_predicates else gestation_init_predicates
         self.name = name
         self.subgoal_reward = subgoal_reward
         self.max_steps = max_steps
@@ -66,14 +70,12 @@ class Option(object):
         self.initiation_period = initiation_period
         self.max_num_children = max_num_children
         self.classifier_type = classifier_type
-        self.generate_plots = generate_plots
         self.writer = writer
         self.initialize_everywhere = initialize_everywhere
         self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.update_global_solver = update_global_solver
         self.use_warmup_phase = use_warmup_phase
-        self.gestation_init_predicates = gestation_init_predicates
         self.overall_mdp = overall_mdp
         self.device = device
         self.lr_actor = lr_actor
@@ -125,6 +127,7 @@ class Option(object):
 
         # Debug member variables
         self.num_executions = 0
+        self.num_on_policy_goal_hits = 0
         self.num_test_executions = 0
         self.num_successful_test_executions = 0
 
@@ -161,10 +164,16 @@ class Option(object):
                 self.__dict__[key] = state_dictionary[key]
 
     def _get_epsilon_greedy_epsilon(self):
-        if "point" in self.overall_mdp.env_name:
-            return 0.1
-        elif "ant" in self.overall_mdp.env_name:
-            return 0.25
+        if self.constant_noise:
+            if "point" in self.overall_mdp.env_name:
+                return 0.1
+            elif "ant" in self.overall_mdp.env_name:
+                return 0.25
+            elif "sawyer" in self.overall_mdp.env_name:
+                return 0.25
+            else:
+                raise NotImplementedError(f"Epsilon not defined for {self.overall_mdp.env_name}")
+        return 0.
 
     def act(self, state, eval_mode, warmup_phase):
         """ Epsilon greedy action selection when in training mode. """
@@ -178,12 +187,12 @@ class Option(object):
 
     def reset_global_solver(self):
         if self.solver_type == "ddpg":
-            self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device,
-                                           self.lr_actor, self.lr_critic, self.ddpg_batch_size, name="global_option")
+            self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device, self.lr_actor, self.lr_critic,
+                                           self.ddpg_batch_size, tensor_log=(self.writer is not None), writer=self.writer,
+                                           name="global_option", fixed_epsilon=self.fixed_epsilon)
         elif self.solver_type == "td3":
             self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
                                      max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
-
         else:
             raise NotImplementedError(self.solver_type)
 
@@ -198,7 +207,8 @@ class Option(object):
             solver_name = "{}_ddpg_agent".format(self.name)
             exploration = "shaping" if self.name == "global_option" else ""
             self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-                                    tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
+                                    tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration,
+                                    fixed_epsilon=self.fixed_epsilon)
         elif self.solver_type == "td3":
             exploration_method = "shaping" if self.name == "global_option" else ""
             self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
@@ -232,7 +242,6 @@ class Option(object):
                     sampled_experience = random.choice(self.experience_buffer)
                 else:
                     continue
-                # ipdb.set_trace()
                 sampled_state = _get_state_from_experience(sampled_experience)
                 sampled_state = sampled_state if self.is_init_true(sampled_state) else None
             elif isinstance(self.solver, TD3):
@@ -338,29 +347,31 @@ class Option(object):
                 self.solver.step(state, action, subgoal_reward, next_state, done)
 
     def batched_is_init_true(self, state_matrix):
+        """
+        Given a matrix of complete states (not just salient_event_factors, or init_classifier_factors),
+        determines whether those states are in the option's initiation set.
+
+        :param state_matrix:
+        :return:
+        """
 
         if self.name == "global_option":
             return np.ones((state_matrix.shape[0]))
 
         if self.initialize_everywhere and (self.initiation_classifier is None or self.get_training_phase() == "gestation"):
             if self.backward_option:
-                state_matrix = state_matrix[:, :2]
-
                 # When we treat the start state as a salient event, we pass in the
                 # init predicate that we are going to use during gestation
                 if self.init_salient_event is not None:
                     return self.init_salient_event(state_matrix)
 
             return np.ones((state_matrix.shape[0]))
-        position_matrix = state_matrix[:, :2]
+
         return self.initiation_classifier.predict(position_matrix) == 1
 
     def batched_is_term_true(self, state_matrix):
         if self.parent is not None:
             return self.parent.batched_is_init_true(state_matrix)
-
-        # Extract the relevant dimensions from the state matrix (x, y)
-        state_matrix = state_matrix[:, :2]
 
         if self.target_salient_event is not None:
             return self.target_salient_event(state_matrix)
@@ -370,7 +381,13 @@ class Option(object):
             return np.zeros((state_matrix.shape[0]))
 
     def is_init_true(self, ground_state):
+        """
+        Given a complete state (not just salient_event_factors, or init_classifier_factors),
+        determines whether that state is in the option's initiation set.
 
+        :param ground_state:
+        :return:
+        """
         if self.name == "global_option":
             return True
 
@@ -387,8 +404,8 @@ class Option(object):
 
             return True
 
-        features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
-        return self.initiation_classifier.predict([features])[0] == 1
+        # print('using svm for predicting if in initiation set.')
+        return self.initiation_classifier.predict([ground_state])[0] == 1
 
     def is_term_true(self, ground_state):
         if self.parent is not None:
@@ -403,10 +420,10 @@ class Option(object):
 
     def should_target_with_bonus(self):
         """
-        Used by policy over options and the global DDPG agent to decide if the
-        skill chaining agent should target the initiation set of the current
-        option by means of exploration bonuses.
-        """
+           Used by policy over options and the global DDPG agent to decide if the
+           skill chaining agent should target the initiation set of the current
+           option by means of exploration bonuses.
+           """
         if self.name == "global_option":
             return False
 
@@ -444,8 +461,7 @@ class Option(object):
         segmented_states = deepcopy(states)
         if len(states) >= self.buffer_length:
             segmented_states = segmented_states[-self.buffer_length:]
-        segmented_positions = [segmented_state.position for segmented_state in segmented_states]
-        self.positive_examples.append(segmented_positions)
+        self.add_positive_examples(segmented_states)
 
     def add_experience_buffer(self, experience_queue):
         assert type(experience_queue) == list, "Expected initiation experience sample to be a list"
@@ -485,7 +501,7 @@ class Option(object):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
 
         # Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
-        self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
+        self.initiation_classifier = OneClassInitiationSet(kernel="rbf", nu=self.nu, gamma="scale")
         self.initiation_classifier.fit(positive_feature_matrix)
 
         return True
@@ -505,14 +521,14 @@ class Option(object):
             kwargs = {"kernel": "rbf", "gamma": "scale"}
 
         # We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-        initiation_classifier = svm.SVC(**kwargs)
+        initiation_classifier = TwoClassInitiationSet(**kwargs)
         initiation_classifier.fit(X, Y)
 
         training_predictions = initiation_classifier.predict(X)
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
+            self.initiation_classifier = OneClassInitiationSet(kernel="rbf", nu=self.nu, gamma="scale")
             self.initiation_classifier.fit(positive_training_examples)
 
             self.classifier_type = "tcsvm"
@@ -522,14 +538,14 @@ class Option(object):
             kwargs = {"kernel": "rbf", "gamma": "scale"}
 
             # We use a 2-class balanced SVM which sets class weights based on their ratios in the training data
-            initiation_classifier = svm.SVC(**kwargs)
+            initiation_classifier = TwoClassInitiationSet(**kwargs)
             initiation_classifier.fit(X, Y)
 
             training_predictions = initiation_classifier.predict(X)
             positive_training_examples = X[training_predictions == 1]
 
             if positive_training_examples.shape[0] > 0:
-                self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
+                self.initiation_classifier = OneClassInitiationSet(kernel="rbf", nu=self.nu, gamma="scale")
                 self.initiation_classifier.fit(positive_training_examples)
 
                 self.classifier_type = "tcsvm"
@@ -558,14 +574,14 @@ class Option(object):
 
     def train(self, experience_buffer, state_buffer, episode):
         """
-        Called every time the agent hits the current option's termination set.
-        Args:
-            experience_buffer (list)
-            state_buffer (list)
-            episode (int)
-        Returns:
-            trained (bool): whether or not we actually trained this option
-        """
+           Called every time the agent hits the current option's termination set.
+           Args:
+               experience_buffer (list)
+               state_buffer (list)
+               episode (int)
+           Returns:
+               trained (bool): whether or not we actually trained this option
+           """
         self.add_initiation_experience(state_buffer)
         self.add_experience_buffer(experience_buffer)
         self.num_goal_hits += 1
@@ -589,15 +605,13 @@ class Option(object):
         if not self.dense_reward:
             return -1.
 
-        # Rewards based on position only
-        position_vector = state.features()[:2] if isinstance(state, State) else state[:2]
-
         # For global and parent option, we use the negative distance to the goal state
         if self.parent is None:
-            goal_state = self.target_salient_event.target_state
-            goal_position = goal_state.features()[:2] if isinstance(goal_state, State) else goal_state[:2]
-            distance_to_goal = np.linalg.norm(position_vector - goal_position)
+            distance_to_goal = self.target_salient_event.distance_from_goal(state)
             return -distance_to_goal
+
+        # We need a numpy array out here so we can shape it into a matrix below
+        position_vector = state.features() if isinstance(state, State) else state
 
         # For every other option, we use the negative distance to the parent's initiation set classifier
         dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
@@ -642,20 +656,20 @@ class Option(object):
 
     def execute_option_in_mdp(self, mdp, episode, step_number, eval_mode=False):
         """
-        Option main control loop.
+           Option main control loop.
+    
+           Args:
+               mdp (MDP): environment where actions are being taken
+               episode (int)
+               step_number (int): how many steps have already elapsed in the outer control loop.
+               eval_mode (bool): Added for the SkillGraphPlanning agent so that we can perform
+                                 option policy rollouts with eval_epsilon but still keep training
+                                 option policies based on new experiences seen during test time.
 
-        Args:
-            mdp (MDP): environment where actions are being taken
-            episode (int)
-            step_number (int): how many steps have already elapsed in the outer control loop.
-            eval_mode (bool): Added for the SkillGraphPlanning agent so that we can perform
-                              option policy rollouts with eval_epsilon but still keep training
-                              option policies based on new experiences seen during test time.
-
-        Returns:
-            option_transitions (list): list of (s, a, r, s') tuples
-            discounted_reward (float): cumulative discounted reward obtained by executing the option
-        """
+           Returns:
+               option_transitions (list): list of (s, a, r, s') tuples
+               discounted_reward (float): cumulative discounted reward obtained by executing the option
+           """
         start_state = deepcopy(mdp.cur_state)
         state = mdp.cur_state
 
@@ -678,12 +692,12 @@ class Option(object):
 
                 if not warmup_phase or (self.name == "global_option" and self.update_global_solver):
                     self.update_option_solver(state, action, reward, next_state)
+                    self.solver.update_epsilon()
 
                 if self.name != "global_option" and self.update_global_solver:
                     self.global_solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
                     self.global_solver.update_epsilon()
 
-                self.solver.update_epsilon()
                 option_transitions.append((state, action, reward, next_state))
                 visited_states.append(state)
 
@@ -702,11 +716,12 @@ class Option(object):
 
             if self.is_term_true(state) and self.last_episode_term_triggered != episode:  # and self.is_valid_init_data(visited_states):
                 self.num_goal_hits += 1
+                self.num_on_policy_goal_hits += 1
                 self.last_episode_term_triggered = episode
                 self.effect_set.append(state)
 
-            if self.parent is None and self.is_term_true(state):
-                print(f"[{self}] Adding {state.position} to {self.target_salient_event}'s trigger points")
+            if self.parent is None and self.is_term_true(state) and self.target_salient_event is not None:
+                print(f"[{self}] Adding {state} to {self.target_salient_event}'s trigger points")
                 self.target_salient_event.trigger_points.append(state)
 
             if self.name != "global_option" and self.get_training_phase() != "initiation_done":
@@ -720,6 +735,8 @@ class Option(object):
         if "point" in self.overall_mdp.env_name:
             eligible_phase = self.get_training_phase() == "gestation"
         elif "ant" in self.overall_mdp.env_name:
+            eligible_phase = self.get_training_phase() != "initiation_done"
+        elif "sawyer" in self.overall_mdp.env_name:
             eligible_phase = self.get_training_phase() != "initiation_done"
         else:
             raise NotImplementedError(self.overall_mdp)
@@ -741,7 +758,7 @@ class Option(object):
                 self.effect_set.append(next_state)
 
                 if self.parent is None and self.is_term_true(next_state):
-                    print(f"[{self}] Adding {next_state.position} to {self.target_salient_event}'s trigger points")
+                    print(f"[{self}] Adding {next_state} to {self.target_salient_event}'s trigger points")
                     self.target_salient_event.trigger_points.append(next_state)
 
                 states_so_far.append(next_state)  # We want the terminal state to be part of the initiation classifier
@@ -761,11 +778,10 @@ class Option(object):
                 positive_states = [start_state] + visited_states[-self.buffer_length:]
 
             # if self.is_valid_init_data(positive_states):
-            positive_examples = [state.position for state in positive_states]
-            self.positive_examples.append(positive_examples)
+            self.add_positive_examples(positive_states)
 
         elif num_steps == self.timeout and self.get_training_phase() == "initiation":
-            negative_examples = [start_state.position]
+            negative_examples = [self.get_init_classifier_pos(start_state)]
             self.negative_examples.append(negative_examples)
         # else:
         # 	assert final_state.is_terminal() or outer_step_number == self.max_steps, \
@@ -803,5 +819,14 @@ class Option(object):
         if self.num_test_executions > 0:
             return self.num_successful_test_executions / self.num_test_executions
         elif self.num_executions > 0:
-            return self.num_goal_hits / self.num_executions
+            return self.num_on_policy_goal_hits / self.num_executions
         return 1.
+
+    def add_positive_examples(self, state_list):
+        if len(state_list) > 0 and isinstance(state_list[0], State):
+            state_list = [state.features() for state in state_list]
+        self.positive_examples.extend(state_list)
+
+    def add_negative_example(self, state):
+        state = state.features() if isinstance(state, State) else state
+        self.negative_examples.append(state)

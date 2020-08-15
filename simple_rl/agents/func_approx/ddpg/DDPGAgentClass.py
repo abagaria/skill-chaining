@@ -25,7 +25,9 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
                  batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="shaping",
-                 trained_options=[], evaluation_epsilon=0.1, use_fixed_noise=True):
+                 trained_options=None, evaluation_epsilon=0.1, fixed_epsilon=False):
+        if trained_options is None:
+            trained_options = []
         self.state_size = state_size
         self.action_size = action_size
         self.actor_learning_rate = lr_actor
@@ -34,7 +36,7 @@ class DDPGAgent(Agent):
         self.exploration_method = exploration
         self.trained_options = trained_options
         self.evaluation_epsilon = evaluation_epsilon
-        self.use_fixed_noise = use_fixed_noise
+        self.use_fixed_noise = fixed_epsilon
 
         self.seed = random.seed(seed)
         np.random.seed(seed)
@@ -255,6 +257,7 @@ class DDPGAgent(Agent):
         self.critic.train()
         return q_values
 
+
 def trained_forward_pass(agent, mdp, steps, render=False):
     mdp.reset()
     state = deepcopy(mdp.init_state)
@@ -309,7 +312,7 @@ def train(agent, mdp, episodes, steps):
             episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon), end="")
         if episode % PRINT_EVERY == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tAverage Duration: {:.2f}\tEpsilon: {:.2f}'.format(
-            episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
+                episode, np.mean(last_10_scores), np.mean(last_10_durations), agent.epsilon))
 
     visualize_next_state_reward_heat_map(agent, args.episodes, args.experiment_name)
 
@@ -330,30 +333,30 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, help="random seed", default=0)
     args = parser.parse_args()
 
-    log_dir = create_log_dir(args.experiment_name)
-    create_log_dir("saved_runs")
-    create_log_dir("value_function_plots")
-    create_log_dir("initiation_set_plots")
-    create_log_dir("value_function_plots/{}".format(args.experiment_name))
-    create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
+    logdir = rotate_file_name(os.path.join("experiment_data", args.experiment_name))
+    create_log_dirs(logdir)
 
     if "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
+
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
         action_dim = overall_mdp.env.action_spec().minimum.shape[0]
     elif "maze" in args.env.lower():
         from simple_rl.tasks.point_maze.PointMazeMDPClass import PointMazeMDP
+
         overall_mdp = PointMazeMDP(dense_reward=args.dense_reward, seed=args.seed, render=args.render)
         state_dim = 6
         action_dim = 2
     elif "point" in args.env.lower():
         from simple_rl.tasks.point_env.PointEnvMDPClass import PointEnvMDP
+
         overall_mdp = PointEnvMDP(dense_reward=args.dense_reward, render=args.render)
         state_dim = 4
         action_dim = 2
     else:
         from simple_rl.tasks.gym.GymMDPClass import GymMDP
+
         overall_mdp = GymMDP(args.env, render=args.render)
         state_dim = overall_mdp.env.observation_space.shape[0]
         action_dim = overall_mdp.env.action_space.shape[0]
@@ -365,8 +368,8 @@ if __name__ == "__main__":
     ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
     episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
 
-    save_model(ddpg_agent, episode_number=args.episodes, best=False)
-    save_all_scores(episodic_scores, episodic_durations, log_dir, args.seed)
+    save_model(ddpg_agent, args.episodes, logdir, best=False)
+    save_all_scores(episodic_scores, episodic_durations, logdir, args.seed)
 
     best_ep, best_agent = load_model(ddpg_agent)
     print("loaded {} from episode {}".format(best_agent.name, best_ep))

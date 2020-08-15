@@ -27,7 +27,8 @@ class DensityModel(object):
         if self.use_full_state:
             input_buffer = state_buffer
         else:  # Use only the position elements of the state vector
-            input_buffer = state_buffer[:, :2]
+            input_buffer = state_buffer[:, :]
+            # input_buffer = state_buffer[:, :2]
 
         start_time = time.time()
         self.model.fit(input_buffer)
@@ -50,7 +51,8 @@ class DensityModel(object):
         if self.use_full_state:
             X = states
         else:  # Use only the position elements of the state vector
-            X = states[:, :2]
+            X = states[:, :]
+            # X = states[:, :2]
         log_pdf = self.model.score_samples(X)
         return log_pdf
 

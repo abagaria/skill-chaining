@@ -1,3 +1,4 @@
+import ipdb
 import numpy as np
 import random
 from collections import namedtuple, deque
@@ -331,14 +332,11 @@ class DQNAgent(Agent):
             states = states.cpu().data.numpy()
             action_values = action_values.cpu().data.numpy()
 
-            for idx, option in enumerate(self.trained_options): # type: Option
-                try:
-                    inits = option.batched_is_init_true(states)
-                    # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
-                    terms = option.batched_is_term_true(states)
-                    action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
-                except:
-                    pdb.set_trace()
+            for idx, option in enumerate(self.trained_options):  # type: Option
+                inits = option.batched_is_init_true(states)
+                # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
+                terms = option.batched_is_term_true(states)
+                action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
 
             # Move the q-values back the GPU
             action_values = torch.from_numpy(action_values).float().to(self.device)
@@ -737,4 +735,5 @@ if __name__ == '__main__':
                           state_rounding_decimals=args.state_rounding_decimals,
                           device=torch.device(args.device), evaluation_epsilon=args.eval_eps)
     ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
-    save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)
+    # chainer.perform_experiments()
+    chainer.save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)

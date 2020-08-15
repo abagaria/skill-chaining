@@ -2,38 +2,50 @@ import numpy as np
 from scipy.spatial import distance
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp import MDP, State
+from simple_rl.agents.func_approx.dsc.OptionClass import Option
+
+from copy import copy
 
 
 class GoalDirectedMDP(MDP):
-    def __init__(self, actions, transition_func, reward_func, init_state,
-                 salient_positions, task_agnostic, goal_state=None, goal_tolerance=0.6):
+    def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance,
+                 dense_reward, salient_events, goal_state):
 
-        self.salient_positions = salient_positions
-        self.task_agnostic = task_agnostic
-        self.goal_tolerance = goal_tolerance
+        """
+        :params:
+            actions (int) : action space dimension
+            transition_func : the fundamental transion of the mdp
+            reward_func : the mdp reward function
+            init_state (np.ndarray) : the start state of the mdp
+            salient_tolerance (float) : the tolerance of the goal and for all salients (global variable)
+            dense_reward (bool) : True if we want dense reward, False otherwise
+            salient_events ([SalientEvent]) : hard-coded salient events we are targeting (if any)
+            goal_state (np.ndarray) : goal state, None if task_agnostic
+        """
+
+        self._salient_events = salient_events
+        self.task_agnostic = goal_state is None
         self.goal_state = goal_state
-        self.dense_reward = False
-
-        if not task_agnostic:
-            assert self.goal_state is not None, self.goal_state
-
-        self._initialize_salient_events()
-
+        self.dense_reward = dense_reward
+        SalientEvent.tolerance = salient_tolerance
+        self._initialize_salient_events(init_state)
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
 
-    def _initialize_salient_events(self):
+    def _initialize_salient_events(self, init_state):
         # Set the current target events in the MDP
-        self.current_salient_events = [SalientEvent(pos, event_idx=i + 1) for i, pos in
-                                       enumerate(self.salient_positions)]
+        self.current_salient_events = copy(self._salient_events)
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_salient_events = [event for event in self.current_salient_events]
+        self.original_salient_events = copy(self._salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, is_init_event=True)
+        self.start_state_salient_event = SalientEvent(target_state=init_state,
+                                                      event_idx=0,
+                                                      name="Start State Salient",
+                                                      is_init_event=True)
 
         # Keep track of all the salient events ever created in this MDP
-        self.all_salient_events_ever = [event for event in self.current_salient_events]
+        self.all_salient_events_ever = copy(self._salient_events)
 
         # Make sure that we didn't create multiple copies of the same events
         self._ensure_all_events_are_the_same()
@@ -58,16 +70,6 @@ class GoalDirectedMDP(MDP):
 
         if new_event not in self.all_salient_events_ever:
             self.all_salient_events_ever.append(new_event)
-
-    def is_start_state(self, state):
-        pos = self._get_position(state)
-        s0 = self.init_state.position
-        return np.linalg.norm(pos - s0) <= self.goal_tolerance
-
-    def batched_is_start_state(self, position_matrix):
-        s0 = self.init_state.position
-        in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= self.goal_tolerance
-        return in_start_pos.squeeze(1)
 
     def get_start_state_salient_event(self):
         return self.start_state_salient_event
@@ -112,8 +114,3 @@ class GoalDirectedMDP(MDP):
     def execute_agent_action(self, action, option_idx=None):
         reward, next_state = super(GoalDirectedMDP, self).execute_agent_action(action)
         return reward, next_state
-
-    @staticmethod
-    def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
-        return position

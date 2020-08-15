@@ -49,9 +49,7 @@ class AntReacherMDP(GoalDirectedMDP):
                                  self._transition_func,
                                  self._reward_func,
                                  self.init_state,
-                                 salient_positions,
-                                 task_agnostic=True,
-                                 goal_tolerance=0.6)
+                                 salient_positions)
 
     def _reward_func(self, state, action):
 
@@ -60,7 +58,6 @@ class AntReacherMDP(GoalDirectedMDP):
         action = 30. * action  # Need to scale the actions so they lie between -30 and 30 and not just -1 and 1
 
         next_state, _, done, info = self.env.step(action)
-
         time_limit_truncated = info.get('TimeLimit.truncated', False)
         is_terminal = done and not time_limit_truncated
 
@@ -70,11 +67,7 @@ class AntReacherMDP(GoalDirectedMDP):
         else:
             reward = +1. if is_terminal else -1.
 
-        if self.render:
-            self.env.render()
-
         self.next_state = self._get_state(next_state, is_terminal)
-
         return reward
 
     def _transition_func(self, state, action):

@@ -8,7 +8,7 @@ from simple_rl.mdp.StateClass import State
 
 class SkillChain(object):
     def __init__(self, init_salient_event, target_salient_event, options, chain_id,
-                 intersecting_options=[], is_backward_chain=False, has_backward_chain=False,
+                 intersecting_options=None, is_backward_chain=False, has_backward_chain=False,
                  option_intersection_salience=False, event_intersection_salience=True):
         """
         Data structure that keeps track of all options in a particular chain,
@@ -29,7 +29,7 @@ class SkillChain(object):
         self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.chain_id = chain_id
-        self.intersecting_options = intersecting_options
+        self.intersecting_options = intersecting_options if intersecting_options is not None else []
 
         self.is_backward_chain = is_backward_chain
         self.has_backward_chain = has_backward_chain
@@ -103,8 +103,8 @@ class SkillChain(object):
     def should_exist_edge_between_options(my_option, other_option):
         """ Should there exist an edge from option1 -> option2? """
         if my_option.get_training_phase() == "initiation_done" and other_option.get_training_phase() == "initiation_done":
-            effect_set = my_option.effect_set  # list of states
-            effect_set_matrix = SkillChain.get_position_matrix(effect_set)
+            effect_set = my_option.effect_set
+            effect_set_matrix = SkillChain.get_position_matrix(effect_set)  # list of states
             inits = other_option.batched_is_init_true(effect_set_matrix)
             is_intersecting = inits.all()
             return is_intersecting
@@ -152,7 +152,7 @@ class SkillChain(object):
 
         for my_option in self.options:  # type: Option
             for other_option in other_chain.options:  # type: Option
-                if self.should_exist_edge_between_options(my_option, other_option):
+                if self.self.should_exist_edge_between_options(my_option, other_option):
                     return my_option, other_option
         return None
 
@@ -163,7 +163,7 @@ class SkillChain(object):
 
         for my_option in self.options:  # type: Option
             event = other_chain.target_salient_event
-            if self.should_exist_edge_from_event_to_option(event, my_option):
+            if self.should_exist_edge_from_event_to_option(my_option, event):
                 return my_option, event
         return None
 
@@ -187,8 +187,6 @@ class SkillChain(object):
         Returns:
             is_completed (bool)
         """
-        to_position = lambda s: s.position if isinstance(s, State) else s[:2]
-
         if self._is_deemed_completed:
             return True
 
@@ -202,8 +200,8 @@ class SkillChain(object):
         if completed:
             # Which salient event did intersect with to cause this change?
             # Cause that is the salient event that we should rewire to
-
             if not self.is_backward_chain:
+
                 other_chains = [chain for chain in chains if chain != self]
                 intersecting_pairs = [self.get_intersecting_option_and_event(chain) for chain in other_chains
                                       if chain.is_chain_completed(other_chains)]
@@ -214,7 +212,7 @@ class SkillChain(object):
                     self.init_salient_event = event  # Rewiring operation
                 elif len(intersecting_events) > 1:
                     # Find the distance between the target_salient_event and the intersecting_events
-                    distances = [self.target_salient_event.distance_to_other_event(e) for e in intersecting_events]
+                    distances = [self.target_salient_event.distance_from_goal(event.target_state) for event in intersecting_events]
                     best_idx = np.argmin(distances)
                     best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
                     closest_event = intersecting_events[best_idx]
@@ -236,13 +234,5 @@ class SkillChain(object):
         return [option for option in self.options if option.parent is None]
 
     @staticmethod
-    def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
-        assert isinstance(position, np.ndarray), type(position)
-        return position
-
-    @staticmethod
     def get_position_matrix(states):
-        to_position = lambda s: s.position if isinstance(s, State) else s[:2]
-        positions = [to_position(state) for state in states]
-        return np.array(positions)
+        return np.array([state.features() if isinstance(state, State) else state for state in states])

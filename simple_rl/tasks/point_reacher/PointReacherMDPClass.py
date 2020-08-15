@@ -12,12 +12,14 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class PointReacherMDP(MDP):
-    def __init__(self, seed, color_str="", dense_reward=False, render=False, use_hard_coded_events=False):
+    def __init__(self, seed, goal_pos, tolerance, color_str="", dense_reward=False, render=False, use_hard_coded_events=False):
         self.env_name = "point_reacher"
         self.seed = seed
         self.dense_reward = dense_reward
         self.render = render
         self.use_hard_coded_events = use_hard_coded_events
+        self.goal_pos = goal_pos
+        self.tolerance = tolerance
 
         random.seed(seed)
         np.random.seed(seed)
@@ -44,7 +46,7 @@ class PointReacherMDP(MDP):
                                       np.array((+9, -9)), np.array((-9, -9))]
 
         # Set the current target events in the MDP
-        self.current_salient_events = [SalientEvent(pos, event_idx=i+1) for i, pos in enumerate(self.salient_positions)]
+        self.current_salient_events = [SalientEvent(pos, event_idx=i + 1) for i, pos in enumerate(self.salient_positions)]
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
         self.original_salient_events = [event for event in self.current_salient_events]
@@ -64,13 +66,14 @@ class PointReacherMDP(MDP):
             assert id(e1) == id(e2) == id(e3)
 
     def _reward_func(self, state, action):
-        next_state, reward, done, _ = self.env.step(action)
+        next_state, reward, _, _ = self.env.step(action)
+        done = self.is_goal_state(next_state)
         if self.render:
             self.env.render()
         self.next_state = self._get_state(next_state, done)
-        if self.dense_reward:
-            return -1.
-        return reward + 1  # TODO: Changing the reward function to return 0 step penalty and 1 reward
+        # if self.dense_reward:
+        #     return -1.
+        return 1. if done else -1  # TODO: Changing the reward function to return 0 step penalty and 1 reward
 
     def _transition_func(self, state, action):
         return self.next_state
@@ -109,17 +112,17 @@ class PointReacherMDP(MDP):
             self.all_salient_events_ever.append(new_event)
 
     def is_goal_state(self, state):
-        # return any([predicate(state) for predicate in self.get_current_target_events()])
-        return False
+        state = state.position if isinstance(state, PointReacherState) else state[:2]
+        return np.linalg.norm(state - self.goal_pos) < self.tolerance
 
     def is_start_state(self, state):
         pos = self._get_position(state)
         s0 = self.init_state.position
-        return np.linalg.norm(pos - s0) <= 0.6
+        return np.linalg.norm(pos - s0) <= self.tolerance
 
     def batched_is_start_state(self, position_matrix):
         s0 = self.init_state.position
-        in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= 0.6
+        in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= self.tolerance
         return in_start_pos.squeeze(1)
 
     def get_start_state_salient_event(self):

@@ -19,12 +19,13 @@ class CountBasedDensityModel(object):
         self.use_position_only = use_position_only
 
         # Map (state, action) pairs to visitation counts and exploration bonuses
-        self.s_a_counts = defaultdict(lambda : defaultdict(lambda: 0))
-        self.s_a_bonus  = defaultdict(lambda : defaultdict(lambda: 0))
+        self.s_a_counts = defaultdict(lambda: defaultdict(lambda: 0))
+        self.s_a_bonus = defaultdict(lambda: defaultdict(lambda: 0))
 
     def _round_state_action(self, state, action):
         if self.use_position_only:
-            state = state[:2]
+            state = state
+            # state = state[:2]
         if self.state_rounding_decimals is not None:
             state = np.round(state, self.state_rounding_decimals)
         if self.action_rounding_decimals is not None:

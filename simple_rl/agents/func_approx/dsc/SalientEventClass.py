@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from simple_rl.mdp.StateClass import State
 from scipy.spatial import distance
@@ -6,187 +7,149 @@ import ipdb
 
 
 class SalientEvent(object):
-    def __init__(self, target_state, event_idx, tolerance=0.6, intersection_event=False, is_init_event=False):
+    tolerance = None
+    state_size = None
+    factor_indices = None
+
+    def __init__(self, target_state, event_idx, intersection_event=False, name=None, is_init_event=False):
+        """
+
+        Args:
+            target_state (np.ndarray): salient event factors, NOT the full state
+            event_idx (int):
+            intersection_event (bool):
+            get_relevant_position (lambda):
+            name (str):
+            is_init_event (bool):
+        """
+
+        assert self.tolerance is not None
+        assert self.state_size is not None
+        assert self.factor_indices is not None
+
+        assert isinstance(event_idx, int)
+        assert isinstance(target_state, np.ndarray)
+
         self.target_state = target_state
         self.event_idx = event_idx
-        self.tolerance = tolerance
         self.intersection_event = intersection_event
+        self.name = name
         self.is_init_event = is_init_event
 
         # This is the union of the effect set of all the options targeting this salient event
         self.trigger_points = []
         self._initialize_trigger_points()
 
-        assert isinstance(event_idx, int)
-        assert isinstance(tolerance, float)
-
     def _initialize_trigger_points(self):
         # TODO: We don't need this after we have our graph checking daemon
-        r = self.tolerance
-        d = r / np.sqrt(2)
-        target_position = self._get_position(self.target_state)
+        additive_constants = [self.target_state]
 
-        if self.is_init_event:
-            additive_constants = []
-        else:
-            additive_constants = [np.array((r, 0)), np.array((0, r)),
-                                  np.array((-r, 0)), np.array((0, -r)),
-                                  np.array((d, d)), np.array((-d, -d)),
-                                  np.array((-d, d)), np.array((d, -d))]
-        trigger_points = [target_position + constant for constant in additive_constants]
-        self.trigger_points = [self.target_state] + trigger_points
+        if not self.is_init_event:
+            for dim in range(self.state_size):
+                offset = np.zeros(self.state_size)
+                offset[dim] = self.tolerance
+                additive_constants.append(self.target_state + offset)
+                additive_constants.append(self.target_state - offset)
+
+        return additive_constants
+                
 
     def __call__(self, states):
         """
 
         Args:
-            states: this can either be an array representing a single state, or an array
+            states (np.ndarray): this can either be an array representing a single state, or an array
                     representing a batch of states or a State object
 
         Returns:
             is_satisfied: bool or bool array depending on the shape of states.
         """
-        if isinstance(states, State):
-            return self.is_init_true(states)
         if len(states.shape) == 1:
             return self.is_init_true(states)
-        return self.batched_is_init_true(states)
+        else:
+            return self.batched_is_init_true(states)
 
     def __eq__(self, other):
-        def _state_eq(s1, s2):
-            s1 = self._get_position(s1)
-            s2 = self._get_position(s2)
-            return (s1 == s2).all()
-
         if not isinstance(other, SalientEvent):
             return False
 
-        return _state_eq(self.target_state, other.target_state) and \
-               self.tolerance == other.tolerance # and \
-               # self.event_idx == other.event_idx
+        return (self.target_state == other.target_state).all() and self.tolerance == other.tolerance
+        # self.event_idx == other.event_idx
 
     def __hash__(self):
-        target_state = self._get_position(self.target_state)
-        return hash(tuple(target_state))
+        return hash(tuple(self.target_state))
 
     def is_subset(self, other_event):
         """ I am a subset of `other_event` if all my trigger points are inside `other_event`. """
         assert isinstance(other_event, SalientEvent)
-        trigger_point_array = self._batched_get_position(self.trigger_points)
-        return other_event.batched_is_init_true(trigger_point_array).all()
+        return other_event.batched_is_init_true(self.trigger_points).all()
 
-    def distance_to_other_event(self, other):
+    def is_intersecting(self, option):
         """
-        Method to compute the distance between two salient events.
-        Overload with more sophisticated metric if needed.
+        Is this salient event "intersecting" with another option? To intersect, we have to make sure
+        that `option`'s initiation set includes all the current salient event. For this we have to
+        have access to the effect sets of all the options that are targeting this salient event.
+        Alternatively, we can keep track of all the states which were considered to successfully
+        trigger the current salient event and make sure that they are all inside `option`'s initiation set.
 
         Args:
-            other (SalientEvent)
+            option (Option)
 
         Returns:
-            distance (float)
+            is_intersecting (bool)
         """
-        point1 = self.get_target_position()
-
-        if other.get_target_position() is not None:
-            point2 = other.get_target_position()
-            return self.point_to_point_distance(point1, point2)
-
-        return self.point_to_set_distance(point1, other.trigger_points)
-
-    def distance_to_effect_set(self, effect_set):
-        """
-        To compute the distance between a point (eg a goal state) and graph vertices,
-        we use a conservative distance measure: Measure the distance from that point
-        to all the states in the effect set of each option and return the max
-        euclidean distance.
-
-        Args:
-            effect_set (list): List of State objects
-
-        Returns:
-            distance (float)
-        """
-        point = self._get_position(self.target_state)
-        return self.point_to_set_distance(point, effect_set)
-
-    @staticmethod
-    def point_to_point_distance(point1, point2):
-        return np.linalg.norm(point1 - point2)
-
-    @staticmethod
-    def point_to_set_distance(point, state_set):
-        assert isinstance(state_set, list)
-        assert isinstance(point, np.ndarray)
-
-        point_set = [SalientEvent._get_position(state) for state in state_set]
-        point_array = np.array(point_set)
-        distances = distance.cdist(point[None, :], point_array)
-
-        return distances.max()
-
-    @staticmethod
-    def set_to_set_distance(set1, set2):
-        assert isinstance(set1, list)
-        assert isinstance(set2, list)
-
-        positions1 = np.array([SalientEvent._get_position(state) for state in set1])
-        positions2 = np.array([SalientEvent._get_position(state) for state in set2])
-        distances = distance.cdist(positions1, positions2)
-        assert distances.shape == (len(set1), len(set2)), distances.shape
-
-        return distances.max()
+        if len(self.trigger_points) > 0 and option.get_training_phase() == "initiation_done":
+            return all([option.is_init_true(s) for s in self.trigger_points])
+        return False
 
     def is_init_true(self, state):
-        position = self._get_position(state)
-        target_position = self._get_position(self.target_state)
-        dist = np.linalg.norm(position - target_position)
-        return np.round(dist, 8) <= self.tolerance
+        return self.distance_from_goal(state) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
-        goal_position = self._get_position(self.target_state)
-        distances = distance.cdist(position_matrix, goal_position[None, :])
-        in_goal_position = np.round(distances, 8) <= self.tolerance
+        in_goal_position = self.distance_from_goal(position_matrix) <= self.tolerance
         return in_goal_position.squeeze(1)
 
     def get_target_position(self):
-        return self._get_position(self.target_state)
-
-    @staticmethod
-    def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
-        assert isinstance(position, np.ndarray), type(position)
-        return position
-
-    @staticmethod
-    def _batched_get_position(states):
-        positions = [SalientEvent._get_position(state) for state in states]
-        positions = np.array(positions)
-        assert isinstance(positions, np.ndarray), type(positions)
-        return positions
+        return self.target_state
 
     def __repr__(self):
-        return f"SalientEvent targeting {self.target_state}"
+        if self.name is None:
+            return f"SalientEvent targeting {self.target_state}"
+        else:
+            return f"SalientEvent targeting {self.target_state} | {self.name}"
+
+    def _get_relevant_factors(self, state):
+        if isinstance(state, list):
+            return [self._get_relevant_factors(x) for x in state]
+        elif isinstance(state, State):
+            return self._get_relevant_factors(state.features())
+        elif isinstance(state, np.ndarray):
+            return state[..., self.factor_indices]
+        else:
+            raise TypeError(f"state was of type {type(state)} but must be a State, np.ndarray, or list")
+
+    def distance_from_goal(self, state):
+        factors = self._get_relevant_factors(state)
+        if len(state.shape) == 1:
+            return np.linalg.norm(self.target_state - factors)
+        else:
+            return distance.cdist(factors, self.target_state[None, :])
 
 
 class LearnedSalientEvent(SalientEvent):
-    def __init__(self, state_set, event_idx, tolerance=0.6, intersection_event=False):
+    def __init__(
+            self, state_set, event_idx, intersection_event=False, name=None
+    ):
         self.state_set = state_set
         self.classifier = self._classifier_on_state_set()
 
         SalientEvent.__init__(self, target_state=None, event_idx=event_idx,
-                              tolerance=tolerance, intersection_event=intersection_event)
-
-    def get_target_position(self):
-        return None
-
-    def _initialize_trigger_points(self):
-        self.trigger_points = [state.position for state in self.state_set]
+                              intersection_event=intersection_event, name=name)
 
     def is_init_true(self, state):
-        position = self._get_position(state)
-        return self.classifier.predict(position.reshape(1, -1))
+        factors = self._get_relevant_factors(state)
+        return self.classifier.predict(factors.reshape(1, -1))
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
@@ -203,25 +166,25 @@ class LearnedSalientEvent(SalientEvent):
         classifier.fit(positions)
         return classifier
 
-    def distance_to_effect_set(self, effect_set):
-        """ Compute the max distance from `state_set` to `effect_set`. """
-        return self.set_to_set_distance(self.state_set, effect_set)
-
-    def distance_to_other_event(self, other):
-        if other.get_target_position() is None:
-            return self.set_to_set_distance(self.state_set, other.trigger_points)
-        return self.point_to_set_distance(other.get_target_position(), self.state_set)
+    def __repr__(self):
+        if self.name is None:
+            return f"LearnedSalientEvent targeting {self.target_state}"
+        else:
+            return f"LearnedSalientEvent targeting {self.target_state} | {self.name}"
 
 
 class DCOSalientEvent(SalientEvent):
-    def __init__(self, covering_option, event_idx, is_low, tolerance=0.6, intersection_event=False):
+    def __init__(self, covering_option, event_idx, replay_buffer, is_low, intersection_event=False, name=None):
         self.covering_option = covering_option
         self.is_low = is_low
 
-        target_state = self.covering_option.min_f_value_state if is_low else self.covering_option.max_f_value_state
+        assert len(replay_buffer), "replay_buffer was empty"
+        states = replay_buffer.sample(len(replay_buffer), get_tensor=False)[0]
+        values = covering_option.initiation_classifier(states).flatten()
 
-        SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx,
-                              tolerance=tolerance, intersection_event=intersection_event)
+        target_state = states[np.argmin(values) if is_low else np.argmax(values)]
+
+        SalientEvent.__init__(self, target_state=target_state, event_idx=event_idx, intersection_event=intersection_event, name=name)
 
     def __eq__(self, other):
         if not isinstance(other, SalientEvent):
@@ -229,31 +192,26 @@ class DCOSalientEvent(SalientEvent):
         return self is other
 
     def __repr__(self):
-        return f"DCOSalientEvent {self.event_idx} targeting {self.target_state}"
+        if self.name is None:
+            return f"DCOSalientEvent {self.event_idx} targeting {self.target_state}"
+        else:
+            return f"DCOSalientEvent {self.event_idx} targeting {self.target_state} | {self.name}"
 
     def __hash__(self):
         return self.event_idx
 
-    def distance_to_other_event(self, other):
-        if other.get_target_position() is not None:
-            return super(DCOSalientEvent, self).distance_to_other_event(other)
-        return self.point_to_set_distance(self.get_target_position(), other.trigger_points)
-
 
 class DSCOptionSalientEvent(SalientEvent):
-    def __init__(self, option, event_idx, tolerance=0.6):
+    def __init__(self, option, event_idx):
         """
-
         Args:
             option (Option)
         """
         self.option = option
         self._initialize_trigger_points()
-
         SalientEvent.__init__(self,
                               target_state=None,
                               event_idx=event_idx,
-                              tolerance=tolerance,
                               intersection_event=False)
 
     def _initialize_trigger_points(self):
@@ -273,19 +231,3 @@ class DSCOptionSalientEvent(SalientEvent):
 
     def __repr__(self):
         return f"SalientEvent corresponding to {self.option}"
-
-    def get_target_position(self):
-        return None
-
-    @staticmethod
-    def _get_position(state):
-        return None
-
-    def distance_to_effect_set(self, effect_set):
-        return self.set_to_set_distance(self.trigger_points, effect_set)
-
-    def distance_to_other_event(self, other):
-        if other.get_target_position() is not None:
-            return self.point_to_set_distance(other.get_target_position(), self.trigger_points)
-        return self.set_to_set_distance(self.trigger_points, other.trigger_points)
-

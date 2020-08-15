@@ -10,6 +10,7 @@ from numpy.linalg import norm
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.mdp.StateClass import State
 
+
 class CoveringOptions(Option):
     # This class identifies a subgoal by Laplacian method.
     # We feed this option to the skill chaining as a parent and generate its child options.
@@ -239,8 +240,8 @@ class SpectrumNetwork():
                 net = tflearn.fully_connected(obs, 1, weights_init=w_init)
 
                 # @Yuu Jinnai: Do we not need any non-linearities here?
-                #net = tflearn.fully_connected(obs, 3, weights_init=w_init, activation="relu")
-                #net = tflearn.fully_connected(net, 1, weights_init=w_init)
+                # net = tflearn.fully_connected(obs, 3, weights_init=w_init, activation="relu")
+                # net = tflearn.fully_connected(net, 1, weights_init=w_init)
                 out = net
         return obs, out
 
