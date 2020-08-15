@@ -498,29 +498,32 @@ def plot_dco_salient_event(ax, salient_event, states):
 
     target_state = salient_event.target_state
 
-    option_term = option.batched_is_term_true(states, is_low)
-    option_init_states, option_term_states = states[~option_term], states[option_term]
-    option_init_values = option.initiation_classifier(option_init_states).flatten()
+    # option_term = option.batched_is_term_true(states, is_low)
+    # option_init_states, option_term_states = states[~option_term], states[option_term]
+    # option_init_values = option.initiation_classifier(option_init_states).flatten()
+    values = option.evaluate(states)
+
+    print(f"For {salient_event}, Max-F: {max(values)}, Min-F: {min(values)}")
 
     cmap = matplotlib.cm.get_cmap('Blues')
-    normalize = matplotlib.colors.Normalize(vmin=min(option_init_values), vmax=max(option_init_values))
-    colors = [cmap(normalize(v)) for v in option_init_values]
+    normalize = matplotlib.colors.Normalize(vmin=min(values), vmax=max(values))
+    colors = [cmap(normalize(v)) for v in values]
 
-    ax.scatter(option_init_states[:, 0], option_init_states[:, 1], c=colors)
+    ax.scatter(states[:, 0], states[:, 1], c=colors)
 
-    # salient event initiation set is a subset of the covering option termination set
-    event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
-    event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
-
-    if len(event_not_init_states) > 0:
-        ax.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], c="orange")
-    if len(event_init_states) > 0:
-        ax.scatter(event_init_states[:, 0], event_init_states[:, 1], c="green")
+    # # salient event initiation set is a subset of the covering option termination set
+    # event_init_states = np.array([s for s in option_term_states if salient_event.is_init_true(s)])
+    # event_not_init_states = np.array([s for s in option_term_states if not salient_event.is_init_true(s)])
+    #
+    # if len(event_not_init_states) > 0:
+    #     ax.scatter(event_not_init_states[:, 0], event_not_init_states[:, 1], c="orange")
+    # if len(event_init_states) > 0:
+    #     ax.scatter(event_init_states[:, 0], event_init_states[:, 1], c="green")
 
     ax.scatter([target_state[0]], [target_state[1]], c="black", s=[300])
 
-    low_bound_x, up_bound_x = -15, 15
-    low_bound_y, up_bound_y = -15, 15
+    low_bound_x, up_bound_x = -10, 10
+    low_bound_y, up_bound_y = -10, 10
 
     ax.set_xlim((low_bound_x, up_bound_x))
     ax.set_ylim((low_bound_y, up_bound_y))
@@ -531,7 +534,8 @@ def plot_dco_salient_event(ax, salient_event, states):
 def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, episode, reject_low, reject_high, experiment_name=""):
     fig, axs = plt.subplots(2, figsize=(8, 10))
 
-    states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
+    # states = np.array(replay_buffer.sample(min(4000, len(replay_buffer)), get_tensor=False)[0])
+    states = np.array([trans.state for trans in replay_buffer.memory])
     plot_dco_salient_event(axs[0], low_event, states)
     plot_dco_salient_event(axs[1], high_event, states)
 
@@ -545,13 +549,16 @@ def plot_dco_salient_event_comparison(low_event, high_event, replay_buffer, epis
 
     option = low_event.covering_option
     name = option.name
-    threshold = option.threshold
+    threshold = 0. # option.threshold
     beta = option.beta
 
     axs[0].set_title(f"Min (replay buffer of size {len(replay_buffer)})")
     axs[1].set_title(f"Max (replay buffer of size {len(replay_buffer)})")
     # axs[0, 1].set_title(f"SMDP Min (replay buffer of size {len(smdp_buffer)})")
     # axs[1, 1].set_title(f"SMDP Max (replay buffer of size {len(smdp_buffer)})")
+
+    if not os.path.isdir(f"initiation_set_plots/{experiment_name}"):
+        os.makedirs(f"initiation_set_plots/{experiment_name}")
 
     fig.suptitle(f"Salient events with threshold={threshold} and beta={beta:.4f}")
     plt.savefig("initiation_set_plots/{}/{}_threshold_{}-episode_{}-reject_({}, {}).png".format(experiment_name, name, threshold, episode, reject_low, reject_high))
@@ -562,7 +569,7 @@ def get_intersecting_events(source_chain, events):
     connecting_events = []
     for event in events:
         for option in source_chain.options:
-            if source_chain.detect_intersection_between_option_and_event(option, event) and \
+            if source_chain.should_exist_edge_from_option_to_event(option, event) and \
                     event != source_chain.init_salient_event:
                 connecting_events.append(event)
     return connecting_events

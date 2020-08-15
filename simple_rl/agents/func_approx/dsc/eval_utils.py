@@ -2,6 +2,8 @@ import random
 import pickle
 import numpy as np
 import itertools
+import glob
+import os
 
 from simple_rl.agents.func_approx.dsc.DeepSkillGraphAgentClass import DeepSkillGraphAgent
 
@@ -157,3 +159,51 @@ def learning_curve_without_random_start_states(agent, goal_states, episodes, epi
                                    episode_interval)
         all_runs.append(single_run)
     return all_runs
+
+
+def save_options_and_events(options, events, experiment_name, seed):
+
+    # Ensure the log directories exist, else create it
+    dir_path = os.path.join(os.path.join(os.getcwd(), experiment_name), f"{seed}")
+    option_dir_path = os.path.join(dir_path, "options")
+    event_dir_path = os.path.join(dir_path, "events")
+    os.makedirs(option_dir_path, exist_ok=True)
+    os.makedirs(event_dir_path, exist_ok=True)
+
+    # Save all the given options and salient events
+    for option in options:
+        with open(f"{option_dir_path}/{option.name}.pkl", "wb+") as f:
+            pickle.dump(option, f)
+    for event in events:
+        with open(f"{event_dir_path}/event_{event}.pkl", "wb+") as f:
+            pickle.dump(event, f)
+
+    print(f"Done saving {options}")
+    print(f"Done saving {events}")
+
+
+def load_options_and_events(experiment_name, seed):
+    """ Given a directory path, return all the options pickled in that directory. """
+    dir_path = os.path.join(os.path.join(os.getcwd(), experiment_name), f"{seed}")
+    option_dir_path = os.path.join(dir_path, "options")
+    event_dir_path = os.path.join(dir_path, "events")
+
+    def _load(path_to_files):
+        """ Assuming only relevant object pickle files are in the dir. """
+        loaded_objects = []
+        for file_name in glob.glob(path_to_files):
+            with open(file_name, "rb") as f:
+                obj = pickle.load(f)
+            print(f"Loaded {obj} from {file_name}")
+            loaded_objects.append(obj)
+        return loaded_objects
+
+    # Glob pattern for options and events
+    option_path = os.path.join(option_dir_path, "*.pkl")
+    event_path = os.path.join(event_dir_path, "*.pkl")
+
+    # Final objects to be returned
+    options = _load(option_path)
+    events = _load(event_path)
+
+    return options, events

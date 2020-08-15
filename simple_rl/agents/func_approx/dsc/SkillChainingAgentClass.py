@@ -147,8 +147,8 @@ class SkillChaining(object):
 		# Keep track of which chain each created option belongs to
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
 		self.s0 = start_state_salient_event.trigger_points
-		self.chains = [SkillChain(start_states=self.s0, options=[], chain_id=(i+1),
-		 			   			  intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
+		self.chains = [SkillChain(options=[], chain_id=(i+1),
+		 			   			  intersecting_options=[], is_backward_chain=False,
 								  target_salient_event=salient_event, init_salient_event=start_state_salient_event,
 								  option_intersection_salience=option_intersection_salience,
 								  event_intersection_salience=event_intersection_salience)
@@ -206,8 +206,8 @@ class SkillChaining(object):
 							 target_salient_event=salient_event)
 		self.untrained_options.append(goal_option)
 
-		new_chain = SkillChain(start_states=self.s0, options=[], chain_id=chain_id,
-							   intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
+		new_chain = SkillChain(options=[], chain_id=chain_id,
+							   intersecting_options=[], is_backward_chain=False,
 							   target_salient_event=salient_event,
 							   init_salient_event=init_salient_event,
 							   option_intersection_salience=self.option_intersection_salience,
@@ -252,7 +252,7 @@ class SkillChaining(object):
 		Returns:
 			any_init_in_option (bool)
 		"""
-		start_states = self.chains[option.chain_id - 1].start_states
+		start_states = self.chains[option.chain_id - 1].init_salient_event.trigger_points
 		if len(start_states) == 0:
 			ipdb.set_trace()
 		starts_chained = [option.is_init_true(state) for state in start_states]
@@ -552,12 +552,13 @@ class SkillChaining(object):
 		""" Iterate through all the skill chains and return all pairs of options that have intersecting initiation sets. """
 		intersecting_pairs = []
 		for chain in self.chains:  # type: SkillChain
-			intersecting_options = chain.detect_intersection_with_other_chains(self.chains)
-			if intersecting_options is not None:
+			for other_chain in self.chains:  # type: SkillChain
+				intersecting_options = chain.get_intersecting_options(other_chain)
+				if intersecting_options is not None:
 
-				# Only care about intersections between forward chains
-				if not intersecting_options[0].backward_option and not intersecting_options[1].backward_option:
-					intersecting_pairs.append(intersecting_options)
+					# Only care about intersections between forward chains
+					if not intersecting_options[0].backward_option and not intersecting_options[1].backward_option:
+						intersecting_pairs.append(intersecting_options)
 
 		return intersecting_pairs
 
@@ -657,15 +658,13 @@ class SkillChaining(object):
 			# 1. The new skill chain will chain back until it covers `start_states`
 			# 2. The options in this new backward chain will use `start_predicate` as the
 			#	 default initiation set during gestation
-			start_states = chain.target_salient_event.trigger_points
 			init_salient_event = chain.target_salient_event
 
 			# These target predicates are used to determine the goal of the new skill chain
 			target_salient_event = self.mdp.get_start_state_salient_event()
 
 			# No need to check for intersections for backward chains
-			new_chain = SkillChain(start_states=start_states, mdp_start_states=self.s0,
-								   target_salient_event=target_salient_event,
+			new_chain = SkillChain(target_salient_event=target_salient_event,
 								   init_salient_event=init_salient_event,
 								   options=[], chain_id=len(self.chains)+1,
 								   intersecting_options=[], is_backward_chain=True,
@@ -716,14 +715,12 @@ class SkillChaining(object):
 
 		"""
 		# No need to check for intersections if you are a backward chain
-		back_chain = SkillChain(start_states=start_event.trigger_points,
-								  mdp_start_states=self.s0,
-								  target_salient_event=target_event,
-								  init_salient_event=start_event,
-								  options=[], chain_id=len(self.chains) + 1,
-								  intersecting_options=[], is_backward_chain=True,
-								  option_intersection_salience=False,
-								  event_intersection_salience=False)
+		back_chain = SkillChain(target_salient_event=target_event,
+								init_salient_event=start_event,
+								options=[], chain_id=len(self.chains) + 1,
+								intersecting_options=[], is_backward_chain=True,
+								option_intersection_salience=False,
+								event_intersection_salience=False)
 		self.add_skill_chain(back_chain)
 
 		# Create a new option and equip the SkillChainingAgent with it
@@ -773,7 +770,7 @@ class SkillChaining(object):
 				chain2.has_backward_chain = True
 
 				# Add this new salient event to the MDP - so that we can plan to and from it
-				common_states = intersecting_options[1].effect_set
+				common_states = intersecting_options[0].effect_set
 				all_salient_events = self.mdp.get_all_target_events_ever()
 				all_salient_event_idx = [event.event_idx for event in all_salient_events]
 
@@ -782,6 +779,8 @@ class SkillChaining(object):
 																 intersection_event=True)
 
 				self.mdp.add_new_target_event(intersection_salient_event)
+
+				long_chain = chain1 if chain1.is_chain_completed(self.chains) else chain2
 
 				# Create the following skill-chains:
 				# 1. Chain from beta1 to beta-intersection
@@ -792,7 +791,7 @@ class SkillChaining(object):
 				self.create_backward_skill_chain(start_event=chain2.target_salient_event,
 												 target_event=intersection_salient_event)
 				self.create_backward_skill_chain(start_event=intersection_salient_event,
-												 target_event=self.mdp.get_start_state_salient_event())  # TODO: This has to be the init_salient_event of the long_chain
+												 target_event=long_chain.init_salient_event)
 
 				self.rewire_intersecting_chains(intersecting_chains, intersecting_options, intersection_salient_event)
 
@@ -823,7 +822,7 @@ class SkillChaining(object):
 							chain.is_chain_completed(self.chains) and not chain.is_backward_chain]
 			if event != option_target_event and \
 					len(event_chains) > 0 and \
-					SkillChain.detect_intersection_between_option_and_event(option, event):
+					SkillChain.should_exist_edge_from_event_to_option(event, option):
 				intersecting_events.append(event)
 
 		trained_backward_options = []
@@ -894,43 +893,6 @@ class SkillChaining(object):
 		#
 		# # Change the termination condition of options that target the `intersecting_options`
 		# pass
-
-	def conclude_option_initiation_phase(self, untrained_option, episode):
-		"""
-
-		Args:
-			untrained_option (Option)
-			episode (int)
-
-		Returns:
-			completed_option (Option)
-			should_create_children (bool)
-
-		"""
-		# In the skill-graph setting, we have to check if the current option's chain
-		# is still accepting new options
-
-		if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done" \
-				and self.chains[untrained_option.chain_id - 1].should_continue_chaining(self.chains):
-
-				# We fix the learned option's initiation set and remove it from the list of target events
-				self.untrained_options.remove(untrained_option)
-
-				# Debug visualization
-				plot_two_class_classifier(untrained_option, episode, self.experiment_name)
-
-				return untrained_option, True
-
-		elif untrained_option.get_training_phase() == "initiation_done":
-			# Debug visualization
-			plot_two_class_classifier(untrained_option, episode, self.experiment_name)
-
-			# We fix the learned option's initiation set and remove it from the list of target events
-			self.untrained_options.remove(untrained_option)
-
-			return untrained_option, False
-
-		return None, False
 
 	def finish_option_initiation_phase(self, untrained_option, episode):
 		"""
@@ -1169,6 +1131,18 @@ class SkillChaining(object):
 			state = next_state
 
 		return overall_reward, option_trajectories
+
+
+	def __getstate__(self):
+		excluded_keys = ("mdp", "writer", "plotter")
+		state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+		return state_dictionary
+
+	def __setstate__(self, state_dictionary):
+		excluded_keys = ("mdp", "writer", "plotter")
+		for key in state_dictionary:
+			if key not in excluded_keys:
+				self.__dict__[key] = state_dictionary[key]
 
 
 def create_log_dir(experiment_name):

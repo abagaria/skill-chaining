@@ -10,12 +10,11 @@ from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.GraphSearchClass import GraphSearch
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
-from simple_rl.agents.func_approx.exploration.UCBActionSelectionAgentClass import UCBActionSelectionAgent
 from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
 
 
 class SkillGraphPlanningAgent(object):
-    def __init__(self, *, mdp, chainer, pretrain_option_policies, initialize_graph, use_ucb, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, pretrain_option_policies, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -25,36 +24,56 @@ class SkillGraphPlanningAgent(object):
             mdp (PointReacherMDP)
             chainer (SkillChaining)
             pretrain_option_policies (bool)
-            initialize_graph (bool)
-            use_ucb (bool)
             experiment_name (str)
             seed (int)
         """
         self.mdp = mdp
         self.chainer = chainer
         self.pretrain_option_policies = pretrain_option_policies
-        self.initialize_graph = initialize_graph
-        self.use_ucb = use_ucb
         self.experiment_name = experiment_name
         self.seed = seed
 
-        self.bandit_agents = {}
+        self.plan_graph = GraphSearch()
 
-        self.plan_graph = self.construct_plan_graph() if initialize_graph else GraphSearch()
+    def construct_graph(self, options, events):
+        """
 
-    def construct_plan_graph(self):
-        # Perform test rollouts to determine edge weights in the plan graph
-        self.perform_test_rollouts(num_rollouts=100)
+        Args:
+            options (list)
+            events (list)
 
-        # Construct the plan graph
-        plan_graph = GraphSearch()
-        plan_graph.construct_graph(self.chainer.chains)
+        Returns:
+            plan_graph (GraphSearch)
+        """
+        # Add all options to the graph
+        for option in options:
+            self.plan_graph.add_node(option)
 
-        # Visualize the graph
-        file_name = f"value_function_plots/{self.experiment_name}/plan_graph_seed_{self.seed}.png"
-        plan_graph.visualize_plan_graph(file_name)
+        # Add all events to the graph
+        for event in events:
+            self.plan_graph.add_node(event)
 
-        return plan_graph
+        # Add connections from options -> salient events
+        for option in options:  # type: Option
+            for event in events:  # type: SalientEvent
+                if SkillChain.should_exist_edge_from_option_to_event(option, event):
+                    print(f"Adding edge from {option} -> {event}")
+                    self.plan_graph.add_edge(option, event)
+
+        # Add connections from salient events -> options
+        for option in options:  # type: Option
+            for event in events:  # type: SalientEvent
+                if SkillChain.should_exist_edge_from_event_to_option(event, option):
+                    print(f"Adding edge from {event} -> {option}")
+                    self.plan_graph.add_edge(event, option, edge_weight=0.)
+
+        # Add connections from options -> options
+        for option1 in options:
+            for option2 in options:
+                if option1 != option2:
+                    if SkillChain.should_exist_edge_between_options(option1, option2):
+                        print(f"Adding edge from {option1} -> {option2}")
+                        self.plan_graph.add_edge(option1, option2)
 
     def act(self, start_state, goal_state, target_option, inside_graph):
         """
@@ -255,7 +274,6 @@ class SkillGraphPlanningAgent(object):
 
         else:
             dsc_run_loop_budget = self.chainer.max_steps - num_steps
-            pre_rollout_state = deepcopy(self.mdp.cur_state)
 
             print(f"About to rollout DSC for {dsc_run_loop_budget} steps with interrupt handle {goal_salient_event}")
 
@@ -267,8 +285,7 @@ class SkillGraphPlanningAgent(object):
 
             print(f"Returned from DSC runloop having learned {newly_created_options}")
 
-            self.manage_options_learned_during_rollout(newly_created_options, pre_rollout_state,
-                                                       goal_salient_event, jumped_off_the_graph=True)
+            self.manage_options_learned_during_rollout(newly_created_options)
 
         return deepcopy(self.mdp.cur_state), step_number
 
@@ -288,76 +305,18 @@ class SkillGraphPlanningAgent(object):
                                                                            option_transitions=option_transitions)
 
         # With off-policy triggers, you can trigger the termination condition of an option w/o rolling it out
-        self.manage_options_learned_during_rollout(newly_created_options=new_options,
-                                                   pre_rollout_state=state_before_rollout,
-                                                   goal_salient_event=goal_salient_event,
-                                                   jumped_off_the_graph=False)
+        self.manage_options_learned_during_rollout(newly_created_options=new_options)
 
         # Modify the edge weight associated with the executed option
         self.modify_executed_option_edge_weight(option)
 
         return step + len(option_transitions)
 
-    def manage_options_learned_during_rollout(self, newly_created_options, pre_rollout_state,
-                                              goal_salient_event, jumped_off_the_graph):
+    def manage_options_learned_during_rollout(self, newly_created_options):
 
         # TODO: Adding new options is not enough - we also have to create their children
         for newly_created_option in newly_created_options:  # type: Option
             self.add_newly_created_option_to_plan_graph(newly_created_option)
-
-        if self.use_ucb:
-            self.manage_bandits_after_dsc_rollout(pre_rollout_state, newly_created_options,
-                                                  goal_salient_event, jumped_off_the_graph=jumped_off_the_graph)
-
-    def manage_bandits_after_dsc_rollout(self, pre_rollout_state, newly_created_options,
-                                         goal_salient_event, jumped_off_the_graph):
-        """
-        If new options were created during the DSC rollout, we have to inform all the bandits about that.
-        Furthermore, we need to update the value of the option from which we ended up exiting the graph.
-
-        Args:
-            pre_rollout_state (State)
-            newly_created_options (list)
-            goal_salient_event (SalientEvent)
-            jumped_off_the_graph (bool)
-
-        Returns:
-
-        """
-        assert self.use_ucb
-
-        for newly_created_option in newly_created_options:  # type: Option
-
-            # If the newly created option is part of a completed chain, then we should tell all
-            # the bandit agents about this option so that they can compute the value of falling off the graph from it
-            self.update_bandits_with_new_option(newly_created_option)
-
-        if goal_salient_event in self.bandit_agents.keys() and jumped_off_the_graph:
-            used_bandit = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
-
-            jumping_off_options = [option for option in self.get_options_in_known_part_of_the_graph()
-                                    if option.is_init_true(pre_rollout_state)]
-
-            for option in jumping_off_options:  # type: Option
-                if option in used_bandit.options:
-                    used_bandit.update(option, success=goal_salient_event(self.mdp.cur_state))
-
-    def update_bandits_with_new_option(self, new_option):
-        """
-        When the DSC agent learns a new option, not only do we want to add it to the skill-graph,
-        but we also want to add this option to the candidate set of options available to the
-        UCB option selection module.
-
-        Args:
-            new_option (Option)
-
-        """
-        assert new_option.get_training_phase() == "initiation_done"
-        assert self.use_ucb
-        for salient_event in self.bandit_agents:  # type: SalientEvent
-            if not new_option.backward_option:  # TODO: Adding condition for implementation ease for now
-                bandit = self.bandit_agents[salient_event]
-                bandit.add_candidate_option(new_option)
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option):
 
@@ -396,7 +355,7 @@ class SkillGraphPlanningAgent(object):
         # Case 2: Leaf option # TODO: Need to check intersection with the init_salient_event as well
         if chain.is_chain_completed(self.chainer.chains) \
             and is_leaf_node \
-                and chain.detect_intersection_between_option_and_event(newly_created_option, init_salient_event):
+                and chain.should_exist_edge_from_event_to_option(init_salient_event, newly_created_option):
 
             print(f"Case 2: Adding edge from {init_salient_event} to {newly_created_option}")
             self.plan_graph.add_edge(init_salient_event, newly_created_option, edge_weight=0.)
@@ -414,7 +373,7 @@ class SkillGraphPlanningAgent(object):
             # 2. Add an edge from each intersecting event to the newly_created_option
             events = [event for event in self.mdp.get_all_target_events_ever() if event != chain.target_salient_event]
             intersecting_events = [event for event in events
-                                   if chain.detect_intersection_between_option_and_event(newly_created_option, event)]
+                                   if chain.should_exist_edge_from_event_to_option(event, newly_created_option)]
             for event in intersecting_events:  # type: SalientEvent
                 assert isinstance(event, SalientEvent)
                 print(f"Adding edge from {event} to {newly_created_option}")
@@ -573,14 +532,6 @@ class SkillGraphPlanningAgent(object):
         if inside_target_option is not None:
             return inside_target_option, True
 
-        if self.use_ucb and goal_salient_event not in self.bandit_agents:
-            candidate_options = self.get_options_in_known_part_of_the_graph()
-            candidate_options = [option for option in candidate_options if not option.backward_option]  # TODO: This only makes sense if you start at s0
-            self.bandit_agents[goal_salient_event] = UCBActionSelectionAgent(goal_state=goal_state,
-                                                                             options=candidate_options,
-                                                                             chains=self.chainer.chains,
-                                                                             use_option_vf=False)  # TODO: Set to true in the future
-
         outside_target_option = self.choose_option_to_fall_off_graph_from(goal_salient_event)
         return outside_target_option, False
 
@@ -664,8 +615,7 @@ class SkillGraphPlanningAgent(object):
             start_states = [_get_start_state_for_new_chain(train_goal_option)]  # Why not use the effect set of the option?
 
         chain_id = max([chain.chain_id for chain in self.chainer.chains]) + 1
-        new_forward_chain = SkillChain(start_states=start_states, mdp_start_states=[self.mdp.init_state],
-                                       init_salient_event=init_salient_event,
+        new_forward_chain = SkillChain(init_salient_event=init_salient_event,
                                        target_salient_event=target_salient_event, is_backward_chain=False,
                                        chain_id=chain_id, options=[], option_intersection_salience=False,
                                        event_intersection_salience=False)
@@ -739,9 +689,7 @@ class SkillGraphPlanningAgent(object):
         # However, as DSC adds skills to this chain, it will eventually stop when it finds a chain intersection
         # At that point it will rewire the chain to set its init_salient_event to be the region of intersection
         init_salient_event = self.mdp.get_start_state_salient_event()
-        new_skill_chain = SkillChain(start_states=[self.mdp.init_state],
-                                     mdp_start_states=[self.mdp.init_state],
-                                     init_salient_event=init_salient_event,
+        new_skill_chain = SkillChain(init_salient_event=init_salient_event,
                                      target_salient_event=target_salient_event,
                                      is_backward_chain=False,
                                      option_intersection_salience=self.chainer.option_intersection_salience,
@@ -824,8 +772,7 @@ class SkillGraphPlanningAgent(object):
             if isinstance(child_option, Option):
                 child_option_success_rate = child_option.get_option_success_rate()
                 weight = 1. / child_option_success_rate if child_option_success_rate > 0 else 0.
-                self.plan_graph.set_edge_weight(child_option, selected_option,
-                                                weight=1. / weight)
+                self.plan_graph.set_edge_weight(child_option, selected_option, weight=weight)
             elif isinstance(child_option, SalientEvent):
                 self.plan_graph.set_edge_weight(child_option, selected_option, weight=0.)
             else:
@@ -841,12 +788,6 @@ class SkillGraphPlanningAgent(object):
                 _modify_edge_weight_of_root_option(selected_option)
 
     def choose_option_to_fall_off_graph_from(self, goal_salient_event):
-        def _ucb_choose_option_to_fall_off_graph_from():
-            bandit_agent = self.bandit_agents[goal_salient_event]  # type: UCBActionSelectionAgent
-            selected_option = bandit_agent.act()  # type: Option
-            print(f"[UCB-Node-Selection] Chose {selected_option} to fall off the graph from")
-            return selected_option
-
         def _distance_choose_event_too_fall_off_graph_from():
             candidate_events = self.get_events_in_known_part_of_the_graph()
             candidate_events = [event for event in candidate_events if event != goal_salient_event]
@@ -858,8 +799,6 @@ class SkillGraphPlanningAgent(object):
             return selected_event
 
         if not self.is_plan_graph_empty():
-            if self.use_ucb:
-                return _ucb_choose_option_to_fall_off_graph_from()
             return _distance_choose_event_too_fall_off_graph_from()
 
         return None

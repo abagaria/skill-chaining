@@ -2,10 +2,10 @@ import ipdb
 import argparse
 import random
 from copy import deepcopy
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent, DCOSalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DCOSalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
-from simple_rl.agents.func_approx.dsc.SkillGraphPlanningAgentClass import SkillGraphPlanningAgent
+from simple_rl.agents.func_approx.dsc.SkillGraphPlannerClass import SkillGraphPlanner
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
@@ -21,7 +21,7 @@ class DeepSkillGraphAgent(object):
         Args:
             mdp (GoalDirectedMDP)
             dsc_agent (SkillChaining)
-            planning_agent (SkillGraphPlanningAgent)
+            planning_agent (SkillGraphPlanner)
             salient_event_freq (int)
             use_hard_coded_events (bool)
             use_dco (bool)
@@ -112,12 +112,12 @@ class DeepSkillGraphAgent(object):
                     step_number += 1
                     success = False
                 else:
-                    goal_state = goal_salient_event.target_state
-                    step_number, success = self.planning_agent.planning_run_loop(start_episode=episode,
-                                                                                 goal_state=goal_state,
-                                                                                 goal_salient_event=goal_salient_event,
-                                                                                 step_number=step_number,
-                                                                                 to_reset=False)
+                    step_number, success = self.planning_agent.run_loop(state=state,
+                                                                        goal_salient_event=goal_salient_event,
+                                                                        episode=episode,
+                                                                        step=step_number,
+                                                                        eval_mode=False,
+                                                                        to_reset=False)
 
                 state = deepcopy(self.mdp.cur_state)
 
@@ -144,11 +144,11 @@ class DeepSkillGraphAgent(object):
                                        # use_xy_prior=self.dco_use_xy_prior)
 
             low_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            low_salient_event = DCOSalientEvent(c_option, low_event_idx, replay_buffer, is_low=True)
+            low_salient_event = DCOSalientEvent(c_option, low_event_idx, is_low=True)
             reject_low = self.add_salient_event(low_salient_event, episode)
 
             high_event_idx = len(self.mdp.all_salient_events_ever) + 1
-            high_salient_event = DCOSalientEvent(c_option, high_event_idx, replay_buffer, is_low=False)
+            high_salient_event = DCOSalientEvent(c_option, high_event_idx, is_low=False)
             reject_high = self.add_salient_event(high_salient_event, episode)
 
             if reject_low or reject_high:
@@ -426,15 +426,12 @@ if __name__ == "__main__":
                             experiment_name=args.experiment_name)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
-    # assert args.use_option_intersection_salience ^ args.use_event_intersection_salience
 
-    planner = SkillGraphPlanningAgent(mdp=overall_mdp,
-                                      chainer=chainer,
-                                      experiment_name=args.experiment_name,
-                                      seed=args.seed,
-                                      initialize_graph=False,
-                                      pretrain_option_policies=args.pretrain_option_policies,
-                                      use_ucb=args.use_ucb)
+    planner = SkillGraphPlanner(mdp=overall_mdp,
+                                chainer=chainer,
+                                experiment_name=args.experiment_name,
+                                seed=args.seed,
+                                pretrain_option_policies=args.pretrain_option_policies)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
                                     dsc_agent=chainer,
