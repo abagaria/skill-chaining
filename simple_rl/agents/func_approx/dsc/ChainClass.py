@@ -7,16 +7,14 @@ from simple_rl.mdp.StateClass import State
 
 
 class SkillChain(object):
-    def __init__(self, start_states, mdp_start_states, init_salient_event, target_salient_event, options, chain_id,
-                 intersecting_options=[], is_backward_chain=False, has_backward_chain=False,
+    def __init__(self, init_salient_event, target_salient_event, options, chain_id,
+                 intersecting_options=None, is_backward_chain=False, has_backward_chain=False,
                  option_intersection_salience=False, event_intersection_salience=True):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here
         may also refer to Skill Trees.
         Args:
-            start_states (list): List of states at which chaining stops
-            mdp_start_states (list): list of MDP start states, if distinct from `start_states`
             init_salient_event (SalientEvent): f: s -> {0, 1} based on start salience
             target_salient_event (SalientEvent): f: s -> {0, 1} based on target salience
             options (list): list of options in the current chain
@@ -28,12 +26,10 @@ class SkillChain(object):
             event_intersection_salience (bool): Chain until you intersect with another salient event
         """
         self.options = options
-        self.start_states = start_states
-        self.mdp_start_states = mdp_start_states
-        self.init_salient_event = init_salient_event  # TODO: USE THIS IN PLACE OF START STATES
+        self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.chain_id = chain_id
-        self.intersecting_options = intersecting_options
+        self.intersecting_options = intersecting_options if intersecting_options is not None else []
 
         self.is_backward_chain = is_backward_chain
         self.has_backward_chain = has_backward_chain
@@ -104,31 +100,37 @@ class SkillChain(object):
         return not self.is_chain_completed(chains)
 
     @staticmethod
-    def detect_intersection_between_options(my_option, other_option):
+    def should_exist_edge_between_options(my_option, other_option):
+        """ Should there exist an edge from option1 -> option2? """
         if my_option.get_training_phase() == "initiation_done" and other_option.get_training_phase() == "initiation_done":
-            effect_set = np.array(other_option.effect_set)  # list of states
-            inits = my_option.batched_is_init_true(effect_set)
+            effect_set = my_option.effect_set
+            effect_set_matrix = SkillChain.get_position_matrix(effect_set)  # list of states
+            inits = other_option.batched_is_init_true(effect_set_matrix)
             is_intersecting = inits.all()
             return is_intersecting
         return False
 
     @staticmethod
-    def detect_intersection_between_option_and_event(option, event):
+    def should_exist_edge_from_event_to_option(event, option):
+        """ Should there be an edge from `event` to `option`? """
         if option.get_training_phase() == "initiation_done":
             if len(event.trigger_points) > 0:  # Be careful: all([]) = True
-                state_matrix = np.array(event.trigger_points)
+                state_matrix = SkillChain.get_position_matrix(event.trigger_points)
                 inits = option.batched_is_init_true(state_matrix)
                 is_intersecting = inits.all()
                 return is_intersecting
             return option.is_init_true(event.target_state)
         return False
 
-    def detect_intersection_with_other_chains(self, other_chains):
-        for chain in other_chains:
-            intersecting_options = self.get_intersecting_options(chain)
-            if intersecting_options is not None:
-                return intersecting_options
-        return None
+    @staticmethod
+    def should_exist_edge_from_option_to_event(option, event):
+        """ Should there be an edge from `option` to `event`? """
+        if option.get_training_phase() == "initiation_done":
+            effect_set = option.effect_set  # list of states
+            effect_set_matrix = SkillChain.get_position_matrix(effect_set)
+            inits = event.batched_is_init_true(effect_set_matrix)
+            return inits.all()
+        return False
 
     def get_intersecting_options(self, other_chain):
         """
@@ -150,7 +152,7 @@ class SkillChain(object):
 
         for my_option in self.options:  # type: Option
             for other_option in other_chain.options:  # type: Option
-                if self.detect_intersection_between_options(my_option, other_option):
+                if self.self.should_exist_edge_between_options(my_option, other_option):
                     return my_option, other_option
         return None
 
@@ -161,22 +163,17 @@ class SkillChain(object):
 
         for my_option in self.options:  # type: Option
             event = other_chain.target_salient_event
-            if self.detect_intersection_between_option_and_event(my_option, event):
+            if self.should_exist_edge_from_event_to_option(my_option, event):
                 return my_option, event
         return None
 
     def is_intersecting(self, other_chain):
         """ Boolean wrapper around detect_intersection(). """
         if self.option_intersection_salience:
-            return self.get_intersecting_options(other_chain) is not None
+            intersecting = self.get_intersecting_options(other_chain) is not None
+            return intersecting
         assert self.event_intersection_salience, "set event_intersection_salience or option_intersection_salience"
         return self.get_intersecting_option_and_event(other_chain) is not None
-
-    def chain_salience_satisfied(self, state):
-        if self.target_salient_event is not None:
-            return self.target_salient_event(state)
-        assert len(self.intersecting_options) > 0, self.intersecting_options
-        return self.target_predicate(state)
 
     def is_chain_completed(self, chains):
         """
@@ -203,22 +200,23 @@ class SkillChain(object):
         if completed:
             # Which salient event did intersect with to cause this change?
             # Cause that is the salient event that we should rewire to
+            if not self.is_backward_chain:
 
-            other_chains = [chain for chain in chains if chain != self]
-            intersecting_pairs = [self.get_intersecting_option_and_event(chain) for chain in other_chains
-                                  if chain.is_chain_completed(other_chains)]
-            intersecting_pairs = [pair for pair in intersecting_pairs if pair is not None]
-            intersecting_events = [pair[1] for pair in intersecting_pairs]
-            if len(intersecting_events) == 1:
-                event = intersecting_events[0]
-                self.init_salient_event = event  # Rewiring operation
-            elif len(intersecting_events) > 1:
-                # TODO: Assuming a distance function here - if we do the UCB thing, I will have to redo this
-                distances = [self.target_salient_event.distance_from_goal(event.target_state) for event in intersecting_events]
-                best_idx = np.argmin(distances)
-                best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
-                closest_event = intersecting_events[best_idx]
-                self.init_salient_event = closest_event
+                other_chains = [chain for chain in chains if chain != self]
+                intersecting_pairs = [self.get_intersecting_option_and_event(chain) for chain in other_chains
+                                      if chain.is_chain_completed(other_chains)]
+                intersecting_pairs = [pair for pair in intersecting_pairs if pair is not None]
+                intersecting_events = [pair[1] for pair in intersecting_pairs]
+                if len(intersecting_events) == 1:
+                    event = intersecting_events[0]
+                    self.init_salient_event = event  # Rewiring operation
+                elif len(intersecting_events) > 1:
+                    # Find the distance between the target_salient_event and the intersecting_events
+                    distances = [self.target_salient_event.distance_from_goal(event.target_state) for event in intersecting_events]
+                    best_idx = np.argmin(distances)
+                    best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
+                    closest_event = intersecting_events[best_idx]
+                    self.init_salient_event = closest_event
 
             self._is_deemed_completed = True
 
@@ -229,35 +227,12 @@ class SkillChain(object):
         start_state_in_chain = all([self.state_in_chain(s) for s in start_event_trigger_points])
         return start_state_in_chain
 
-    def get_overlapping_options_and_events(self, chains):
-        """ Options in the current chain that satisfy the target salient events of other chains. """
-        def is_linked(e, o):
-            """ Given a target salient event from another chain and an option,
-                tell me if the event is a subset of the option's initiation set. """
-            if o.get_training_phase() == "initiation_done":
-                if len(e.trigger_points) > 0:  # Be careful: all([]) = True
-                    return all([o.is_init_true(s) for s in e.trigger_points])  # TODO: Batch this
-                return o.is_init_true(e.target_state)
-            return False
-
-        links = []
-        events = [chain.target_salient_event for chain in chains if chain != self]
-
-        for event in events:
-            for option in self.options:
-                if is_linked(event, option):
-                    links.append((event, option))
-
-        return links
-
     def get_leaf_nodes_from_skill_chain(self):
         return [option for option in self.options if len(option.children) == 0]
 
     def get_root_nodes_from_skill_chain(self):
         return [option for option in self.options if option.parent is None]
 
-    def get_target_position(self):
-        state = self.target_salient_event.target_state
-        position = state.features() if isinstance(state, State) else state
-        assert isinstance(position, np.ndarray), type(position)
-        return position
+    @staticmethod
+    def get_position_matrix(states):
+        return np.array([state.features() if isinstance(state, State) else state for state in states])
