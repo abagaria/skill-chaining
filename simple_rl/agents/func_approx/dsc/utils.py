@@ -128,46 +128,6 @@ def get_initiation_set_values(option):
 #     plt.close()
 
 
-def _plot_initiation_sets(x_idx, y_idx, positive_examples, which_classifier, option, episode, logdir, negative_examples=None):
-    print(f"Plotting initiation set of {option.name}")
-
-    # sawyer constants
-    axis_low = [-0.28, 0.3, 0.05, -0.4, 0.2]
-    axis_high = [0.28, 0.9, 0.05, 0.4, 1.]
-    axis_labels = ['endeff_x', 'endeff_y', 'endeff_z', 'puck_x', 'puck_y']
-
-    # graphing constants
-    x_label, y_label = axis_labels[x_idx], axis_labels[y_idx]
-    x_low, x_high, y_low, y_high = axis_low[x_idx], axis_high[x_idx], axis_low[y_idx], axis_high[y_idx]
-
-    # plot positive and negative examples
-    plt.scatter(positive_examples[:, x_idx], positive_examples[:, y_idx], label="positive", c="b", alpha=0.5, s=50)
-    if negative_examples is not None:
-        plt.scatter(negative_examples[:, x_idx], negative_examples[:, y_idx], label="negative", c="r", alpha=0.5,  s=50)
-
-    # plot option's target state
-    if option.target_salient_event is not None:
-        target = option.target_salient_event.target_state
-        plt.scatter(target[x_idx], target[y_idx], label="target salient event", c="black", marker="x", s=100)
-
-    # set title and legend
-    plt.legend()
-    plt.title(f"{option.name} {which_classifier} Initiation Set")
-
-    # set axes
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.xlim(x_low, x_high)
-    plt.ylim(y_low, y_high)
-    plt.xticks(np.linspace(x_low, x_high, 5))
-    plt.yticks(np.linspace(y_low, y_high, 7))
-
-    # save plot as png
-    file_name = f"{option.name}_{episode}_{x_label}_{y_label}_{option.seed}_{which_classifier}.png"
-    plt.savefig(os.path.join(logdir, "initiation_set_plots", file_name))
-    plt.close()
-
-
 def plot_two_class_classifier(option, episode, experiment_name):
     states = get_grid_states(option.overall_mdp)
     values = get_initiation_set_values(option)

@@ -138,7 +138,6 @@ class PointMazeMDP(MDP):
 
     @staticmethod
     def is_primitive_action(action):
-        # What the fuck does this do?
         return -1. <= action.all() <= 1.
 
     def reset(self):

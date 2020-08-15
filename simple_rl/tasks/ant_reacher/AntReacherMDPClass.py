@@ -8,14 +8,11 @@ from simple_rl.tasks.ant_reacher.AntReacherStateClass import AntReacherState
 
 
 class AntReacherMDP(GoalDirectedMDP):
-    def __init__(self, goal_pos, use_hard_coded_events=False, seed=0, render=False, tolerance=0.6, dense_reward=False):
-        self.tolerance = tolerance
-        self.goal_pos = goal_pos
+    def __init__(self, use_hard_coded_events=False, seed=0, render=False):
         self.env_name = "ant-reacher"
         self.use_hard_coded_events = use_hard_coded_events
         self.seed = seed
         self.render = render
-        self.dense_reward = dense_reward
 
         random.seed(seed)
         np.random.seed(seed)
@@ -52,10 +49,7 @@ class AntReacherMDP(GoalDirectedMDP):
                                  self._transition_func,
                                  self._reward_func,
                                  self.init_state,
-                                 tolerance,
-                                 False,
-                                 salient_positions,
-                                 task_agnostic=True)
+                                 salient_positions)
 
     def _reward_func(self, state, action):
 
@@ -63,22 +57,18 @@ class AntReacherMDP(GoalDirectedMDP):
 
         action = 30. * action  # Need to scale the actions so they lie between -30 and 30 and not just -1 and 1
 
-        next_state, _, _, _ = self.env.step(action)
-        done = self.is_goal_state(next_state)
-        if self.render:
-            self.env.render()
-        self.next_state = self._get_state(next_state, done)
+        next_state, _, done, info = self.env.step(action)
+        time_limit_truncated = info.get('TimeLimit.truncated', False)
+        is_terminal = done and not time_limit_truncated
 
-        if self.dense_reward:
-            reward = np.linalg.norm(state - self.goal_pos) * -1
+        if self.task_agnostic:  # No reward function => no rewards and no terminations
+            reward = -1.
+            is_terminal = False
         else:
-            reward = 10 if done else -1
+            reward = +1. if is_terminal else -1.
 
+        self.next_state = self._get_state(next_state, is_terminal)
         return reward
-
-    def is_goal_state(self, state):
-        state = state.position if isinstance(state, AntReacherState) else state[:2]
-        return np.linalg.norm(state - self.goal_pos) < self.tolerance
 
     def _transition_func(self, state, action):
         return self.next_state
@@ -107,7 +97,6 @@ class AntReacherMDP(GoalDirectedMDP):
 
     def set_xy(self, position):
         """ Used at test-time only. """
-        position = position[:2]
         position = tuple(position)  # `maze_model.py` expects a tuple
         self.env.wrapped_env.set_xy(position)
 

@@ -19,8 +19,8 @@ class CountBasedDensityModel(object):
         self.use_position_only = use_position_only
 
         # Map (state, action) pairs to visitation counts and exploration bonuses
-        self.s_a_counts = defaultdict(lambda : defaultdict(lambda: 0))
-        self.s_a_bonus  = defaultdict(lambda : defaultdict(lambda: 0))
+        self.s_a_counts = defaultdict(lambda: defaultdict(lambda: 0))
+        self.s_a_bonus = defaultdict(lambda: defaultdict(lambda: 0))
 
     def _round_state_action(self, state, action):
         if self.use_position_only:
