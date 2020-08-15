@@ -13,12 +13,16 @@ import os
 import random
 import numpy as np
 from tensorboardX import SummaryWriter
+import torch
+import itertools
+from tqdm import tqdm
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.agents.func_approx.ddpg.utils import *
+from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent
@@ -88,6 +92,7 @@ class SkillChaining(object):
         self.use_warmup_phase = use_warmup_phase
         self.experiment_name = experiment_name
         self.plotter = plotter
+        # TODO: Is this the right place to set these global flags?
         Option.fixed_epsilon = fixed_option_epsilon
         Option.constant_noise = constant_noise
         self.init_dqn_epsilon = init_dqn_epsilon
@@ -103,13 +108,14 @@ class SkillChaining(object):
         self.validation_scores = []
 
         # This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
-        self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None, lr_actor=lr_actor, lr_critic=lr_critic,
-                                    ddpg_batch_size=ddpg_batch_size, classifier_type=classifier_type, subgoal_reward=self.subgoal_reward,
-                                    max_steps=self.max_steps, seed=self.seed, num_subgoal_hits_required=num_subgoal_hits_required,
-                                    buffer_length=buffer_length, dense_reward=self.dense_reward, enable_timeout=self.enable_option_timeout,
-                                    option_idx=0, chain_id=None, update_global_solver=self.update_global_solver,
-                                    use_warmup_phase=self.use_warmup_phase, is_backward_option=False, device=self.device,
-                                    writer=self.writer)
+        self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
+                                    lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
+                                    ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
+                                    subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
+                                    enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
+                                    writer=self.writer, device=self.device, use_warmup_phase=self.use_warmup_phase, 
+                                    update_global_solver=self.update_global_solver, dense_reward=self.dense_reward, 
+                                    chain_id=None, is_backward_option=False, option_idx=0)
 
         self.trained_options = [self.global_option]
 
@@ -146,8 +152,8 @@ class SkillChaining(object):
         # Keep track of which chain each created option belongs to
         start_state_salient_event = self.mdp.get_start_state_salient_event()
         self.s0 = start_state_salient_event.trigger_points
-        self.chains = [SkillChain(start_states=self.s0, options=[], chain_id=(i + 1),
-                                  intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
+        self.chains = [SkillChain(options=[], chain_id=(i + 1),
+                                  intersecting_options=[], is_backward_chain=False,
                                   target_salient_event=salient_event, init_salient_event=start_state_salient_event,
                                   option_intersection_salience=option_intersection_salience,
                                   event_intersection_salience=event_intersection_salience)
@@ -193,8 +199,8 @@ class SkillChaining(object):
                              use_warmup_phase=self.use_warmup_phase, is_backward_option=False, device=self.device, writer=self.writer)
         self.untrained_options.append(goal_option)
 
-        new_chain = SkillChain(start_states=self.s0, options=[], chain_id=chain_id,
-                               intersecting_options=[], mdp_start_states=self.s0, is_backward_chain=False,
+        new_chain = SkillChain(options=[], chain_id=chain_id,
+                               intersecting_options=[], is_backward_chain=False,
                                target_salient_event=salient_event,
                                init_salient_event=init_salient_event,
                                option_intersection_salience=self.option_intersection_salience,
@@ -239,7 +245,7 @@ class SkillChaining(object):
 		Returns:
 			any_init_in_option (bool)
 		"""
-        start_states = self.chains[option.chain_id - 1].start_states
+        start_states = self.chains[option.chain_id - 1].init_salient_event.trigger_points
         if len(start_states) == 0:
             ipdb.set_trace()
         starts_chained = [option.is_init_true(state) for state in start_states]
@@ -528,12 +534,14 @@ class SkillChaining(object):
         """ Iterate through all the skill chains and return all pairs of options that have intersecting initiation sets. """
         intersecting_pairs = []
         for chain in self.chains:  # type: SkillChain
-            intersecting_options = chain.detect_intersection_with_other_chains(self.chains)
-            if intersecting_options is not None:
+            for other_chain in self.chains:  # type: SkillChain
+                intersecting_options = chain.get_intersecting_options(other_chain)
 
-                # Only care about intersections between forward chains
-                if not intersecting_options[0].backward_option and not intersecting_options[1].backward_option:
-                    intersecting_pairs.append(intersecting_options)
+                if intersecting_options is not None:
+
+                    # Only care about intersections between forward chains
+                    if not intersecting_options[0].backward_option and not intersecting_options[1].backward_option:
+                        intersecting_pairs.append(intersecting_options)
 
         return intersecting_pairs
 
@@ -674,9 +682,7 @@ class SkillChaining(object):
 
 		"""
         # No need to check for intersections if you are a backward chain
-        back_chain = SkillChain(start_states=start_event.trigger_points,
-                                mdp_start_states=self.s0,
-                                target_salient_event=target_event,
+        back_chain = SkillChain(target_salient_event=target_event,
                                 init_salient_event=start_event,
                                 options=[], chain_id=len(self.chains) + 1,
                                 intersecting_options=[], is_backward_chain=True,
@@ -723,7 +729,7 @@ class SkillChaining(object):
                 chain2.has_backward_chain = True
 
                 # Add this new salient event to the MDP - so that we can plan to and from it
-                common_states = intersecting_options[1].effect_set
+                common_states = intersecting_options[0].effect_set
                 all_salient_events = self.mdp.get_all_target_events_ever()
                 all_salient_event_idx = [event.event_idx for event in all_salient_events]
 
@@ -732,6 +738,8 @@ class SkillChaining(object):
                                                                  intersection_event=True)
 
                 self.mdp.add_new_target_event(intersection_salient_event)
+
+                long_chain = chain1 if chain1.is_chain_completed(self.chains) else chain2
 
                 # Create the following skill-chains:
                 # 1. Chain from beta1 to beta-intersection
@@ -742,7 +750,7 @@ class SkillChaining(object):
                 self.create_backward_skill_chain(start_event=chain2.target_salient_event,
                                                  target_event=intersection_salient_event)
                 self.create_backward_skill_chain(start_event=intersection_salient_event,
-                                                 target_event=self.mdp.get_start_state_salient_event())  # TODO: This has to be the init_salient_event of the long_chain
+                                                 target_event=long_chain.init_salient_event)  # TODO: This has to be the init_salient_event of the long_chain
 
                 self.rewire_intersecting_chains(intersecting_chains, intersecting_options, intersection_salient_event)
 
@@ -773,7 +781,7 @@ class SkillChaining(object):
                             chain.is_chain_completed(self.chains) and not chain.is_backward_chain]
             if event != option_target_event and \
                     len(event_chains) > 0 and \
-                    SkillChain.detect_intersection_between_option_and_event(option, event):
+                    SkillChain.should_exist_edge_from_event_to_option(event, option):
                 intersecting_events.append(event)
 
         trained_backward_options = []
@@ -829,8 +837,7 @@ class SkillChaining(object):
         # Change the init_salient_event corresponding to the short_chain
         short_chain.init_salient_event = intersection_salient_event
 
-        print(
-            f"Set {short_chain}'s init event to {short_chain.init_salient_event}, while keeping {long_chain}'s init event as {long_chain.init_salient_event}")
+        print(f"Set {short_chain}'s init event to {short_chain.init_salient_event}, while keeping {long_chain}'s init event as {long_chain.init_salient_event}")
 
     # Split the long chain into 2 parts: one that goes TO the intersection event and the other that goes to target_event
     # The split will occur at the intersection option that is part of the long chain
@@ -846,43 +853,6 @@ class SkillChaining(object):
     # # Change the termination condition of options that target the `intersecting_options`
     # pass
 
-    def conclude_option_initiation_phase(self, untrained_option, episode):
-        """
-
-		Args:
-			untrained_option (Option)
-			episode (int)
-
-		Returns:
-			completed_option (Option)
-			should_create_children (bool)
-
-		"""
-        # In the skill-graph setting, we have to check if the current option's chain
-        # is still accepting new options
-
-        if self.should_create_more_options() and untrained_option.get_training_phase() == "initiation_done" \
-                and self.chains[untrained_option.chain_id - 1].should_continue_chaining(self.chains):
-
-            # We fix the learned option's initiation set and remove it from the list of target events
-            self.untrained_options.remove(untrained_option)
-
-            # Debug visualization
-            plot_two_class_classifier(untrained_option, episode, self.experiment_name)
-
-            return untrained_option, True
-
-        elif untrained_option.get_training_phase() == "initiation_done":
-            # Debug visualization
-            plot_two_class_classifier(untrained_option, episode, self.experiment_name)
-
-            # We fix the learned option's initiation set and remove it from the list of target events
-            self.untrained_options.remove(untrained_option)
-
-            return untrained_option, False
-
-        return None, False
-
     def finish_option_initiation_phase(self, untrained_option, episode):
         """
 
@@ -895,7 +865,7 @@ class SkillChaining(object):
 		"""
         if untrained_option.get_training_phase() == "initiation_done":
             # Debug visualization
-            # TODO: does this need to be run here?
+            # TODO: Fix this to be compatible with the new plotting code
             # plot_two_class_classifier(untrained_option, episode, self.experiment_name)
 
             # We fix the learned option's initiation set and remove it from the list of target events
@@ -1001,6 +971,7 @@ class SkillChaining(object):
         return score, step_number, created_options
 
     def skill_chaining_run_loop(self, *, num_episodes, num_steps, to_reset, starting_episode=0, interrupt_handle=lambda x: False):
+        # TODO: Fix this for new plotting code compat
 
         # For logging purposes
         per_episode_scores = []
@@ -1026,7 +997,7 @@ class SkillChaining(object):
 
         return per_episode_scores, per_episode_durations
 
-    def log_dqn_status(self, episode, last_10_scores, last_10_durations):
+    def _log_dqn_status(self, episode, last_10_scores, last_10_durations):]
         print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
             episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
 
@@ -1047,7 +1018,7 @@ class SkillChaining(object):
 
     def save_all_models(self):
         for option in self.trained_options:  # type: Option
-            save_model(option.solver, -1, self.log_dir, best=False)
+            save_model(option.solver, -1, best=False)
 
     def trained_forward_pass(self, render=True):
         """
@@ -1075,6 +1046,26 @@ class SkillChaining(object):
 
         return overall_reward, option_trajectories
 
+       def __getstate__(self):
+               excluded_keys = ("mdp", "writer", "plotter")
+               state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+               return state_dictionary
+
+       def __setstate__(self, state_dictionary):
+               excluded_keys = ("mdp", "writer", "plotter")
+               for key in state_dictionary:
+                       if key not in excluded_keys:
+                               self.__dict__[key] = state_dictionary[key]
+
+def create_log_dir(experiment_name):
+       path = os.path.join(os.getcwd(), experiment_name)
+       try:
+               os.mkdir(path)
+       except OSError:
+               print("Creation of the directory %s failed" % path)
+       else:
+               print("Successfully created the directory %s " % path)
+       return path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

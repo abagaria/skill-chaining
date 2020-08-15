@@ -605,17 +605,15 @@ class Option(object):
         if not self.dense_reward:
             return -1.
 
-        # Rewards based on position only
-        # TODO: We could avoid this type check except for the reshape below
-        position_vector = state.features() if isinstance(state, State) else state
-
         # For global and parent option, we use the negative distance to the goal state
         if self.parent is None:
-            distance_to_goal = self.target_salient_event.distance_from_goal(position_vector)
+            distance_to_goal = self.target_salient_event.distance_from_goal(state)
             return -distance_to_goal
 
+        # We need a numpy array out here so we can shape it into a matrix below
+        position_vector = state.features() if isinstance(state, State) else state
+
         # For every other option, we use the negative distance to the parent's initiation set classifier
-        # TODO: if we can figure out why Akhil reshapes here maybe we can avoid the type check above?
         dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
 
         # Decision_function returns a negative distance for points not inside the classifier
@@ -825,11 +823,10 @@ class Option(object):
         return 1.
 
     def add_positive_examples(self, state_list):
-        # TODO: Is this the wrong solution? Should relevant factors be private?
-        state_list = self.initiation_classifier.get_relevant_factors(state_list)
+        if len(state_list) > 0 and isinstance(state_list[0], State):
+            state_list = [state.features() for state in state_list]
         self.positive_examples.extend(state_list)
 
     def add_negative_example(self, state):
-        # TODO: Is this the wrong solution? Should relevant factors be private?
-        state = self.initiation_classifier.get_relevant_factors(state)
+        state = state.features() if isinstance(state, State) else state
         self.negative_examples.append(state)

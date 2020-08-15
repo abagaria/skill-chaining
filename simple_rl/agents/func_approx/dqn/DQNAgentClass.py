@@ -705,4 +705,5 @@ if __name__ == '__main__':
                           state_rounding_decimals=args.state_rounding_decimals,
                           device=torch.device(args.device), evaluation_epsilon=args.eval_eps)
     ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
-    save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)
+    # chainer.perform_experiments()
+    chainer.save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)
