@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn import svm
+from simple_rl.mdp.StateClass import State
 
 class InitiationSet(object):
     state_size = None
@@ -14,6 +15,20 @@ class InitiationSet(object):
     def _get_relevant_factors(self, matrix):
         assert matrix.shape[-1] == self.state_size
         return matrix[..., self.factor_indices]
+
+    def get_relevant_factors(self, state):
+        # TODO: Only used as a public helper for keeping track of
+        # positive and negative examples... if we stop doing that
+        # we can remove this function
+        if isinstance(state, list):
+            return [self.get_relevant_factors(x) for x in state]
+        elif isinstance(state, State):
+            x = state.features()
+            return self.get_relevant_factors(x)
+        elif isinstance(state, np.array):
+            return self._get_relevant_factors(state)
+        else:
+            raise TypeError(f"state was of type {type(state)} but must be a State, np.ndarray, or list")
 
     def predict(self, matrix):
         matrix = self._get_relevant_factors(matrix)

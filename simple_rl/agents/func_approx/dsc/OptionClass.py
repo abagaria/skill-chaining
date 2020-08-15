@@ -405,8 +405,7 @@ class Option(object):
             return True
 
         # print('using svm for predicting if in initiation set.')
-        features = GoalDirectedMDP.get_init_classifier_factors(ground_state)
-        return self.initiation_classifier.predict([features])[0] == 1
+        return self.initiation_classifier.predict([ground_state])[0] == 1
 
     def is_term_true(self, ground_state):
         if self.parent is not None:
@@ -607,6 +606,7 @@ class Option(object):
             return -1.
 
         # Rewards based on position only
+        # TODO: We could avoid this type check except for the reshape below
         position_vector = state.features() if isinstance(state, State) else state
 
         # For global and parent option, we use the negative distance to the goal state
@@ -614,11 +614,9 @@ class Option(object):
             distance_to_goal = self.target_salient_event.distance_from_goal(position_vector)
             return -distance_to_goal
 
-        # this is confusing because `target_salient_event.distance_from_goal` internally filters the dimensions, but
-        # we need to do it explicitly for the initiation classifier
-        init_state_vector = GoalDirectedMDP.get_init_classifier_factors(position_vector)
         # For every other option, we use the negative distance to the parent's initiation set classifier
-        dist = self.parent.initiation_classifier.decision_function(init_state_vector.reshape(1, -1))[0]
+        # TODO: if we can figure out why Akhil reshapes here maybe we can avoid the type check above?
+        dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
 
         # Decision_function returns a negative distance for points not inside the classifier
         subgoal_reward = 0. if dist >= 0 else dist
@@ -725,7 +723,7 @@ class Option(object):
                 self.effect_set.append(state)
 
             if self.parent is None and self.is_term_true(state) and self.target_salient_event is not None:
-                print(f"[{self}] Adding {GoalDirectedMDP.get_salient_event_factors(state)} to {self.target_salient_event}'s trigger points")
+                print(f"[{self}] Adding {state} to {self.target_salient_event}'s trigger points")
                 self.target_salient_event.trigger_points.append(state)
 
             if self.name != "global_option" and self.get_training_phase() != "initiation_done":
@@ -762,7 +760,7 @@ class Option(object):
                 self.effect_set.append(next_state)
 
                 if self.parent is None and self.is_term_true(next_state):
-                    print(f"[{self}] Adding {GoalDirectedMDP.get_salient_event_factors(next_state)} to {self.target_salient_event}'s trigger points")
+                    print(f"[{self}] Adding {next_state} to {self.target_salient_event}'s trigger points")
                     self.target_salient_event.trigger_points.append(next_state)
 
                 states_so_far.append(next_state)  # We want the terminal state to be part of the initiation classifier
@@ -827,7 +825,11 @@ class Option(object):
         return 1.
 
     def add_positive_examples(self, state_list):
-        self.positive_examples.extend(GoalDirectedMDP.get_init_classifier_factors(state_list))
+        # TODO: Is this the wrong solution? Should relevant factors be private?
+        state_list = self.initiation_classifier.get_relevant_factors(state_list)
+        self.positive_examples.extend(state_list)
 
     def add_negative_example(self, state):
-        self.negative_examples.append(GoalDirectedMDP.get_init_classifier_factors(state))
+        # TODO: Is this the wrong solution? Should relevant factors be private?
+        state = self.initiation_classifier.get_relevant_factors(state)
+        self.negative_examples.append(state)

@@ -55,8 +55,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
             salient_event_2[3:] = [-0.15, 0.6]
 
             salient_events = [
-                SalientEvent(salient_event_1, 1, name='Puck to goal 1/3', get_relevant_position=get_puck_pos),
-                SalientEvent(salient_event_2, 2, name='Puck to goal 2/3', get_relevant_position=get_puck_pos)
+                SalientEvent(salient_event_1, 1, name='Puck to goal 1/3'),
+                SalientEvent(salient_event_2, 2, name='Puck to goal 2/3')
             ]
 
         action_dims = range(self.env.action_space.shape[0])
@@ -65,8 +65,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # by the puck position
         start_state_salient_event = SalientEvent(target_state=self.init_state.position,
                                                  event_idx=0,
-                                                 name="Start State Salient",
-                                                 get_relevant_position=get_puck_pos)
+                                                 name="Start State Salient")
         GoalDirectedMDP.__init__(self,
                                  actions=action_dims,
                                  transition_func=self._transition_func,
@@ -148,7 +147,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
         return SalientEvent(target_state=target_state,
                             event_idx=event_idx,
-                            get_relevant_position=get_puck_pos,
                             name=f"RRT Salient Episode {episode}")
 
     def reset_to_state(self, start_state):
