@@ -74,9 +74,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  salient_tolerance=salient_tolerance,
                                  dense_reward=dense_reward,
                                  salient_events=salient_events,
-                                 task_agnostic=task_agnostic,
                                  goal_state=self.goal_state,
-                                 start_salient_event=start_state_salient_event
                                  )
 
     def _reward_func(self, state, action):
