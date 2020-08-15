@@ -17,6 +17,9 @@ class MPC:
         self.model = DynamicsModel(state_size, action_size, *self._get_standardization_vars())
         self.model.to(device)
 
+    def mpc_istrained(self):
+        pass
+
     def train(self, epochs=100):
         training_gen = DataLoader(self.dataset, batch_size=512, shuffle=True)
         loss_function = nn.MSELoss().to(self.device)
@@ -33,7 +36,10 @@ class MPC:
                 loss.backward()
                 optimizer.step()
 
-    def mpc_rollout(self, mdp, num_rollouts, num_steps, goal, monte_carlo=False):
+    def mpc_rollout(self, mdp, num_rollouts, num_steps, goal, steps=200):
+        pass
+
+    def mpc_act(self, mdp, num_rollouts, num_steps, goal, monte_carlo=False):
         # sample actions for all steps
         s = mdp.cur_state
         goal_x = goal[0]
