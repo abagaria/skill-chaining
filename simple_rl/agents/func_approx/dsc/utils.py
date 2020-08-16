@@ -463,9 +463,18 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
 
     global kGraphIterationNumber
 
+    def _get_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.get_target_position()
+        trigger_positions = [event._get_position(s) for s in event.trigger_points]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
+
     def _plot_event_pair(event1, event2):
-        x = [event1.target_state[0], event2.target_state[0]]
-        y = [event1.target_state[1], event2.target_state[1]]
+        x1, y1 = _get_representative_point(event1)
+        x2, y2 = _get_representative_point(event2)
+        x = [x1, x2]; y = [y1, y2]
         plt.plot(x, y, "o-", c="black")
 
     sns.set_style("white")
