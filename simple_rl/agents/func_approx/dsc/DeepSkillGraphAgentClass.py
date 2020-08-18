@@ -476,7 +476,7 @@ if __name__ == "__main__":
                                     use_hard_coded_events=args.use_hard_coded_events,
                                     use_dco=args.use_dco,
                                     dco_use_xy_prior=args.dco_use_xy_prior,
-                                    allow_backward_options=args.allow_backward_options
+                                    allow_backward_options=args.allow_backward_options,
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
