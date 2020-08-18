@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 import random
+import ipdb
 
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
@@ -8,18 +9,26 @@ from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
 
 class D4RLPointMazeMDP(GoalDirectedMDP):
-    def __init__(self, difficulty, use_hard_coded_events=False, seed=0, render=False):
-        assert difficulty in ("medium", "hard")
+    def __init__(self, difficulty, goal_directed, use_hard_coded_events=False, seed=0, render=False):
+        assert difficulty in ("easy", "medium", "hard")
 
         self.env_name = f"d4rl-{difficulty}-point-maze"
         self.seed = seed
         self.render = render
         self.difficulty = difficulty
+        self.goal_directed = goal_directed
 
         random.seed(seed)
         np.random.seed(seed)
 
-        maze_id = 'd4rl-maze' if difficulty == "medium" else "d4rl-hard-maze"
+        if difficulty == "easy":
+            maze_id = "Maze"
+        elif difficulty == "medium":
+            maze_id = "d4rl-maze"
+        elif difficulty == "hard":
+            maze_id = "d4rl-hard-maze"
+        else:
+            raise NotImplementedError(difficulty)
 
         # Configure env
         gym_mujoco_kwargs = {
@@ -34,6 +43,8 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.reset()
 
+        self.current_goal = self.env.goal_xy
+
         salient_positions = []
         if use_hard_coded_events:
             salient_positions = self._determine_salient_positions()
@@ -44,10 +55,27 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
                                  self._transition_func,
                                  self._reward_func, self.init_state,
-                                 salient_positions, task_agnostic=True, goal_tolerance=0.6)
+                                 salient_positions, task_agnostic=not goal_directed,
+                                 goal_state=self.current_goal, goal_tolerance=0.6)
+
+    def set_current_goal(self, goal):
+        if self.goal_directed:
+            self.current_goal = goal
+
+    def get_current_goal(self):
+        if self.goal_directed:
+            return self.current_goal
+        raise ValueError(f"goal_directed={self.goal_directed}")
 
     def _determine_salient_positions(self):
-        if self.difficulty == "medium":
+        if self.difficulty == "easy":
+            salient_positions = [np.array((4, 0)),
+                                 np.array((8, 0)),
+                                 np.array((8, 4)),
+                                 np.array((8, 8)),
+                                 np.array((4, 8)),
+                                 np.array((0, 8))]
+        elif self.difficulty == "medium":
             salient_positions = [np.array((6, 8)),
                                  np.array((5, -5)),
                                  np.array((-7.5, -5)),
@@ -72,6 +100,11 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         if self.task_agnostic:  # No reward function => no rewards and no terminations
             reward = 0.
             is_terminal = False
+        elif self.goal_directed:
+            dist = np.linalg.norm(next_state[:2] - self.get_current_goal())
+            done = dist <= self.goal_tolerance
+            is_terminal = done and not time_limit_truncated
+            reward = 10. if is_terminal else -1.
         else:
             reward = +1. if is_terminal else 0.
 
@@ -125,8 +158,10 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         return self.env_name
 
     def _determine_x_y_lims(self):
-
-        if self.difficulty == "medium":
+        if self.difficulty == "easy":
+            xlow, xhigh = -2., 10
+            ylow, yhigh = -2., 10.
+        elif self.difficulty == "medium":
             xlow, xhigh = -10., 7.5
             ylow, yhigh = -7.5, 10.
         elif self.difficulty == "hard":
