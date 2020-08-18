@@ -19,6 +19,7 @@ from mpl_toolkits.mplot3d import Axes3D
 # Other imports.
 from simple_rl.mdp.StateClass import State
 
+
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
         self.state = s
