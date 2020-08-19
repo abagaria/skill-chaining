@@ -8,7 +8,7 @@ from copy import copy
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance,
-                 dense_reward, salient_events, goal_state):
+                 dense_reward, salient_states, goal_state):
 
         """
         :params:
@@ -18,24 +18,25 @@ class GoalDirectedMDP(MDP):
             init_state (np.ndarray) : the start state of the mdp
             salient_tolerance (float) : the tolerance of the goal and for all salients (global variable)
             dense_reward (bool) : True if we want dense reward, False otherwise
-            salient_events ([SalientEvent]) : hard-coded salient events we are targeting (if any)
+            salient_states ([np.ndarray]) : hard-coded states we are targeting (if any) that will be turned into salient events
             goal_state (np.ndarray) : goal state, None if task_agnostic
         """
+        SalientEvent.tolerance = salient_tolerance
 
-        self._salient_events = salient_events
         self.task_agnostic = goal_state is None
         self.goal_state = goal_state
         self.dense_reward = dense_reward
-        SalientEvent.tolerance = salient_tolerance
-        self._initialize_salient_events(init_state)
+        self._initialize_salient_events(init_state, salient_states)
+
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
 
-    def _initialize_salient_events(self, init_state):
+    def _initialize_salient_events(self, init_state, salient_states):
+        salient_events = [SalientEvent(state, i) for i, state in enumerate(salient_states)]
         # Set the current target events in the MDP
-        self.current_salient_events = copy(self._salient_events)
+        self.current_salient_events = salient_events
 
         # Set an ever expanding list of salient events - we need to keep this around to call is_term_true on trained options
-        self.original_salient_events = copy(self._salient_events)
+        self.original_salient_events = copy(salient_events)
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
         self.start_state_salient_event = SalientEvent(target_state=init_state,
@@ -44,7 +45,7 @@ class GoalDirectedMDP(MDP):
                                                       is_init_event=True)
 
         # Keep track of all the salient events ever created in this MDP
-        self.all_salient_events_ever = copy(self._salient_events)
+        self.all_salient_events_ever = copy(salient_events)
 
         # Make sure that we didn't create multiple copies of the same events
         self._ensure_all_events_are_the_same()

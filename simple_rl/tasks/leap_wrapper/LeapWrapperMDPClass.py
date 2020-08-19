@@ -45,27 +45,19 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # Sets the initial state
         self.reset()
 
-        salient_events = []
+        salient_states = []
 
         if use_hard_coded_events:
             # endeff position is ignored by these salient events - just used when plotting initiation_sets
-            salient_event_1 = np.zeros(5)
-            salient_event_2 = np.zeros(5)
-            salient_event_1[3:] = [-0.11, 0.6]
-            salient_event_2[3:] = [-0.15, 0.6]
+            salient_state_1 = np.zeros(5)
+            salient_state_2 = np.zeros(5)
+            salient_state_1[3:] = [-0.11, 0.6]
+            salient_state_2[3:] = [-0.15, 0.6]
 
-            salient_events = [
-                SalientEvent(salient_event_1, 1, name='Puck to goal 1/3'),
-                SalientEvent(salient_event_2, 2, name='Puck to goal 2/3')
-            ]
+            salient_states = [salient_state_1, salient_state_2]
 
         action_dims = range(self.env.action_space.shape[0])
 
-        # Needs to be defined inside of LeapWrapperMDP because it has a `get_relevant_position` because the start state is only defined
-        # by the puck position
-        start_state_salient_event = SalientEvent(target_state=self.init_state.position,
-                                                 event_idx=0,
-                                                 name="Start State Salient")
         GoalDirectedMDP.__init__(self,
                                  actions=action_dims,
                                  transition_func=self._transition_func,
@@ -73,7 +65,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  init_state=self.init_state,
                                  salient_tolerance=salient_tolerance,
                                  dense_reward=dense_reward,
-                                 salient_events=salient_events,
+                                 salient_states=salient_states,
                                  goal_state=self.goal_state,
                                  )
 
