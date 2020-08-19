@@ -314,6 +314,38 @@ def visualize_buffer(option, episode, seed, logdir):
     plt.close()
 
 
+def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    states = np.array([exp[0] for exp in replay_buffer])
+    actions = np.array([exp[1] for exp in replay_buffer])
+
+    # Chunk up the inputs so as to conserve GPU memory
+    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+
+    if num_chunks == 0:
+        return 0.
+
+    state_chunks = np.array_split(states, num_chunks, axis=0)
+    action_chunks = np.array_split(actions, num_chunks, axis=0)
+    qvalues = np.zeros((states.shape[0],))
+    current_idx = 0
+
+    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        current_chunk_size = len(state_chunk)
+        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+        current_idx += current_chunk_size
+
+    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+    plt.colorbar()
+    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    plt.close()
+
+    return qvalues.max()
+
 def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     option = salient_event.covering_option
     is_low = salient_event.is_low
@@ -377,6 +409,38 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
+def visualize_graph(chains, experiment_name, plot_completed_events):
+
+    global kGraphIterationNumber
+
+    def _plot_event_pair(event1, event2):
+        x = [event1.target_state[0], event2.target_state[0]]
+        y = [event1.target_state[1], event2.target_state[1]]
+        plt.plot(x, y, "o-", c="black")
+
+    sns.set_style("white")
+
+    plt.figure()
+
+    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
+
+    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
+
+    for chain in forward_chains:
+        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
+
+    plt.xticks([]); plt.yticks([])
+
+    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
+    plt.close()
+
+    kGraphIterationNumber += 1
 
 def plot_dco_salient_event(ax, salient_event, states):
     option = salient_event.covering_option
