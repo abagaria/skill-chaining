@@ -2,7 +2,6 @@ import numpy as np
 from scipy.spatial import distance
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp import MDP, State
-from simple_rl.agents.func_approx.dsc.OptionClass import Option
 
 from copy import copy
 

@@ -10,7 +10,7 @@ from simple_rl.agents.func_approx.dsc.SkillGraphPlannerClass import SkillGraphPl
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
-from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
+# from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 
 
 class DeepSkillGraphAgent(object):
