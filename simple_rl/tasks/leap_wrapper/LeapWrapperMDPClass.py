@@ -23,6 +23,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.render = render
         dense_reward = False
         salient_tolerance = 0.06
+        # Set global flags
+        SalientEvent.state_size = 5
+        SalientEvent.factor_indices = [3, 4]
 
         if self.render:
             self.movie_width = 512
