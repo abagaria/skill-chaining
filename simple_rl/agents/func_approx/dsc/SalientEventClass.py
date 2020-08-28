@@ -28,8 +28,11 @@ class SalientEvent(object):
         assert self.factor_indices is not None
 
         assert isinstance(event_idx, int)
-        target_state = target_state.features() if isinstance(target_state, State) else target_state
-        assert isinstance(target_state, np.ndarray)
+        if isinstance(target_state, State):
+            target_state = target_state.features()
+            assert isinstance(target_state, np.ndarray)
+        else:
+            assert isinstance(target_state, np.ndarray)
 
         self.target_state = target_state
         self.event_idx = event_idx
