@@ -183,11 +183,11 @@ def plot_two_class_classifier(option, episode, experiment_name):
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
 
-    # if positive_examples.shape[0] > 0:
-    #     plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
-    #
-    # if negative_examples.shape[0] > 0:
-    #     plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+    if positive_examples.shape[0] > 0:
+        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+
+    if negative_examples.shape[0] > 0:
+        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
@@ -418,6 +418,7 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
     file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+    plt.title(f"VF Targeting {np.round(goal, 2)}")
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
 

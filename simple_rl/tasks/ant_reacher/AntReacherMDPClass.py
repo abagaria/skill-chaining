@@ -8,7 +8,7 @@ from simple_rl.tasks.ant_reacher.AntReacherStateClass import AntReacherState
 
 
 class AntReacherMDP(GoalDirectedMDP):
-    def __init__(self, use_hard_coded_events=False, seed=0, render=False):
+    def __init__(self, task_agnostic=True, goal_state=None, use_hard_coded_events=False, seed=0, render=False):
         self.env_name = "ant-reacher"
         self.use_hard_coded_events = use_hard_coded_events
         self.seed = seed
@@ -50,8 +50,9 @@ class AntReacherMDP(GoalDirectedMDP):
                                  self._reward_func,
                                  self.init_state,
                                  salient_positions,
-                                 task_agnostic=True,
-                                 goal_tolerance=0.6)
+                                 task_agnostic=task_agnostic,
+                                 goal_tolerance=0.6,
+                                 goal_state=goal_state)
 
     def _reward_func(self, state, action):
 
@@ -61,14 +62,11 @@ class AntReacherMDP(GoalDirectedMDP):
 
         next_state, _, done, info = self.env.step(action)
 
-        time_limit_truncated = info.get('TimeLimit.truncated', False)
-        is_terminal = done and not time_limit_truncated
-
         if self.task_agnostic:  # No reward function => no rewards and no terminations
             reward = -1.
             is_terminal = False
         else:
-            reward = +1. if is_terminal else -1.
+            reward, is_terminal = self.sparse_gc_reward_function(next_state, self.get_current_goal(), info)
 
         if self.render:
             self.env.render()

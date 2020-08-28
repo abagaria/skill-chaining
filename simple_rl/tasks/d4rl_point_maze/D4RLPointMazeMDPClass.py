@@ -1,7 +1,6 @@
 import gym
 import numpy as np
 import random
-import ipdb
 
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.point_reacher.PointReacherStateClass import PointReacherState
@@ -94,19 +93,11 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
     def _reward_func(self, state, action):
         next_state, _, done, info = self.env.step(action)
 
-        time_limit_truncated = info.get('TimeLimit.truncated', False)
-        is_terminal = done and not time_limit_truncated
-
         if self.task_agnostic:  # No reward function => no rewards and no terminations
             reward = 0.
             is_terminal = False
-        elif self.goal_directed:
-            dist = np.linalg.norm(next_state[:2] - self.get_current_goal())
-            done = dist <= self.goal_tolerance
-            is_terminal = done and not time_limit_truncated
-            reward = 10. if is_terminal else -1.
         else:
-            reward = +1. if is_terminal else 0.
+            reward, is_terminal = self.sparse_gc_reward_function(next_state, self.get_current_goal(), info)
 
         if self.render:
             self.env.render()

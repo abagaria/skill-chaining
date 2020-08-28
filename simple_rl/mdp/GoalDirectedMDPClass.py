@@ -8,11 +8,11 @@ class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state,
                  salient_positions, task_agnostic, goal_state=None, goal_tolerance=0.6):
 
-        self.salient_positions = salient_positions
         self.task_agnostic = task_agnostic
         self.goal_tolerance = goal_tolerance
         self.goal_state = goal_state
         self.dense_reward = False
+        self.salient_positions = salient_positions + [goal_state] if goal_state is not None else salient_positions
 
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state
@@ -20,6 +20,13 @@ class GoalDirectedMDP(MDP):
         self._initialize_salient_events()
 
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
+
+    def sparse_gc_reward_function(self, state, goal, info):
+        done = np.linalg.norm(state[:2] - goal) <= self.goal_tolerance
+        time_limit_truncated = info.get('TimeLimit.truncated', False)
+        is_terminal = done and not time_limit_truncated
+        reward = +10. if is_terminal else -1.
+        return reward, is_terminal
 
     def _initialize_salient_events(self):
         # Set the current target events in the MDP
@@ -60,7 +67,7 @@ class GoalDirectedMDP(MDP):
             self.all_salient_events_ever.append(new_event)
 
     def is_start_state(self, state):
-        pos = self._get_position(state)
+        pos = self.get_position(state)
         s0 = self.init_state.position
         return np.linalg.norm(pos - s0) <= self.goal_tolerance
 
@@ -104,16 +111,28 @@ class GoalDirectedMDP(MDP):
 
         return satisfied
 
+    def get_current_goal(self):
+        return self.get_position(self.goal_state)
+
+    def set_current_goal(self, goal):
+        self.goal_state = goal
+
     def is_goal_state(self, state):
         if self.task_agnostic:
             return False
-        raise NotImplementedError(self.task_agnostic)
+
+        assert self.goal_state is not None
+        state_position = self.get_position(state)
+        goal_position = self.get_position(self.goal_state)
+        return np.linalg.norm(goal_position - state_position) <= self.goal_tolerance
 
     def execute_agent_action(self, action, option_idx=None):
         reward, next_state = super(GoalDirectedMDP, self).execute_agent_action(action)
         return reward, next_state
 
     @staticmethod
-    def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
-        return position
+    def get_position(state):
+        if state is not None:
+            position = state.position if isinstance(state, State) else state[:2]
+            return position
+        return None
