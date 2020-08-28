@@ -572,6 +572,9 @@ class ReplayBuffer:
         """Return the current size of internal memory."""
         return len(self.memory)
 
+    def __getitem__(self, i):
+        return self.memory[i]
+
 def train(agent, mdp, episodes, steps):
     per_episode_scores = []
     last_10_scores = deque(maxlen=10)

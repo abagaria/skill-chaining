@@ -1,4 +1,5 @@
 import ipdb
+import random
 import itertools
 import numpy as np
 from copy import deepcopy
@@ -12,7 +13,7 @@ from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 
 
 class SkillGraphPlanner(object):
-    def __init__(self, *, mdp, chainer, pretrain_option_policies, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, use_her, pretrain_option_policies, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -21,12 +22,14 @@ class SkillGraphPlanner(object):
         Args:
             mdp (PointReacherMDP)
             chainer (SkillChaining)
+            use_her (bool)
             pretrain_option_policies (bool)
             experiment_name (str)
             seed (int)
         """
         self.mdp = mdp
         self.chainer = chainer
+        self.use_her = use_her
         self.pretrain_option_policies = pretrain_option_policies
         self.experiment_name = experiment_name
         self.seed = seed
@@ -98,7 +101,7 @@ class SkillGraphPlanner(object):
 
         return None
 
-    def act(self, state, goal_vertex):
+    def act(self, state, goal_vertex, sampled_goal):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
         assert isinstance(goal_vertex, (SalientEvent, Option)), f"{type(goal_vertex)}"
 
@@ -117,7 +120,7 @@ class SkillGraphPlanner(object):
                     return selected_option
 
         print(f"Reverting to the DSC policy over options")
-        return self.chainer.act(state, train_mode=True)
+        return self.chainer.act(state, goal=sampled_goal, train_mode=True)
 
     def planner_rollout_inside_graph(self, *, state, goal_vertex, goal_salient_event,
                                      episode_number, step_number, eval_mode):
@@ -128,18 +131,28 @@ class SkillGraphPlanner(object):
         assert isinstance(step_number, int)
         assert isinstance(eval_mode, bool)
 
+        episodic_trajectory = []
+        option_trajectory = []
+
+        poo_goal = self.sample_from_vertex(goal_vertex) if self.use_her else None
         should_terminate = lambda s, inside, outside, step: inside(s) or outside(s) or step >= self.chainer.max_steps
         inside_predicate = goal_vertex if isinstance(goal_vertex, SalientEvent) else goal_vertex.is_term_true
 
         while not should_terminate(state, inside_predicate, goal_salient_event, step_number):
-            option = self.act(state, goal_vertex)
+            option = self.act(state, goal_vertex, sampled_goal=poo_goal)
+            step_number, option_transitions = self.perform_option_rollout(option=option,
+                                                                          episode=episode_number,
+                                                                          step=step_number,
+                                                                          eval_mode=eval_mode,
+                                                                          policy_over_options_goal=poo_goal)
 
-            step_number = self.perform_option_rollout(option=option,
-                                                      episode=episode_number,
-                                                      step=step_number,
-                                                      eval_mode=eval_mode)
-
+            # Book keeping
             state = deepcopy(self.mdp.cur_state)
+            episodic_trajectory.append(option_transitions)
+            option_trajectory.append((option, option_transitions))
+
+        if self.use_her:
+            self.chainer.perform_experience_replay(state, episodic_trajectory, option_trajectory, overall_goal=poo_goal)
 
         return step_number
 
@@ -154,7 +167,7 @@ class SkillGraphPlanner(object):
         if to_reset:
             self.reset(state)
 
-        goal_vertex = goal_salient_event
+        goal_vertex = deepcopy(goal_salient_event)
 
         # Revise the goal_salient_event if it cannot be reached from the current state
         if not self.plan_graph.does_path_exist(state, goal_salient_event):
@@ -189,15 +202,17 @@ class SkillGraphPlanner(object):
     # -----------------------------–––––––--------------
 
     def dsc_outside_graph(self, episode, num_steps, goal_salient_event):
+        dsc_goal_state = self.sample_from_vertex(goal_salient_event)
         dsc_run_loop_budget = self.chainer.max_steps - num_steps
 
-        print(f"About to rollout DSC for {dsc_run_loop_budget} steps with interrupt handle {goal_salient_event}")
+        print(f"Rolling out DSC for {dsc_run_loop_budget} steps with interrupt handle {goal_salient_event} and goal {dsc_goal_state}")
 
         # Deliberately did not add `eval_mode` to the DSC rollout b/c we usually do this when we
         # want to fall off the graph, and it is always good to do some exploration when outside the graph
         score, step_number, newly_created_options = self.chainer.dsc_rollout(episode_number=episode,
                                                                              step_number=num_steps,
-                                                                             interrupt_handle=goal_salient_event)
+                                                                             interrupt_handle=goal_salient_event,
+                                                                             overall_goal=dsc_goal_state)
 
         print(f"Returned from DSC runloop having learned {newly_created_options}")
 
@@ -205,14 +220,19 @@ class SkillGraphPlanner(object):
 
         return deepcopy(self.mdp.cur_state), step_number
 
-    def perform_option_rollout(self, option, episode, step, eval_mode):
+    def perform_option_rollout(self, option, episode, step, eval_mode, policy_over_options_goal):
 
         state_before_rollout = deepcopy(self.mdp.cur_state)
 
+        # Execute the option: if the option is the global-option, it doesn't have a default
+        # goal in the task-agnostic setting. As a result, we ask it to target the same goal
+        # as the policy-over-options.
+        option_goal = policy_over_options_goal if option.name == "global_option" else None
         option_transitions, option_reward = option.execute_option_in_mdp(self.mdp,
                                                                          episode=episode,
                                                                          step_number=step,
-                                                                         eval_mode=eval_mode)
+                                                                         eval_mode=eval_mode,
+                                                                         poo_goal=option_goal)
 
         new_options = self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
                                                                            executed_option=option,
@@ -228,7 +248,7 @@ class SkillGraphPlanner(object):
         # Modify the edge weight associated with the executed option
         self.modify_edge_weight(executed_option=option, final_state=state_after_rollout)
 
-        return step + len(option_transitions)
+        return step + len(option_transitions), option_transitions
 
     def manage_options_learned_during_rollout(self, newly_created_options):
 
@@ -476,6 +496,16 @@ class SkillGraphPlanner(object):
                 print("Just initializing to random weights")
                 print("=" * 80)
                 new_untrained_option.reset_option_solver()
+
+    @staticmethod
+    def sample_from_vertex(vertex):
+        assert isinstance(vertex, (Option, SalientEvent)), f"{type(vertex)}"
+
+        if isinstance(vertex, Option):
+            return vertex.get_goal_for_option_rollout(method="use_effect_set")
+        if vertex.get_target_position() is not None:
+            return vertex.get_target_position()
+        return random.sample(vertex.trigger_points, k=1)[0]
 
     # -----------------------------–––––––--------------
     # Evaluation Functions

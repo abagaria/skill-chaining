@@ -1,3 +1,4 @@
+import ipdb
 import numpy as np
 from scipy.spatial import distance
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
@@ -22,10 +23,23 @@ class GoalDirectedMDP(MDP):
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
 
     def sparse_gc_reward_function(self, state, goal, info):
-        done = np.linalg.norm(state[:2] - goal) <= self.goal_tolerance
+        try:
+            done = np.linalg.norm(state[:2] - goal) <= self.goal_tolerance
+        except:
+            ipdb.set_trace()
         time_limit_truncated = info.get('TimeLimit.truncated', False)
         is_terminal = done and not time_limit_truncated
         reward = +10. if is_terminal else -1.
+        return reward, is_terminal
+
+    def dense_gc_reward_function(self, state, goal, info):
+        time_limit_truncated = info.get('TimeLimit.truncated', False)
+        curr_pos = self.get_position(state)
+        goal_pos = self.get_position(goal)
+        distance_to_goal = np.linalg.norm(curr_pos - goal_pos)
+        done = distance_to_goal <= self.goal_tolerance
+        is_terminal = done and not time_limit_truncated
+        reward = +0. if is_terminal else -distance_to_goal
         return reward, is_terminal
 
     def _initialize_salient_events(self):

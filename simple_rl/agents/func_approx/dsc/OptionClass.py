@@ -101,12 +101,15 @@ class Option(object):
 		random.seed(seed)
 		np.random.seed(seed)
 
+		if name != "global_option": assert global_solver is not None
+
 		self.global_solver = global_solver
 		self.solver = None
 
 		if self.name == "global_option":
 			self.reset_global_solver()
-		self.reset_option_solver()
+		else:
+			self.reset_option_solver()
 
 		# Attributes related to initiation set classifiers
 		self.num_goal_hits = 0
@@ -129,6 +132,7 @@ class Option(object):
 		self.num_executions = 0
 		self.num_test_executions = 0
 		self.num_successful_test_executions = 0
+		self.pursued_goals = []
 
 	def __str__(self):
 		return self.name
@@ -181,10 +185,10 @@ class Option(object):
 
 	def reset_global_solver(self):
 		if self.solver_type == "ddpg":
-			self.global_solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device,
+			self.solver = DDPGAgent(self.state_size, self.action_size, self.seed, self.device,
 										   self.lr_actor, self.lr_critic, self.ddpg_batch_size, name="global_option")
 		elif self.solver_type == "td3":
-			self.global_solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
+			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
 									 max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
 
 		else:
@@ -658,15 +662,32 @@ class Option(object):
 		if not self.use_her:
 			return None
 
+		def _sample_from_parent_initiation_set():
+			if self.parent is not None:
+				parent_positive = self.sample_parent_positive()
+				if parent_positive is not None:
+					g = self.overall_mdp.get_position(parent_positive)
+					return g
+
+		if self.parent is None:  # Pick a specific state for root options
+			goal = self.target_salient_event.get_target_position()
+			if goal is not None: return goal
+
 		if self.parent is not None and method == "use_term_set":
-			parent_positive = self.sample_parent_positive()
-			if parent_positive is not None:
-				goal = self.overall_mdp.get_position(parent_positive)
-				return goal
+			goal = _sample_from_parent_initiation_set()
+			if goal is not None: return goal
 
 		if len(self.effect_set) > 0 and method == "use_effect_set":
 			sample = random.sample(self.effect_set, k=1)[0]
 			return self.overall_mdp.get_position(sample)
+
+		if self.target_salient_event is not None:
+			return self.target_salient_event.get_target_position()
+
+		# If the effect set is empty, then sample from the parent option's initiation set classifier
+		if self.parent is not None:
+			goal = _sample_from_parent_initiation_set()
+			if goal is not None: return goal
 
 		return self.overall_mdp.get_position(self.overall_mdp.goal_state)
 
@@ -675,7 +696,12 @@ class Option(object):
 			return np.concatenate((state.features(), goal))
 		return state.features()
 
-	def execute_option_in_mdp(self, mdp, episode, step_number, eval_mode=False):
+	def get_goal_for_current_rollout(self, goal_for_policy_over_options):
+		if goal_for_policy_over_options is not None and self.name == "global_option":
+			return goal_for_policy_over_options
+		return self.get_goal_for_option_rollout(method="use_effect_set")
+
+	def execute_option_in_mdp(self, mdp, episode, step_number, poo_goal=None, eval_mode=False):
 		"""
 		Option main control loop.
 
@@ -683,6 +709,7 @@ class Option(object):
 			mdp (MDP): environment where actions are being taken
 			episode (int)
 			step_number (int): how many steps have already elapsed in the outer control loop.
+			poo_goal (np.ndarray): Current goal that the policy over options (poo) is pursuing right now
 			eval_mode (bool): Added for the SkillGraphPlanning agent so that we can perform
 							  option policy rollouts with eval_epsilon but still keep training
 							  option policies based on new experiences seen during test time.
@@ -695,13 +722,17 @@ class Option(object):
 		state = mdp.cur_state
 
 		if self.is_init_true(state):
+			goal = None
 			option_transitions = []
 			total_reward = 0.
 			self.num_executions += 1
 			num_steps = 0
 			visited_states = []
 
-			goal = self.get_goal_for_option_rollout(method="use_effect_set")
+			# Pick goal for a goal-conditioned option rollout
+			if self.use_her:
+				goal = self.get_goal_for_current_rollout(goal_for_policy_over_options=poo_goal)
+				self.pursued_goals.append(goal)
 
 			if self.name != "global_option":
 				print(f"Executing {self.name} targeting {goal}")
@@ -744,10 +775,10 @@ class Option(object):
 
 			# Experience Replay
 			if self.name != "global_option":
-				self.local_option_regular_experience_replay(option_transitions, goal_state=goal)
+				self.local_option_experience_replay(option_transitions, goal_state=goal)
 
 				if self.use_her:
-					self.local_option_hindsight_experience_replay(option_transitions, reached_goal=state.position)
+					self.local_option_experience_replay(option_transitions, goal_state=state.position)
 
 			return option_transitions, total_reward
 
@@ -760,20 +791,18 @@ class Option(object):
 		done = global_done and local_done
 		return done
 
-	def local_option_regular_experience_replay(self, trajectory, goal_state):
+	def local_option_experience_replay(self, trajectory, goal_state):
 		for state, action, reward, next_state in trajectory:
 			augmented_state = self.get_augmented_state(state, goal=goal_state)
 			augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
 			done = self.is_at_local_goal(next_state, goal_state)
-			reward = self.subgoal_reward if done else -1.  # TODO: Also allow for dense_rewards
-			self.solver.step(augmented_state, action, reward, augmented_next_state, done)
-
-	def local_option_hindsight_experience_replay(self, trajectory, reached_goal):
-		for state, action, _, next_state in trajectory:
-			augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
-			augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
-			reward, done = self.overall_mdp.sparse_gc_reward_function(next_state, reached_goal, info={})
-			self.solver.step(augmented_state, action, reward, augmented_next_state, done)
+			if self.use_her:
+				reward_func = self.overall_mdp.dense_gc_reward_function if self.dense_reward \
+					else self.overall_mdp.sparse_gc_reward_function
+				reward, _ = reward_func(next_state, goal_state, info={})
+				self.solver.step(augmented_state, action, reward, augmented_next_state, done)
+			else:
+				self.update_option_solver(state, action, reward, next_state)
 
 	def is_eligible_for_off_policy_triggers(self):
 		if "point" in self.overall_mdp.env_name:
