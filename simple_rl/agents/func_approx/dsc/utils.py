@@ -616,3 +616,21 @@ def visualize_graph_with_all_edges(planner, chains, experiment_name,
 
     plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
     plt.close()
+
+def visualize_mpc_rollout_result(goal_state, start_state, result_state, episode, experiment_name):
+    sns.set_style("white")
+    plt.figure()
+
+    # TODO make this generic
+    x_low_lim, y_low_lim = -10, -10
+    x_high_lim, y_high_lim = 10, 10
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+    
+    plt.scatter(goal_state[0], goal_state[1], color='red', label='goal state')
+    plt.scatter(start_state[0], start_state[1], color='black', label='start state')
+    plt.scatter(result_state[0], result_state[1], color='orange', label='MPC rollout')
+
+    plt.savefig(f"value_function_plots/{experiment_name}/mpc_episode_{episode}.png")
+    plt.close()

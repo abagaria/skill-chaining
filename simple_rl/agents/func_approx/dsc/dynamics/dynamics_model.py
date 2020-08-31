@@ -5,10 +5,10 @@ from torch.utils.data import DataLoader
 from simple_rl.agents.func_approx.dsc.dynamics.rollouts import RandomRolloutCollector
 
 class DynamicsModel(nn.Module):
-    def __init__(self, state_size, action_size, mean_x, mean_y, mean_z, std_x, std_y, std_z):
+    def __init__(self, state_size, action_size, mean_x, mean_y, mean_z, std_x, std_y, std_z, device):
         super(DynamicsModel, self).__init__()
 
-        self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+        self.device = device
         self.set_standardization_vars(mean_x, mean_y, mean_z, std_x, std_y, std_z)
 
         self.model = nn.Sequential(

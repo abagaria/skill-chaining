@@ -2,29 +2,36 @@ import torch
 import numpy as np
 import torch.nn as nn
 
+from copy import deepcopy
 from torch.optim import Adam
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from simple_rl.agents.func_approx.dsc.dynamics.dynamics_model import DynamicsModel
 
+from tqdm import tqdm
+
 class MPC:
-    def __init__(self, state_size, action_size, dataset, device):
+    def __init__(self, state_size, action_size, device):
         self.state_size = state_size
         self.action_size = action_size
-        self.dataset = self._preprocess_data(dataset)
         self.device = device
+        self.is_trained = False
 
-        self.model = DynamicsModel(state_size, action_size, *self._get_standardization_vars())
-        self.model.to(device)
-
-    def mpc_istrained(self):
-        pass
+    def load_data(self, states, actions, states_p):
+        print("in load data")
+        self.dataset = self._preprocess_data(states, actions, states_p)
+        print("done preprocessing data")
+        self.model = DynamicsModel(self.state_size, self.action_size, *self._get_standardization_vars(), self.device)  
+        self.model.to(self.device)
 
     def train(self, epochs=100):
+        self.is_trained = True
+
+        # TODO num_workers = 4, pin_memory = True
         training_gen = DataLoader(self.dataset, batch_size=512, shuffle=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs), desc='Training MPC model'):
             for states, actions, states_p in training_gen:
                 states = states.to(self.device).float()
                 actions = actions.to(self.device).float()
@@ -36,12 +43,31 @@ class MPC:
                 loss.backward()
                 optimizer.step()
 
-    def mpc_rollout(self, mdp, num_rollouts, num_steps, goal, steps=200):
-        pass
+    def mpc_rollout(self, mdp, num_rollouts, num_steps, goal, thres=0.6, max_steps=200):
+        steps_taken = 0
+        s = deepcopy(mdp.cur_state)
+        sx, sy = s.position
+        goal_x, goal_y = goal
 
-    def mpc_act(self, mdp, num_rollouts, num_steps, goal, monte_carlo=False):
+        while abs(sx - goal_x) >= thres or abs(sy - goal_y) >= thres:
+            action = self.mpc_act(mdp, 14000, 7, goal)
+        
+            # execute action in mdp
+            mdp.execute_agent_action(action)
+
+            # update s for new state
+            s = deepcopy(mdp.cur_state)
+            sx, sy = s.position
+
+            steps_taken += 1
+            if steps_taken == max_steps:
+                break
+
+        return mdp.cur_state, steps_taken
+
+    def mpc_act(self, mdp, num_rollouts, num_steps, goal, gamma=0.95, monte_carlo=False):
         # sample actions for all steps
-        s = mdp.cur_state
+        s = deepcopy(mdp.cur_state)
         goal_x = goal[0]
         goal_y = goal[1]
         np_actions = np.zeros((num_rollouts, num_steps, self.action_size))
@@ -56,7 +82,7 @@ class MPC:
             for j in range(num_steps):
                 actions = np_actions[:,j,:]
                 states_t = torch.from_numpy(np_states)
-                actions_t= torch.from_numpy(actions)
+                actions_t = torch.from_numpy(actions)
                 # transfer to gpu
                 states_t = states_t.to(self.device)
                 actions_t = actions_t.to(self.device)
@@ -78,23 +104,15 @@ class MPC:
                 results[:,j] = (goal_x - np_states[:,0]) ** 2 + (goal_y - np_states[:,1]) ** 2
         
         # choose next action to execute
-        gammas = np.power(0.95 * np.ones(num_steps), np.arange(0, num_steps))
+        gammas = np.power(gamma * np.ones(num_steps), np.arange(0, num_steps))
         summed_results = np.sum(results * gammas, axis=1)
         index = np.argmin(summed_results) # retrieve action with least trajectory distance to goal
         action = np_actions[index,0,:] # grab action corresponding to least distance    
         return action          
 
-    def _preprocess_data(self, dataset):
-        states = []
-        actions = []
-        states_p = []
-        for state, action, state_p in dataset:
-            states.append(state)
-            actions.append(action)
-            states_p.append(state_p)
-
+    def _preprocess_data(self, states, actions, states_p):
         states_delta = np.array(states_p) - np.array(states)
-            
+        
         self.mean_x = np.mean(states, axis=0)
         self.mean_y = np.mean(actions, axis=0)
         self.mean_z = np.mean(states_delta, axis=0)
@@ -104,7 +122,7 @@ class MPC:
 
         self._roundup()
 
-        norm_states_delta = np.nan_to_num((states_delta - self.mean_z) / self.std_z)
+        norm_states_delta = (states_delta - self.mean_z) / self.std_z
 
         dataset = RolloutDataset(states, actions, norm_states_delta)
         return dataset
@@ -113,9 +131,6 @@ class MPC:
         """
         If any standarization variable is 0, add some constant to prevent NaN
         """
-        self.mean_x[self.mean_x == 0] = c
-        self.mean_y[self.mean_y == 0] = c
-        self.mean_z[self.mean_z == 0] = c
         self.std_x[self.std_x == 0] = c
         self.std_y[self.std_y == 0] = c
         self.std_z[self.std_z == 0] = c

@@ -7,7 +7,7 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
+from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph, visualize_mpc_rollout_result
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 
 
@@ -138,7 +138,7 @@ class SkillGraphPlanner(object):
 
         return step_number
 
-    def run_loop(self, *, state, goal_salient_event, episode, step, eval_mode, to_reset):
+    def run_loop(self, *, mpc, state, goal_salient_event, episode, step, eval_mode, to_reset):
         assert isinstance(state, State)
         assert isinstance(goal_salient_event, SalientEvent)
         assert isinstance(episode, int)
@@ -149,7 +149,7 @@ class SkillGraphPlanner(object):
         if to_reset:
             self.reset(state)
 
-        goal_vertex = goal_salient_event
+        goal_vertex = deepcopy(goal_salient_event)
 
         if not self.is_event_inside_graph(goal_salient_event):
             goal_vertex = self.choose_vertex_to_fall_off_graph_from(goal_salient_event, choose_among_events=False)
@@ -167,15 +167,35 @@ class SkillGraphPlanner(object):
                                                      episode_number=episode,
                                                      step_number=step,
                                                      eval_mode=eval_mode)
+            
+           
+            # 1) reach vertex <- only use this one for now
+            # 2) reach other vertex (not intended) <- could use this, if closes node isn't connected well to goal
+            # 3) completely outside of graph
+            # Question: run MPC for 2, 3?
 
             state = deepcopy(self.mdp.cur_state)
+        
+        orig_goal_salient_event = deepcopy(goal_salient_event)
+        mpc_constraint = (goal_vertex is not None and goal_vertex(state) and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) or (goal_vertex is None and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) and (step < self.chainer.max_steps) and (mpc.is_trained)
+        if mpc_constraint:
+            steps_remaining = min(200, self.chainer.max_steps - step)
+            print("running mpc")
+            new_state, steps_taken = mpc.mpc_rollout(self.mdp, 14000, 7, goal_salient_event.get_target_position(), max_steps=steps_remaining)
+            step += steps_taken
+            print("ending mpc at state {} in {}".format(new_state, steps_taken))
+            visualize_mpc_rollout_result(goal_salient_event.get_target_position(), state, new_state, episode, self.chainer.experiment_name)
+            goal_salient_event.target_state = new_state
+            goal_salient_event._initialize_trigger_points()
+            goal_salient_event.revised_by_mpc = True
 
-        if not goal_salient_event(state) and step < self.chainer.max_steps:
+
+        if not orig_goal_salient_event(state) and step < self.chainer.max_steps:
             state, step = self.dsc_outside_graph(episode=episode,
                                                  num_steps=step,
-                                                 goal_salient_event=goal_salient_event)
+                                                 goal_salient_event=orig_goal_salient_event)
 
-        return step, goal_salient_event(state)
+        return step, orig_goal_salient_event(state)
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops

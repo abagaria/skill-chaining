@@ -10,7 +10,9 @@ from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
+from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
+from tqdm import tqdm
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq, use_hard_coded_events,
@@ -52,6 +54,8 @@ class DeepSkillGraphAgent(object):
         self.last_event_rejection_episode = -1
         self.num_successive_rejections = 0
 
+        self.mpc = MPC(31, 8, self.dsc_agent.device)
+
     def select_goal_salient_event(self, state):
         """
 
@@ -91,6 +95,11 @@ class DeepSkillGraphAgent(object):
             replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
 
         for episode in range(episodes):
+            # TODO MPC logic
+            if (episode % 500 == 0 and episode > 0) or episode == 5:
+                states, actions, states_p = self._prepare_dataset()
+                self.mpc.load_data(states, actions, states_p)
+                self.mpc.train()
 
             if self.should_generate_new_salient_events(episode):
                 self.generate_new_salient_events(replay_buffer, episode)
@@ -112,7 +121,8 @@ class DeepSkillGraphAgent(object):
                     step_number += 1
                     success = False
                 else:
-                    step_number, success = self.planning_agent.run_loop(state=state,
+                    step_number, success = self.planning_agent.run_loop(mpc=self.mpc,
+                                                                        state=state,
                                                                         goal_salient_event=goal_salient_event,
                                                                         episode=episode,
                                                                         step=step_number,
@@ -127,6 +137,17 @@ class DeepSkillGraphAgent(object):
                 successes.append(success)
 
         return successes
+    
+    def _prepare_dataset(self):
+        data = self.dsc_agent.global_option.solver.replay_buffer.memory
+        states = []
+        actions = []
+        states_p = []
+        for state, action, reward, next_state, terminal in tqdm(data, desc='Preparing dataset for MPC'):
+            states.append(state)
+            actions.append(action)
+            states_p.append(next_state)
+        return states, actions, states_p
 
     def generate_new_salient_events(self, replay_buffer, episode):
         # currently threshold and beta are hardcoded
