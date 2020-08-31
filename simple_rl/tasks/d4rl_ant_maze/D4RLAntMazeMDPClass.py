@@ -9,7 +9,7 @@ from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeStateClass import D4RLAntMazeState
 
 
 class D4RLAntMazeMDP(GoalDirectedMDP):
-    def __init__(self, maze_size, use_hard_coded_events=False, seed=0, render=False):
+    def __init__(self, maze_size, goal_state=None, use_hard_coded_events=False, seed=0, render=False):
         assert maze_size in ("medium", "large"), maze_size
         # self.env_name = f"maze2d-{maze_size}-v0"
         self.env_name = 'antmaze-umaze-v0'
@@ -40,7 +40,8 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
                                  self._transition_func,
                                  self._reward_func, self.init_state,
-                                 salient_positions, task_agnostic=True, goal_tolerance=0.6)
+                                 salient_positions, task_agnostic=True,
+                                 goal_state=goal_state, goal_tolerance=0.6)
 
     def _reward_func(self, state, action):
         next_state, _, done, info = self.env.step(action)
@@ -52,7 +53,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
             reward = 0.
             is_terminal = False
         else:
-            reward = +1. if is_terminal else 0.
+            reward, is_terminal = self.sparse_gc_reward_function(next_state, self.get_current_goal(), info)
 
         if self.render:
             self.env.render()

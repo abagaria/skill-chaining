@@ -68,8 +68,7 @@ class SalientEvent(object):
                # self.event_idx == other.event_idx
 
     def __hash__(self):
-        target_state = self._get_position(self.target_state)
-        return hash(tuple(target_state))
+        return hash(self.event_idx)
 
     def is_subset(self, other_event):
         """ I am a subset of `other_event` if all my trigger points are inside `other_event`. """
@@ -179,6 +178,12 @@ class LearnedSalientEvent(SalientEvent):
 
         SalientEvent.__init__(self, target_state=None, event_idx=event_idx,
                               tolerance=tolerance, intersection_event=intersection_event)
+
+    def __repr__(self):
+        return f"LearnedSalientEvent {self.event_idx}"
+
+    def __hash__(self):
+        return hash(self.event_idx)
 
     def get_target_position(self):
         return None

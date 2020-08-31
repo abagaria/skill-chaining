@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 import argparse
-import pdb
+import ipdb
 
 # PyTorch imports.
 import torch
@@ -316,6 +316,79 @@ def train(agent, mdp, episodes, steps):
     return per_episode_scores, per_episode_durations
 
 
+def her_rollout(agent, goal, mdp, steps):
+    score = 0.
+    mdp.reset()
+    trajectory = []
+
+    mdp.set_current_goal(goal)
+
+    for step in range(steps):
+        state = deepcopy(mdp.cur_state)
+        aug_state = np.concatenate((state.features(), goal), axis=0)
+        action = agent.act(aug_state)
+        reward, next_state = mdp.execute_agent_action(action)
+        agent.update_epsilon()
+        score = score + reward
+        trajectory.append((state, action, reward, next_state))
+        if next_state.is_terminal():
+            break
+
+    return score, trajectory
+
+
+def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed"):
+
+    assert sampling_strategy in ("fixed", "diverse", "test"), sampling_strategy
+    if sampling_strategy == "test": assert goal_state is not None, goal_state
+
+    trajectories = []
+    per_episode_scores = []
+    last_10_scores = deque(maxlen=10)
+
+    for episode in range(episodes):
+
+        # Set the goal to a feasible random state
+        if sampling_strategy == "fixed":
+            goal_state = np.array([0., 8.])
+        if sampling_strategy == "diverse":
+            goal_state = mdp.sample_random_state()
+
+        # Roll-out current policy for one episode
+        score, trajectory = her_rollout(agent, goal_state, mdp, steps)
+
+        # Debug log the trajectories
+        trajectories.append(trajectory)
+
+        # Regular Experience Replay
+        for state, action, reward, next_state in trajectory:
+            augmented_state = np.concatenate((state.features(), goal_state), axis=0)
+            augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
+            agent.step(augmented_state, action, reward, augmented_next_state, next_state.is_terminal())
+
+        # If traj is empty, we avoid doing hindsight experience replay
+        if len(trajectory) == 0:
+            continue
+
+        # `final` strategy for picking up the hindsight goal
+        reached_goal = trajectory[-1][-1].features()[:2]
+
+        # Hindsight Experience Replay
+        for state, action, _, next_state in trajectory:
+            augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
+            augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
+            done = np.linalg.norm(next_state.features()[:2] - reached_goal) <= 0.6
+            reward = 10. if done else -1.
+            agent.step(augmented_state, action, reward, augmented_next_state, done)
+
+        # Logging
+        per_episode_scores.append(score)
+        last_10_scores.append(score)
+        print(f"[Goal={goal_state}] Episode: {episode} \t Score: {score} \t Average Score: {np.mean(last_10_scores)}")
+
+    return per_episode_scores, trajectories
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
@@ -328,6 +401,8 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, help="number of steps per episode", default=200)
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--seed", type=int, help="random seed", default=0)
+    parser.add_argument("--goal_conditioned", action="store_true", default=False)
+    parser.add_argument("--sampling_strategy", type=str, default="fixed")
     args = parser.parse_args()
 
     log_dir = create_log_dir(args.experiment_name)
@@ -337,7 +412,15 @@ if __name__ == "__main__":
     create_log_dir("value_function_plots/{}".format(args.experiment_name))
     create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
 
-    if "reacher" in args.env.lower():
+    if args.env == "d4rl-point-maze-easy":
+        from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+        overall_mdp = D4RLPointMazeMDP(difficulty=args.difficulty,
+                                       seed=args.seed, render=args.render, goal_directed=args.goal_conditioned)
+        state_dim = overall_mdp.init_state.features().shape[0]
+        if args.goal_conditioned:
+            state_dim = overall_mdp.init_state.features().shape[0] + 2
+        action_dim = overall_mdp.env.action_space.low.shape[0]
+    elif "reacher" in args.env.lower():
         from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
         overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
         state_dim = overall_mdp.init_state.features().shape[0]
@@ -362,12 +445,14 @@ if __name__ == "__main__":
     print("{}: State dim: {}, Action dim: {}".format(overall_mdp.env_name, state_dim, action_dim))
 
     agent_name = overall_mdp.env_name + "_global_ddpg_agent"
-    ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log, name=agent_name)
-    episodic_scores, episodic_durations = train(ddpg_agent, overall_mdp, args.episodes, args.steps)
+    ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log,
+                           name=agent_name, exploration="none")
+    episodic_scores, trajs = her_train(ddpg_agent, overall_mdp, args.episodes, args.steps, goal_state=None,
+                                       sampling_strategy=args.sampling_strategy)
 
     save_model(ddpg_agent, episode_number=args.episodes, best=False)
-    save_all_scores(episodic_scores, episodic_durations, log_dir, args.seed)
+    save_all_scores(episodic_scores, episodic_scores, log_dir, args.seed)
 
-    best_ep, best_agent = load_model(ddpg_agent)
-    print("loaded {} from episode {}".format(best_agent.name, best_ep))
-    # trained_forward_pass(best_agent, overall_mdp, args.steps)
+    # best_ep, best_agent = load_model(ddpg_agent)
+    # print("loaded {} from episode {}".format(best_agent.name, best_ep))
+    # # trained_forward_pass(best_agent, overall_mdp, args.steps)

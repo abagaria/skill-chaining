@@ -72,6 +72,20 @@ class PlanGraph(object):
 
         return option_sequence_to_execute
 
+    def get_reachable_nodes_from_source_state(self, state):
+        """ Get all the nodes in the graph you can reach from state. """
+        assert isinstance(state, (State, np.ndarray))
+
+        start_nodes = self._get_available_options(state)
+        reachable_nodes = [self.get_reachable_nodes_from_source_node(src) for src in start_nodes]
+        reachable_nodes = list(itertools.chain.from_iterable(reachable_nodes))
+        return reachable_nodes
+
+    def get_nodes_that_reach_target_node(self, target_node):
+        """ Get all the nodes from which you can reach the `target_node`. """
+        assert isinstance(target_node, (Option, SalientEvent)), f"{type(target_node)}"
+        return nx.algorithms.dag.ancestors(self.plan_graph, target_node)
+
     # ----------------------------------------------------------------------------
     # Private Methods
     # ----------------------------------------------------------------------------
@@ -95,6 +109,9 @@ class PlanGraph(object):
     def does_path_exist_between_nodes(self, node1, node2):
         assert isinstance(node1, (Option, SalientEvent)), f"{type(node1)}"
         assert isinstance(node2, (Option, SalientEvent)), f"{type(node2)}"
+
+        if node1 not in self.plan_graph.nodes or node2 not in self.plan_graph.nodes:
+            return False
 
         return shortest_paths.has_path(self.plan_graph, node1, node2)
 
@@ -156,6 +173,10 @@ class PlanGraph(object):
         connected_nodes = list(itertools.chain.from_iterable(edges))
         neighboring_nodes = [n for n in connected_nodes if n != node]
         return neighboring_nodes
+
+    def get_reachable_nodes_from_source_node(self, source_node):
+        assert isinstance(source_node, (Option, SalientEvent)), f"{type(source_node)}"
+        return nx.algorithms.dag.descendants(self.plan_graph, source_node)
 
     # ----------------------------------------------------------------------------
     # Plotting Methods

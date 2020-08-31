@@ -244,11 +244,7 @@ class MazeEnv(gym.Env):
     goal_xy = tree.find(".//geom[@name='target']").attrib["pos"].split()
     self.goal_xy = np.array([float(goal_xy[0]), float(goal_xy[1])])
 
-    key_xy = tree.find(".//geom[@name='key']").attrib["pos"].split()
-    self.key_xy = np.array([float(key_xy[0]), float(key_xy[1])])
-
     print("Goal position: ", self.goal_xy)
-    print("Key  position: ", self.key_xy)
 
     self.has_key = False
 
@@ -547,9 +543,6 @@ class MazeEnv(gym.Env):
       new_pos = self.wrapped_env.get_xy()
       if self._is_in_collision(new_pos):
         self.wrapped_env.set_xy(old_pos)
-
-      if self.is_in_key_position(new_pos):
-          self.has_key = True
 
       # Point-env will give -1 reward for every step
       # Reaching the goal neutralizes the step penalty

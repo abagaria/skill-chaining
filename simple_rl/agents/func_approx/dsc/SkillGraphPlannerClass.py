@@ -37,13 +37,14 @@ class SkillGraphPlanner(object):
     # Control loop methods
     # -----------------------------–––––––--------------
 
-    def choose_vertex_to_fall_off_graph_from(self, goal_salient_event, choose_among_events=False):
+    def choose_vertex_to_fall_off_graph_from(self, state, goal_salient_event, choose_among_events=False):
         """
         Given a salient event outside the graph, find its nearest neighbor in the graph. We will
         use our planning based control loop to reach that nearest neighbor and then use deep
         skill chaining the rest of the way.
 
         Args:
+            state (State)
             goal_salient_event (SalientEvent)
             choose_among_events (bool)
 
@@ -59,36 +60,40 @@ class SkillGraphPlanner(object):
             selected_idx = selected_idx[0] if isinstance(selected_idx, np.ndarray) else selected_idx
             return selected_idx, array[selected_idx]
 
-        def _distance_choose_event_to_fall_off_graph_from():
+        def _distance_choose_event_to_fall_off_graph_from(candidate_vertices):
             """ If we were restricted to jump off the graph only from salient events, which event should that be? """
-            candidate_events = self.get_events_in_known_part_of_the_graph()
+            candidate_events = [vertex for vertex in candidate_vertices if isinstance(vertex, SalientEvent)]
             candidate_events = [event for event in candidate_events if event != goal_salient_event]
-            distances = [goal_salient_event.distance_to_other_event(event) for event in candidate_events]
-            selected_idx, min_distance = _single_argmin(distances)
-            selected_event = candidate_events[selected_idx]
-            print(f"[Distance-Event-Selection] Chose {selected_event} to fall off the graph from")
-            return selected_event, min_distance
+            if len(candidate_events) > 0:
+                distances = [goal_salient_event.distance_to_other_event(event) for event in candidate_events]
+                selected_idx, min_distance = _single_argmin(distances)
+                selected_event = candidate_events[selected_idx]
+                print(f"[Distance-Event-Selection] Chose {selected_event} to fall off the graph from")
+                return selected_event, min_distance
+            return None, None
 
-        def _distance_choose_vertex_to_fall_off_graph_from():
+        def _distance_choose_vertex_to_fall_off_graph_from(candidate_vertices):
             """ If we were allowed to jump off the graph from any vertex, which vertex should that be? """
-            candidate_options = self.get_options_in_known_part_of_the_graph()
+            candidate_options = [vertex for vertex in candidate_vertices if isinstance(vertex, Option)]
             candidate_options = [option for option in candidate_options if len(option.effect_set) > 0]
-            option_distances = [goal_salient_event.distance_to_effect_set(option.effect_set) for option in candidate_options]
+            if len(candidate_options) > 0:
+                distances = [goal_salient_event.distance_to_effect_set(option.effect_set) for option in candidate_options]
+                closest_event, closest_event_distance = _distance_choose_event_to_fall_off_graph_from(candidate_vertices)
+                selected_idx, closest_option_distance = _single_argmin(distances)
+                selected_option = candidate_options[selected_idx]
+                selected_vertex = selected_option if closest_option_distance < closest_event_distance else closest_event
+                selected_min_distance = closest_option_distance if closest_option_distance < closest_event_distance else closest_event_distance
+                print(f"[Distance-Vertex-Selection] Chose {selected_vertex} to fall off the graph from")
+                return selected_vertex, selected_min_distance
+            return None, None
 
-            closest_event, closest_event_distance = _distance_choose_event_to_fall_off_graph_from()
-            selected_idx, closest_option_distance = _single_argmin(option_distances)
-            selected_option = candidate_options[selected_idx]
-            selected_vertex = selected_option if closest_option_distance < closest_event_distance else closest_event
-            selected_min_distance = closest_option_distance if closest_option_distance < closest_event_distance else closest_event_distance
-            print(f"[Distance-Vertex-Selection] Chose {selected_vertex} to fall off the graph from")
-            return selected_vertex, selected_min_distance
+        vertices_to_choose_from = self.plan_graph.get_reachable_nodes_from_source_state(state)
 
-
-        if not self.is_plan_graph_empty():
+        if len(vertices_to_choose_from) > 0:
             if choose_among_events:
-                chosen_event, _ = _distance_choose_event_to_fall_off_graph_from()
+                chosen_event, _ = _distance_choose_event_to_fall_off_graph_from(vertices_to_choose_from)
                 return chosen_event
-            chosen_vertex, _ = _distance_choose_vertex_to_fall_off_graph_from()
+            chosen_vertex, _ = _distance_choose_vertex_to_fall_off_graph_from(vertices_to_choose_from)
             return chosen_vertex
 
         return None
@@ -151,15 +156,17 @@ class SkillGraphPlanner(object):
 
         goal_vertex = deepcopy(goal_salient_event)
 
-        if not self.is_event_inside_graph(goal_salient_event):
-            goal_vertex = self.choose_vertex_to_fall_off_graph_from(goal_salient_event, choose_among_events=False)
-
+        # Revise the goal_salient_event if it cannot be reached from the current state
+        if not self.plan_graph.does_path_exist(state, goal_salient_event):
+            revised_goal = self.choose_vertex_to_fall_off_graph_from(state, goal_salient_event, choose_among_events=False)
+            if revised_goal is not None:
+                print(f"Revised goal vertex to {revised_goal}")
+                goal_vertex = revised_goal
             if not self.does_exist_chain_for_event(goal_salient_event):
                 self.create_goal_option_outside_graph(goal_salient_event)
 
-        no_planning_possible = self.is_plan_graph_empty() or self.is_state_inside_vertex(state, goal_vertex)
-
-        if not no_planning_possible:
+        # Use the planner if there is a path to the revised goal node and we are not already at it
+        if self.plan_graph.does_path_exist(state, goal_vertex) and not self.is_state_inside_vertex(state, goal_vertex):
             print(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
             step = self.planner_rollout_inside_graph(state=state,
                                                      goal_vertex=goal_vertex,
@@ -383,12 +390,6 @@ class SkillGraphPlanner(object):
             if chain.target_salient_event == event:
                 return True
         return False
-
-    def is_event_inside_graph(self, salient_event):
-        assert isinstance(salient_event, SalientEvent)
-
-        destination_nodes = self.plan_graph.get_destination_nodes(salient_event)
-        return len(destination_nodes) > 0
 
     def get_options_in_known_part_of_the_graph(self):
         completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed(self.chainer.chains)]

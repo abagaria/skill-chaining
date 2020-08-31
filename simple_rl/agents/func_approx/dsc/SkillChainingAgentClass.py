@@ -33,7 +33,7 @@ class SkillChaining(object):
 				 classifier_type="ocsvm", init_q=None, generate_plots=False, use_full_smdp_update=False,
 				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
 				 pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
-				 update_global_solver=False, use_warmup_phase=False, dense_reward=False,
+				 update_global_solver=False, use_warmup_phase=False, dense_reward=False, use_her=False,
 				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
 		"""
 		Args:
@@ -60,6 +60,7 @@ class SkillChaining(object):
 			update_global_solver (bool): Whether to learn a global option policy (this can increase wall clock time in ant)
 			use_warmup_phase (bool): If true, then option will act randomly during its gestation period
 			dense_reward (bool): Whether DSC will use dense rewards to train option policies
+			use_her (bool): Whether DSC will use Hindsight Experience Replay
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -81,6 +82,7 @@ class SkillChaining(object):
 		self.max_num_options = max_num_options
 		self.classifier_type = classifier_type
 		self.dense_reward = dense_reward
+		self.use_her = use_her
 		self.start_state_salience = start_state_salience
 		self.option_intersection_salience = option_intersection_salience
 		self.event_intersection_salience = event_intersection_salience
@@ -102,14 +104,19 @@ class SkillChaining(object):
 		self.validation_scores = []
 
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
-		self.global_option = Option(overall_mdp=self.mdp, name="global_option", global_solver=None,
+		goal_salient_event = mdp.get_original_target_events()[0] if len(mdp.get_original_target_events()) > 0 else None
+		self.global_option = Option(overall_mdp=self.mdp, name="global_option",
+									global_solver=None, target_salient_event=goal_salient_event,
 									lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
 									enable_timeout=self.enable_option_timeout, classifier_type=classifier_type,
 									generate_plots=self.generate_plots, writer=self.writer, device=self.device,
-									use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
-									dense_reward=self.dense_reward, chain_id=None, is_backward_option=False, option_idx=0)
+									use_warmup_phase=self.use_warmup_phase,
+									update_global_solver=self.update_global_solver,
+									use_her=self.use_her,
+									dense_reward=self.dense_reward,
+									chain_id=None, is_backward_option=False, option_idx=0)
 
 		self.trained_options = [self.global_option]
 
@@ -132,17 +139,18 @@ class SkillChaining(object):
 								 generate_plots=self.generate_plots, writer=self.writer, device=self.device,
 								 dense_reward=self.dense_reward, chain_id=i+1, max_num_children=1,
 								 use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
-								 target_salient_event=salient_event, option_idx=i+1)
+								 target_salient_event=salient_event, option_idx=i+1, use_her=use_her)
 			self.untrained_options.append(goal_option)
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
 		# We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
 		# options, this agent will predict Q-values for them as well
-		self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
+		state_size = self.mdp.state_space_size() + 2 if self.use_her else self.mdp.state_space_size()
+		self.agent_over_options = DQNAgent(state_size, 1, trained_options=self.trained_options,
 										   seed=seed, lr=1e-4, name="GlobalDQN", eps_start=0.1, tensor_log=tensor_log,
 										   use_double_dqn=True, writer=self.writer, device=self.device,
-										   exploration_strategy="shaping")
+										   exploration_strategy="eps-greedy")
 
 		# Keep track of which chain each created option belongs to
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
@@ -203,7 +211,8 @@ class SkillChaining(object):
 							 update_global_solver=self.update_global_solver,
 							 is_backward_option=False,
 							 init_salient_event=init_salient_event,
-							 target_salient_event=salient_event)
+							 target_salient_event=salient_event,
+							 use_her=self.use_her)
 		self.untrained_options.append(goal_option)
 
 		new_chain = SkillChain(options=[], chain_id=chain_id,
@@ -341,7 +350,8 @@ class SkillChaining(object):
 									  init_salient_event=gestation_init_salient_event,
 									  use_warmup_phase=self.use_warmup_phase,
 									  update_global_solver=self.update_global_solver,
-									  initiation_period=parent_option.initiation_period)
+									  initiation_period=parent_option.initiation_period,
+									  use_her=self.use_her)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -378,15 +388,40 @@ class SkillChaining(object):
 		for i, transition in enumerate(option_transitions):
 			start_state = transition[0]
 			if selected_option.is_init_true(start_state):
-				if self.use_full_smdp_update:
+				sub_transitions = option_transitions[i:]
+				option_reward = get_reward(sub_transitions)
+				self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
+											 next_state.is_terminal(), num_steps=len(sub_transitions))
+
+	def make_goal_conditioned_smdp_update(self, *, goal, executed_option, next_state, option_transitions):
+		assert isinstance(executed_option, Option)
+
+		def get_goal_conditioned_reward(g, transitions):
+			gamma = self.global_option.solver.gamma
+			reward_func = self.mdp.sparse_gc_reward_function
+			raw_rewards = [reward_func(trans[-1], g, info={})[0] for trans in transitions]
+			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
+
+		def perform_gc_experience_replay(g, o, transitions):
+			sp_augmented = np.concatenate((next_state.features(), g), axis=0)
+			for i, transition in enumerate(transitions):
+				s0 = transition[0]
+				s0_augmented = np.concatenate((s0.features(), g), axis=0)
+				if o.is_init_true(s0):
 					sub_transitions = option_transitions[i:]
-					option_reward = get_reward(sub_transitions)
-					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
-												 next_state.is_terminal(), num_steps=len(sub_transitions))
-				else:
-					option_reward = self.subgoal_reward if selected_option.is_term_true(next_state) else -1.
-					self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
-												 next_state.is_terminal(), num_steps=1)
+					option_reward = get_goal_conditioned_reward(g, sub_transitions)
+					done = self.mdp.sparse_gc_reward_function(next_state, g, info={})[1]
+					self.agent_over_options.step(s0_augmented, o.option_idx, option_reward, sp_augmented,
+												 done=done, num_steps=len(sub_transitions))
+
+		goal_position = self.mdp.get_position(goal)
+		reached_goal = self.mdp.get_position(next_state)
+
+		# Hindsight goal conditioned experience replay
+		perform_gc_experience_replay(reached_goal, executed_option, option_transitions)
+
+		# Regular goal-conditioned experience replay
+		perform_gc_experience_replay(goal_position, executed_option, option_transitions)
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
 		global_solver = self.agent_over_options  # type: DQNAgent
@@ -478,9 +513,16 @@ class SkillChaining(object):
 					and untrained_option.get_training_phase() == "initiation_done":
 				print(f"Triggered final termination condition for {untrained_option} while executing {executed_option}")
 
-	def act(self, state, train_mode=True):
+	def act(self, state, goal=None, train_mode=True):
+
+		def get_augmented_state(s, g):
+			if g is not None and self.use_her:
+				return np.concatenate((s.features(), g))
+			return s.features()
+
 		# Query the global Q-function to determine which option to take in the current state
-		option_idx = self.agent_over_options.act(state.features(), train_mode=train_mode)
+		augmented_state = get_augmented_state(state, goal)
+		option_idx = self.agent_over_options.act(augmented_state, train_mode=train_mode)
 
 		if train_mode:
 			self.agent_over_options.update_epsilon()
@@ -520,7 +562,10 @@ class SkillChaining(object):
 				untrained_option.terminal_states.append(state_after_rollout)
 
 		# Add data to train Q(s, o)
-		self.make_smdp_update(action=executed_option.option_idx, next_state=state_after_rollout, option_transitions=option_transitions)
+		if not self.use_her:
+			self.make_smdp_update(action=executed_option.option_idx,
+								  next_state=state_after_rollout,
+								  option_transitions=option_transitions)
 
 	def sample_qvalue(self, option):
 		""" Sample Q-value from the given option's intra-option policy. """
@@ -604,7 +649,8 @@ class SkillChaining(object):
 									 update_global_solver=self.update_global_solver,
 									 is_backward_option=True,
 									 init_salient_event=back_chain.init_salient_event,
-									 target_salient_event=back_chain.target_salient_event)
+									 target_salient_event=back_chain.target_salient_event,
+									 use_her=self.use_her)
 			else:
 				back_option = self.create_child_option(parent_option=parent)
 
@@ -694,7 +740,8 @@ class SkillChaining(object):
 								use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
 								is_backward_option=True,
 								init_salient_event=init_salient_event,
-								target_salient_event=target_salient_event)
+								target_salient_event=target_salient_event,
+								use_her=self.use_her)
 
 			if self.pretrain_option_policies:
 				new_option.initialize_with_global_solver()
@@ -742,7 +789,8 @@ class SkillChaining(object):
 											  update_global_solver=self.update_global_solver,
 											  is_backward_option=True,
 											  init_salient_event=start_event,
-											  target_salient_event=target_event)
+											  target_salient_event=target_event,
+											  use_her=self.use_her)
 
 			if self.pretrain_option_policies:
 				back_chain_root_option.initialize_with_global_solver()
@@ -953,11 +1001,11 @@ class SkillChaining(object):
 			# if completed_option is not None:
 			# 	self.mdp.satisfy_target_event(self.chains)
 
-			if completed_option is not None and self.start_state_salience:
+			if completed_option is not None and self.start_state_salience and self.create_backward_options:
 				trained_back_options = self.manage_skill_chain_to_start_state(completed_option)
 				created_options += trained_back_options
 
-			if completed_option is not None and self.event_intersection_salience:
+			if completed_option is not None and self.event_intersection_salience and self.create_backward_options:
 				trained_back_options = self.manage_intersection_between_option_and_events(completed_option)
 				created_options += trained_back_options
 
@@ -970,7 +1018,7 @@ class SkillChaining(object):
 			if completed_option is not None:
 				created_options.append(completed_option)
 
-		if self.option_intersection_salience:
+		if self.option_intersection_salience and self.create_backward_options:
 			self.manage_intersecting_skill_chains()
 
 		return created_options
@@ -982,11 +1030,14 @@ class SkillChaining(object):
 
 		state = deepcopy(self.mdp.cur_state)
 		created_options = []
+		episodic_trajectory = []
+		option_trajectory = []
 
 		while step_number < self.max_steps:
 
 			# Pick an option
-			selected_option = self.act(state)
+			goal = self.mdp.get_position(self.mdp.goal_state)
+			selected_option = self.act(state=state, goal=goal, train_mode=True)
 
 			# Execute it in the MDP
 			option_transitions, reward = selected_option.execute_option_in_mdp(self.mdp,
@@ -997,6 +1048,8 @@ class SkillChaining(object):
 			score += reward
 			step_number += len(option_transitions)
 			state = self.get_next_state_from_experiences(option_transitions)
+			episodic_trajectory.append(option_transitions)
+			option_trajectory.append((selected_option, option_transitions))
 
 			# DSC book keeping
 			created_options = self.manage_skill_chain_after_option_rollout(state_before_rollout=state,
@@ -1007,6 +1060,19 @@ class SkillChaining(object):
 
 			if state.is_terminal() or interrupt_handle(state):
 				break
+
+		# Experience replay for the global-option
+		if self.use_her:
+			reached_goal = self.mdp.get_position(state.position)
+			overall_goal = self.mdp.get_position(self.mdp.goal_state)
+			episodic_trajectory = list(itertools.chain.from_iterable(episodic_trajectory))
+			self.global_option_regular_experience_replay(episodic_trajectory, overall_goal)
+			self.global_option_hindsight_experience_replay(episodic_trajectory, reached_goal)
+
+			# Experience replay for the policy over options
+			for option, trajectory in option_trajectory:
+				self.make_goal_conditioned_smdp_update(executed_option=option, next_state=state,
+													   option_transitions=trajectory, goal=overall_goal)
 
 		return score, step_number, created_options
 
@@ -1036,19 +1102,31 @@ class SkillChaining(object):
 
 		return per_episode_scores, per_episode_durations
 
+	# TODO: Collapse these into the same function
+	def global_option_regular_experience_replay(self, trajectory, goal_state):
+		for state, action, reward, next_state in trajectory:
+			augmented_state = np.concatenate((state.features(), goal_state), axis=0)
+			augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
+			self.global_option.solver.step(augmented_state, action, reward, augmented_next_state, next_state.is_terminal())
+
+	def global_option_hindsight_experience_replay(self, trajectory, reached_goal):
+		for state, action, _, next_state in trajectory:
+			augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
+			augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
+			reward, done = self.mdp.sparse_gc_reward_function(next_state, reached_goal, info={})
+			self.global_option.solver.step(augmented_state, action, reward, augmented_next_state, done)
+
 	def _log_dqn_status(self, episode, last_10_scores, last_10_durations):
 
+		print("=" * 80)
 		print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
 			episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
+		print("=" * 80)
 
 		self.num_options_history.append(len(self.trained_options))
 
 		if self.writer is not None:
 			self.writer.add_scalar("Episodic scores", last_10_scores[-1], episode)
-
-		if episode % 10 == 0:
-			print('\rEpisode {}\tAverage Score: {:.2f}\tDuration: {:.2f} steps\tOP Eps: {:.2f}'.format(
-				episode, np.mean(last_10_scores), np.mean(last_10_durations), self.agent_over_options.epsilon))
 
 		if episode > 0 and episode % 100 == 0:
 			# eval_score, trajectory = self.trained_forward_pass(render=False)
@@ -1186,6 +1264,7 @@ if __name__ == '__main__':
 	parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
 	parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
 	parser.add_argument("--create_backward_options", action="store_true", default=False)
+	parser.add_argument("--use_her", action="store_true", help="Hindsight Experience Replay", default=False)
 	args = parser.parse_args()
 
 	if args.env == "point-reacher":
@@ -1193,6 +1272,22 @@ if __name__ == '__main__':
 		overall_mdp = PointReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)
 		state_dim = 6
 		action_dim = 2
+	elif args.env == "ant-reacher":
+		from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
+		overall_mdp = AntReacherMDP(seed=args.seed, render=args.render, goal_state=np.array((8, 8)), task_agnostic=False)
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
+	elif args.env == "d4rl-point-maze-easy":
+		from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
+		overall_mdp = D4RLPointMazeMDP(difficulty="easy", seed=args.seed, render=args.render, goal_directed=True)
+		state_dim = 6
+		action_dim = 2
+	elif args.env == "d4rl-ant-maze":
+		from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+		overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, task_agnostic=False,
+									 render=args.render, goal_state=np.array((0., 8.)))
+		state_dim = overall_mdp.state_space_size()
+		action_dim = overall_mdp.action_space_size()
 	elif "reacher" in args.env.lower():
 		from simple_rl.tasks.dm_fixed_reacher.FixedReacherMDPClass import FixedReacherMDP
 		overall_mdp = FixedReacherMDP(seed=args.seed, difficulty=args.difficulty, render=args.render)
@@ -1240,6 +1335,7 @@ if __name__ == '__main__':
 							pretrain_option_policies=args.pretrain_option_policies,
 							create_backward_options=args.create_backward_options,
 							dense_reward=args.dense_reward,
+							use_her=args.use_her,
 							experiment_name=args.experiment_name)
 	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
