@@ -327,8 +327,9 @@ class DeepSkillGraphAgent(object):
         reward, next_state = self.mdp.execute_agent_action(action)
         done = self.mdp.is_goal_state(next_state)
 
-        self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
-        self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(), done, 1)
+        if not self.planning_agent.use_her:
+            self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
+            self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(), done, 1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -373,6 +374,8 @@ if __name__ == "__main__":
     parser.add_argument("--threshold", type=int, help="Threshold determining size of termination set", default=0.1)
     parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options", default=False)
     parser.add_argument("--allow_backward_options", action="store_true", default=False)
+    parser.add_argument("--use_her", action="store_true", default=False)
+    parser.add_argument("--use_her_locally", action="store_true", help="HER for local options", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -444,7 +447,9 @@ if __name__ == "__main__":
                             dense_reward=args.dense_reward,
                             update_global_solver=args.update_global_solver,
                             use_warmup_phase=args.use_warmup_phase,
-                            experiment_name=args.experiment_name)
+                            experiment_name=args.experiment_name,
+                            use_her=args.use_her,
+                            use_her_locally=args.use_her_locally)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
 
@@ -452,6 +457,7 @@ if __name__ == "__main__":
                                 chainer=chainer,
                                 experiment_name=args.experiment_name,
                                 seed=args.seed,
+                                use_her=args.use_her,
                                 pretrain_option_policies=args.pretrain_option_policies)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
