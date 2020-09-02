@@ -166,7 +166,9 @@ class SkillGraphPlanner(object):
                 self.create_goal_option_outside_graph(goal_salient_event)
 
         # Use the planner if there is a path to the revised goal node and we are not already at it
+        ran_planner = False
         if self.plan_graph.does_path_exist(state, goal_vertex) and not self.is_state_inside_vertex(state, goal_vertex):
+            ran_planner = True
             print(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
             step = self.planner_rollout_inside_graph(state=state,
                                                      goal_vertex=goal_vertex,
@@ -182,20 +184,22 @@ class SkillGraphPlanner(object):
             # Question: run MPC for 2, 3?
 
             state = deepcopy(self.mdp.cur_state)
-        
+
         orig_goal_salient_event = deepcopy(goal_salient_event)
-        mpc_constraint = (goal_vertex is not None and goal_vertex(state) and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) or (goal_vertex is None and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) and (step < self.chainer.max_steps) and (mpc.is_trained)
+        # TODO investigate why MPC is being run when goal_vertex is not closest to goal_salient_event
+        mpc_constraint = (ran_planner and goal_vertex.is_init_true(state) and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) or (not ran_planner and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) and (self.chainer.max_steps - step > 200) and (mpc.is_trained)
         if mpc_constraint:
-            steps_remaining = min(200, self.chainer.max_steps - step)
+            # TODO record train times for MPC
+            steps_remaining = 200
             print("running mpc")
             new_state, steps_taken = mpc.mpc_rollout(self.mdp, 14000, 7, goal_salient_event.get_target_position(), max_steps=steps_remaining)
             step += steps_taken
             print("ending mpc at state {} in {}".format(new_state, steps_taken))
-            visualize_mpc_rollout_result(goal_salient_event.get_target_position(), state, new_state, episode, self.chainer.experiment_name)
-            goal_salient_event.target_state = new_state
+            visualize_mpc_rollout_result(self.chainer.chains, goal_salient_event.get_target_position(), state, new_state, steps_taken, episode, self.chainer.experiment_name)
+            state = new_state # point state to new_state variable
+            goal_salient_event.target_state = state
             goal_salient_event._initialize_trigger_points()
             goal_salient_event.revised_by_mpc = True
-
 
         if not orig_goal_salient_event(state) and step < self.chainer.max_steps:
             state, step = self.dsc_outside_graph(episode=episode,

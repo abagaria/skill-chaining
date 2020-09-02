@@ -18,17 +18,14 @@ class MPC:
         self.is_trained = False
 
     def load_data(self, states, actions, states_p):
-        print("in load data")
         self.dataset = self._preprocess_data(states, actions, states_p)
-        print("done preprocessing data")
         self.model = DynamicsModel(self.state_size, self.action_size, *self._get_standardization_vars(), self.device)  
         self.model.to(self.device)
 
-    def train(self, epochs=100):
+    def train(self, epochs=100, batch_size=512):
         self.is_trained = True
 
-        # TODO num_workers = 4, pin_memory = True
-        training_gen = DataLoader(self.dataset, batch_size=512, shuffle=True)
+        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
         for epoch in tqdm(range(epochs), desc='Training MPC model'):
@@ -108,7 +105,7 @@ class MPC:
         summed_results = np.sum(results * gammas, axis=1)
         index = np.argmin(summed_results) # retrieve action with least trajectory distance to goal
         action = np_actions[index,0,:] # grab action corresponding to least distance    
-        return action          
+        return action
 
     def _preprocess_data(self, states, actions, states_p):
         states_delta = np.array(states_p) - np.array(states)
