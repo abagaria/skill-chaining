@@ -199,9 +199,18 @@ class SkillGraphPlanner(object):
             state = deepcopy(self.mdp.cur_state)
 
         orig_goal_salient_event = deepcopy(goal_salient_event)
+
         # TODO investigate why MPC is being run when goal_vertex is not closest to goal_salient_event
-        mpc_constraint = (ran_planner and goal_vertex.is_init_true(state) and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) or (not ran_planner and not goal_salient_event(state) and not goal_salient_event.revised_by_mpc) and (self.chainer.max_steps - step > 200) and (mpc.is_trained)
-        if mpc_constraint:
+        run_mpc = False
+        if mpc.is_trained and (self.chainer.max_steps - step) > 200: # can run MPC at all
+            if not goal_salient_event.revised_by_mpc: # not tried by MPC before
+                if not goal_salient_event(state): # not close to end goal
+                    if ran_planner and self.is_state_inside_vertex(state, goal_vertex): # planner is run and at right vertex
+                        run_mpc = True
+                    elif not ran_planner: # we run MPC here too
+                        run_mpc = True
+
+        if run_mpc:
             # TODO record train times for MPC
             steps_remaining = 200
             print("running mpc")

@@ -95,11 +95,11 @@ class DeepSkillGraphAgent(object):
             replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
 
         for episode in range(episodes):
-            if (episode % 100 == 0 and episode > 0) or episode == 5:
+            if (episode % 20 == 0 and episode > 0) or episode == 5:
                 states, actions, states_p = self._prepare_dataset()
                 print("Size of dataset: {}".format(len(states)))
                 self.mpc.load_data(states, actions, states_p)
-                self.mpc.train(epochs=200, batch_size=512)
+                self.mpc.train(epochs=100, batch_size=1024)
 
             if self.should_generate_new_salient_events(episode):
                 self.generate_new_salient_events(replay_buffer, episode)
@@ -144,9 +144,9 @@ class DeepSkillGraphAgent(object):
         actions = []
         states_p = []
         for state, action, reward, next_state, terminal in tqdm(data, desc='Preparing dataset for MPC'):
-            states.append(state)
-            actions.append(action)
-            states_p.append(next_state)
+            states.append(state.astype('float64'))
+            actions.append(action.astype('float64'))
+            states_p.append(next_state.astype('float64'))
         return states, actions, states_p
 
     def generate_new_salient_events(self, replay_buffer, episode):

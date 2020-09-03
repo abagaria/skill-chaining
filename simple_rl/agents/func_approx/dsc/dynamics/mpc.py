@@ -19,21 +19,22 @@ class MPC:
 
     def load_data(self, states, actions, states_p):
         self.dataset = self._preprocess_data(states, actions, states_p)
-        self.model = DynamicsModel(self.state_size, self.action_size, *self._get_standardization_vars(), self.device)  
+        self.model = DynamicsModel(self.state_size, self.action_size, *self._get_standardization_vars(), self.device)
         self.model.to(self.device)
 
     def train(self, epochs=100, batch_size=512):
         self.is_trained = True
 
-        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
+        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True, pin_memory=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
+        
         for epoch in tqdm(range(epochs), desc='Training MPC model'):
             for states, actions, states_p in training_gen:
                 states = states.to(self.device).float()
                 actions = actions.to(self.device).float()
                 states_p = states_p.to(self.device).float()
-                
+            
                 optimizer.zero_grad()
                 p = self.model.forward(states, actions)
                 loss = loss_function(p, states_p)
