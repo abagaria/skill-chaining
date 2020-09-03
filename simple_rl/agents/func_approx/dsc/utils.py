@@ -14,6 +14,7 @@ sns.set_style("white")
 from PIL import Image
 from tqdm import tqdm
 import os
+import ipdb
 from mpl_toolkits.mplot3d import Axes3D
 
 # Other imports.
@@ -423,6 +424,17 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     plt.close()
 
     return qvalues.max()
+
+
+def visualize_goal_conditioned_trajectory(trajectory, goal, reward_func, experiment_name, seed):
+    x = np.array([transition[-1][0] for transition in trajectory])
+    y = np.array([transition[-1][1] for transition in trajectory])
+    rewards = np.array([reward_func(transition[-1], goal, info={})[0] for transition in trajectory])
+    plt.scatter(x, y, c=rewards)
+    plt.colorbar()
+    goal_label = np.round(goal, decimals=1)
+    plt.savefig(f"value_function_plots/{experiment_name}/gc_trajectory_{goal_label}_seed_{seed}.png")
+    plt.close()
 
 
 def create_log_dir(experiment_name):
