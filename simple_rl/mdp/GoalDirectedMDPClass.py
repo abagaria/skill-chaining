@@ -29,7 +29,7 @@ class GoalDirectedMDP(MDP):
             ipdb.set_trace()
         time_limit_truncated = info.get('TimeLimit.truncated', False)
         is_terminal = done and not time_limit_truncated
-        reward = +10. if is_terminal else -1.
+        reward = +0. if is_terminal else -1.
         return reward, is_terminal
 
     def dense_gc_reward_function(self, state, goal, info):

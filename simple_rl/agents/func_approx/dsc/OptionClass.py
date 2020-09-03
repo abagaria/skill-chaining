@@ -659,9 +659,6 @@ class Option(object):
 	def get_goal_for_option_rollout(self, method="use_effect_set"):
 		assert method in ("use_effect_set", "use_term_set"), method
 
-		if not self.use_her:
-			return None
-
 		def _sample_from_parent_initiation_set():
 			if self.parent is not None:
 				parent_positive = self.sample_parent_positive()
