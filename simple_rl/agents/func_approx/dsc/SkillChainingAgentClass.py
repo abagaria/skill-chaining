@@ -395,9 +395,7 @@ class SkillChaining(object):
 				self.agent_over_options.step(start_state.features(), action, option_reward, next_state.features(),
 											 next_state.is_terminal(), num_steps=len(sub_transitions))
 
-	def make_goal_conditioned_smdp_update(self, *, goal, executed_option, next_state, option_transitions):
-		assert isinstance(executed_option, Option)
-
+	def make_goal_conditioned_smdp_update(self, *, goal, final_state, option_trajectories):
 		def get_goal_conditioned_reward(g, transitions):
 			gamma = self.global_option.solver.gamma
 			reward_func = self.mdp.dense_gc_reward_function if self.dense_reward else self.mdp.sparse_gc_reward_function
@@ -405,27 +403,28 @@ class SkillChaining(object):
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
 		def perform_gc_experience_replay(g, o, transitions):
-			sp_augmented = np.concatenate((next_state.features(), g), axis=0)
+			option_final_state = transitions[-1][-1]
+			sp_augmented = np.concatenate((option_final_state.features(), g), axis=0)
 			for i, transition in enumerate(transitions):
 				s0 = transition[0]
 				s0_augmented = np.concatenate((s0.features(), g), axis=0)
 				if o.is_init_true(s0):
-					sub_transitions = option_transitions[i:]
+					sub_transitions = transitions[i:]
 					option_reward = get_goal_conditioned_reward(g, sub_transitions)
 					reward_func = self.mdp.dense_gc_reward_function if self.dense_reward\
 						else self.mdp.sparse_gc_reward_function
-					done = reward_func(next_state, g, info={})[1]
+					done = reward_func(option_final_state, g, info={})[1]
 					self.agent_over_options.step(s0_augmented, o.option_idx, option_reward, sp_augmented,
 												 done=done, num_steps=len(sub_transitions))
 
 		goal_position = self.mdp.get_position(goal)
-		reached_goal = self.mdp.get_position(next_state)
+		reached_goal = self.mdp.get_position(final_state)
 
-		# Hindsight goal conditioned experience replay
-		perform_gc_experience_replay(reached_goal, executed_option, option_transitions)
+		for option, trajectory in option_trajectories:  # type: Option, list
+			perform_gc_experience_replay(goal_position, option, transitions=trajectory)
 
-		# Regular goal-conditioned experience replay
-		perform_gc_experience_replay(goal_position, executed_option, option_transitions)
+		for option, trajectory in option_trajectories:  # type: Option, list
+			perform_gc_experience_replay(reached_goal, option, transitions=trajectory)
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
 		global_solver = self.agent_over_options  # type: DQNAgent
@@ -1047,11 +1046,7 @@ class SkillChaining(object):
 
 		if self.use_her:
 			self.global_option_experience_replay(episodic_trajectory, goal_state=reached_goal)
-
-			# Experience replay for the policy over options
-			for option, trajectory in option_trajectory:
-				self.make_goal_conditioned_smdp_update(executed_option=option, next_state=state,
-													   option_transitions=trajectory, goal=overall_goal)
+			self.make_goal_conditioned_smdp_update(goal=overall_goal, final_state=state, option_trajectories=option_trajectory)
 
 	def dsc_rollout(self, *, episode_number, step_number, interrupt_handle=lambda x: False, overall_goal=None):
 		""" Single episode rollout of deep skill chaining from the current state in the MDP. """
