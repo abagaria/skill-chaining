@@ -734,9 +734,9 @@ class Option(object):
 			if self.name != "global_option":
 				print(f"Executing {self.name} targeting {goal}")
 
-			while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
+			warmup_phase = self.get_training_phase() == "gestation"
 
-				warmup_phase = self.get_training_phase() == "gestation"
+			while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
 
 				# Goal-conditioned option acting
 				augmented_state = self.get_augmented_state(state, goal)
@@ -757,6 +757,9 @@ class Option(object):
 			# Don't forget to add the final state to the followed trajectory
 			visited_states.append(state)
 
+			if self.is_at_local_goal(state, goal):
+				print(f"{self} successfully reached {goal}")
+
 			if self.is_term_true(state) and self.last_episode_term_triggered != episode:
 				print(f"{self} successful (Reached Goal State: {self.is_at_local_goal(state, goal)})")
 				self.num_goal_hits += 1
@@ -771,7 +774,7 @@ class Option(object):
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
 			# Experience Replay
-			if self.name != "global_option":
+			if self.name != "global_option" and not warmup_phase:
 				self.local_option_experience_replay(option_transitions, goal_state=goal)
 
 				if self.use_her:
@@ -783,7 +786,7 @@ class Option(object):
 
 	def is_at_local_goal(self, state, goal_state):
 		assert isinstance(state, State)
-		global_done = self.is_term_true(state) or state.is_terminal()
+		global_done = self.is_term_true(state) or state.is_terminal() or self.name == "global_option"
 		local_done = self.overall_mdp.sparse_gc_reward_function(state, goal_state, {})[1] if self.use_her else True
 		done = global_done and local_done
 		return done
