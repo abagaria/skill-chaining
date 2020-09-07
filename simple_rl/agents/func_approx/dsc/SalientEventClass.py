@@ -15,7 +15,7 @@ class SalientEvent(object):
         """
 
         Args:
-            target_state (np.ndarray): salient event factors, NOT the full state
+            target_state (np.ndarray): state that is being targeted (full state, not the salient event factors)
             event_idx (int):
             intersection_event (bool):
             get_relevant_position (lambda):
@@ -25,11 +25,10 @@ class SalientEvent(object):
         assert self.tolerance is not None
         assert self.state_size is not None
         assert self.factor_indices is not None
-
         assert isinstance(event_idx, int)
+
         if isinstance(target_state, State):
             target_state = target_state.features()
-
         assert isinstance(target_state, np.ndarray)
 
         self.target_state = target_state
@@ -132,10 +131,11 @@ class SalientEvent(object):
 
     def distance_from_goal(self, state):
         factors = self._get_relevant_factors(state)
+        target_factors = self._get_relevant_factors(self.target_state)
         if len(state.shape) == 1:
-            return np.linalg.norm(self.target_state - factors)
+            return np.linalg.norm(target_factors - factors)
         else:
-            return distance.cdist(factors, self.target_state[None, :])
+            return distance.cdist(factors, target_factors[None, :])
 
 
 class LearnedSalientEvent(SalientEvent):
