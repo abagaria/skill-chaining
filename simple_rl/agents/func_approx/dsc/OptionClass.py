@@ -824,7 +824,7 @@ class Option(object):
     def add_positive_examples(self, state_list):
         if len(state_list) > 0 and isinstance(state_list[0], State):
             state_list = [state.features() for state in state_list]
-        self.positive_examples.extend(state_list)
+        self.positive_examples.append(state_list)
 
     def add_negative_example(self, state):
         state = state.features() if isinstance(state, State) else state
