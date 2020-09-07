@@ -2,6 +2,7 @@
 
 # Python imports.
 import copy
+import collections
 
 from simple_rl.mdp.StateClass import State
 
