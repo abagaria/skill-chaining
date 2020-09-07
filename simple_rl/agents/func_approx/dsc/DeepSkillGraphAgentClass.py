@@ -99,9 +99,8 @@ class DeepSkillGraphAgent(object):
         for episode in range(episodes):
 
             # if hardcoded events are not provided, we can discover them using DCO or random sampling
-            if not self.use_hard_coded_events:
-                if self.should_generate_new_salient_event(episode):
-                    self.discover_new_salient_event(replay_buffer, episode)
+            if not self.use_hard_coded_events and self.should_generate_new_salient_event(episode):
+                self.discover_new_salient_event(replay_buffer, episode)
 
             step_number = 0
             self.mdp.reset()
@@ -238,7 +237,7 @@ class DeepSkillGraphAgent(object):
 
         return False
 
-    def should_generate_new_salient_events(self, episode):
+    def should_generate_new_salient_event(self, episode):
         if episode < 5:
             return False
         elif episode == 5:
