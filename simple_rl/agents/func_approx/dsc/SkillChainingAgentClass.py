@@ -582,7 +582,8 @@ class SkillChaining(object):
 
 	@staticmethod
 	def get_next_state_from_experiences(experiences):
-		return experiences[-1][-1]
+		try: return experiences[-1][-1]
+		except: ipdb.set_trace()
 
 	@staticmethod
 	def get_reward_from_experiences(experiences):

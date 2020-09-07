@@ -40,7 +40,7 @@ class SkillGraphPlanner(object):
     # Control loop methods
     # -----------------------------–––––––--------------
 
-    def choose_vertex_to_fall_off_graph_from(self, state, goal_salient_event, choose_among_events=False):
+    def choose_closest_source_target_vertex_pair(self, state, goal_salient_event):
         """
         Given a salient event outside the graph, find its nearest neighbor in the graph. We will
         use our planning based control loop to reach that nearest neighbor and then use deep
@@ -49,57 +49,39 @@ class SkillGraphPlanner(object):
         Args:
             state (State)
             goal_salient_event (SalientEvent)
-            choose_among_events (bool)
 
         Returns:
-            graph_vertex (SalientEvent or Option)
-
+            closest_source (SalientEvent or Option)
+            closest_pair (SalientEvent or Option)
         """
 
-        def _single_argmin(array):
-            """ Convenience function - return a single min and argmin corresponding to `array`. """
-            array = np.array(array) if isinstance(array, list) else array
-            selected_idx = np.argmin(array)
-            selected_idx = selected_idx[0] if isinstance(selected_idx, np.ndarray) else selected_idx
-            return selected_idx, array[selected_idx]
+        def _distance_between_vertices(v1, v2):
+            if isinstance(v1, SalientEvent) and isinstance(v2, SalientEvent):
+                return v1.distance_to_other_event(v2)
+            if isinstance(v1, SalientEvent) and isinstance(v2, Option):
+                return v1.distance_to_effect_set(v2.effect_set)
+            if isinstance(v1, Option) and isinstance(v2, SalientEvent):
+                return v2.distance_to_effect_set(v1.effect_set)  # Assuming a symmetric distance function here
+            if isinstance(v1, Option) and isinstance(v2, Option):
+                return SalientEvent.set_to_set_distance(v1.effect_set, v2.effect_set)
+            raise NotImplementedError(f"{type(v1), type(v2)}")
 
-        def _distance_choose_event_to_fall_off_graph_from(candidate_vertices):
-            """ If we were restricted to jump off the graph only from salient events, which event should that be? """
-            candidate_events = [vertex for vertex in candidate_vertices if isinstance(vertex, SalientEvent)]
-            candidate_events = [event for event in candidate_events if event != goal_salient_event]
-            if len(candidate_events) > 0:
-                distances = [goal_salient_event.distance_to_other_event(event) for event in candidate_events]
-                selected_idx, min_distance = _single_argmin(distances)
-                selected_event = candidate_events[selected_idx]
-                print(f"[Distance-Event-Selection] Chose {selected_event} to fall off the graph from")
-                return selected_event, min_distance
-            return None, None
+        candidate_vertices_to_fall_from = self.plan_graph.get_reachable_nodes_from_source_state(state)
+        candidate_vertices_to_jump_to = self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event)
+        candidate_vertices_to_jump_to = list(candidate_vertices_to_jump_to) + [goal_salient_event]
 
-        def _distance_choose_vertex_to_fall_off_graph_from(candidate_vertices):
-            """ If we were allowed to jump off the graph from any vertex, which vertex should that be? """
-            candidate_options = [vertex for vertex in candidate_vertices if isinstance(vertex, Option)]
-            candidate_options = [option for option in candidate_options if len(option.effect_set) > 0]
-            if len(candidate_options) > 0:
-                distances = [goal_salient_event.distance_to_effect_set(option.effect_set) for option in candidate_options]
-                closest_event, closest_event_distance = _distance_choose_event_to_fall_off_graph_from(candidate_vertices)
-                selected_idx, closest_option_distance = _single_argmin(distances)
-                selected_option = candidate_options[selected_idx]
-                selected_vertex = selected_option if closest_option_distance < closest_event_distance else closest_event
-                selected_min_distance = closest_option_distance if closest_option_distance < closest_event_distance else closest_event_distance
-                print(f"[Distance-Vertex-Selection] Chose {selected_vertex} to fall off the graph from")
-                return selected_vertex, selected_min_distance
-            return None, None
+        closest_pair = None
+        min_distance = np.inf
 
-        vertices_to_choose_from = self.plan_graph.get_reachable_nodes_from_source_state(state)
+        for source in candidate_vertices_to_fall_from:  # type: SalientEvent or Option
+            for target in candidate_vertices_to_jump_to:  # type: SalientEvent or Option
+                assert source != target, f"{source, target}"
+                distance = _distance_between_vertices(source, target)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_pair = source, target
 
-        if len(vertices_to_choose_from) > 0:
-            if choose_among_events:
-                chosen_event, _ = _distance_choose_event_to_fall_off_graph_from(vertices_to_choose_from)
-                return chosen_event
-            chosen_vertex, _ = _distance_choose_vertex_to_fall_off_graph_from(vertices_to_choose_from)
-            return chosen_vertex
-
-        return None
+        return closest_pair
 
     def act(self, state, goal_vertex, sampled_goal):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
@@ -119,11 +101,12 @@ class SkillGraphPlanner(object):
                 if selected_option is not None:
                     return selected_option
 
-        print(f"Reverting to the DSC policy over options")
+        print(f"Reverting to the DSC policy over options targeting {sampled_goal}")
         return self.chainer.act(state, goal=sampled_goal, train_mode=True)
 
     def planner_rollout_inside_graph(self, *, state, goal_vertex, goal_salient_event,
                                      episode_number, step_number, eval_mode):
+        """ Control loop that drives the agent from `state` to `goal_vertex` or times out. """
         assert isinstance(state, State)
         assert isinstance(goal_vertex, (SalientEvent, Option))
         assert isinstance(goal_salient_event, SalientEvent)
@@ -167,33 +150,38 @@ class SkillGraphPlanner(object):
         if to_reset:
             self.reset(state)
 
-        goal_vertex = deepcopy(goal_salient_event)
+        planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
+        should_terminate = lambda s, step_number: goal_salient_event(s) or step_number >= self.chainer.max_steps
+        planner_condition = lambda s, g: self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g)
+        print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 
-        # Revise the goal_salient_event if it cannot be reached from the current state
-        if not self.plan_graph.does_path_exist(state, goal_salient_event):
-            revised_goal = self.choose_vertex_to_fall_off_graph_from(state, goal_salient_event, choose_among_events=False)
-            if revised_goal is not None:
-                print(f"Revised goal vertex to {revised_goal}")
-                goal_vertex = revised_goal
-            if not self.does_exist_chain_for_event(goal_salient_event):
-                self.create_goal_option_outside_graph(goal_salient_event)
+        if planner_condition(state, planner_goal_vertex) and not should_terminate(state, step):
 
-        # Use the planner if there is a path to the revised goal node and we are not already at it
-        if self.plan_graph.does_path_exist(state, goal_vertex) and not self.is_state_inside_vertex(state, goal_vertex):
-            print(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
+            print(f"[Planner] Rolling out from {state.position} targeting {planner_goal_vertex}")
             step = self.planner_rollout_inside_graph(state=state,
-                                                     goal_vertex=goal_vertex,
+                                                     goal_vertex=planner_goal_vertex,
                                                      goal_salient_event=goal_salient_event,
                                                      episode_number=episode,
                                                      step_number=step,
                                                      eval_mode=eval_mode)
-
             state = deepcopy(self.mdp.cur_state)
 
-        if not goal_salient_event(state) and step < self.chainer.max_steps:
+        if not should_terminate(state, step):
+            assert not self.plan_graph.does_path_exist(state, dsc_goal_vertex), f"{state} -> {dsc_goal_vertex} exists"
             state, step = self.dsc_outside_graph(episode=episode,
                                                  num_steps=step,
-                                                 goal_salient_event=goal_salient_event)
+                                                 goal_salient_event=goal_salient_event,
+                                                 dsc_goal_vertex=dsc_goal_vertex)
+
+        if planner_condition(state, goal_salient_event) and not should_terminate(state, step):
+            print(f"[Planner] Rolling out from {state.position} targeting {goal_salient_event}")
+            step = self.planner_rollout_inside_graph(state=state,
+                                                     goal_vertex=goal_salient_event,
+                                                     goal_salient_event=goal_salient_event,
+                                                     episode_number=episode,
+                                                     step_number=step,
+                                                     eval_mode=eval_mode)
+            state = deepcopy(self.mdp.cur_state)
 
         return step, goal_salient_event(state)
 
@@ -201,17 +189,18 @@ class SkillGraphPlanner(object):
     # Managing DSC Control Loops
     # -----------------------------–––––––--------------
 
-    def dsc_outside_graph(self, episode, num_steps, goal_salient_event):
-        dsc_goal_state = self.sample_from_vertex(goal_salient_event)
+    def dsc_outside_graph(self, episode, num_steps, goal_salient_event, dsc_goal_vertex):
+        dsc_goal_state = self.sample_from_vertex(dsc_goal_vertex)
         dsc_run_loop_budget = self.chainer.max_steps - num_steps
+        dsc_interrupt_handle = lambda s: self.is_state_inside_vertex(s, dsc_goal_vertex) or goal_salient_event(s)
 
-        print(f"Rolling out DSC for {dsc_run_loop_budget} steps with interrupt handle {goal_salient_event} and goal {dsc_goal_state}")
+        print(f"Rolling out DSC for {dsc_run_loop_budget} steps with goal vertex {dsc_goal_vertex} and goal state {dsc_goal_state}")
 
         # Deliberately did not add `eval_mode` to the DSC rollout b/c we usually do this when we
         # want to fall off the graph, and it is always good to do some exploration when outside the graph
         score, step_number, newly_created_options = self.chainer.dsc_rollout(episode_number=episode,
                                                                              step_number=num_steps,
-                                                                             interrupt_handle=goal_salient_event,
+                                                                             interrupt_handle=dsc_interrupt_handle,
                                                                              overall_goal=dsc_goal_state)
 
         print(f"Returned from DSC runloop having learned {newly_created_options}")
@@ -255,6 +244,23 @@ class SkillGraphPlanner(object):
         # TODO: Adding new options is not enough - we also have to create their children
         for newly_created_option in newly_created_options:  # type: Option
             self.add_newly_created_option_to_plan_graph(newly_created_option)
+
+    def _get_goal_vertices_for_rollout(self, state, goal_salient_event):
+        dsc_goal_vertex = deepcopy(goal_salient_event)
+        planner_goal_vertex = deepcopy(goal_salient_event)
+
+        # Revise the goal_salient_event if it cannot be reached from the current state
+        if not self.plan_graph.does_path_exist(state, goal_salient_event):
+            closest_vertex_pair = self.choose_closest_source_target_vertex_pair(state, goal_salient_event)
+            if closest_vertex_pair is not None:
+                planner_goal_vertex, dsc_goal_vertex = closest_vertex_pair
+                print(f"Revised planner goal vertex to {planner_goal_vertex} and dsc goal vertex to {dsc_goal_vertex}")
+
+            if not self.does_exist_chain_for_event(goal_salient_event):
+                self.create_goal_option_outside_graph(goal_salient_event)
+
+        return planner_goal_vertex, dsc_goal_vertex
+
 
     # -----------------------------–––––––--------------
     # Maintaining the graph

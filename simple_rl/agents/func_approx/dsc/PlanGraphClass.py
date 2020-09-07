@@ -84,7 +84,9 @@ class PlanGraph(object):
     def get_nodes_that_reach_target_node(self, target_node):
         """ Get all the nodes from which you can reach the `target_node`. """
         assert isinstance(target_node, (Option, SalientEvent)), f"{type(target_node)}"
-        return nx.algorithms.dag.ancestors(self.plan_graph, target_node)
+        if target_node in self.plan_graph.nodes:
+            return nx.algorithms.dag.ancestors(self.plan_graph, target_node)
+        return []
 
     # ----------------------------------------------------------------------------
     # Private Methods
