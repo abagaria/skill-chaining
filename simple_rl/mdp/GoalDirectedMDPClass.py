@@ -1,10 +1,11 @@
 import numpy as np
+from copy import copy
+import abc
+
 from scipy.spatial import distance
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.InitiationSetClass import InitiationSet
 from simple_rl.mdp import MDP, State
-
-from copy import copy
 
 
 class GoalDirectedMDP(MDP):
