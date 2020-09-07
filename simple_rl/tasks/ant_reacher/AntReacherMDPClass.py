@@ -45,11 +45,17 @@ class AntReacherMDP(GoalDirectedMDP):
                                  np.array((4, -4)),
                                  np.array((8, -8))]
 
-        GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
-                                 self._transition_func,
-                                 self._reward_func,
-                                 self.init_state,
-                                 salient_positions)
+        GoalDirectedMDP.__init__(self,
+                                 actions=range(self.env.action_space.shape[0]),
+                                 transition_func=self._transition_func,
+                                 reward_func=self._reward_func,
+                                 init_state=self.init_state,
+                                 salient_tolerance=0.6,
+                                 dense_reward=False,
+                                 salient_states=salient_positions,
+                                 goal_state=None,
+                                 salient_event_factor_idxs=[0, 1],
+                                 init_set_factor_idxs=[0, 1])  # Kshitij - not sure if these are the right dimensions
 
     def _reward_func(self, state, action):
 
@@ -80,12 +86,6 @@ class AntReacherMDP(GoalDirectedMDP):
         others = obs[2:]
         state = AntReacherState(position, others, done)
         return state
-
-    def state_space_size(self):
-        return self.env.observation_space.shape[0]
-
-    def action_space_size(self):
-        return self.env.action_space.shape[0]
 
     def get_init_positions(self):
         return [self.init_state.position]
@@ -122,5 +122,5 @@ class AntReacherMDP(GoalDirectedMDP):
         return np.random.uniform(low=low, high=high)
 
     def sample_random_action(self):
-        size = (self.action_space_size(),)
+        size = (self.action_space_size,)
         return np.random.uniform(-1., 1., size=size)

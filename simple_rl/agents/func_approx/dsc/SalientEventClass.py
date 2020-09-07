@@ -22,7 +22,6 @@ class SalientEvent(object):
             name (str):
             is_init_event (bool):
         """
-
         assert self.tolerance is not None
         assert self.state_size is not None
         assert self.factor_indices is not None
@@ -52,7 +51,6 @@ class SalientEvent(object):
                 additive_constants.append(self.target_state - offset)
 
         return additive_constants
-                
 
     def __call__(self, states):
         """

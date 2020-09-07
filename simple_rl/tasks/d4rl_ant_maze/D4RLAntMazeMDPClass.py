@@ -123,5 +123,5 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         return data[idx, :]
 
     def sample_random_action(self):
-        size = (self.action_space_size(),)
+        size = (self.action_space_size,)
         return np.random.uniform(-1., 1., size=size)

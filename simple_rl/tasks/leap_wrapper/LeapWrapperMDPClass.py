@@ -46,7 +46,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.reset()
 
         salient_states = []
-
         if use_hard_coded_events:
             # endeff position is ignored by these salient events - just used when plotting initiation_sets
             salient_state_1 = np.zeros(5)
@@ -56,10 +55,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
             salient_states = [salient_state_1, salient_state_2]
 
-        action_dims = range(self.env.action_space.shape[0])
-
         GoalDirectedMDP.__init__(self,
-                                 actions=action_dims,
+                                 actions=range(self.env.action_space.shape[0]),  # 2 dimensional: arm delta x and arm delta y
                                  transition_func=self._transition_func,
                                  reward_func=self._reward_func,
                                  init_state=self.init_state,
@@ -67,7 +64,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  dense_reward=dense_reward,
                                  salient_states=salient_states,
                                  goal_state=self.goal_state,
+                                 init_set_factor_idxs=list(range(5)),
+                                 salient_event_factor_idxs=[3, 4]
                                  )
+
+    def __str__(self):
+        return self.env_name
 
     def _reward_func(self, state, action):
         assert isinstance(action, np.ndarray), type(action)
@@ -96,10 +98,6 @@ class LeapWrapperMDP(GoalDirectedMDP):
         state = LeapWrapperState(endeff_pos, puck_pos, done)
         return state
 
-    def execute_agent_action(self, action, option_idx=None):
-        reward, next_state = super(LeapWrapperMDP, self).execute_agent_action(action)
-        return reward, next_state
-
     def is_goal_state(self, state):
         if self.task_agnostic:
             return False
@@ -107,73 +105,23 @@ class LeapWrapperMDP(GoalDirectedMDP):
             return state.is_terminal()
         return self.env.is_goal_state(state)
 
-    @staticmethod
-    def state_space_size():
-        return 5
-
-    @staticmethod
-    def action_space_size():
-        return 2
-
-    @staticmethod
-    def is_primitive_action(action):
-        return -1. <= action.all() <= 1.
-
     def reset(self):
         init_state_array = self.env.reset()
         self.init_state = self._get_state(init_state_array, done=False)
         super(LeapWrapperMDP, self).reset()
 
-    def __str__(self):
-        return self.env_name
-
-    def sample_random_action(self):
-        size = (self.action_space_size(),)
-        return np.random.uniform(-1., 1., size=size)
-
-    def sample_salient_event(self, episode):
-        event_idx = len(self.all_salient_events_ever) + 1
-        target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
-
-        return SalientEvent(target_state=target_state,
-                            event_idx=event_idx,
-                            name=f"RRT Salient Episode {episode}")
-
     def reset_to_state(self, start_state):
         self.env.reset_to_new_start_state(start_pos=start_state)
         self.cur_state = LeapWrapperState(endeff_pos=start_state[:3], puck_pos=start_state[3:], done=False)
 
-    def sample_random_state(self):
+    def _sample_random_state(self):
+        """The start and goal states are the same for Sawyer, so this function will be used for both."""
         return np.random.uniform(self.env.goal_low, self.env.goal_high)
 
+    @override
+    def sample_goal_state(self):
+        return self._sample_random_state()
 
-def get_endeff_pos(state):
-    if isinstance(state, LeapWrapperState):
-        return state.endeff_pos
-    elif isinstance(state, np.ndarray):
-        # get last two dimensions of last dimension
-        return state[:, :3]
-    else:
-        ipdb.set_trace()
-
-
-def get_xy_endeff_pos(state):
-    if isinstance(state, LeapWrapperState):
-        return state.endeff_pos[:2]
-    elif state.ndim == 2:
-        return state[:, :2]
-    elif state.ndim == 1:
-        return state[:2]
-    else:
-        ipdb.set_trace()
-
-
-def get_puck_pos(state):
-    if isinstance(state, LeapWrapperState):
-        return state.puck_pos
-    elif state.ndim == 2:
-        return state[:, 3:]
-    elif state.ndim == 1:
-        return state[3:]
-    else:
-        ipdb.set_trace()
+    @override
+    def sample_start_state(self):
+        return self._sample_random_state()

@@ -16,13 +16,13 @@ from simple_rl.tasks.off_policy_swimmer.SwimmerMDPStateClass import SwimmerMDPSt
 
 
 class SwimmerMDP(MDP):
-    ''' Class for Gym MDPs '''
+    """ Class for Swimmer MDP. """
 
     def __init__(self, goal_pos, seed, tolerance, render=False, dense_reward=False):
-        '''
+        """
         Args:
             env_name (str)
-        '''
+        """
         random.seed(seed)
         np.random.seed(seed)
 
@@ -38,14 +38,14 @@ class SwimmerMDP(MDP):
                      init_state=SwimmerMDPState(pos, init_state, False))
 
     def _reward_func(self, state, action):
-        '''
+        """
         Args:
             state (AtariState)
             action (str)
 
         Returns
             (float)
-        '''
+        """
         obs, _, _, _ = self.env.step(action)
         pos = self.env.sim.data.qpos[:2]
         is_terminal = self.is_goal_state(pos)
@@ -64,30 +64,22 @@ class SwimmerMDP(MDP):
         return np.linalg.norm(state - self.goal_pos) < self.tolerance
         # execute agent action
 
-    @staticmethod
-    def state_space_size():
-        return 10
-    
-    @staticmethod
-    def action_space_size():
-        return 2
-
     def _transition_func(self, state, action):
-        '''
+        """
         Args:
             state (AtariState)
             action (str)
 
         Returns
             (State)
-        '''
+        """
         return self.next_state
 
     def reset(self):
         self.env.reset()
 
     def __str__(self):
-        return "gym-" + str(self.env_name)
+        return self.env_name
 
     @staticmethod
     def _get_position(state):

@@ -151,7 +151,7 @@ class DeepSkillGraphAgent(object):
         buffer_type = "smdp" if self.use_smdp_replay_buffer else "global"
 
         if self.use_dco and len(self.mdp.all_salient_events_ever) > 0:
-            c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size(), feature=None,
+            c_option = CoveringOptions(replay_buffer, obs_dim=self.mdp.state_space_size, feature=None,
                                        num_training_steps=1000,
                                        option_idx=c_option_idx,
                                        name=f"covering-options-{c_option_idx}_{buffer_type}_threshold-{self.threshold}",
@@ -182,10 +182,15 @@ class DeepSkillGraphAgent(object):
                                                   reject_high,
                                                   self.experiment_name)
         else:
-            low_salient_event = self.mdp.sample_salient_event(episode)
+            salient_idx = len(self.mdp.all_salient_events_ever)
+            low_salient_event = SalientEvent(target_state=self.mdp.sample_goal_state(),
+                                             event_idx=salient_idx + 1,
+                                             name=f"RRT Salient Episode {episode}")
             reject_low = self.add_salient_event(low_salient_event, episode)
 
-            high_salient_event = self.mdp.sample_salient_event(episode)
+            high_salient_event = SalientEvent(target_state=self.mdp.sample_goal_state(),
+                                              event_idx=salient_idx + 2,
+                                              name=f"RRT Salient Episode {episode}")
             reject_high = self.add_salient_event(high_salient_event, episode)
 
         print(f"Generated {low_salient_event} and {high_salient_event}")
@@ -376,27 +381,20 @@ if __name__ == "__main__":
     mdp_plotter = None
     if args.env == "point-reacher":
         from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
-
         overall_mdp = PointReacherMDP(seed=args.seed,
                                       dense_reward=args.dense_reward,
                                       render=args.render,
                                       use_hard_coded_events=args.use_hard_coded_events)
-        state_dim = 6
-        action_dim = 2
     elif args.env == "ant-reacher":
         from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
 
         overall_mdp = AntReacherMDP(seed=args.seed,
                                     render=args.render,
                                     use_hard_coded_events=args.use_hard_coded_events)
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-medium-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
 
@@ -404,16 +402,12 @@ if __name__ == "__main__":
                                        render=args.render,
                                        use_hard_coded_events=args.use_hard_coded_events,
                                        difficulty="medium")
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-hard-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
                                        use_hard_coded_events=args.use_hard_coded_events,
                                        difficulty="hard")
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif "sawyer" in args.env.lower():
         from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
         overall_mdp = LeapWrapperMDP(
@@ -460,7 +454,7 @@ if __name__ == "__main__":
                             experiment_name=args.experiment_name,
                             plotter=mdp_plotter)
 
-    assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])\
+    assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
 
     planner = SkillGraphPlanner(mdp=overall_mdp,
                                 chainer=chainer,

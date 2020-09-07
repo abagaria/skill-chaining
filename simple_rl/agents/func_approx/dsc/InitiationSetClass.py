@@ -2,6 +2,7 @@ import numpy as np
 from sklearn import svm
 from simple_rl.mdp.StateClass import State
 
+
 class InitiationSet(object):
     state_size = None
     factor_indices = None
@@ -32,7 +33,6 @@ class InitiationSet(object):
 
 
 class OneClassInitiationSet(InitiationSet):
-
     def __init__(self, **kwargs):
         InitiationSet.__init__(**kwargs) 
 
@@ -45,7 +45,6 @@ class OneClassInitiationSet(InitiationSet):
 
 
 class TwoClassInitiationSet(InitiationSet):
-
     def __init__(self, **kwargs):
         InitiationSet.__init__(**kwargs) 
 

@@ -59,7 +59,7 @@ class PointReacherMDP(MDP):
 
         self._ensure_all_events_are_the_same()
 
-        MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state)
+        MDP.__init__(self, [1, 2], self._transition_func, self._reward_func, self.init_state, state_space_size=6, action_space_size=2)
 
     def _ensure_all_events_are_the_same(self):
         for e1, e2, e3 in zip(self.current_salient_events, self.original_salient_events, self.all_salient_events_ever):

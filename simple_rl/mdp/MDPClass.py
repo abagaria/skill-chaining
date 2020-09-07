@@ -1,17 +1,31 @@
-''' MDPClass.py: Contains the MDP Class. '''
+""" MDPClass.py: Contains the MDP Class. """
 
 # Python imports.
 import copy
 
+
 class MDP(object):
-    ''' Abstract class for a Markov Decision Process. '''
+    """ Abstract class for a Markov Decision Process. """
     
     def __init__(self, actions, transition_func, reward_func, init_state, gamma=0.99, step_cost=0):
+        """
+        :param actions (collections.Sequence) : List of actions if discrete action space, else range(action_space_size)
+        :param transition_func:
+        :param reward_func:
+        :param init_state (State):
+        :param gamma:
+        :param step_cost:
+        """
+        assert isinstance(init_state, State)
+        assert isinstance(actions, collections.Sequence)
+
         self.actions = actions
         self.transition_func = transition_func
         self.reward_func = reward_func
         self.gamma = gamma
         self.init_state = copy.deepcopy(init_state)
+        self.state_space_size = len(init_state.features())
+        self.action_space_size = len(actions)
         self.cur_state = init_state
         self.step_cost = step_cost
 
@@ -61,7 +75,7 @@ class MDP(object):
     # ----------
 
     def execute_agent_action(self, action):
-        '''
+        """
         Args:
             action (str)
 
@@ -71,7 +85,7 @@ class MDP(object):
         Summary:
             Core method of all of simple_rl. Facilitates interaction
             between the MDP and an agent.
-        '''
+        """
         reward = self.reward_func(self.cur_state, action)
         next_state = self.transition_func(self.cur_state, action)
         self.cur_state = next_state

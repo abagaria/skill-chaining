@@ -8,6 +8,9 @@ from simple_rl.mdp.StateClass import State
 class SwimmerMDPState(State):
     def __init__(self, position, others, is_terminal):
         """
+        10 dimensional state space
+        2 dimensional action space
+
         Args:
             position (np.ndarray)
             others (np.ndarray)

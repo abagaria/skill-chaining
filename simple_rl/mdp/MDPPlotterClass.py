@@ -29,6 +29,9 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.axis_x_range = x_range
         self.axis_y_range = y_range
 
+    # ----------------------
+    # -- Abstract methods --
+    # ----------------------
     @abc.abstractmethod
     def generate_episode_plots(self, dsc_agent, episode):
         """
@@ -40,6 +43,10 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # value function
         # low level shaped rewards
         # high level shaped rewards
+        pass
+
+    @abc.abstractmethod
+    def plot_test_salients(self, start_states, goal_salients):
         pass
 
     def generate_final_experiment_plots(self, dsg_agent):
@@ -97,30 +104,33 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print("Plotting learning curves...")
         print('*' * 80)
         plot_learning_curves()
-
         save_test_parameters()
 
     def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states, num_states=20):
-        start_states = self.generate_start_states(num_states) if randomize_start_states else [None] * num_states
-        goal_salient_events = self.generate_goal_salient_events(num_states)
+        def generate_start_states():
+            if randomize_start_states:
+                return [self.mdp.sample_start_state() for _ in range(num_states)]
+            return [None] * num_states
+
+        def generate_salient_events():
+            salient_events = []
+            start_idx = max([event.event_idx for event in all_salient_events]) + 1
+            for i in range(num_states):
+                new_salient_event = SalientEvent(self.mdp.sample_goal_state(),
+                                                 event_idx=i + start_idx,
+                                                 name="Test-Time Salient")
+                self.mdp.add_new_target_event(new_salient_event)
+                salient_events.append(new_salient_event)
+            return salient_events
+
+        start_states = generate_start_states()
+        goal_salient_events = generate_salient_events()
         self.plot_test_salients(start_states, goal_salient_events)
         all_runs = []
         for start_state, goal_salient_event in zip(start_states, goal_salient_events):
             single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
             all_runs.append(single_run)
         return all_runs, start_states, goal_salient_events
-
-    @abc.abstractmethod
-    def plot_test_salients(self, start_states, goal_salients):
-        pass
-
-    @abc.abstractmethod
-    def generate_start_states(self, num_states):
-        pass
-
-    @abc.abstractmethod
-    def generate_goal_salient_events(self, num_states):
-        pass
 
     @staticmethod
     def success_curve(dsg_agent, start_state, goal_salient_event, episodes, episode_interval):

@@ -1,37 +1,67 @@
 import numpy as np
 from scipy.spatial import distance
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.InitiationSetClass import InitiationSet
 from simple_rl.mdp import MDP, State
 
 from copy import copy
 
 
 class GoalDirectedMDP(MDP):
-    def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance,
-                 dense_reward, salient_states, goal_state):
+    def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance, dense_reward, salient_states,
+                 goal_state, salient_event_factor_idxs, init_set_factor_idxs):
 
         """
+        Implements MDP functions required for Skill Chaining and Deep Skill Graphs.
+
         :params:
             actions (int) : action space dimension
-            transition_func : the fundamental transion of the mdp
+            transition_func : the fundamental transition of the mdp
             reward_func : the mdp reward function
-            init_state (np.ndarray) : the start state of the mdp
+            init_state (State) : the start state of the mdp
             salient_tolerance (float) : the tolerance of the goal and for all salients (global variable)
             dense_reward (bool) : True if we want dense reward, False otherwise
             salient_states ([np.ndarray]) : hard-coded states we are targeting (if any) that will be turned into salient events
             goal_state (np.ndarray) : goal state, None if task_agnostic
+            salient_event_factor_idxs (List[int]) : indices of the dimensions of the state that are used to define salient events
+            init_set_factor_idxs (List[int]) : indices of the dimensions of the state that are used to define initiation sets
         """
-        SalientEvent.tolerance = salient_tolerance
-
         self.task_agnostic = goal_state is None
         self.goal_state = goal_state
         self.dense_reward = dense_reward
-        self._initialize_salient_events(init_state, salient_states)
+        self._initialize_salient_events(salient_tolerance, init_state, salient_states, salient_event_factor_idxs)
+        self._setup_initiation_sets(init_state, init_set_factor_idxs)
 
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
 
-    def _initialize_salient_events(self, init_state, salient_states):
-        salient_events = [SalientEvent(state, i) for i, state in enumerate(salient_states)]
+    # ----------------------
+    # -- Abstract methods --
+    # ----------------------
+    @abc.abstractmethod
+    def sample_goal_state(self):
+        """
+        Returns a random goal state that will become a new salient target for Deep Skill Graphs.
+        :return: State
+        """
+        pass
+
+    @abc.abstractmethod
+    def sample_start_state(self):
+        """
+        Returns a random valid start state that will be used at test-time.
+        :return: State
+        """
+        pass
+
+    def _initialize_salient_events(self, salient_tolerance, init_state, salient_states, salient_event_factor_idxs):
+        # setup salient event static variables
+        state_size = len(init_state.features())
+        SalientEvent.state_size = state_size
+        SalientEvent.tolerance = salient_tolerance
+        SalientEvent.factor_indices = salient_event_factor_idxs
+
+        salient_events = [SalientEvent(state, i + 1) for i, state in enumerate(salient_states)]
+
         # Set the current target events in the MDP
         self.current_salient_events = salient_events
 
@@ -53,6 +83,12 @@ class GoalDirectedMDP(MDP):
     def _ensure_all_events_are_the_same(self):
         for e1, e2, e3 in zip(self.current_salient_events, self.original_salient_events, self.all_salient_events_ever):
             assert id(e1) == id(e2) == id(e3)
+
+    @staticmethod
+    def _setup_initiation_sets(init_state, init_set_factor_idxs):
+        state_size = len(init_state.features())
+        InitiationSet.state_size = state_size
+        InitiationSet.factor_indices = init_set_factor_idxs
 
     def get_current_target_events(self):
         """ Return list of predicate functions that indicate salience in this MDP. """
@@ -114,3 +150,7 @@ class GoalDirectedMDP(MDP):
     def execute_agent_action(self, action, option_idx=None):
         reward, next_state = super(GoalDirectedMDP, self).execute_agent_action(action)
         return reward, next_state
+
+    def sample_random_action(self):
+        size = (self.action_space_size,)
+        return np.random.uniform(-1., 1., size=size)

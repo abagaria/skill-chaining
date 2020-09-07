@@ -4,6 +4,7 @@ import numpy as np
 # Other imports.
 from simple_rl.mdp.StateClass import State
 
+
 class D4RLPointMazeState(State):
     def __init__(self, position, velocity, done):
         """

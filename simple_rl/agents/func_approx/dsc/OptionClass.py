@@ -58,7 +58,6 @@ class Option(object):
                device (torch.device)
                writer (SummaryWriter)
            """
-
         self.gestation_init_predicates = [] if gestation_init_predicates else gestation_init_predicates
         self.name = name
         self.subgoal_reward = subgoal_reward
@@ -83,8 +82,8 @@ class Option(object):
         self.ddpg_batch_size = ddpg_batch_size
         self.solver_type = solver_type
 
-        self.state_size = self.overall_mdp.state_space_size()
-        self.action_size = self.overall_mdp.action_space_size()
+        self.state_size = self.overall_mdp.state_space_size
+        self.action_size = self.overall_mdp.action_space_size
 
         self.timeout = np.inf
 

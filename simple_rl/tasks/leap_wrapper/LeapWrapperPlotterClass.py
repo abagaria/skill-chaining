@@ -58,10 +58,9 @@ class LeapWrapperPlotter(MDPPlotter):
         self.endeff_idx, self.endeff_cnt = self._setup_unique_weighted_average((0, 1))
         self.puck_idx, self.puck_cnt = self._setup_unique_weighted_average((3, 4))
 
-        # We only want to plot the final initiation set of each option once. This array will
-        # have one boolean entry for each option: True if that option's final initiation set
-        # has already been plotted, false otherwise.
-        self.final_initiation_set_has_been_plotted = []
+        # We only want to plot the final initiation set of each option once. Set of option_idxs that have
+        # had the final initiation set already plotted.
+        self.final_initiation_set_has_been_plotted = set()
 
         super().__init__(task_name, experiment_name,
                          ["initiation_set_plots", "value_function_plots", "option_policy_plots", "salient_event_locations"],
@@ -69,28 +68,26 @@ class LeapWrapperPlotter(MDPPlotter):
                          self.axis_x_range,
                          self.axis_y_range)
 
+    @override
     def generate_episode_plots(self, dsc_agent, episode):
         """
         Args:
             dsc_agent (SkillChainingAgent): the skill chaining agent we want to plot
             episode
         """
-        # only want to plot the final initiation set of each option once
-        while len(self.final_initiation_set_has_been_plotted) < len(dsc_agent.trained_options):
-            self.final_initiation_set_has_been_plotted.append(False)
-
         for i, option in enumerate(dsc_agent.trained_options):
             self._plot_value_function(option, dsc_agent.seed, episode)
             self._plot_option_policy(option, dsc_agent.seed, episode)
             self._plot_option_salients(dsc_agent, episode)
 
             if (option.get_training_phase() == "initiation" or option.get_training_phase() == "initiation_done") and \
-                    option.name != "global_option" and not self.final_initiation_set_has_been_plotted[i]:
+                    option.name != "global_option" and i not in self.final_initiation_set_has_been_plotted:
                 self._plot_initiation_sets(option, episode)
 
                 if option.get_training_phase() == "initiation_done":
-                    self.final_initiation_set_has_been_plotted[i] = True
+                    self.final_initiation_set_has_been_plotted.add(i)
 
+    @override
     def plot_test_salients(self, start_states, goal_salients):
         def _plot_event_pair(start, goal):
             x = [start[3], goal[3]]
@@ -136,25 +133,6 @@ class LeapWrapperPlotter(MDPPlotter):
         file_name = f"random_salient_locations_episode_{episode}.png"
         plt.savefig(os.path.join(self.path, "salient_event_locations", file_name))
         plt.close()
-
-    def generate_start_states(self, num_states):
-        return self.generate_random_states(num_states)
-
-    def generate_goal_salient_events(self, num_states):
-        goal_states = self.generate_random_states(num_states)
-
-        all_salient_events = self.mdp.get_all_target_events_ever()
-        start_idx = max([event.event_idx for event in all_salient_events]) + 1
-        goal_salient_events = []
-        for i, goal_state in enumerate(goal_states):
-            new_salient_event = SalientEvent(goal_state,
-                                             event_idx=i + start_idx,
-                                             name="Test-Time Salient",
-                                             get_relevant_position=get_puck_pos)
-            self.mdp.add_new_target_event(new_salient_event)
-            goal_salient_events.append(new_salient_event)
-
-        return goal_salient_events
 
     def _plot_option_policy(self, option, seed, episode):
         print(f"plotting {option.name}'s policy")
