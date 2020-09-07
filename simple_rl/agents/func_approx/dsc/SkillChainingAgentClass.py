@@ -144,7 +144,7 @@ class SkillChaining(object):
         # We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
         # We start with this DQN Agent only predicting Q-values for taking the global_option, but as we learn new
         # options, this agent will predict Q-values for them as well
-        self.agent_over_options = DQNAgent(self.mdp.state_space_size(), 1, trained_options=self.trained_options,
+        self.agent_over_options = DQNAgent(self.mdp.state_space_size, 1, trained_options=self.trained_options,
                                            seed=seed, lr=1e-4, name="GlobalDQN", eps_start=self.init_dqn_epsilon, tensor_log=tensor_log,
                                            use_double_dqn=True, writer=self.writer, device=self.device,
                                            exploration_strategy="shaping")
