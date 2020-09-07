@@ -138,7 +138,7 @@ class DeepSkillGraphAgent(object):
                     print(f"[DeepSkillGraphAgentClass] successfully reached MDP Goal State")
                     break
 
-            if self.plotter is not None and episode % 1000 == 0:
+            if self.plotter is not None and episode % 5 == 0:
                 self.plotter.generate_episode_plots(self.dsc_agent, episode)
 
         return successes
