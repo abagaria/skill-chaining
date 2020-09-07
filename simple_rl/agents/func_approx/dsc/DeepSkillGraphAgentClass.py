@@ -265,7 +265,7 @@ class DeepSkillGraphAgent(object):
         )
 
     def generate_candidate_salient_events(self):  # TODO: This needs to happen multiple times, not just once
-        if self.should_set_off_learning_backward_options() and self.allow_backward_options:
+        if self.allow_backward_options and self.should_set_off_learning_backward_options():
             self.set_off_learning_backward_options()
 
             return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
@@ -470,7 +470,7 @@ if __name__ == "__main__":
                                     use_hard_coded_events=args.use_hard_coded_events,
                                     use_dco=args.use_dco,
                                     dco_use_xy_prior=args.dco_use_xy_prior,
-                                    allow_backward_options=args.allow_backward_options,
+                                    allow_backward_options=args.create_backward_options,
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
