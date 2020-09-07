@@ -34,7 +34,7 @@ class InitiationSet(object):
 
 class OneClassInitiationSet(InitiationSet):
     def __init__(self, **kwargs):
-        InitiationSet.__init__(**kwargs) 
+        InitiationSet.__init__(self, **kwargs)
 
     def fit(self, pos_matrix, neg_matrix=None):
         pos_matrix = self._get_relevant_factors(pos_matrix)
@@ -46,12 +46,12 @@ class OneClassInitiationSet(InitiationSet):
 
 class TwoClassInitiationSet(InitiationSet):
     def __init__(self, **kwargs):
-        InitiationSet.__init__(**kwargs) 
+        InitiationSet.__init__(self, **kwargs)
 
     def fit(self, pos_matrix, neg_matrix=None):
         assert neg_matrix is not None
         pos_matrix = self._get_relevant_factors(pos_matrix)
-        neg_matrix =  self._get_relevant_factors(neg_matrix)
+        neg_matrix = self._get_relevant_factors(neg_matrix)
         self.svm.fit(pos_matrix, neg_matrix)
 
     def _init_svm(self, **kwargs):
