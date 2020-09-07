@@ -10,6 +10,8 @@ import seaborn as sns
 import torch
 import ipdb
 
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+
 
 class MDPPlotter(metaclass=abc.ABCMeta):
     def __init__(self, task_name, experiment_name, subdirectories, mdp, x_range, y_range):
