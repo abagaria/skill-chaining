@@ -68,7 +68,6 @@ class LeapWrapperPlotter(MDPPlotter):
                          self.axis_x_range,
                          self.axis_y_range)
 
-    @override
     def generate_episode_plots(self, dsc_agent, episode):
         """
         Args:
@@ -87,7 +86,6 @@ class LeapWrapperPlotter(MDPPlotter):
                 if option.get_training_phase() == "initiation_done":
                     self.final_initiation_set_has_been_plotted.add(i)
 
-    @override
     def plot_test_salients(self, start_states, goal_salients):
         def _plot_event_pair(start, goal):
             x = [start[3], goal[3]]

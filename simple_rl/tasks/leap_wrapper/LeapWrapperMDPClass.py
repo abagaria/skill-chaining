@@ -118,10 +118,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         """The start and goal states are the same for Sawyer, so this function will be used for both."""
         return np.random.uniform(self.env.goal_low, self.env.goal_high)
 
-    @override
     def sample_goal_state(self):
         return self._sample_random_state()
 
-    @override
     def sample_start_state(self):
         return self._sample_random_state()
