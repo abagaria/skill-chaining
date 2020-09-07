@@ -163,7 +163,7 @@ class SkillChain(object):
 
         for my_option in self.options:  # type: Option
             event = other_chain.target_salient_event
-            if self.should_exist_edge_from_event_to_option(my_option, event):
+            if self.should_exist_edge_from_event_to_option(event, my_option):
                 return my_option, event
         return None
 

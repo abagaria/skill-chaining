@@ -96,7 +96,7 @@ class DeepSkillGraphAgent(object):
         else:
             replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
 
-        for episode in range(episodes):
+        for episode in range(1, episodes + 1):
 
             # if hardcoded events are not provided, we can discover them using DCO or random sampling
             if not self.use_hard_coded_events and self.should_generate_new_salient_event(episode):
@@ -138,7 +138,7 @@ class DeepSkillGraphAgent(object):
                     print(f"[DeepSkillGraphAgentClass] successfully reached MDP Goal State")
                     break
 
-            if self.plotter is not None and episode % 1000 == 0 and episode > 0:
+            if self.plotter is not None and episode % 1000 == 0:
                 self.plotter.generate_episode_plots(self.dsc_agent, episode)
 
         return successes
