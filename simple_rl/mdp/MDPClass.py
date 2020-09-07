@@ -3,6 +3,8 @@
 # Python imports.
 import copy
 
+from simple_rl.mdp.StateClass import State
+
 
 class MDP(object):
     """ Abstract class for a Markov Decision Process. """
