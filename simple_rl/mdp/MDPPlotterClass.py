@@ -114,7 +114,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
         def generate_salient_events():
             salient_events = []
-            start_idx = max([event.event_idx for event in all_salient_events]) + 1
+            start_idx = max([event.event_idx for event in self.mdp.all_salient_events_ever]) + 1
             for i in range(num_states):
                 new_salient_event = SalientEvent(self.mdp.sample_goal_state(),
                                                  event_idx=i + start_idx,
