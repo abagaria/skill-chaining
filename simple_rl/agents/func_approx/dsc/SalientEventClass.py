@@ -58,12 +58,15 @@ class SalientEvent(object):
         """
 
         Args:
-            states (np.ndarray): this can either be an array representing a single state, or an array
+            states (np.ndarray or State): this can either be an array representing a single state, or an array
                     representing a batch of states or a State object
 
         Returns:
             is_satisfied: bool or bool array depending on the shape of states.
         """
+        if isinstance(states, State):
+            states = states.features()
+
         if len(states.shape) == 1:
             return self.is_init_true(states)
         else:
