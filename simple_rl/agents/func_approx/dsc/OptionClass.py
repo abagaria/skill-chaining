@@ -472,6 +472,7 @@ class Option(object):
         # TODO: Why is this check failing???
         # assert len(self.positive_examples) == self.num_subgoal_hits_required, "Expected init data to be a list of lists"
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
+        ipdb.set_trace()
 
         # Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
         self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
