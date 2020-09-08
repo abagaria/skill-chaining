@@ -80,7 +80,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         def save_test_parameters():
             fields = ['start state', 'goal state', 'avg success rate']
             rows = [(np.round(start_state[3:], 3) if start_state is not None else None,
-                     np.round(goal_salient.get_factored_target(), 3),
+                     np.round(goal_salient.get_salient_event_factors(), 3),
                      average_success)
                     for start_state, goal_salient, average_success
                     in zip(start_states, goal_salients, np.mean(learning_curves, axis=1))]

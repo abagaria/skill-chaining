@@ -112,7 +112,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
         parent_options = [x for x in dsc_agent.trained_options if x.target_salient_event is not None]
         for option in parent_options:
-            target = option.target_salient_event.get_factored_target()
+            target = option.target_salient_event.get_salient_event_factors()
             phase = option.get_training_phase()
             if phase == "gestation":
                 color = "g"
@@ -344,7 +344,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
         # plot salient event that this option is targeting
         if option is not None and option.target_salient_event is not None:
-            target_puck_pos = option.target_salient_event.get_factored_target()
+            target_puck_pos = option.target_salient_event.get_salient_event_factors()
             salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, alpha=0.3,
                                        color=self.target_salient_event_color, label="target salient event")
             ax.add_patch(salient_event)

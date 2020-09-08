@@ -47,8 +47,7 @@ class PlanGraph(object):
         assert isinstance(node, (Option, SalientEvent)), f"{type(node)}"
 
         start_nodes = self._get_available_options(state)
-        does_exists = [self.does_path_exist_between_nodes(start, node) for start in start_nodes]
-        return any(does_exists)
+        return any(self.does_path_exist_between_nodes(start, node) for start in start_nodes)
 
     def get_path_to_execute(self, start_state, goal_node):
         assert isinstance(start_state, (State, np.ndarray))
@@ -95,6 +94,9 @@ class PlanGraph(object):
     def does_path_exist_between_nodes(self, node1, node2):
         assert isinstance(node1, (Option, SalientEvent)), f"{type(node1)}"
         assert isinstance(node2, (Option, SalientEvent)), f"{type(node2)}"
+
+        if node1 not in self.plan_graph.nodes or node2 not in self.plan_graph.nodes:
+            return False
 
         return shortest_paths.has_path(self.plan_graph, node1, node2)
 

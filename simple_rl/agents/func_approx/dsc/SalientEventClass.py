@@ -80,11 +80,11 @@ class SalientEvent(object):
 
     def __repr__(self):
         if self.name is None:
-            return f"SalientEvent targeting {self.get_factored_target()}"
+            return f"SalientEvent targeting {self.get_salient_event_factors()}"
         else:
-            return f"SalientEvent targeting {self.get_factored_target()} | {self.name}"
+            return f"SalientEvent targeting {self.get_salient_event_factors()} | {self.name}"
 
-    def get_factored_target(self):
+    def get_salient_event_factors(self):
         return self._get_relevant_factors(self.target_state) if self.target_state is not None else None
 
     def is_subset(self, other_event):
