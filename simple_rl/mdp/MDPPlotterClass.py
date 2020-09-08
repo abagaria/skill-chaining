@@ -97,8 +97,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print('*' * 80)
         # train learning curves and calculate average
         learning_curves, start_states, goal_salients = self.learning_curve(dsg_agent,
-                                                                           episodes=train_time,
-                                                                           episode_interval=1,
+                                                                           num_training_episodes=train_time,
                                                                            randomize_start_states=False,
                                                                            num_states=7)
 
@@ -108,7 +107,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         plot_learning_curves()
         save_test_parameters()
 
-    def learning_curve(self, dsc_agent, episodes, episode_interval, randomize_start_states, num_states=20):
+    def learning_curve(self, dsc_agent, num_training_episodes, randomize_start_states, num_states=20):
         def generate_start_states():
             if randomize_start_states:
                 return [self.mdp.sample_start_state() for _ in range(num_states)]
@@ -130,24 +129,23 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         self.plot_test_salients(start_states, goal_salient_events)
         all_runs = []
         for start_state, goal_salient_event in zip(start_states, goal_salient_events):
-            single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, episodes, episode_interval)
+            single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, num_training_episodes)
             all_runs.append(single_run)
         return all_runs, start_states, goal_salient_events
 
     @staticmethod
-    def success_curve(dsg_agent, start_state, goal_salient_event, episodes, episode_interval):
+    def success_curve(dsg_agent, start_state, goal_salient_event, num_training_episodes):
         success_rates_over_time = []
-        for episode in range(episodes):
-            success_rate = dsg_agent.planning_agent.measure_success(goal_salient_event=goal_salient_event,
+        for episode in range(num_training_episodes):
+            reached_goal = dsg_agent.planning_agent.measure_success(goal_salient_event=goal_salient_event,
                                                                     start_state=start_state,
-                                                                    starting_episode=episode,
-                                                                    num_episodes=episode_interval)
+                                                                    episode=episode)
 
             print("*" * 80)
-            print(f"[{goal_salient_event}]: Episode {episode}: Success Rate: {success_rate}")
+            print(f"[{goal_salient_event}]: Episode {episode}: Reached goal: {reached_goal}")
             print("*" * 80)
 
-            success_rates_over_time.append(success_rate)
+            success_rates_over_time.append(int(reached_goal))
         return success_rates_over_time
 
     def generate_random_states(self, num_states):

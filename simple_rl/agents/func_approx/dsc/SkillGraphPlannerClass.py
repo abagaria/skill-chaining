@@ -487,17 +487,9 @@ class SkillGraphPlanner(object):
             start_pos_array = start_state.features() if isinstance(start_state, State) else start_state
             self.mdp.reset_to_state(start_pos_array)
 
-    def measure_success(self, goal_salient_event, start_state=None, num_episodes=100):
-        successes = 0
+    def measure_success(self, goal_salient_event, episode, start_state=None):
         self.chainer.create_backward_options = False
         self.chainer.learn_backward_options_offline = False  # TODO: Need a better way to say that we should not create back options at test time
-        for episode in range(num_episodes):
-            num_steps, reached_goal = self.run_loop(state=start_state,
-                                                    goal_salient_event=goal_salient_event,
-                                                    episode=episode,
-                                                    step=0,
-                                                    eval_mode=True,
-                                                    to_reset=True)
-            if reached_goal:
-                successes += 1
-        return successes
+        _, reached_goal = self.run_loop(state=start_state, goal_salient_event=goal_salient_event,
+                                        episode=episode, step=0, eval_mode=True, to_reset=True)
+        return reached_goal
