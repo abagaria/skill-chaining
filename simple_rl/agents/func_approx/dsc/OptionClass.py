@@ -17,7 +17,7 @@ from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
-from simple_rl.agents.func_approx.dsc.InitiationSetClass import OneClassInitiationSet, TwoClassInitiationSet
+from simple_rl.agents.func_approx.dsc.InitiationSetClass import OneClassInitiationSet, TwoClassInitiationSet, InitiationSet
 
 
 class Option(object):
