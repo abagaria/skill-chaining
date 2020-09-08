@@ -209,6 +209,7 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
     plt.savefig("value_function_plots/{}/DQN_SMDP_Updates.png".format(experiment_name))
     plt.close()
 
+
 def visualize_next_state_reward_heat_map(option, episode=None, experiment_name=""):
     solver = option.solver
     next_states = [experience[3] for experience in solver.replay_buffer]
@@ -346,6 +347,7 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
 
     return qvalues.max()
 
+
 def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     option = salient_event.covering_option
     is_low = salient_event.is_low
@@ -409,38 +411,6 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
-def visualize_graph(chains, experiment_name, plot_completed_events):
-
-    global kGraphIterationNumber
-
-    def _plot_event_pair(event1, event2):
-        x = [event1.target_state[0], event2.target_state[0]]
-        y = [event1.target_state[1], event2.target_state[1]]
-        plt.plot(x, y, "o-", c="black")
-
-    sns.set_style("white")
-
-    plt.figure()
-
-    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
-
-    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
-
-    for chain in forward_chains:
-        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
-
-    plt.xticks([]); plt.yticks([])
-
-    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
-
-    plt.xlim((x_low_lim, x_high_lim))
-    plt.ylim((y_low_lim, y_high_lim))
-
-    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
-    plt.close()
-
-    kGraphIterationNumber += 1
 
 def plot_dco_salient_event(ax, salient_event, states):
     option = salient_event.covering_option

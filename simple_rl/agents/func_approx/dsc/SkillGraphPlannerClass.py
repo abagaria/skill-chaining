@@ -350,8 +350,8 @@ class SkillGraphPlanner(object):
                     print(f"Adding edge from {newly_created_option} to {other_option}")
                     self.plan_graph.add_edge(newly_created_option, other_option)
 
-        if chain.is_chain_completed(self.chainer.chains):
-            visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
+        if chain.is_chain_completed(self.chainer.chains) and self.plotter is not None:
+            self.plotter.visualize_graph(self.chainer.chains, True)
 
     # -----------------------------–––––––--------------
     # Utility Functions
