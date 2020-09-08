@@ -780,7 +780,8 @@ class Option(object):
             self.add_positive_examples(positive_states)
 
         elif num_steps == self.timeout and self.get_training_phase() == "initiation":
-            negative_examples = [self.get_init_classifier_pos(start_state)]
+            start_state_array = start_state.features()
+            negative_examples = [InitiationSet.get_initiation_set_factors(start_state_array)]
             self.negative_examples.append(negative_examples)
         # else:
         # 	assert final_state.is_terminal() or outer_step_number == self.max_steps, \

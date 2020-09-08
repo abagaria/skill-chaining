@@ -13,16 +13,17 @@ class InitiationSet(object):
 
         self.svm = self._init_svm(**kwargs)
 
-    def _get_relevant_factors(self, matrix):
-        assert matrix.shape[-1] == self.state_size
-        return matrix[..., self.factor_indices]
+    @staticmethod
+    def get_initiation_set_factors(matrix):
+        assert matrix.shape[-1] == InitiationSet.state_size
+        return matrix[..., InitiationSet.factor_indices]
 
     def predict(self, matrix):
-        matrix = self._get_relevant_factors(matrix)
+        matrix = self.get_initiation_set_factors(matrix)
         return self.svm.predict(matrix)
 
     def decision(self, matrix):
-        matrix = self._get_relevant_factors(matrix)
+        matrix = self.get_initiation_set_factors(matrix)
         return self.svm.decision_function(matrix)
         
     def fit(self, pos_matrix, neg_matrix=None):
@@ -37,7 +38,7 @@ class OneClassInitiationSet(InitiationSet):
         InitiationSet.__init__(self, **kwargs)
 
     def fit(self, pos_matrix, neg_matrix=None):
-        pos_matrix = self._get_relevant_factors(pos_matrix)
+        pos_matrix = self.get_initiation_set_factors(pos_matrix)
         self.svm.fit(pos_matrix)
 
     def _init_svm(self, **kwargs):
@@ -50,8 +51,8 @@ class TwoClassInitiationSet(InitiationSet):
 
     def fit(self, pos_matrix, neg_matrix=None):
         assert neg_matrix is not None
-        pos_matrix = self._get_relevant_factors(pos_matrix)
-        neg_matrix = self._get_relevant_factors(neg_matrix)
+        pos_matrix = self.get_initiation_set_factors(pos_matrix)
+        neg_matrix = self.get_initiation_set_factors(neg_matrix)
         self.svm.fit(pos_matrix, neg_matrix)
 
     def _init_svm(self, **kwargs):
