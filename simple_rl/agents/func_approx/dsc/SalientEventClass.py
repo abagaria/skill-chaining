@@ -169,9 +169,6 @@ class SalientEvent(object):
         return np.linalg.norm(point1 - point2)
 
     def point_to_set_distance(self, point, state_set, return_all=False):
-        assert isinstance(state_set, list)
-        assert isinstance(point, np.ndarray)
-
         point = self._get_relevant_factors(point)
         point_array = self._get_relevant_factors(state_set)
         distances = distance.cdist(point[None, :], point_array)
@@ -179,9 +176,6 @@ class SalientEvent(object):
         return distances if return_all else distances.max()
 
     def set_to_set_distance(self, set1, set2):
-        assert isinstance(set1, list)
-        assert isinstance(set2, list)
-
         positions1 = self._get_relevant_factors(set1)
         positions2 = self._get_relevant_factors(set2)
         distances = distance.cdist(positions1, positions2)
