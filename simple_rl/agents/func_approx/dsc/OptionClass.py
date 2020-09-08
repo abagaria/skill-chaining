@@ -404,7 +404,7 @@ class Option(object):
             return True
 
         # print('using svm for predicting if in initiation set.')
-        return self.initiation_classifier.predict([ground_state])[0] == 1
+        return self.initiation_classifier.predict(np.array([ground_state]))[0] == 1
 
     def is_term_true(self, ground_state):
         if self.parent is not None:
