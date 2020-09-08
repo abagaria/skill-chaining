@@ -102,11 +102,11 @@ class SalientEvent(object):
         return False
 
     def is_init_true(self, state):
-        distance = self.point_to_point_distance(self.target_state, state)
+        distance = self._point_to_point_distance(self.target_state, state)
         return distance <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
-        distances = self.point_to_set_distance(self.target_state, position_matrix, return_all=True)
+        distances = self._point_to_set_distance(self.target_state, position_matrix, return_all=True)
         in_goal_position = distances <= self.tolerance
         return in_goal_position.squeeze(1)
 
@@ -146,9 +146,9 @@ class SalientEvent(object):
 
         if other.target_state is not None:
             point2 = other.target_state
-            return self.point_to_point_distance(point1, point2)
+            return self._point_to_point_distance(point1, point2)
 
-        return self.point_to_set_distance(point1, other.trigger_points)
+        return self._point_to_set_distance(point1, other.trigger_points)
 
     def distance_to_effect_set(self, effect_set):
         """
@@ -161,21 +161,21 @@ class SalientEvent(object):
         Returns:
             distance (float)
         """
-        return self.point_to_set_distance(self.target_state, effect_set)
+        return self._point_to_set_distance(self.target_state, effect_set)
 
-    def point_to_point_distance(self, point1, point2):
+    def _point_to_point_distance(self, point1, point2):
         point1 = self._get_relevant_factors(point1)
         point2 = self._get_relevant_factors(point2)
         return np.linalg.norm(point1 - point2)
 
-    def point_to_set_distance(self, point, state_set, return_all=False):
+    def _point_to_set_distance(self, point, state_set, return_all=False):
         point = self._get_relevant_factors(point)
         point_array = self._get_relevant_factors(state_set)
         distances = distance.cdist(point[None, :], point_array)
 
         return distances if return_all else distances.max()
 
-    def set_to_set_distance(self, set1, set2):
+    def _set_to_set_distance(self, set1, set2):
         positions1 = self._get_relevant_factors(set1)
         positions2 = self._get_relevant_factors(set2)
         distances = distance.cdist(positions1, positions2)
@@ -219,12 +219,12 @@ class LearnedSalientEvent(SalientEvent):
 
     def distance_to_effect_set(self, effect_set):
         """ Compute the max distance from `state_set` to `effect_set`. """
-        return self.set_to_set_distance(self.state_set, effect_set)
+        return self._set_to_set_distance(self.state_set, effect_set)
 
     def distance_to_other_event(self, other):
         if other.target_state is None:
-            return self.set_to_set_distance(self.state_set, other.trigger_points)
-        return self.point_to_set_distance(other.target_state, self.state_set)
+            return self._set_to_set_distance(self.state_set, other.trigger_points)
+        return self._point_to_set_distance(other.target_state, self.state_set)
 
 
 class DCOSalientEvent(SalientEvent):
@@ -257,7 +257,7 @@ class DCOSalientEvent(SalientEvent):
     def distance_to_other_event(self, other):
         if other.target_state is not None:
             return super(DCOSalientEvent, self).distance_to_other_event(other)
-        return self.point_to_set_distance(self.target_state, other.trigger_points)
+        return self._point_to_set_distance(self.target_state, other.trigger_points)
 
 
 class DSCOptionSalientEvent(SalientEvent):
@@ -289,9 +289,9 @@ class DSCOptionSalientEvent(SalientEvent):
         return f"SalientEvent corresponding to {self.option}"
 
     def distance_to_effect_set(self, effect_set):
-        return self.set_to_set_distance(self.trigger_points, effect_set)
+        return self._set_to_set_distance(self.trigger_points, effect_set)
 
     def distance_to_other_event(self, other):
         if other.target_state is not None:
-            return self.point_to_set_distance(other.target_state, self.trigger_points)
-        return self.set_to_set_distance(self.trigger_points, other.trigger_points)
+            return self._point_to_set_distance(other.target_state, self.trigger_points)
+        return self._set_to_set_distance(self.trigger_points, other.trigger_points)
