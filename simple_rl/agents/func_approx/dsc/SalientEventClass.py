@@ -78,6 +78,15 @@ class SalientEvent(object):
     def __hash__(self):
         return hash(tuple(self.target_state))
 
+    def __repr__(self):
+        if self.name is None:
+            return f"SalientEvent targeting {self.get_factored_target()}"
+        else:
+            return f"SalientEvent targeting {self.get_factored_target()} | {self.name}"
+
+    def get_factored_target(self):
+        return self._get_relevant_factors(self.target_state) if self.target_state is not None else None
+
     def is_subset(self, other_event):
         """ I am a subset of `other_event` if all my trigger points are inside `other_event`. """
         assert isinstance(other_event, SalientEvent)
@@ -109,12 +118,6 @@ class SalientEvent(object):
         distances = self._point_to_set_distance(self.target_state, position_matrix, return_all=True)
         in_goal_position = distances <= self.tolerance
         return np.squeeze(in_goal_position)
-
-    def __repr__(self):
-        if self.name is None:
-            return f"SalientEvent targeting {self._get_relevant_factors(self.target_state)}"
-        else:
-            return f"SalientEvent targeting {self._get_relevant_factors(self.target_state)} | {self.name}"
 
     def _get_relevant_factors(self, state):
         """
