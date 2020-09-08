@@ -108,7 +108,7 @@ class SalientEvent(object):
     def batched_is_init_true(self, position_matrix):
         distances = self._point_to_set_distance(self.target_state, position_matrix, return_all=True)
         in_goal_position = distances <= self.tolerance
-        return in_goal_position.squeeze(1)
+        return np.squeeze(in_goal_position)
 
     def __repr__(self):
         if self.name is None:
