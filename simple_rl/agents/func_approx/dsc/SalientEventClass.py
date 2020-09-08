@@ -102,11 +102,11 @@ class SalientEvent(object):
         return False
 
     def is_init_true(self, state):
-        distance = SalientEvent.point_to_point_distance(self.target_state, state)
+        distance = self.point_to_point_distance(self.target_state, state)
         return distance <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
-        distances = SalientEvent.point_to_set_distance(self.target_state, position_matrix, return_all=True)
+        distances = self.point_to_set_distance(self.target_state, position_matrix, return_all=True)
         in_goal_position = distances <= self.tolerance
         return in_goal_position.squeeze(1)
 
@@ -163,14 +163,12 @@ class SalientEvent(object):
         """
         return self.point_to_set_distance(self.target_state, effect_set)
 
-    @staticmethod
-    def point_to_point_distance(point1, point2):
+    def point_to_point_distance(self, point1, point2):
         point1 = self._get_relevant_factors(point1)
         point2 = self._get_relevant_factors(point2)
         return np.linalg.norm(point1 - point2)
 
-    @staticmethod
-    def point_to_set_distance(point, state_set, return_all=False):
+    def point_to_set_distance(self, point, state_set, return_all=False):
         assert isinstance(state_set, list)
         assert isinstance(point, np.ndarray)
 
@@ -180,8 +178,7 @@ class SalientEvent(object):
 
         return distances if return_all else distances.max()
 
-    @staticmethod
-    def set_to_set_distance(set1, set2):
+    def set_to_set_distance(self, set1, set2):
         assert isinstance(set1, list)
         assert isinstance(set2, list)
 
