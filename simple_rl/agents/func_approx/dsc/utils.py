@@ -315,39 +315,6 @@ def visualize_buffer(option, episode, seed, logdir):
     plt.close()
 
 
-def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
-    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
-    states = np.array([exp[0] for exp in replay_buffer])
-    actions = np.array([exp[1] for exp in replay_buffer])
-
-    # Chunk up the inputs so as to conserve GPU memory
-    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
-
-    if num_chunks == 0:
-        return 0.
-
-    state_chunks = np.array_split(states, num_chunks, axis=0)
-    action_chunks = np.array_split(actions, num_chunks, axis=0)
-    qvalues = np.zeros((states.shape[0],))
-    current_idx = 0
-
-    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
-        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
-        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
-        current_chunk_size = len(state_chunk)
-        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
-        current_idx += current_chunk_size
-
-    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
-    plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
-
-    return qvalues.max()
-
-
 def plot_values(salient_event, init_state, replay_buffer, experiment_name=""):
     option = salient_event.covering_option
     is_low = salient_event.is_low

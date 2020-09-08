@@ -7,7 +7,6 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 
 
@@ -466,22 +465,40 @@ class SkillGraphPlanner(object):
         return new_untrained_option
 
     def pretrain_option_policy(self, new_untrained_option):
+        def get_max_qvalue(replay_buffer, chunk_size=1000):
+            states = np.array([exp[0] for exp in replay_buffer])
+            actions = np.array([exp[1] for exp in replay_buffer])
+
+            # Chunk up the inputs so as to conserve GPU memory
+            num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+            qvalue_max = 0
+
+            if num_chunks == 0:
+                return 0.
+
+            state_chunks = np.array_split(states, num_chunks, axis=0)
+            action_chunks = np.array_split(actions, num_chunks, axis=0)
+
+            for state_chunk, action_chunk in zip(state_chunks, action_chunks):
+                state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+                action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+                chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+                qvalue_max = max(qvalue_max, chunk_qvalues.max())
+            return qvalue_max
+
         new_untrained_option.initialize_with_global_solver()
 
         # Check if the value function diverges - if it does, then retry. If it still does,
         # then initialize to random weights and use that
-        max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                       self.experiment_name,
-                                                       replay_buffer=self.chainer.global_option.solver.replay_buffer)
+        max_q_value = get_max_qvalue(self.chainer.global_option.solver.replay_buffer)
         if max_q_value > 500:
             print("=" * 80)
             print(f"{new_untrained_option} VF diverged")
             print("=" * 80)
             new_untrained_option.reset_option_solver()
             new_untrained_option.initialize_with_global_solver()
-            max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                           self.experiment_name,
-                                                           replay_buffer=self.chainer.global_option.solver.replay_buffer)
+            max_q_value = get_max_qvalue(self.chainer.global_option.solver.replay_buffer)
+
             if max_q_value > 500:
                 print("=" * 80)
                 print(f"{new_untrained_option} VF diverged AGAIN")
