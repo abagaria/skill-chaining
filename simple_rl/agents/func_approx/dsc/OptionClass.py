@@ -366,7 +366,7 @@ class Option(object):
 
             return np.ones((state_matrix.shape[0]))
 
-        return self.initiation_classifier.predict(position_matrix) == 1
+        return self.initiation_classifier.predict(state_matrix) == 1
 
     def batched_is_term_true(self, state_matrix):
         if self.parent is not None:
