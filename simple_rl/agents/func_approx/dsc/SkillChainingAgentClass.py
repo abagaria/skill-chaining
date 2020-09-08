@@ -182,18 +182,19 @@ class SkillChaining(object):
 		self.option_qvalues = defaultdict(lambda : [])
 		self.num_options_history = []
 
-	def create_chain_targeting_new_salient_event(self, salient_event):
+	def create_chain_targeting_new_salient_event(self, salient_event, init_salient_event=None):
 		"""
 		Given a new `salient_event`, create an option and the corresponding skill chain targeting it.
 
 		Args:
 			salient_event (SalientEvent)
+			init_salient_event (SalientEvent)
 
 		Returns:
 			skill_chain (SkillChain)
 		"""
 		chain_id = len(self.chains) + 1
-		init_salient_event = self.mdp.get_start_state_salient_event()
+		init_salient_event = self.mdp.get_start_state_salient_event() if init_salient_event is None else init_salient_event
 		goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}',
 							 global_solver=self.global_option.solver,
 							 lr_actor=self.global_option.solver.actor_learning_rate,
@@ -1075,7 +1076,7 @@ class SkillChaining(object):
 			# Logging
 			score += reward
 			step_number += len(option_transitions)
-			state = self.get_next_state_from_experiences(option_transitions)
+			state = deepcopy(self.mdp.cur_state)
 			episodic_trajectory.append(option_transitions)
 			option_trajectory.append((selected_option, option_transitions))
 
@@ -1119,7 +1120,6 @@ class SkillChaining(object):
 
 		return per_episode_scores, per_episode_durations
 
-	# TODO: Collapse these into the same function
 	def global_option_experience_replay(self, trajectory, goal_state):
 		for state, action, _, next_state in trajectory:
 			augmented_state = self.get_augmented_state(state, goal=goal_state)

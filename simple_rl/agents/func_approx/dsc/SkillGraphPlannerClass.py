@@ -52,7 +52,7 @@ class SkillGraphPlanner(object):
 
         Returns:
             closest_source (SalientEvent or Option)
-            closest_pair (SalientEvent or Option)
+            closest_target (SalientEvent or Option)
         """
 
         def _distance_between_vertices(v1, v2):
@@ -139,6 +139,28 @@ class SkillGraphPlanner(object):
 
         return step_number
 
+    def run_sub_loop(self, state, goal_vertex, step, goal_salient_event, episode, eval_mode):
+        should_terminate = lambda s, step_number: goal_salient_event(s) or step_number >= self.chainer.max_steps
+        planner_condition = lambda s, g: self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g)
+
+        if planner_condition(state, goal_vertex) and not should_terminate(state, step):
+            print(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
+            step = self.planner_rollout_inside_graph(state=state,
+                                                     goal_vertex=goal_vertex,
+                                                     goal_salient_event=goal_salient_event,
+                                                     episode_number=episode,
+                                                     step_number=step,
+                                                     eval_mode=eval_mode)
+            state = deepcopy(self.mdp.cur_state)
+
+        elif not should_terminate(state, step):
+            state, step = self.dsc_outside_graph(episode=episode,
+                                                 num_steps=step,
+                                                 goal_salient_event=goal_salient_event,
+                                                 dsc_goal_vertex=goal_vertex)
+
+        return state, step
+
     def run_loop(self, *, state, goal_salient_event, episode, step, eval_mode, to_reset):
         assert isinstance(state, State)
         assert isinstance(goal_salient_event, SalientEvent)
@@ -151,37 +173,11 @@ class SkillGraphPlanner(object):
             self.reset(state)
 
         planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
-        should_terminate = lambda s, step_number: goal_salient_event(s) or step_number >= self.chainer.max_steps
-        planner_condition = lambda s, g: self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 
-        if planner_condition(state, planner_goal_vertex) and not should_terminate(state, step):
-
-            print(f"[Planner] Rolling out from {state.position} targeting {planner_goal_vertex}")
-            step = self.planner_rollout_inside_graph(state=state,
-                                                     goal_vertex=planner_goal_vertex,
-                                                     goal_salient_event=goal_salient_event,
-                                                     episode_number=episode,
-                                                     step_number=step,
-                                                     eval_mode=eval_mode)
-            state = deepcopy(self.mdp.cur_state)
-
-        if not should_terminate(state, step):
-            assert not self.plan_graph.does_path_exist(state, dsc_goal_vertex), f"{state} -> {dsc_goal_vertex} exists"
-            state, step = self.dsc_outside_graph(episode=episode,
-                                                 num_steps=step,
-                                                 goal_salient_event=goal_salient_event,
-                                                 dsc_goal_vertex=dsc_goal_vertex)
-
-        if planner_condition(state, goal_salient_event) and not should_terminate(state, step):
-            print(f"[Planner] Rolling out from {state.position} targeting {goal_salient_event}")
-            step = self.planner_rollout_inside_graph(state=state,
-                                                     goal_vertex=goal_salient_event,
-                                                     goal_salient_event=goal_salient_event,
-                                                     episode_number=episode,
-                                                     step_number=step,
-                                                     eval_mode=eval_mode)
-            state = deepcopy(self.mdp.cur_state)
+        state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
+        state, step = self.run_sub_loop(state, dsc_goal_vertex, step, goal_salient_event, episode, eval_mode)
+        state, step = self.run_sub_loop(state, goal_salient_event, step, goal_salient_event, episode, eval_mode)
 
         return step, goal_salient_event(state)
 
@@ -190,9 +186,14 @@ class SkillGraphPlanner(object):
     # -----------------------------–––––––--------------
 
     def dsc_outside_graph(self, episode, num_steps, goal_salient_event, dsc_goal_vertex):
+        state = deepcopy(self.mdp.cur_state)
         dsc_goal_state = self.sample_from_vertex(dsc_goal_vertex)
         dsc_run_loop_budget = self.chainer.max_steps - num_steps
         dsc_interrupt_handle = lambda s: self.is_state_inside_vertex(s, dsc_goal_vertex) or goal_salient_event(s)
+
+        if dsc_interrupt_handle(state):
+            print(f"Not rolling out DSC because {state.position} triggered interrupt handle")
+            return state, num_steps
 
         print(f"Rolling out DSC for {dsc_run_loop_budget} steps with goal vertex {dsc_goal_vertex} and goal state {dsc_goal_state}")
 

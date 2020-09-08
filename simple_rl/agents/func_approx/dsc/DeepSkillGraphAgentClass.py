@@ -52,23 +52,10 @@ class DeepSkillGraphAgent(object):
         self.last_event_rejection_episode = -1
         self.num_successive_rejections = 0
 
-    def select_goal_salient_event(self, state):
-        """
-
-        Args:
-            state (State)
-
-        Returns:
-            target_event (SalientEvent)
-        """
-        # TODO: Use the current_salient_events in the future so that we prioritize new events coming in
-        candidate_salient_events = self.generate_candidate_salient_events()
-
-        # When you have finished chaining all the salient events, keep cycling between salient
-        # events to continue improving your existing skills until there is a new salient event in town
+    @staticmethod
+    def _randomly_select_salient_event(state, candidate_salient_events):
         num_tries = 0
         target_event = None
-
         while target_event is None and num_tries < 100 and len(candidate_salient_events) > 0:
             target_event = random.sample(candidate_salient_events, k=1)[0]
 
@@ -79,9 +66,48 @@ class DeepSkillGraphAgent(object):
             num_tries += 1
 
         if target_event is not None:
-            print(f"Deep skill graphs target event: {target_event}")
+            print(f"[Random] Deep skill graphs target event: {target_event}")
 
         return target_event
+
+    # TODO: Account for ancestors and descendants --
+
+    def _select_closest_unconnected_salient_event(self, state, events):
+        candidate_salient_events = self.generate_candidate_salient_events(state)
+        current_salient_events = [event for event in events if event(state)]
+
+        smallest_distance, closest_event = np.inf, None
+        for current_salient_event in current_salient_events:  # type: SalientEvent
+            for candidate_salient_event in candidate_salient_events:  # type: SalientEvent
+                distance = current_salient_event.distance_to_other_event(candidate_salient_event)
+                if distance < smallest_distance and current_salient_event != candidate_salient_event:
+                    smallest_distance = distance
+                    closest_event = candidate_salient_event
+
+        if closest_event is not None:
+            assert isinstance(closest_event, SalientEvent), f"{type(closest_event)}"
+            if not closest_event(state):
+                return closest_event
+
+    def select_goal_salient_event(self, state, selection_criteria="closest"):
+        """
+
+        Args:
+            state (State)
+            selection_criteria (str)
+
+        Returns:
+            target_event (SalientEvent)
+        """
+        assert selection_criteria in ("closest", "random"), selection_criteria
+        if len(self.mdp.get_all_target_events_ever()) > 1:
+            events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+            if selection_criteria == "closest":
+                selected_event = self._select_closest_unconnected_salient_event(state, events)
+                if selected_event is not None:
+                    print(f"[Closest] Deep skill graphs target event: {selected_event}")
+                    return selected_event
+            return self._randomly_select_salient_event(state, events)
 
     def dsg_run_loop(self, episodes, num_steps):
         successes = []
@@ -202,6 +228,16 @@ class DeepSkillGraphAgent(object):
 
         return reject
 
+    def is_path_under_construction(self, init_salient_event, target_salient_event):
+        assert isinstance(init_salient_event, SalientEvent), f"{type(init_salient_event)}"
+        assert isinstance(target_salient_event, SalientEvent), f"{type(target_salient_event)}"
+
+        chains = self.dsc_agent.chains
+        unfinished_chains = [chain for chain in chains if not chain.is_chain_completed(chains)]
+
+        match = lambda c: c.init_salient_event == init_salient_event and c.target_salient_event == target_salient_event
+        return any([match(chain) for chain in unfinished_chains])
+
     def should_reject_discovered_salient_event(self, salient_event):
         """
         Reject the discovered salient event if it is the same as an old one or inside the initiation set of an option.
@@ -247,13 +283,10 @@ class DeepSkillGraphAgent(object):
             (episode - self.last_event_rejection_episode >= self.event_after_reject_freq and self.last_event_rejection_episode != -1)
         )
 
-    def generate_candidate_salient_events(self):  # TODO: This needs to happen multiple times, not just once
-        if self.should_set_off_learning_backward_options() and self.allow_backward_options:
-            self.set_off_learning_backward_options()
-
-            return self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
-
-        return self.mdp.get_all_target_events_ever()
+    def generate_candidate_salient_events(self, state):
+        events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        unconnected_events = [event for event in events if not self.planning_agent.plan_graph.does_path_exist(state, event)]
+        return unconnected_events
 
     def are_all_original_salient_events_forward_chained(self):
         original_salient_events = self.mdp.get_original_target_events()
