@@ -52,7 +52,6 @@ class TwoClassInitiationSet(InitiationSet):
     def fit(self, pos_matrix, neg_matrix=None):
         assert neg_matrix is not None
         pos_matrix = self.get_initiation_set_factors(pos_matrix)
-        neg_matrix = self.get_initiation_set_factors(neg_matrix)
         self.svm.fit(pos_matrix, neg_matrix)
 
     def _init_svm(self, **kwargs):
