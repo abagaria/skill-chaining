@@ -80,21 +80,21 @@ class GraphSearch(object):
     def visualize_plan_graph(self, file_name=None):
         try:
             pos = nx.planar_layout(self.plan_graph)
+            labels = nx.get_edge_attributes(self.plan_graph, "weight")
+
+            # Truncate the labels to 2 decimal places
+            for key in labels:
+                labels[key] = np.round(labels[key], 2)
+
+            plt.figure(figsize=(16, 10))
+
+            nx.draw_networkx(self.plan_graph, pos)
+            nx.draw_networkx_edge_labels(self.plan_graph, pos, edge_labels=labels)
+
+            plt.savefig(file_name) if file_name is not None else plt.show()
+            plt.close()
         except nx.NetworkXException:
-            pos = nx.random_layout(self.plan_graph)
-        labels = nx.get_edge_attributes(self.plan_graph, "weight")
-
-        # Truncate the labels to 2 decimal places
-        for key in labels:
-            labels[key] = np.round(labels[key], 2)
-
-        plt.figure(figsize=(16, 10))
-
-        nx.draw_networkx(self.plan_graph, pos)
-        nx.draw_networkx_edge_labels(self.plan_graph, pos, edge_labels=labels)
-
-        plt.savefig(file_name) if file_name is not None else plt.show()
-        plt.close()
+            print("Did not visualize the plan graph b/c it is no longer planar.")
 
     def does_path_exist_between_nodes(self, node1, node2):
         return shortest_paths.has_path(self.plan_graph, node1, node2)

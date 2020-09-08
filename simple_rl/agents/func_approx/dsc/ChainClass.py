@@ -152,7 +152,7 @@ class SkillChain(object):
 
         for my_option in self.options:  # type: Option
             for other_option in other_chain.options:  # type: Option
-                if self.self.should_exist_edge_between_options(my_option, other_option):
+                if self.should_exist_edge_between_options(my_option, other_option):
                     return my_option, other_option
         return None
 
