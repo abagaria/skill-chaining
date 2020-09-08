@@ -85,7 +85,7 @@ class SalientEvent(object):
     def is_subset(self, other_event):
         """ I am a subset of `other_event` if all my trigger points are inside `other_event`. """
         assert isinstance(other_event, SalientEvent)
-        return other_event.batched_is_init_true(self.trigger_points).all()
+        return other_event.batched_is_init_true(np.array(self.trigger_points)).all()
 
     def is_intersecting(self, option):
         """
