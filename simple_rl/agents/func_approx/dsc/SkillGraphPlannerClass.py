@@ -172,7 +172,7 @@ class SkillGraphPlanner(object):
         no_planning_possible = self.is_plan_graph_empty() or self.is_state_inside_vertex(state, goal_vertex)
 
         if not no_planning_possible:
-            print(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
+            print(f"[Planner] Rolling out from {state} targeting {goal_vertex}")
             step = self.planner_rollout_inside_graph(state=state,
                                                      goal_vertex=goal_vertex,
                                                      goal_salient_event=goal_salient_event,

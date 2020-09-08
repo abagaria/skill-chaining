@@ -165,7 +165,7 @@ class LearnedSalientEvent(SalientEvent):
         return self.event_idx == other.event_idx and self.tolerance == other.tolerance
 
     def _classifier_on_state_set(self):
-        positions = np.array([state.position for state in self.state_set])
+        positions = self._get_relevant_factors(self.state_set)
         classifier = OneClassSVM(nu=0.01, gamma="scale")
         classifier.fit(positions)
         return classifier
