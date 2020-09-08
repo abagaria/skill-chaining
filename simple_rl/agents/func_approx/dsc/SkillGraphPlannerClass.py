@@ -139,6 +139,19 @@ class SkillGraphPlanner(object):
         return step_number
 
     def run_loop(self, *, state, goal_salient_event, episode, step, eval_mode, to_reset):
+        """
+        This loop uses planning to select options when it can.
+        Args:
+            state (State)
+            goal_salient_event (SalientEvent)
+            episode (int)
+            step (int)
+            eval_mode (bool)
+            to_reset (bool)
+        Returns:
+            executed_options (list)
+            reached_goal (bool)
+        """
         assert isinstance(state, State)
         assert isinstance(goal_salient_event, SalientEvent)
         assert isinstance(episode, int)
@@ -479,13 +492,12 @@ class SkillGraphPlanner(object):
     # -----------------------------–––––––--------------
     # Evaluation Functions
     # -----------------------------–––––––--------------
-    def reset(self, start_state=None):
-        """ Reset the MDP to either the default start state or to the specified one. """
+    def reset(self, start_state):
+        """ Reset the MDP to the specified start_state. """
         self.mdp.reset()
 
-        if start_state is not None:
-            start_pos_array = start_state.features() if isinstance(start_state, State) else start_state
-            self.mdp.reset_to_state(start_pos_array)
+        start_pos_array = start_state.features() if isinstance(start_state, State) else start_state
+        self.mdp.reset_to_state(start_pos_array)
 
     def measure_success(self, goal_salient_event, episode, start_state=None):
         self.chainer.create_backward_options = False

@@ -111,7 +111,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         def generate_start_states():
             if randomize_start_states:
                 return [self.mdp.sample_start_state() for _ in range(num_states)]
-            return [None] * num_states
+            return [self.mdp.get_init_state()] * num_states
 
         def generate_salient_events():
             salient_events = []

@@ -54,6 +54,14 @@ class GoalDirectedMDP(MDP):
         """
         pass
 
+    @abc.abstractmethod
+    def reset_to_state(self, start_state):
+        """
+        Reset the MDP to the specified start state.
+        Args:
+            start_state (np.ndarray)
+        """
+
     def _initialize_salient_events(self, salient_tolerance, init_state, salient_states, salient_event_factor_idxs):
         # setup salient event static variables
         state_size = len(init_state.features())

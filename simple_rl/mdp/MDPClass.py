@@ -37,7 +37,7 @@ class MDP(object):
     # ---------------
 
     def get_init_state(self):
-        return self.init_state
+        return copy.deepcopy(self.init_state)
 
     def get_curr_state(self):
         return self.cur_state
