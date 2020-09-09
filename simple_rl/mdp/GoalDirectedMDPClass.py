@@ -10,7 +10,7 @@ from simple_rl.mdp import MDP, State
 
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state, salient_tolerance, dense_reward, salient_states,
-                 goal_state, salient_event_factor_idxs, init_set_factor_idxs):
+                 goal_state, task_agnostic, salient_event_factor_idxs, init_set_factor_idxs):
 
         """
         Implements MDP functions required for Skill Chaining and Deep Skill Graphs.
@@ -23,11 +23,12 @@ class GoalDirectedMDP(MDP):
             salient_tolerance (float) : the tolerance of the goal and for all salients (global variable)
             dense_reward (bool) : True if we want dense reward, False otherwise
             salient_states ([np.ndarray]) : hard-coded states we are targeting (if any) that will be turned into salient events
-            goal_state (np.ndarray) : goal state, None if task_agnostic
+            goal_state (np.ndarray) : goal state for MDP
+            task_agnostic (bool) : True if task_agnostic
             salient_event_factor_idxs (List[int]) : indices of the dimensions of the state that are used to define salient events
             init_set_factor_idxs (List[int]) : indices of the dimensions of the state that are used to define initiation sets
         """
-        self.task_agnostic = goal_state is None
+        self.task_agnostic = task_agnostic
         self.goal_state = goal_state
         self.dense_reward = dense_reward
         self._initialize_salient_events(salient_tolerance, init_state, salient_states, salient_event_factor_idxs)
