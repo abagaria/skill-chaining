@@ -19,3 +19,5 @@ examples/blank_example.py
 
 *.png
 *.pkl
+
+*.log
