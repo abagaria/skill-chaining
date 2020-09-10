@@ -791,6 +791,17 @@ class Option(object):
 		done = global_done and local_done
 		return done
 
+	def is_in_effect_set(self, state):
+		assert isinstance(state, State)
+		if self.is_term_true(state):
+			for s in self.effect_set:
+				local_done = self.overall_mdp.sparse_gc_reward_function(state, s, {})[1]
+				if local_done:
+					return True
+			return False
+		else:
+			return False
+
 	def local_option_experience_replay(self, trajectory, goal_state):
 		for state, action, reward, next_state in trajectory:
 			augmented_state = self.get_augmented_state(state, goal=goal_state)

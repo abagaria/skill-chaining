@@ -11,6 +11,7 @@ from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
+from simple_rl.agents.func_approx.dsc.utils import visualize_mpc_train_data_distribution
 
 from tqdm import tqdm
 
@@ -95,8 +96,11 @@ class DeepSkillGraphAgent(object):
             replay_buffer = self.dsc_agent.global_option.solver.replay_buffer
 
         for episode in range(episodes):
-            if (episode % 20 == 0 and episode > 0) or episode == 5:
+            if (episode % 250 == 0 and episode > 0) or episode == 5 or episode == 30:
                 states, actions, states_p = self._prepare_dataset()
+
+                visualize_mpc_train_data_distribution(states, episode, self.dsc_agent.experiment_name)
+
                 print("Size of dataset: {}".format(len(states)))
                 self.mpc.load_data(states, actions, states_p)
                 self.mpc.train(epochs=100, batch_size=1024)

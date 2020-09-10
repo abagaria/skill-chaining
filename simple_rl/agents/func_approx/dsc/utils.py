@@ -684,3 +684,69 @@ def visualize_mpc_rollout_result(chains, goal_state, start_state, result_state, 
 
     plt.savefig(f"value_function_plots/{experiment_name}/mpc_episode_{episode}.png")
     plt.close()
+
+def visualize_mpc_rollout_and_graph_result(chains, goal_state, start_state, result_state, steps_taken, episode, rejected, experiment_name, plot_completed_events):
+    def _get_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.get_target_position()
+        trigger_positions = [event._get_position(s) for s in event.trigger_points]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
+
+    def _plot_event_pair(event1, event2):
+        x1, y1 = _get_representative_point(event1)
+        x2, y2 = _get_representative_point(event2)
+        x = [x1, x2]; y = [y1, y2]
+        plt.plot(x, y, "o-", c="black")
+
+    sns.set_style("white")
+    plt.figure()
+
+    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
+
+    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
+
+    for chain in forward_chains:
+        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
+
+    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    # plot mpc points
+    plt.scatter(goal_state[0], goal_state[1], color='red', label='goal state')
+    plt.scatter(start_state[0], start_state[1], color='green', label='start state')
+    plt.scatter(result_state[0], result_state[1], color='orange', label='MPC rollout')
+
+    plt.title(f"Steps Taken {steps_taken}, Rejected: {rejected}")
+
+    plt.savefig(f"value_function_plots/{experiment_name}/mpc_episode_{episode}_{rejected}.png")
+    plt.close()
+
+def visualize_mpc_train_data_distribution(states, episode, experiment_name):
+    sns.set_style("white")
+    plt.figure()
+
+    # TODO automate this from MDP
+    x_low_lim, y_low_lim = -10, -10
+    x_high_lim, y_high_lim = 10, 10
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    x_list = []
+    y_list = []
+
+    for state in states:
+        x_list.append(state[0])
+        y_list.append(state[1])
+
+    plt.scatter(x_list, y_list, s=2, color='blue', alpha=0.4)
+
+    plt.title("Data Distribution for {} points".format(len(states)))
+
+    plt.savefig(f"value_function_plots/{experiment_name}/mpc_train_data_episode_{episode}.png")
+    plt.close()

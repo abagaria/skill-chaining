@@ -1,14 +1,16 @@
 import ipdb
 import random
+import logging
 import itertools
 import numpy as np
+
 from copy import deepcopy
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph, visualize_mpc_rollout_result
+from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph, visualize_mpc_rollout_result, visualize_mpc_rollout_and_graph_result
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 
 
@@ -35,6 +37,9 @@ class SkillGraphPlanner(object):
         self.seed = seed
 
         self.plan_graph = PlanGraph()
+
+        self.logger = logging
+        self.logger.basicConfig(filename=f"value_function_plots/{self.chainer.experiment_name}/SkillGraphPlanner.log", filemode='w', format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -81,6 +86,10 @@ class SkillGraphPlanner(object):
             candidate_options = [option for option in candidate_options if len(option.effect_set) > 0]
             if len(candidate_options) > 0:
                 distances = [goal_salient_event.distance_to_effect_set(option.effect_set) for option in candidate_options]
+                
+                debug_line = [(option, distance) for option, distance in zip(candidate_options, distances)]
+                self.logger.debug(f"Option distances: {debug_line}")
+                
                 closest_event, closest_event_distance = _distance_choose_event_to_fall_off_graph_from(candidate_vertices)
                 selected_idx, closest_option_distance = _single_argmin(distances)
                 selected_option = candidate_options[selected_idx]
@@ -167,68 +176,103 @@ class SkillGraphPlanner(object):
         if to_reset:
             self.reset(state)
 
+        self.logger.debug(f'Episode {episode}: goal_salient_event at {goal_salient_event.target_state[0]},{goal_salient_event.target_state[1]}')
         goal_vertex = deepcopy(goal_salient_event)
 
         # Revise the goal_salient_event if it cannot be reached from the current state
         if not self.plan_graph.does_path_exist(state, goal_salient_event):
+            self.logger.debug(f'Episode {episode}: revising goal_salient_event')
             revised_goal = self.choose_vertex_to_fall_off_graph_from(state, goal_salient_event, choose_among_events=False)
             if revised_goal is not None:
+                if isinstance(revised_goal, SalientEvent):
+                    self.logger.debug(f'Episode {episode}: revised goal_vertex to {revised_goal.target_state[0]},{revised_goal.target_state[1]}')
+                else:
+                    self.logger.debug(f'Episode {episode}: revised to option {revised_goal}')
                 print(f"Revised goal vertex to {revised_goal}")
                 goal_vertex = revised_goal
             if not self.does_exist_chain_for_event(goal_salient_event):
+                self.logger.debug(f'Episode {episode}: creating new goal option outside of graph')
                 self.create_goal_option_outside_graph(goal_salient_event)
 
         # Use the planner if there is a path to the revised goal node and we are not already at it
         ran_planner = False
         if self.plan_graph.does_path_exist(state, goal_vertex) and not self.is_state_inside_vertex(state, goal_vertex):
+            self.logger.debug(f'Episode {episode}: there is path to revised goal, running planner')
             ran_planner = True
             print(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
+            self.logger.debug(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
             step = self.planner_rollout_inside_graph(state=state,
                                                      goal_vertex=goal_vertex,
                                                      goal_salient_event=goal_salient_event,
                                                      episode_number=episode,
                                                      step_number=step,
                                                      eval_mode=eval_mode)
-            
-           
-            # 1) reach vertex <- only use this one for now
-            # 2) reach other vertex (not intended) <- could use this, if closes node isn't connected well to goal
-            # 3) completely outside of graph
-            # Question: run MPC for 2, 3?
 
             state = deepcopy(self.mdp.cur_state)
+            self.logger.debug(f"[Planner] reached {state.position}")
 
         orig_goal_salient_event = deepcopy(goal_salient_event)
 
-        # TODO investigate why MPC is being run when goal_vertex is not closest to goal_salient_event
-        run_mpc = False
-        if mpc.is_trained and (self.chainer.max_steps - step) > 200: # can run MPC at all
-            if not goal_salient_event.revised_by_mpc: # not tried by MPC before
-                if not goal_salient_event(state): # not close to end goal
-                    if ran_planner and self.is_state_inside_vertex(state, goal_vertex): # planner is run and at right vertex
-                        run_mpc = True
-                    elif not ran_planner: # we run MPC here too
-                        run_mpc = True
-
-        if run_mpc:
-            # TODO record train times for MPC
-            steps_remaining = 200
-            print("running mpc")
-            new_state, steps_taken = mpc.mpc_rollout(self.mdp, 14000, 7, goal_salient_event.get_target_position(), max_steps=steps_remaining)
+        if self.should_revise_salient_event(mpc, state, ran_planner, step, goal_vertex, goal_salient_event):
+            state, steps_taken = self.mpc_revise_salient_event(episode, mpc, state, goal_salient_event, steps_to_take=100)
             step += steps_taken
-            print("ending mpc at state {} in {}".format(new_state, steps_taken))
-            visualize_mpc_rollout_result(self.chainer.chains, goal_salient_event.get_target_position(), state, new_state, steps_taken, episode, self.chainer.experiment_name)
-            state = new_state # point state to new_state variable
-            goal_salient_event.target_state = state
-            goal_salient_event._initialize_trigger_points()
-            goal_salient_event.revised_by_mpc = True
 
         if not orig_goal_salient_event(state) and step < self.chainer.max_steps:
+            self.logger.debug(f'Episode {episode}: running dsc outside graph')
             state, step = self.dsc_outside_graph(episode=episode,
                                                  num_steps=step,
                                                  goal_salient_event=orig_goal_salient_event)
 
         return step, orig_goal_salient_event(state)
+
+    def mpc_revise_salient_event(self, episode, mpc, state, goal_salient_event, steps_to_take=100):
+        self.logger.debug(f'running MPC')
+        steps_remaining = steps_to_take
+        print("running mpc")
+        mpc_result_state, steps_taken = mpc.mpc_rollout(self.mdp, 14000, 7, goal_salient_event.get_target_position(), max_steps=steps_remaining)
+        print("ending mpc at state {} in {}".format(mpc_result_state, steps_taken))
+        self.logger.debug(f'mpc rollout end at ({mpc_result_state[0]}, {mpc_result_state[1]})')
+        reject_mpc = self.should_reject_discovered_salient_event(mpc_result_state)
+        visualize_mpc_rollout_and_graph_result(self.chainer.chains, goal_salient_event.get_target_position(), state, mpc_result_state, steps_taken, episode, reject_mpc, self.chainer.experiment_name, True)
+        self.logger.debug(f'MPC rollout rejected: {reject_mpc}')
+        if not reject_mpc:
+            # state = mpc_result_state # point state to mpc reached state [TODO verify logic here!!!]
+            goal_salient_event.target_state = mpc_result_state
+            goal_salient_event._initialize_trigger_points()
+        goal_salient_event.considered_by_mpc = True
+        return deepcopy(mpc_result_state), steps_taken
+
+    def should_revise_salient_event(self, mpc, state, ran_planner, step, goal_vertex, goal_salient_event, steps_to_take=100):
+        if mpc.is_trained and (self.chainer.max_steps - step) > steps_to_take: # can run MPC at all
+            if not goal_salient_event.considered_by_mpc: # not tried by MPC before
+                if not goal_salient_event(state): # not close to end goal
+                    if ran_planner and self._is_state_inside_vertex(state, goal_vertex): # planner is run and at right vertex
+                        return True
+                    elif self.is_plan_graph_empty():
+                        return True
+        return False
+
+    
+    def should_reject_discovered_salient_event(self, target_state):
+        """
+        Reject the discovered salient event if it is the same as an old one or inside the initiation set of an option.
+
+        Args:
+            salient_event (SalientEvent)
+
+        Returns:
+            should_reject (bool)
+        """
+        existing_target_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        if any([event(target_state) for event in existing_target_events]):
+            self.logger.debug('mpc rejected because "any([event(target_state) for event in existing_target_events])" returned True')
+            return True
+
+        if self.chainer.state_in_any_completed_option(target_state):
+            self.logger.debug('mpc rejected because target_state in a completed option')
+            return True
+
+        return False
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
@@ -414,7 +458,26 @@ class SkillGraphPlanner(object):
             return vertex(state)
 
         # State is in the effect set of the option
-        return vertex.is_term_true(state)
+        # return vertex.is_term_true(state)
+        return vertex.is_in_effect_set(state)
+
+    # TODO verify if this is necessary
+    def _is_state_inside_vertex(self, state, vertex):
+        assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
+        assert isinstance(vertex, (Option, SalientEvent)), f"{type(vertex)}"
+
+        # State satisfies the salient event
+        if isinstance(vertex, SalientEvent):
+            return vertex(state)
+
+        # State is in the effect set of the option
+        # return vertex.is_term_true(state)
+        in_effect_set = vertex.is_in_effect_set(state)
+        if in_effect_set:
+            self.logger.debug(f"State {state} from planner run in effect set of option {vertex}")
+        else:
+            self.logger.debug(f"State {state} from planner run NOT in effect set {vertex}")
+        return in_effect_set
 
     def does_exist_chain_for_event(self, event):
         assert isinstance(event, SalientEvent)

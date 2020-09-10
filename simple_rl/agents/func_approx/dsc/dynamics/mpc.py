@@ -41,25 +41,22 @@ class MPC:
                 loss.backward()
                 optimizer.step()
 
-    def mpc_rollout(self, mdp, num_rollouts, num_steps, goal, thres=0.6, max_steps=200):
+    def mpc_rollout(self, mdp, num_rollouts, num_steps, goal, max_steps=100):
         steps_taken = 0
         s = deepcopy(mdp.cur_state)
-        sx, sy = s.position
-        goal_x, goal_y = goal
 
-        while abs(sx - goal_x) >= thres or abs(sy - goal_y) >= thres:
-            action = self.mpc_act(mdp, 14000, 7, goal)
+        while not mdp.sparse_gc_reward_function(s, goal, {})[1]:
+            action = self.mpc_act(mdp, num_rollouts, num_steps, goal)
         
             # execute action in mdp
             mdp.execute_agent_action(action)
 
-            # update s for new state
-            s = deepcopy(mdp.cur_state)
-            sx, sy = s.position
-
             steps_taken += 1
             if steps_taken == max_steps:
                 break
+
+            # retrieve current state
+            s = deepcopy(mdp.cur_state)
 
         return mdp.cur_state, steps_taken
 

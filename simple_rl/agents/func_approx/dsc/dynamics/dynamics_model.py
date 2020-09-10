@@ -10,11 +10,11 @@ class DynamicsModel(nn.Module):
 
         self.device = device
         self.set_standardization_vars(mean_x, mean_y, mean_z, std_x, std_y, std_z)
-
+        
         self.model = nn.Sequential(
             nn.Linear(state_size + action_size, 500),
             nn.LeakyReLU(),
-            nn.Dropout(p=0.1),
+            # nn.Dropout(p=0.1),
             nn.Linear(500, 500),
             nn.LeakyReLU(),
             nn.Linear(500, state_size)
