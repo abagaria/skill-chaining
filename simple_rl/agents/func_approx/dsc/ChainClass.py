@@ -1,15 +1,13 @@
 import ipdb
 import numpy as np
-import random
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp.StateClass import State
 
 
 class SkillChain(object):
-    def __init__(self, init_salient_event, target_salient_event, options, chain_id,
-                 intersecting_options=[], is_backward_chain=False, has_backward_chain=False,
-                 option_intersection_salience=False, event_intersection_salience=True):
+    def __init__(self, init_salient_event, target_salient_event, options, chain_id, mdp_init_salient_event,
+                 intersecting_options=[], option_intersection_salience=False, event_intersection_salience=True):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here
@@ -19,23 +17,23 @@ class SkillChain(object):
             target_salient_event (SalientEvent): f: s -> {0, 1} based on target salience
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
+            mdp_init_salient_event (SalientEvent): Start state salient event of the overall MDP
             intersecting_options (list): List of options whose initiation sets overlap
-            is_backward_chain (bool): Whether this chain goes from start -> salient or from salient -> start
-            has_backward_chain (bool): Does there exist a backward chain corresponding to the current forward chain (N/A if `is_backward_chain`)
             option_intersection_salience (bool): Whether to chain until the current chain intersects with another option
             event_intersection_salience (bool): Chain until you intersect with another salient event
         """
         self.options = options
         self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
+        self.mdp_init_salient_event = mdp_init_salient_event
         self.chain_id = chain_id
         self.intersecting_options = intersecting_options
 
-        self.is_backward_chain = is_backward_chain
-        self.has_backward_chain = has_backward_chain
         self.option_intersection_salience = option_intersection_salience
         self.event_intersection_salience = event_intersection_salience
 
+        # Data structures for determining when a skill chain is completed
+        self._init_descendants = []
         self._is_deemed_completed = False
 
         if target_salient_event is None and len(intersecting_options) > 0:
@@ -55,6 +53,15 @@ class SkillChain(object):
 
     def __getitem__(self, item):
         return self.options[item]
+
+    def set_chain_completed(self):
+        self._is_deemed_completed = True
+
+    def set_init_descendants(self, descendants):
+        """ The `descendants` are the set of vertices that you can get to from the chain's init-salient-event. """
+        if len(descendants) > 0:
+            assert all([isinstance(node, (Option, SalientEvent)) for node in descendants]), f"{descendants}"
+            self._init_descendants = descendants
 
     def state_in_chain(self, state):
         """ Is state inside the initiation set of any of the options in the chain. """
@@ -84,20 +91,8 @@ class SkillChain(object):
                 return option
         return None
 
-    def should_continue_chaining(self, chains):
-        """
-        Determine if we should keep learning skills to add to the current chain.
-        We keep discovering skills in the current chain as long as one any start state
-        is not inside the initiation set of an option OR if we have chained back to
-        another skill chain - in which case we will also have an intersection salient event.
-        Args:
-            chains (list): List of SkillChain objects so we can check for intersections
-
-        Returns:
-            should_create (bool): return True if there is some start_state that is
-                                  not inside any of the options in the current chain
-        """
-        return not self.is_chain_completed(chains)
+    def should_continue_chaining(self):
+        return not self.is_chain_completed()
 
     @staticmethod
     def should_exist_edge_between_options(my_option, other_option):
@@ -132,102 +127,62 @@ class SkillChain(object):
             return inits.all()
         return False
 
-    def get_intersecting_options(self, other_chain):
+    def should_expand_initiation_classifier(self, option):
+        assert isinstance(option, Option), f"{type(option)}"
+
+        if len(self.init_salient_event.trigger_points) > 0:
+            return any([option.is_init_true(s) for s in self.init_salient_event.trigger_points])
+        if self.init_salient_event.get_target_position() is not None:
+            return option.is_init_true(self.init_salient_event.get_target_position())
+        return False
+
+    def should_complete_chain(self, option):
+        """ Check if a newly learned option completes its corresponding chain. """
+        assert isinstance(option, Option), f"{type(option)}"
+
+        # If there is a path from a descendant of the chain's init salient event
+        # to the newly learned option, then that chain's job is done
+        for descendant in self._init_descendants:
+            if isinstance(descendant, SalientEvent):
+                if self.should_exist_edge_from_event_to_option(descendant, option):
+                    return True
+            if isinstance(descendant, Option):
+                if self.should_exist_edge_between_options(descendant, option):
+                    return True
+
+        # If not, then check if there is a direct path from the init-salient-event to the new option
+        if self.should_exist_edge_from_event_to_option(self.init_salient_event, option):
+            return True
+
+        # Finally, default to the start-state salient event of the entire MDP
+        return self.should_exist_edge_from_event_to_option(self.mdp_init_salient_event, option)
+
+    def is_chain_completed(self):
         """
-        One chain intersecting with another defines a chain intersection event.
-        The intersecting region is treated as a salient event to construct skill graphs.
-        To detect an intersection between two chains, we iterate through all the options
-        in the two chains and look for states that belong in both chains.
-        Args:
-            other_chain (SkillChain)
-
-        Returns:
-            option_pair (tuple): pair of intersecting options if intersection event is
-                                 identified, else return None
-        """
-
-        # Do not identify self-intersections
-        if self == other_chain:
-            return None
-
-        for my_option in self.options:  # type: Option
-            for other_option in other_chain.options:  # type: Option
-                if self.should_exist_edge_between_options(my_option, other_option):
-                    return my_option, other_option
-        return None
-
-    def get_intersecting_option_and_event(self, other_chain):
-        # Do not identify self-intersections
-        if self == other_chain:
-            return None
-
-        for my_option in self.options:  # type: Option
-            event = other_chain.target_salient_event
-            if self.should_exist_edge_from_event_to_option(event, my_option):
-                return my_option, event
-        return None
-
-    def is_intersecting(self, other_chain):
-        """ Boolean wrapper around detect_intersection(). """
-        if self.option_intersection_salience:
-            intersecting = self.get_intersecting_options(other_chain) is not None
-            return intersecting
-        assert self.event_intersection_salience, "set event_intersection_salience or option_intersection_salience"
-        return self.get_intersecting_option_and_event(other_chain) is not None
-
-    def is_chain_completed(self, chains):
-        """
-        Either we are chained till the start state or we are chained till another event
-        which already has some chaining targeting it. The reason we only check for
-        intersection with chained events is that we want to before we re-wire the current
-        chain, we want to be sure that we have a way to trigger its salient event.
-        Args:
-            chains (list)
+        The chain is considered complete when it learns an option whose initiation set covers
+        at least one of the descendants of the chain's init-salient-event.
 
         Returns:
             is_completed (bool)
         """
-        to_position = lambda s: s.position if isinstance(s, State) else s[:2]
-
         if self._is_deemed_completed:
             return True
 
-        is_intersecting_another_chain = False
-        if self.option_intersection_salience or self.event_intersection_salience:
-            other_chains = [chain for chain in chains if chain != self]
-            is_intersecting_another_chain = any([self.is_intersecting(chain) and chain.is_chain_completed(other_chains)
-                                                 for chain in other_chains])
-        completed = self.chained_till_start_state() or is_intersecting_another_chain
+        completed_options = [option for option in self.options if option.get_training_phase() == "initiation_done"]
 
-        if completed:
-            # Which salient event did intersect with to cause this change?
-            # Cause that is the salient event that we should rewire to
+        for option in completed_options:
+            if self.should_complete_chain(option):
+                self._is_deemed_completed = True
+                return True
 
-            if not self.is_backward_chain:
-                other_chains = [chain for chain in chains if chain != self]
-                intersecting_pairs = [self.get_intersecting_option_and_event(chain) for chain in other_chains
-                                      if chain.is_chain_completed(other_chains)]
-                intersecting_pairs = [pair for pair in intersecting_pairs if pair is not None]
-                intersecting_events = [pair[1] for pair in intersecting_pairs]
-                if len(intersecting_events) == 1:
-                    event = intersecting_events[0]
-                    self.init_salient_event = event  # Rewiring operation
-                elif len(intersecting_events) > 1:
-                    # Find the distance between the target_salient_event and the intersecting_events
-                    distances = [self.target_salient_event.distance_to_other_event(e) for e in intersecting_events]
-                    best_idx = np.argmin(distances)
-                    best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
-                    closest_event = intersecting_events[best_idx]
-                    self.init_salient_event = closest_event
+        for option in completed_options:
+            if self.should_expand_initiation_classifier(option):
+                option.expand_initiation_classifier(self.init_salient_event)
+                if self.should_complete_chain(option):
+                    self._is_deemed_completed = True
+                    return True
 
-            self._is_deemed_completed = True
-
-        return completed
-
-    def chained_till_start_state(self):
-        start_event_trigger_points = self.init_salient_event.trigger_points
-        start_state_in_chain = all([self.state_in_chain(s) for s in start_event_trigger_points])
-        return start_state_in_chain
+        return False
 
     def get_leaf_nodes_from_skill_chain(self):
         return [option for option in self.options if len(option.children) == 0]
