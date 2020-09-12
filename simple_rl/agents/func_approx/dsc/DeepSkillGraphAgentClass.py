@@ -223,7 +223,7 @@ class DeepSkillGraphAgent(object):
             self.num_successive_rejections = 0
 
             # Create a skill chain targeting the new event
-            self.dsc_agent.create_chain_targeting_new_salient_event(salient_event)
+            # self.dsc_agent.create_chain_targeting_new_salient_event(salient_event) # TODO debug
 
         return reject
 

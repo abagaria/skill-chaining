@@ -58,7 +58,7 @@ class MPC:
             # retrieve current state
             s = deepcopy(mdp.cur_state)
 
-        return mdp.cur_state, steps_taken
+        return deepcopy(mdp.cur_state), steps_taken
 
     def mpc_act(self, mdp, num_rollouts, num_steps, goal, gamma=0.95, monte_carlo=False):
         # sample actions for all steps

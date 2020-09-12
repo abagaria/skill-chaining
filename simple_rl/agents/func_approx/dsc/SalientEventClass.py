@@ -17,7 +17,7 @@ class SalientEvent(object):
         self.trigger_points = []
         self._initialize_trigger_points()
 
-        self.considered_by_mpc = False
+        self.revised_by_mpc = False
 
         assert isinstance(event_idx, int)
         assert isinstance(tolerance, float)

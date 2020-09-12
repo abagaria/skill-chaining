@@ -176,6 +176,11 @@ class SkillGraphPlanner(object):
         if to_reset:
             self.reset(state)
 
+        if not self.does_exist_chain_for_event(goal_salient_event):
+            assert goal_salient_event.is_revised_by_mpc == False # TODO syntax TODO sanity check
+
+        at_start_state = self.mdp.get_start_state_salient_event()(state)
+
         self.logger.debug(f'Episode {episode}: goal_salient_event at {goal_salient_event.target_state[0]},{goal_salient_event.target_state[1]}')
         goal_vertex = deepcopy(goal_salient_event)
 
@@ -190,9 +195,6 @@ class SkillGraphPlanner(object):
                     self.logger.debug(f'Episode {episode}: revised to option {revised_goal}')
                 print(f"Revised goal vertex to {revised_goal}")
                 goal_vertex = revised_goal
-            if not self.does_exist_chain_for_event(goal_salient_event):
-                self.logger.debug(f'Episode {episode}: creating new goal option outside of graph')
-                self.create_goal_option_outside_graph(goal_salient_event)
 
         # Use the planner if there is a path to the revised goal node and we are not already at it
         ran_planner = False
@@ -213,9 +215,14 @@ class SkillGraphPlanner(object):
 
         orig_goal_salient_event = deepcopy(goal_salient_event)
 
-        if self.should_revise_salient_event(mpc, state, ran_planner, step, goal_vertex, goal_salient_event):
-            state, steps_taken = self.mpc_revise_salient_event(episode, mpc, state, goal_salient_event, steps_to_take=100)
+        # TODO should_revise check if starting state was at (0,0), satisfies start state salient event
+        if at_start_state and self.should_revise_salient_event(mpc, state, ran_planner, step, goal_vertex, goal_salient_event):
+            state, steps_taken, rejected = self.mpc_revise_salient_event(episode, mpc, state, goal_salient_event, steps_to_take=100)
             step += steps_taken
+
+            if rejected: # TODO want to delete it
+                self.mdp.all_salient_events_ever.remove(goal_salient_event)
+                return step, False
 
         if not orig_goal_salient_event(state) and step < self.chainer.max_steps:
             self.logger.debug(f'Episode {episode}: running dsc outside graph')
@@ -230,21 +237,20 @@ class SkillGraphPlanner(object):
         steps_remaining = steps_to_take
         print("running mpc")
         mpc_result_state, steps_taken = mpc.mpc_rollout(self.mdp, 14000, 7, goal_salient_event.get_target_position(), max_steps=steps_remaining)
-        print("ending mpc at state {} in {}".format(mpc_result_state, steps_taken))
-        self.logger.debug(f'mpc rollout end at ({mpc_result_state[0]}, {mpc_result_state[1]})')
-        reject_mpc = self.should_reject_discovered_salient_event(mpc_result_state)
+        self.logger.debug(f'mpc rollout end at {mpc_result_state.position}')
+        reject_mpc = self.should_reject_mpc_rollout(mpc_result_state, goal_salient_event)
         visualize_mpc_rollout_and_graph_result(self.chainer.chains, goal_salient_event.get_target_position(), state, mpc_result_state, steps_taken, episode, reject_mpc, self.chainer.experiment_name, True)
-        self.logger.debug(f'MPC rollout rejected: {reject_mpc}')
-        if not reject_mpc:
-            # state = mpc_result_state # point state to mpc reached state [TODO verify logic here!!!]
+        self.logger.debug(f'Is MPC rollout rejected: {reject_mpc}')
+        if not reject_mpc: # TODO debug, want to revise goal_salient_event here
             goal_salient_event.target_state = mpc_result_state
             goal_salient_event._initialize_trigger_points()
-        goal_salient_event.considered_by_mpc = True
-        return deepcopy(mpc_result_state), steps_taken
+            goal_salient_event.considered_by_mpc = True
+            self.chainer.create_chain_targeting_new_salient_event(goal_salient_event) # TODO debug
+        return deepcopy(mpc_result_state), steps_taken, reject_mpc
 
     def should_revise_salient_event(self, mpc, state, ran_planner, step, goal_vertex, goal_salient_event, steps_to_take=100):
-        if mpc.is_trained and (self.chainer.max_steps - step) > steps_to_take: # can run MPC at all
-            if not goal_salient_event.considered_by_mpc: # not tried by MPC before
+        if mpc.is_trained and (self.chainer.max_steps - step) > steps_to_take: # budget available to run MPC
+            if not goal_salient_event.revised_by_mpc: # not tried by MPC before
                 if not goal_salient_event(state): # not close to end goal
                     if ran_planner and self._is_state_inside_vertex(state, goal_vertex): # planner is run and at right vertex
                         return True
@@ -252,8 +258,7 @@ class SkillGraphPlanner(object):
                         return True
         return False
 
-    
-    def should_reject_discovered_salient_event(self, target_state):
+    def should_reject_mpc_rollout(self, target_state, goal_salient_event):
         """
         Reject the discovered salient event if it is the same as an old one or inside the initiation set of an option.
 
@@ -264,12 +269,12 @@ class SkillGraphPlanner(object):
             should_reject (bool)
         """
         existing_target_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
-        if any([event(target_state) for event in existing_target_events]):
-            self.logger.debug('mpc rejected because "any([event(target_state) for event in existing_target_events])" returned True')
+        if any([event(target_state) for event in existing_target_events if event != goal_salient_event and event.revised_by_mpc]): # TODO debug
+            self.logger.debug('mpc rollout rejected because similar salient event already exists')
             return True
 
         if self.chainer.state_in_any_completed_option(target_state):
-            self.logger.debug('mpc rejected because target_state in a completed option')
+            self.logger.debug('mpc rollout rejected because state is in a completed option')
             return True
 
         return False
