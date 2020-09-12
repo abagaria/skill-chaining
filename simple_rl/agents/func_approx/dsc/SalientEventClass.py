@@ -21,20 +21,7 @@ class SalientEvent(object):
         assert isinstance(tolerance, float)
 
     def _initialize_trigger_points(self):
-        # TODO: We don't need this after we have our graph checking daemon
-        r = self.tolerance
-        d = r / np.sqrt(2)
-        target_position = self._get_position(self.target_state)
-
-        if self.is_init_event:
-            additive_constants = []
-        else:
-            additive_constants = [np.array((r, 0)), np.array((0, r)),
-                                  np.array((-r, 0)), np.array((0, -r)),
-                                  np.array((d, d)), np.array((-d, -d)),
-                                  np.array((-d, d)), np.array((d, -d))]
-        trigger_points = [target_position + constant for constant in additive_constants]
-        self.trigger_points = [self.target_state] + trigger_points
+        self.trigger_points = [self.target_state]
 
     def __call__(self, states):
         """
