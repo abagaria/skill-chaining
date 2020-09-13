@@ -14,7 +14,7 @@ from simple_rl.agents.func_approx.dsc.CoveringOptions import CoveringOptions
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq, use_hard_coded_events,
-                 use_dco, dco_use_xy_prior, allow_backward_options, experiment_name, seed, threshold, use_smdp_replay_buffer):
+                 use_dco, dco_use_xy_prior, experiment_name, seed, threshold, use_smdp_replay_buffer):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -26,7 +26,6 @@ class DeepSkillGraphAgent(object):
             use_hard_coded_events (bool)
             use_dco (bool)
             dco_use_xy_prior (bool)
-            allow_backward_options (bool)
             experiment_name (str)
             seed (int)
         """
@@ -37,7 +36,6 @@ class DeepSkillGraphAgent(object):
         self.use_hard_coded_events = use_hard_coded_events
         self.use_dco = use_dco
         self.dco_use_xy_prior = dco_use_xy_prior
-        self.allow_backward_options = allow_backward_options
         self.experiment_name = experiment_name
         self.seed = seed
         self.threshold = threshold
@@ -287,51 +285,6 @@ class DeepSkillGraphAgent(object):
         unconnected_events = [event for event in events if not self.planning_agent.plan_graph.does_path_exist(state, event)]
         return unconnected_events
 
-    def are_all_original_salient_events_forward_chained(self):
-        original_salient_events = self.mdp.get_original_target_events()
-        for event in original_salient_events:  # type: SalientEvent
-            forward_chains = [chain for chain in self.dsc_agent.chains if chain.target_salient_event == event and not chain.is_backward_chain]
-            if any([not chain.is_chain_completed() for chain in forward_chains]):
-                return False
-        return True
-
-    def should_set_off_learning_backward_options(self):
-        if len(self.mdp.get_original_target_events()) > 0:
-            assert self.use_hard_coded_events, "Expected original events to be hard coded ones"
-            return self.are_all_original_salient_events_forward_chained() \
-                   and not self.dsc_agent.create_backward_options \
-                   and not self.dsc_agent.learn_backward_options_offline
-
-        # If we have tried to create an event outside the graph a lot of times and failed,
-        # then that probably means that we are done with forward-chaining and we can now
-        # begin learning our backward options
-        return self.num_successive_rejections >= 20 \
-               and not self.dsc_agent.create_backward_options \
-               and not self.dsc_agent.learn_backward_options_offline
-
-    def set_off_learning_backward_options(self):
-        self.dsc_agent.create_backward_options = True
-        self.dsc_agent.learn_backward_options_offline = True
-
-        # Pretend as if we just learned a new leaf option and we want to check
-        # if creating a backward chain is in order
-        for chain in self.dsc_agent.chains:
-            leaf_option = chain.get_leaf_nodes_from_skill_chain()[0]
-
-            if leaf_option is not None:
-
-                trained_back_options = []
-
-                if self.dsc_agent.start_state_salience:
-                    trained_back_options += self.dsc_agent.manage_skill_chain_to_start_state(leaf_option)
-                if self.dsc_agent.event_intersection_salience:
-                    trained_back_options += self.dsc_agent.manage_intersection_between_option_and_events(leaf_option)
-                if self.dsc_agent.option_intersection_salience:
-                    raise NotImplementedError("Option intersection salience")
-
-                for newly_created_option in trained_back_options:  # type: Option
-                    self.planning_agent.add_newly_created_option_to_plan_graph(newly_created_option)
-
     def take_random_action(self):
         state = deepcopy(self.mdp.cur_state)
         action = self.mdp.sample_random_action()
@@ -343,7 +296,7 @@ class DeepSkillGraphAgent(object):
             self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(), done, 1)
 
     def create_skill_chains_if_needed(self, state, goal_salient_event):
-        current_salient_event = self.get_current_salient_event(state)
+        current_salient_event = self._get_current_salient_event(state)
 
         if current_salient_event is not None:
             if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event) and \
@@ -353,7 +306,7 @@ class DeepSkillGraphAgent(object):
                 self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
                                                                         init_salient_event=current_salient_event)
 
-    def get_current_salient_event(self, state):
+    def _get_current_salient_event(self, state):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
         for event in events:  # type: SalientEvent
@@ -391,8 +344,6 @@ if __name__ == "__main__":
     parser.add_argument("--use_option_intersection_salience", action="store_true", default=False)
     parser.add_argument("--use_event_intersection_salience", action="store_true", default=False)
     parser.add_argument("--pretrain_option_policies", action="store_true", default=False)
-    parser.add_argument("--create_backward_options", action="store_true", default=False)
-    parser.add_argument("--learn_backward_options_offline", action="store_true", default=False)
     parser.add_argument("--use_warmup_phase", action="store_true", default=False)
     parser.add_argument("--update_global_solver", action="store_true", default=False)
     parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50)
@@ -404,7 +355,6 @@ if __name__ == "__main__":
     parser.add_argument("--use_ucb", action="store_true", default=False)
     parser.add_argument("--threshold", type=int, help="Threshold determining size of termination set", default=0.1)
     parser.add_argument("--use_smdp_replay_buffer", action="store_true", help="Whether to use a replay buffer that has options", default=False)
-    parser.add_argument("--allow_backward_options", action="store_true", default=False)
     parser.add_argument("--use_her", action="store_true", default=False)
     parser.add_argument("--use_her_locally", action="store_true", help="HER for local options", default=False)
     args = parser.parse_args()
@@ -473,8 +423,6 @@ if __name__ == "__main__":
                             option_intersection_salience=args.use_option_intersection_salience,
                             event_intersection_salience=args.use_event_intersection_salience,
                             pretrain_option_policies=args.pretrain_option_policies,
-                            create_backward_options=args.create_backward_options,
-                            learn_backward_options_offline=args.learn_backward_options_offline,
                             dense_reward=args.dense_reward,
                             update_global_solver=args.update_global_solver,
                             use_warmup_phase=args.use_warmup_phase,
@@ -499,7 +447,6 @@ if __name__ == "__main__":
                                     use_hard_coded_events=args.use_hard_coded_events,
                                     use_dco=args.use_dco,
                                     dco_use_xy_prior=args.dco_use_xy_prior,
-                                    allow_backward_options=args.allow_backward_options,
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
