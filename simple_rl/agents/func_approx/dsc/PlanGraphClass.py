@@ -178,6 +178,8 @@ class PlanGraph(object):
 
     def get_reachable_nodes_from_source_node(self, source_node):
         assert isinstance(source_node, (Option, SalientEvent)), f"{type(source_node)}"
+        if source_node not in self.plan_graph.nodes:
+            return set()
         return nx.algorithms.dag.descendants(self.plan_graph, source_node)
 
     # ----------------------------------------------------------------------------
