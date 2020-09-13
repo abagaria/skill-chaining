@@ -94,14 +94,6 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         self.init_state = self._get_state(init_state_array, done=False)
         super(D4RLAntMazeMDP, self).reset()
 
-    def set_xy(self, position):
-        """ Used at test-time only. """
-        position = tuple(position)  # `maze_model.py` expects a tuple
-        self.env.env.set_xy(position)
-        obs = np.concatenate((np.array(position), self.init_state.features()[2:]), axis=0)
-        self.cur_state = self._get_state(obs, done=False)
-        self.init_state = deepcopy(self.cur_state)
-
     # --------------------------------
     # Used for visualizations only
     # --------------------------------
@@ -124,12 +116,19 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # ---------------------------------
     # Used during testing only
     # ---------------------------------
+    def reset_to_state(self, start_state):
+        position = tuple(start_state[:2])  # `maze_model.py` expects a tuple
+        self.env.env.set_xy(position)
+        self.cur_state = self._get_state(np.array(start_state), done=False)
 
-    def sample_random_state(self):
+    def _sample_random_state(self):
+        """The start and goal states are the same for Ant Maze, so this function will be used for both."""
         data = self.dataset
         idx = np.random.choice(data.shape[0])
         return data[idx, :]
 
-    def sample_random_action(self):
-        size = (self.action_space_size,)
-        return np.random.uniform(-1., 1., size=size)
+    def sample_goal_state(self):
+        return self._sample_random_state()
+
+    def sample_start_state(self):
+        return self._sample_random_state()

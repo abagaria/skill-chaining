@@ -45,7 +45,7 @@ class GoalDirectedMDP(MDP):
         Returns a random goal state that will become a new salient target for Deep Skill Graphs.
         :return: State
         """
-        pass
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def sample_start_state(self):
@@ -53,7 +53,7 @@ class GoalDirectedMDP(MDP):
         Returns a random valid start state that will be used at test-time.
         :return: State
         """
-        pass
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def reset_to_state(self, start_state):
@@ -62,6 +62,7 @@ class GoalDirectedMDP(MDP):
         Args:
             start_state (np.ndarray)
         """
+        raise NotImplementedError()
 
     def _initialize_salient_events(self, salient_tolerance, init_state, salient_states, salient_event_factor_idxs):
         # setup salient event static variables
