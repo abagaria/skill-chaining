@@ -26,7 +26,7 @@ class D4RLAntMazePlotter(MDPPlotter):
     def _generate_final_experiment_plots(self, dsg_agent):
         for option in dsg_agent.dsc_agent.trained_options:
             self.visualize_dqn_replay_buffer(option.solver)
-            self.visualize_next_state_reward_heat_map(option.solver, -1)
+            self.visualize_next_state_reward_heat_map(option, -1)
 
         # for i, o in enumerate(dsc_agent.trained_options):
         #     plt.subplot(1, len(dsc_agent.trained_options), i + 1)
