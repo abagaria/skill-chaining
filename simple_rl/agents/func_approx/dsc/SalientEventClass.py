@@ -38,8 +38,7 @@ class SalientEvent(object):
         self.is_init_event = is_init_event
 
         # This is the union of the effect set of all the options targeting this salient event
-        self.trigger_points = []
-        self._initialize_trigger_points()
+        self.trigger_points = self._initialize_trigger_points()
 
     def _initialize_trigger_points(self):
         # TODO: We don't need this after we have our graph checking daemon
