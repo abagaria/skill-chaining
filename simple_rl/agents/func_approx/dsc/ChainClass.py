@@ -25,7 +25,6 @@ class SkillChain(object):
             option_intersection_salience (bool): Whether to chain until the current chain intersects with another option
             event_intersection_salience (bool): Chain until you intersect with another salient event
         """
-        ipdb.set_trace()
         self.options = options
         self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
