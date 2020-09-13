@@ -1,6 +1,3 @@
 chain,is_completed
-SkillChain-1,True
-SkillChain-2,True
-SkillChain-3,True
-SkillChain-4,True
-SkillChain-5,True
+SkillChain-1,False
+SkillChain-2,False
