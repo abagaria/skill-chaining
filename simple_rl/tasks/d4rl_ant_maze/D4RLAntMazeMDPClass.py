@@ -27,20 +27,28 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         salient_positions = []
 
         if use_hard_coded_events:
-            salient_positions = [np.array((4, 0)),
-                                 np.array((8, 0)),
-                                 np.array((8, 4)),
-                                 np.array((8, 8)),
-                                 np.array((4, 8)),
-                                 np.array((0, 8))]
+            salient_positions = [np.array([4, 0] + [0] * 27),
+                                 np.array([8, 0] + [0] * 27),
+                                 np.array([8, 4] + [0] * 27),
+                                 np.array([8, 8] + [0] * 27),
+                                 np.array([4, 8] + [0] * 27),
+                                 np.array([0, 8] + [0] * 27)]
 
         self.dataset = self.env.get_dataset()["observations"]
         self._determine_x_y_lims()
 
-        GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
-                                 self._transition_func,
-                                 self._reward_func, self.init_state,
-                                 salient_positions, task_agnostic=True, goal_tolerance=0.6)
+        GoalDirectedMDP.__init__(self,
+                                 actions=range(self.env.action_space.shape[0]),
+                                 transition_func=self._transition_func,
+                                 reward_func=self._reward_func,
+                                 init_state=self.init_state,
+                                 salient_tolerance=0.6,
+                                 dense_reward=False,
+                                 salient_states=salient_positions,
+                                 goal_state=None,
+                                 task_agnostic=True,
+                                 init_set_factor_idxs=[0, 1],
+                                 salient_event_factor_idxs=[0, 1])
 
     def _reward_func(self, state, action):
         next_state, _, done, info = self.env.step(action)
