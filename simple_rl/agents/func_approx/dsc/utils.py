@@ -16,6 +16,7 @@ from tqdm import tqdm
 import os
 import ipdb
 from mpl_toolkits.mplot3d import Axes3D
+import math
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
@@ -677,3 +678,27 @@ def visualize_graph_with_all_edges(planner, chains, experiment_name,
 
     plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
     plt.close()
+
+def make_arrow(a, b):
+    head_length = 0.25
+    dx = b[0] - a[0]
+    dy = b[1] - a[1]
+
+    vec_ab_magnitude = math.sqrt(dx**2+dy**2)
+
+    dx = dx / vec_ab_magnitude
+    dy = dy / vec_ab_magnitude
+    vec_ab_magnitude = vec_ab_magnitude - head_length
+
+    ax = plt.axes()
+    ax.arrow(a[0], a[1], vec_ab_magnitude*dx, vec_ab_magnitude*dy, head_width=head_length, head_length=head_length, ec='black')
+    plt.scatter(a[0],a[1],color='black')
+    plt.scatter(b[0],b[1],color='black')
+
+def visualize_bi_graph(planner, mdp):
+    events = mdp.all_salient_events_ever + [mdp.get_start_state_salient_event()]
+    for event1 in events:
+        for event2 in events:
+            if event1 != event2:
+                if planner.plan_graph.does_path_exist(event1.target_state, event2):
+                    make_arrow(event1.target_state, event2.target_state)
