@@ -118,7 +118,7 @@ class SkillChaining(object):
 									update_global_solver=self.update_global_solver,
 									use_her=self.use_her,
 									dense_reward=self.dense_reward,
-									chain_id=None, is_backward_option=False, option_idx=0)
+									chain_id=None, option_idx=0)
 
 		self.trained_options = [self.global_option]
 
@@ -158,10 +158,11 @@ class SkillChaining(object):
 		start_state_salient_event = self.mdp.get_start_state_salient_event()
 		self.s0 = start_state_salient_event.trigger_points
 		self.chains = [SkillChain(options=[], chain_id=(i+1),
-		 			   			  intersecting_options=[], is_backward_chain=False,
+		 			   			  intersecting_options=[],
 								  target_salient_event=salient_event, init_salient_event=start_state_salient_event,
 								  option_intersection_salience=option_intersection_salience,
-								  event_intersection_salience=event_intersection_salience)
+								  event_intersection_salience=event_intersection_salience,
+								  mdp_init_salient_event=self.mdp.get_start_state_salient_event())
 					   for i, salient_event in enumerate(self.mdp.get_original_target_events())]
 
 		# List of init states seen while running this algorithm
@@ -212,18 +213,18 @@ class SkillChaining(object):
 							 dense_reward=self.dense_reward,
 							 use_warmup_phase=self.use_warmup_phase,
 							 update_global_solver=self.update_global_solver,
-							 is_backward_option=False,
 							 init_salient_event=init_salient_event,
 							 target_salient_event=salient_event,
 							 use_her=self.use_her_locally)
 		self.untrained_options.append(goal_option)
 
 		new_chain = SkillChain(options=[], chain_id=chain_id,
-							   intersecting_options=[], is_backward_chain=False,
+							   intersecting_options=[],
 							   target_salient_event=salient_event,
 							   init_salient_event=init_salient_event,
 							   option_intersection_salience=self.option_intersection_salience,
-							   event_intersection_salience=self.event_intersection_salience)
+							   event_intersection_salience=self.event_intersection_salience,
+							   mdp_init_salient_event=self.mdp.get_start_state_salient_event())
 		self.add_skill_chain(new_chain)
 
 		if goal_option.initialize_everywhere:
@@ -236,19 +237,11 @@ class SkillChaining(object):
 			self.chains.append(new_chain)
 
 	def add_negative_examples(self, new_option):
-		""" When creating an option in the forward chain, add the positive examples of all the options
-			in the forward chain as negative examples for the current option. Do the same when creating
-			a new_option in the backward chain, i.e, only add positives in the backward chain as
-			negative examples for the new_option.
+		""" When creating an option, add the positive examples of all the options
+			in the forward chain as negative examples for the current option.
 		"""
-		forward_option = not new_option.backward_option
-		if forward_option:
-			for option in self.trained_options[1:]:  # type: Option
-				new_option.negative_examples += option.positive_examples
-		else:
-			for option in self.trained_options[1:]:  # type: Option
-				if option.backward_option:
-					new_option.negative_examples += option.positive_examples
+		for option in self.trained_options[1:]:  # type: Option
+			new_option.negative_examples += option.positive_examples
 
 	def init_state_in_option(self, option):
 		"""
@@ -294,7 +287,7 @@ class SkillChaining(object):
 
 		return self.should_create_more_options() \
 			   and parent_option.get_training_phase() == "initiation_done" \
-			   and self.chains[parent_option.chain_id - 1].should_continue_chaining(self.chains)
+			   and self.chains[parent_option.chain_id - 1].should_continue_chaining()
 
 	def create_children_options(self, option):
 		o1 = self.create_child_option(option)
@@ -326,15 +319,7 @@ class SkillChaining(object):
 		name = prefix + "_{}".format(len(parent_option.children))
 		print("Creating {} with parent {}".format(name, parent_option.name))
 
-		# Options in the backward chain have a pre-set init_salient_event defined for them.
-		# This is generally the target event of the corresponding forward skill chain. Options
-		# in the current backward chain have their init_salient_event parameter set, which
-		# is only used during the gestation period of options
-		is_backward_option = self.chains[parent_option.chain_id - 1].is_backward_chain
-		gestation_init_salient_event = None
-		if is_backward_option:
-			gestation_init_salient_event = parent_option.init_salient_event  # type: SalientEvent
-
+		chain = self.chains[parent_option.chain_id - 1]
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
 									  lr_actor=parent_option.solver.actor_learning_rate,
@@ -349,8 +334,7 @@ class SkillChaining(object):
 									  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
 									  initialize_everywhere=parent_option.initialize_everywhere,
 									  max_num_children=parent_option.max_num_children,
-									  is_backward_option=is_backward_option,
-									  init_salient_event=gestation_init_salient_event,
+									  init_salient_event=chain.init_salient_event,
 									  use_warmup_phase=self.use_warmup_phase,
 									  update_global_solver=self.update_global_solver,
 									  initiation_period=parent_option.initiation_period,
@@ -490,13 +474,6 @@ class SkillChaining(object):
 									exploration_strategy="shaping")
 		self.agent_over_options = new_global_agent
 
-	def _get_backward_options_in_gestation(self, state):
-		for option in self.trained_options:
-			if option.backward_option and option.get_training_phase() == "gestation" and \
-					option.is_init_true(state) and not option.is_term_true(state):
-				return option
-		return None
-
 	def trigger_option_termination_conditions_off_policy(self, untrained_option, executed_option, option_transitions, episode_number):
 		"""
 		While you were executing `selected_option`, it is possible that you triggered the
@@ -534,12 +511,7 @@ class SkillChaining(object):
 		# Selected option
 		selected_option = self.trained_options[option_idx]  # type: Option
 
-		# TODO: Hack - If you satisfy the initiation condition for a backward option in gestation, take it
-		backward_option = self._get_backward_options_in_gestation(state)
-		if backward_option is not None:
-			selected_option = backward_option
-
-		# TODO: Hack - do not take option from a salient event targeting it
+		# Hack - do not take option from a salient event targeting it
 		if selected_option.is_term_true(state):
 			selected_option = self.global_option
 
@@ -557,7 +529,7 @@ class SkillChaining(object):
 
 		"""
 
-		state_after_rollout = self.get_next_state_from_experiences(option_transitions)
+		state_after_rollout = deepcopy(self.mdp.cur_state)
 
 		# If we triggered the untrained option's termination condition, add to its buffer of terminal transitions
 		for untrained_option in self.untrained_options:
@@ -582,11 +554,6 @@ class SkillChaining(object):
 		return 0.0
 
 	@staticmethod
-	def get_next_state_from_experiences(experiences):
-		try: return experiences[-1][-1]
-		except: ipdb.set_trace()
-
-	@staticmethod
 	def get_reward_from_experiences(experiences):
 		total_reward = 0.
 		for experience in experiences:
@@ -596,356 +563,7 @@ class SkillChaining(object):
 
 	def should_create_more_options(self):
 		""" Continue chaining as long as any chain is still accepting new options. """
-		return any([chain.should_continue_chaining(self.chains) for chain in self.chains])
-
-	def get_intersecting_options(self):
-		""" Iterate through all the skill chains and return all pairs of options that have intersecting initiation sets. """
-		intersecting_pairs = []
-		for chain in self.chains:  # type: SkillChain
-			for other_chain in self.chains:  # type: SkillChain
-				intersecting_options = chain.get_intersecting_options(other_chain)
-				if intersecting_options is not None:
-
-					# Only care about intersections between forward chains
-					if not intersecting_options[0].backward_option and not intersecting_options[1].backward_option:
-						intersecting_pairs.append(intersecting_options)
-
-		return intersecting_pairs
-
-	def get_current_salient_events(self):
-		""" Get a list of states that satisfy final target events (i.e not init of an option) in the MDP so far. """
-		return self.mdp.get_current_target_events()
-
-	def create_all_backward_options_offline(self, forward_chain, back_chain):
-		"""
-
-		Args:
-			forward_chain (SkillChain)
-			back_chain (SkillChain)
-
-		Returns:
-			created_options (list)
-		"""
-		assert forward_chain.is_chain_completed(self.chains)
-		assert not forward_chain.is_backward_chain
-
-		parent = None
-
-		# For each forward option, create the corresponding backward option
-		for i, forward_option in enumerate(reversed(forward_chain.options)):  # type: int, Option
-
-			if i == 0:
-				back_option = Option(self.mdp, name=f"chain_{back_chain.chain_id}_backward_option",
-									 global_solver=self.global_option.solver,
-									 lr_actor=self.global_option.solver.actor_learning_rate,
-									 lr_critic=self.global_option.solver.critic_learning_rate,
-									 ddpg_batch_size=self.global_option.solver.batch_size,
-									 subgoal_reward=self.subgoal_reward,
-									 buffer_length=self.buffer_length,
-									 classifier_type=self.classifier_type,
-									 num_subgoal_hits_required=self.num_subgoal_hits_required,
-									 seed=self.seed, parent=None, max_steps=self.max_steps,
-									 enable_timeout=self.enable_option_timeout,
-									 chain_id=len(self.chains),
-									 initialize_everywhere=True, max_num_children=1,
-									 writer=self.writer, device=self.device,
-									 dense_reward=self.dense_reward,
-									 use_warmup_phase=self.use_warmup_phase,
-									 update_global_solver=self.update_global_solver,
-									 is_backward_option=True,
-									 init_salient_event=back_chain.init_salient_event,
-									 target_salient_event=back_chain.target_salient_event,
-									 use_her=self.use_her_locally)
-			else:
-				back_option = self.create_child_option(parent_option=parent)
-
-			# Keep track of the current parent
-			parent = back_option
-
-			# Set the initiation classifier for this new option
-			back_option.num_goal_hits = forward_option.num_goal_hits
-			back_option.positive_examples = forward_option.positive_examples
-			back_option.negative_examples = forward_option.negative_examples
-			back_option.initiation_classifier = forward_option.initiation_classifier
-
-			print(f"Set {back_option}'s training phase to {forward_option.get_training_phase()}")
-
-			if self.pretrain_option_policies:
-				back_option.initialize_with_global_solver()
-
-			self.augment_agent_with_new_option(back_option, 0.)
-
-			if back_chain.is_chain_completed(self.chains):
-				break
-
-		# Detect if the newly constructed backward chain is dangling
-		# If it is, then we need to learn more options to complete that backward chain
-		if not back_chain.is_chain_completed(self.chains):
-			print(f"{back_chain} NOT completed - creating child options!")
-			back_chain_leaf_node = back_chain.options[-1]  # type: Option
-			new_untrained_back_options = self.create_children_options(option=back_chain_leaf_node)
-			self.add_new_options_to_skill_chains(new_options=new_untrained_back_options)
-
-		created_options = [option for option in back_chain.options if option.get_training_phase() == "initiation_done"]
-
-		return created_options
-
-	def manage_skill_chain_to_start_state(self, option):
-		"""
-		When we complete creating a skill-chain targeting a salient event,
-		we want to create a new skill chain that goes in the opposite direction.
-		Args:
-			option (Option)
-
-		Returns:
-			trained_back_options (list)
-
-		"""
-		chain = self.chains[option.chain_id - 1]  # type: SkillChain
-		if chain.chained_till_start_state() and not chain.is_backward_chain \
-				and not chain.has_backward_chain and self.create_backward_options:
-			chain.has_backward_chain = True
-
-			# 1. The new skill chain will chain back until it covers `start_states`
-			# 2. The options in this new backward chain will use `start_predicate` as the
-			#	 default initiation set during gestation
-			init_salient_event = chain.target_salient_event
-
-			# These target predicates are used to determine the goal of the new skill chain
-			target_salient_event = self.mdp.get_start_state_salient_event()
-
-			# No need to check for intersections for backward chains
-			new_chain = SkillChain(target_salient_event=target_salient_event,
-								   init_salient_event=init_salient_event,
-								   options=[], chain_id=len(self.chains)+1,
-								   intersecting_options=[], is_backward_chain=True,
-								   event_intersection_salience=False, option_intersection_salience=False)
-			self.add_skill_chain(new_chain)
-
-
-			if self.learn_backward_options_offline:
-				trained_back_options = self.create_all_backward_options_offline(forward_chain=chain,
-																				back_chain=new_chain)
-				return trained_back_options
-
-			# Create a new option and equip the SkillChainingAgent with it
-			new_option = Option(self.mdp, name=f"chain_{chain.chain_id}_backward_option",
-								global_solver=self.global_option.solver,
-								lr_actor=self.global_option.solver.actor_learning_rate,
-								lr_critic=self.global_option.solver.critic_learning_rate,
-								ddpg_batch_size=self.global_option.solver.batch_size,
-								subgoal_reward=self.subgoal_reward,
-								buffer_length=self.buffer_length,
-								classifier_type=self.classifier_type,
-								num_subgoal_hits_required=self.num_subgoal_hits_required,
-								seed=self.seed, parent=None, max_steps=self.max_steps,
-								enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
-								initialize_everywhere=True, max_num_children=1,
-								writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-								use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
-								is_backward_option=True,
-								init_salient_event=init_salient_event,
-								target_salient_event=target_salient_event,
-								use_her=self.use_her_locally)
-
-			if self.pretrain_option_policies:
-				new_option.initialize_with_global_solver()
-			self.augment_agent_with_new_option(new_option, 0.)
-			self.untrained_options.append(new_option)
-
-		# Since we did not learn any options offline, return the empty list
-		return []
-
-	def create_backward_skill_chain(self, start_event, target_event, create_root_option=True):
-		"""
-		Create a skill chain that takes you from target_event to start_event
-		Args:
-			start_event (SalientEvent): Chain will continue until this is covered. This is also the
-										default initiation set for backward options
-			target_event (SalientEvent): Chain will try to hit this event
-			create_root_option (bool)
-
-		"""
-		# No need to check for intersections if you are a backward chain
-		back_chain = SkillChain(target_salient_event=target_event,
-								init_salient_event=start_event,
-								options=[], chain_id=len(self.chains) + 1,
-								intersecting_options=[], is_backward_chain=True,
-								option_intersection_salience=False,
-								event_intersection_salience=False)
-		self.add_skill_chain(back_chain)
-
-		# Create a new option and equip the SkillChainingAgent with it
-		if create_root_option:
-			back_chain_root_option = Option(self.mdp, name=f"chain_{back_chain.chain_id}_backward_option",
-											  global_solver=self.global_option.solver,
-											  lr_actor=self.global_option.solver.actor_learning_rate,
-											  lr_critic=self.global_option.solver.critic_learning_rate,
-											  ddpg_batch_size=self.global_option.solver.batch_size,
-											  subgoal_reward=self.subgoal_reward,
-											  buffer_length=self.buffer_length,
-											  classifier_type=self.classifier_type,
-											  num_subgoal_hits_required=self.num_subgoal_hits_required,
-											  seed=self.seed, parent=None, max_steps=self.max_steps,
-											  enable_timeout=self.enable_option_timeout, chain_id=len(self.chains),
-											  initialize_everywhere=True, max_num_children=1,
-											  writer=self.writer, device=self.device, dense_reward=self.dense_reward,
-											  use_warmup_phase=self.use_warmup_phase,
-											  update_global_solver=self.update_global_solver,
-											  is_backward_option=True,
-											  init_salient_event=start_event,
-											  target_salient_event=target_event,
-											  use_her=self.use_her_locally)
-
-			if self.pretrain_option_policies:
-				back_chain_root_option.initialize_with_global_solver()
-			self.augment_agent_with_new_option(back_chain_root_option, 0.)
-			self.untrained_options.append(back_chain_root_option)
-
-		return back_chain
-
-	def manage_intersecting_skill_chains(self):
-		"""
-		When two forward chains intersect, we want to create a new chain that goes from
-		their target salient events to the region of intersection.
-
-		"""
-		intersecting_options = self.get_intersecting_options()
-
-		if intersecting_options:
-			intersecting_options = intersecting_options[0]
-			intersecting_chains = [self.chains[o.chain_id - 1] for o in intersecting_options if not o.backward_option]
-			chain1, chain2 = intersecting_chains[0], intersecting_chains[1]
-
-			if not chain1.has_backward_chain or not chain2.has_backward_chain:
-
-				chain1.has_backward_chain = True
-				chain2.has_backward_chain = True
-
-				# Add this new salient event to the MDP - so that we can plan to and from it
-				common_states = intersecting_options[0].effect_set
-				all_salient_events = self.mdp.get_all_target_events_ever()
-				all_salient_event_idx = [event.event_idx for event in all_salient_events]
-
-				intersection_salient_event = LearnedSalientEvent(state_set=common_states,
-																 event_idx=max(all_salient_event_idx) + 1,
-																 intersection_event=True)
-
-				self.mdp.add_new_target_event(intersection_salient_event)
-
-				long_chain = chain1 if chain1.is_chain_completed(self.chains) else chain2
-
-				# Create the following skill-chains:
-				# 1. Chain from beta1 to beta-intersection
-				# 2. Chain from beta2 to beta-intersection
-				# 3. Chain from beta-intersection to MDP start-state
-				self.create_backward_skill_chain(start_event=chain1.target_salient_event,
-												 target_event=intersection_salient_event)
-				self.create_backward_skill_chain(start_event=chain2.target_salient_event,
-												 target_event=intersection_salient_event)
-				self.create_backward_skill_chain(start_event=intersection_salient_event,
-												 target_event=long_chain.init_salient_event)
-
-				self.rewire_intersecting_chains(intersecting_chains, intersecting_options, intersection_salient_event)
-
-	def manage_intersection_between_option_and_events(self, option):
-		"""
-		`option`'s initiation set completely contains the given `event`.
-		Create an intersection learned salient event and then target it with a skill chain
-
-		Args:
-			option (Option)
-
-		Returns:
-			trained_backward_options (list)
-
-		"""
-
-		# Get chain corresponding to `option`
-		option_chain = self.chains[option.chain_id - 1]  # type: SkillChain
-
-		# Salient event corresponding to the current `option`
-		option_target_event = option_chain.target_salient_event  # type: SalientEvent
-
-		# Given just a freshly trained option, find all the events that the initiation set of the option completely engulfs
-		intersecting_events = []
-
-		for event in self.mdp.get_all_target_events_ever():  # type: SalientEvent
-			event_chains = [chain for chain in self.chains if chain.target_salient_event == event and
-							chain.is_chain_completed(self.chains) and not chain.is_backward_chain]
-			if event != option_target_event and \
-					len(event_chains) > 0 and \
-					SkillChain.should_exist_edge_from_event_to_option(event, option):
-				intersecting_events.append(event)
-
-		trained_backward_options = []
-
-		for event in intersecting_events:  # type: SalientEvent
-
-			print(f"Found intersection between {option} and {event} - will create a backward chain and rewire {option_chain}")
-
-			# Create a backward skill chain from the termination condition of the chain corresponding to `option` to the salient event
-			if self.create_backward_options \
-					and not option_chain.has_backward_chain \
-					and not option_chain.is_backward_chain \
-					and option_chain.is_chain_completed(self.chains):
-
-				back_chain = self.create_backward_skill_chain(start_event=option_chain.target_salient_event,
-															  target_event=event,
-															  create_root_option=(not self.learn_backward_options_offline))
-
-				option_chain.has_backward_chain = True
-
-				if self.learn_backward_options_offline:
-					learned_back_options = self.create_all_backward_options_offline(forward_chain=option_chain,
-																					back_chain=back_chain)
-					trained_backward_options += learned_back_options
-
-			# Set the `init_salient_event` of the chain corresponding to option to be the intersecting event
-			option_chain.init_salient_event = event
-
-		return trained_backward_options
-
-	def rewire_intersecting_chains(self, intersecting_chains, intersecting_options, intersection_salient_event):
-		"""
-
-		Args:
-			intersecting_chains:
-			intersecting_options:
-			intersection_salient_event (SalientEvent)
-
-		Returns:
-
-		"""
-		assert len(intersecting_options) == 2, intersecting_options
-		assert len(intersecting_chains) == 2, intersecting_chains
-
-		chain1, chain2 = intersecting_chains[0], intersecting_chains[1]      # type: SkillChain
-
-		# Find the chain that chains until the start state of the MDP
-		long_chain = chain1 if chain1.is_chain_completed(self.chains) else chain2
-
-		# Find the chain that chains until the region of intersection
-		short_chain = chain1 if long_chain == chain2 else chain2
-
-		# Change the init_salient_event corresponding to the short_chain
-		short_chain.init_salient_event = intersection_salient_event
-
-		print(f"Set {short_chain}'s init event to {short_chain.init_salient_event}, while keeping {long_chain}'s init event as {long_chain.init_salient_event}")
-
-		# Split the long chain into 2 parts: one that goes TO the intersection event and the other that goes to target_event
-		# The split will occur at the intersection option that is part of the long chain
-		# option1, option2 = intersecting_options[0], intersecting_options[1]  # type: Option
-
-		# split_option = option1 if option1 in chain1.options else option2
-		# split_index = get_split_idx(long_chain, split_option)
-		# first_split = long_chain.options[:split_index]
-		# second_split = short_chain.options[split_index:]
-		#
-		# # TODO: Create skills chains out of this...
-		#
-		# # Change the termination condition of options that target the `intersecting_options`
-		# pass
+		return any([chain.should_continue_chaining() for chain in self.chains])
 
 	def finish_option_initiation_phase(self, untrained_option, episode):
 		"""
@@ -973,13 +591,31 @@ class SkillChaining(object):
 		for new_option in new_options:  # type: Option
 			if new_option is not None:
 				self.untrained_options.append(new_option)
-				self.add_negative_examples(new_option)
 
 				# If initialize_everywhere is True, also add to trained_options
 				if new_option.initialize_everywhere:
 					if self.pretrain_option_policies:
 						new_option.initialize_with_global_solver()
 					self.augment_agent_with_new_option(new_option, self.init_q)
+
+	def _get_current_salient_events(self, state):
+		""" Get all the salient events satisfied by the current `state`. """
+		events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+		current_events = [event for event in events if event(state)]
+		return current_events
+
+	def disable_triggering_options_targeting_init_event(self, state):
+		""" Disable off-policy triggers for all options that target the current salient events. """
+		current_salient_events = self._get_current_salient_events(state)
+
+		for current_salient_event in current_salient_events:
+			for option in self.trained_options:  # type: Option
+				if option.chain_id is not None:
+					option.started_at_target_salient_event = option.target_salient_event == current_salient_event
+
+		# Additionally, disable off-policy triggering options whose termination set we are in
+		for option in self.trained_options[1:]:
+			option.started_at_target_salient_event = option.is_term_true(state)
 
 	def manage_skill_chain_after_option_rollout(self, *, state_before_rollout, executed_option,
 												created_options, episode_number, option_transitions):
@@ -1003,17 +639,6 @@ class SkillChaining(object):
 			completed_option = self.finish_option_initiation_phase(untrained_option=untrained_option,
 																   episode=episode_number)
 
-			# if completed_option is not None:
-			# 	self.mdp.satisfy_target_event(self.chains)
-
-			if completed_option is not None and self.start_state_salience and self.create_backward_options:
-				trained_back_options = self.manage_skill_chain_to_start_state(completed_option)
-				created_options += trained_back_options
-
-			if completed_option is not None and self.event_intersection_salience and self.create_backward_options:
-				trained_back_options = self.manage_intersection_between_option_and_events(completed_option)
-				created_options += trained_back_options
-
 			should_create_children = self.should_create_children_options(completed_option)
 
 			if should_create_children:
@@ -1022,9 +647,6 @@ class SkillChaining(object):
 
 			if completed_option is not None:
 				created_options.append(completed_option)
-
-		if self.option_intersection_salience and self.create_backward_options:
-			self.manage_intersecting_skill_chains()
 
 		return created_options
 
@@ -1066,6 +688,9 @@ class SkillChaining(object):
 
 			# Pick an option
 			selected_option = self.act(state=state, goal=goal, train_mode=True)
+
+			# Disable options whose termination sets we are already in
+			self.disable_triggering_options_targeting_init_event(state)
 
 			# Execute it in the MDP
 			option_transitions, reward = selected_option.execute_option_in_mdp(self.mdp,
@@ -1221,7 +846,6 @@ class SkillChaining(object):
 			state = next_state
 
 		return overall_reward, option_trajectories
-
 
 	def __getstate__(self):
 		excluded_keys = ("mdp", "writer", "plotter")
