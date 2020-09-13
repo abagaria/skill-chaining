@@ -187,6 +187,7 @@ class SkillChain(object):
         Returns:
             is_completed (bool)
         """
+        ipdb.set_trace()
         if self._is_deemed_completed:
             return True
 
