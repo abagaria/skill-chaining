@@ -167,7 +167,7 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
     plt.close()
 
 
-def plot_two_class_classifier(option, episode, experiment_name):
+def plot_two_class_classifier(option, episode, experiment_name, plot_examples=False):
     states = get_grid_states(option.overall_mdp)
     values = get_initiation_set_values(option)
 
@@ -184,10 +184,10 @@ def plot_two_class_classifier(option, episode, experiment_name):
     positive_examples = option.construct_feature_matrix(option.positive_examples)
     negative_examples = option.construct_feature_matrix(option.negative_examples)
 
-    if positive_examples.shape[0] > 0:
+    if positive_examples.shape[0] > 0 and plot_examples:
         plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
 
-    if negative_examples.shape[0] > 0:
+    if negative_examples.shape[0] > 0 and plot_examples:
         plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
 
     # background_image = imageio.imread("four_room_domain.png")
@@ -533,9 +533,9 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
 
     plt.figure()
 
-    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
+    completed = lambda chain: chain.is_chain_completed() if plot_completed_events else True
 
-    forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
+    forward_chains = [chain for chain in chains if completed(chain)]
 
     for chain in forward_chains:
         _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
@@ -651,7 +651,7 @@ def visualize_graph_with_all_edges(planner, chains, experiment_name,
 
     plt.figure()
 
-    completed = lambda chain: chain.is_chain_completed(chains) if plot_completed_events else True
+    completed = lambda chain: chain.is_chain_completed() if plot_completed_events else True
 
     forward_chains = [chain for chain in chains if not chain.is_backward_chain and completed(chain)]
     events = [event for event in planner.plan_graph.plan_graph.nodes if isinstance(event, SalientEvent)]
