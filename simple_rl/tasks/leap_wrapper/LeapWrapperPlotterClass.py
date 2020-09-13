@@ -63,10 +63,12 @@ class LeapWrapperPlotter(MDPPlotter):
 
         super().__init__(task_name, experiment_name,
                          ["initiation_set_plots", "value_function_plots", "option_policy_plots", "salient_event_locations"],
-                         mdp,
                          self.axis_x_range,
                          self.axis_y_range)
 
+    # -------------------------
+    # Shared MDPPlotter methods
+    # -------------------------
     def generate_episode_plots(self, dsc_agent, episode):
         """
         Args:
@@ -107,6 +109,9 @@ class LeapWrapperPlotter(MDPPlotter):
         plt.savefig(os.path.join(self.path, "final_results", "test_time_targets.png"))
         plt.close()
 
+    # -----------------------------
+    # MDP-specific plotting methods
+    # -----------------------------
     def _plot_option_salients(self, dsc_agent, episode):
         fig, ax = self._setup_plot((1, 1))
 

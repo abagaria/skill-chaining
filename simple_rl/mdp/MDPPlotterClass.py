@@ -15,7 +15,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class MDPPlotter(metaclass=abc.ABCMeta):
-    def __init__(self, task_name, experiment_name, subdirectories, mdp, x_range, y_range):
+    def __init__(self, task_name, experiment_name, subdirectories, x_range, y_range):
         """
         Args:
             task_name (str): The name of the current task, so we know where to save plots
@@ -28,7 +28,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             self._create_log_dir(os.path.join(self.path, subdirectory))
         self.save_args()
         self.kGraphIterationNumber = 0
-        self.mdp = mdp
         self.axis_x_range = x_range
         self.axis_y_range = y_range
 
@@ -46,16 +45,35 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # value function
         # low level shaped rewards
         # high level shaped rewards
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def _generate_final_experiment_plots(self, dsg_agent):
+        """
+        Only implement this method if you want any final plots for your MDP that
+        are not plotted in `generate_episode_plots`.
+
+        Args:
+            dsg_agent (DeepSkillGraphAgent)
+        """
         pass
 
     @abc.abstractmethod
     def plot_test_salients(self, start_states, goal_salients):
-        pass
+        """
+        Plot test-time start and goal states.
+
+        Args:
+            start_states (List[np.array])
+            goal_salients (List[SalientEvent)
+        """
+        raise NotImplementedError()
 
     def generate_final_experiment_plots(self, dsg_agent):
         """
         Args:
             dsg_agent (DeepSkillGraphAgent): the skill chaining agent we want to plot
+            mdp (MDP): MDP
         """
         self.save_option_success_rate(dsg_agent.dsc_agent)
         self.plot_learning_curve(dsg_agent, train_time=10)
@@ -108,29 +126,30 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         plot_learning_curves()
         save_test_parameters()
 
-    def learning_curve(self, dsc_agent, num_training_episodes, randomize_start_states, num_states=20):
+    def learning_curve(self, dsg_agent, num_training_episodes, randomize_start_states, num_states=20):
         def generate_start_states():
             if randomize_start_states:
-                return [self.mdp.sample_start_state() for _ in range(num_states)]
-            return [self.mdp.get_init_state()] * num_states
+                return [mdp.sample_start_state() for _ in range(num_states)]
+            return [mdp.get_init_state()] * num_states
 
         def generate_salient_events():
             salient_events = []
-            start_idx = max([event.event_idx for event in self.mdp.all_salient_events_ever]) + 1
+            start_idx = max([event.event_idx for event in mdp.all_salient_events_ever]) + 1
             for i in range(num_states):
-                new_salient_event = SalientEvent(self.mdp.sample_goal_state(),
+                new_salient_event = SalientEvent(mdp.sample_goal_state(),
                                                  event_idx=i + start_idx,
                                                  name="Test-Time Salient")
-                self.mdp.add_new_target_event(new_salient_event)
+                mdp.add_new_target_event(new_salient_event)
                 salient_events.append(new_salient_event)
             return salient_events
 
+        mdp = dsg_agent.mdp
         start_states = generate_start_states()
         goal_salient_events = generate_salient_events()
         self.plot_test_salients(start_states, goal_salient_events)
         all_runs = []
         for start_state, goal_salient_event in zip(start_states, goal_salient_events):
-            single_run = self.success_curve(dsc_agent, start_state, goal_salient_event, num_training_episodes)
+            single_run = self.success_curve(dsg_agent, start_state, goal_salient_event, num_training_episodes)
             all_runs.append(single_run)
         return all_runs, start_states, goal_salient_events
 
@@ -148,13 +167,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
             success_rates_over_time.append(int(reached_goal))
         return success_rates_over_time
-
-    def generate_random_states(self, num_states):
-        generated_states = []
-        for i in range(num_states):
-            state = self.mdp.sample_random_state()
-            generated_states.append(state)
-        return generated_states
 
     def save_option_success_rate(self, dsc_agent):
         def write_options_csv():

@@ -6,10 +6,40 @@ import matplotlib.pyplot as plt
 
 
 # import simple_rl.agents.func_approx.dsc.BaseSalientEventClass
-class AntMazePlotter(MDPPlotter):
-    def __init__(self, experiment_name):
-        MDPPlotter.__init__(self, "ant_maze", experiment_name)
+class D4RLAntMazePlotter(MDPPlotter):
+    def __init__(self, task_name, experiment_name):
+        MDPPlotter.__init__(self, task_name, experiment_name, [-10, 10], [-10, 10]) # TODO: Ask Akhil what the bounds of ant maze should be
 
+    # -------------------------
+    # Shared MDPPlotter methods
+    # -------------------------
+    def plot_test_salients(self, start_states, goal_salients):
+        # TODO: Implement this method (using code Akhil used in ICLR paper)
+        pass
+
+    def generate_episode_plots(self, dsc_agent, episode):
+        self.visualize_best_option_to_take(dsc_agent.agent_over_options, episode, dsc_agent.seed)
+
+        for option in dsc_agent.trained_options:
+            self.visualize_ddpg_shaped_rewards(dsc_agent.global_option, option, episode, dsc_agent.seed)
+            self.visualize_dqn_shaped_rewards(dsc_agent.agent_over_options, option, episode, dsc_agent.seed)
+
+    def _generate_final_experiment_plots(self, dsg_agent):
+        for option in dsg_agent.dsc_agent.trained_options:
+            self.visualize_dqn_replay_buffer(option.solver)
+            self.visualize_next_state_reward_heat_map(option.solver, -1)
+
+        # for i, o in enumerate(dsc_agent.trained_options):
+        #     plt.subplot(1, len(dsc_agent.trained_options), i + 1)
+        #     plt.plot(dsc_agent.option_qvalues[o.name])
+        #     plt.title(o.name)
+        # file_name = "sampled_q_so_{}.png".format(dsc_agent.seed)
+        # plt.savefig(os.path.join(self.path, file_name))
+        # plt.close()
+
+    # -----------------------------
+    # MDP-specific plotting methods
+    # -----------------------------
     def visualize_best_option_to_take(self, policy_over_options_dqn, episode, seed):
         states = np.array([exp.state for exp in policy_over_options_dqn.replay_buffer.memory])
         states_tensor = torch.from_numpy(states).float().to(policy_over_options_dqn.device)
@@ -93,24 +123,32 @@ class AntMazePlotter(MDPPlotter):
         plt.savefig(os.path.join(self.path, file_name))
         plt.close()
 
-    def generate_episode_plots(self, dsc_agent, episode):
-        self.visualize_best_option_to_take(dsc_agent.agent_over_options, episode, dsc_agent.seed)
+    def plot_two_class_classifier(self, option, episode):
+        states = get_grid_states(option.overall_mdp)
+        values = get_initiation_set_values(option)
 
-        for option in dsc_agent.trained_options:
-            self.visualize_ddpg_shaped_rewards(dsc_agent.global_option, option, episode, dsc_agent.seed)
-            self.visualize_dqn_shaped_rewards(dsc_agent.agent_over_options, option, episode, dsc_agent.seed)
+        x = np.array([state[0] for state in states])
+        y = np.array([state[1] for state in states])
+        xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
+        xx, yy = np.meshgrid(xi, yi)
+        rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
+        zz = rbf(xx, yy)
+        plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.bwr)
+        plt.colorbar()
 
-    def generate_experiment_plots(self, dsc_agent):
-        for option in dsc_agent.trained_options:
-            self.visualize_dqn_replay_buffer(option.solver)
+        # Plot trajectories
+        positive_examples = option.construct_feature_matrix(option.positive_examples)
+        negative_examples = option.construct_feature_matrix(option.negative_examples)
 
-        for i, o in enumerate(dsc_agent.trained_options):
-            plt.subplot(1, len(dsc_agent.trained_options), i + 1)
-            plt.plot(dsc_agent.option_qvalues[o.name])
-            plt.title(o.name)
-        file_name = "sampled_q_so_{}.png".format(dsc_agent.seed)
-        plt.savefig(os.path.join(self.path, file_name))
+        if positive_examples.shape[0] > 0:
+            plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+
+        if negative_examples.shape[0] > 0:
+            plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+        plt.title(f"{option.name} Initiation Set")
+        # background_image = imageio.imread("four_room_domain.png")
+        # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
+
+        file_name = f"{option.name}_episode_{episode}.png"
+        plt.savefig(os.path.join(self.path, "initiation_set_plots", file_name))
         plt.close()
-
-        for option in dsc_agent.trained_options:
-            self.visualize_next_state_reward_heat_map(option.solver, -1)

@@ -111,6 +111,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.init_state = self._get_state(init_state_array, done=False)
         super(LeapWrapperMDP, self).reset()
 
+    # ---------------------------------
+    # Used during testing only
+    # ---------------------------------
     def reset_to_state(self, start_state):
         self.env.reset_to_new_start_state(start_pos=start_state)
         self.cur_state = LeapWrapperState(endeff_pos=start_state[:3], puck_pos=start_state[3:], done=False)
