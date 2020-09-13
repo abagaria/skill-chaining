@@ -5,10 +5,9 @@ import torch
 import matplotlib.pyplot as plt
 
 
-# import simple_rl.agents.func_approx.dsc.BaseSalientEventClass
 class D4RLAntMazePlotter(MDPPlotter):
     def __init__(self, task_name, experiment_name):
-        MDPPlotter.__init__(self, task_name, experiment_name, [-10, 10], [-10, 10]) # TODO: Ask Akhil what the bounds of ant maze should be
+        MDPPlotter.__init__(self, task_name, experiment_name, ["initiation_set_plots", "value_function_plots"], [-10, 10], [-10, 10]) # TODO: Ask Akhil what the bounds of ant maze should be
 
     # -------------------------
     # Shared MDPPlotter methods

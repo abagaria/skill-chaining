@@ -392,8 +392,11 @@ if __name__ == "__main__":
                                     use_hard_coded_events=args.use_hard_coded_events)
     elif args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
-
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
+
+        if args.generate_plots:
+            from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazePlotterClass import D4RLAntMazePlotter
+            mdp_plotter = D4RLAntMazePlotter("d4rl-ant-maze", args.experiment_name)
     elif args.env == "d4rl-medium-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
 
@@ -421,7 +424,6 @@ if __name__ == "__main__":
         overall_mdp.env.seed(args.seed)
         if args.generate_plots:
             from simple_rl.tasks.leap_wrapper.LeapWrapperPlotterClass import LeapWrapperPlotter
-
             mdp_plotter = LeapWrapperPlotter("sawyer", args.experiment_name, overall_mdp)
             if args.render:
                 overall_mdp.movie_renderer.create_folder(mdp_plotter.path)
