@@ -138,6 +138,8 @@ class DeepSkillGraphAgent(object):
                     step_number += 1
                     success = False
                 else:
+                    self.create_skill_chains_if_needed(state, goal_salient_event)
+
                     step_number, success = self.planning_agent.run_loop(state=state,
                                                                         goal_salient_event=goal_salient_event,
                                                                         episode=episode,
@@ -223,9 +225,6 @@ class DeepSkillGraphAgent(object):
             self.mdp.add_new_target_event(salient_event)
             self.num_successive_rejections = 0
 
-            # Create a skill chain targeting the new event
-            self.dsc_agent.create_chain_targeting_new_salient_event(salient_event)
-
         return reject
 
     def is_path_under_construction(self, init_salient_event, target_salient_event):
@@ -233,7 +232,7 @@ class DeepSkillGraphAgent(object):
         assert isinstance(target_salient_event, SalientEvent), f"{type(target_salient_event)}"
 
         chains = self.dsc_agent.chains
-        unfinished_chains = [chain for chain in chains if not chain.is_chain_completed(chains)]
+        unfinished_chains = [chain for chain in chains if not chain.is_chain_completed()]
 
         match = lambda c: c.init_salient_event == init_salient_event and c.target_salient_event == target_salient_event
         return any([match(chain) for chain in unfinished_chains])
@@ -266,9 +265,9 @@ class DeepSkillGraphAgent(object):
         def _all_events_chained(low_event, high_event):
             chains = self.dsc_agent.chains
             chains_targeting_low_event =  [chain for chain in chains if chain.target_salient_event == low_event and
-                                                                        chain.is_chain_completed(chains)]
+                                           chain.is_chain_completed()]
             chains_targeting_high_event = [chain for chain in chains if chain.target_salient_event == high_event and
-                                                                        chain.is_chain_completed(chains)]
+                                           chain.is_chain_completed()]
             return (
                 not (low_event is None and high_event is None) and              # most_recent_events were not both rejected AND
                 (len(chains_targeting_low_event) > 0 or low_event is None) and  # low_event is chained to or was rejected AND
@@ -292,7 +291,7 @@ class DeepSkillGraphAgent(object):
         original_salient_events = self.mdp.get_original_target_events()
         for event in original_salient_events:  # type: SalientEvent
             forward_chains = [chain for chain in self.dsc_agent.chains if chain.target_salient_event == event and not chain.is_backward_chain]
-            if any([not chain.is_chain_completed(self.dsc_agent.chains) for chain in forward_chains]):
+            if any([not chain.is_chain_completed() for chain in forward_chains]):
                 return False
         return True
 
@@ -342,6 +341,26 @@ class DeepSkillGraphAgent(object):
         if not self.planning_agent.use_her:
             self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
             self.dsc_agent.agent_over_options.step(state.features(), self.dsc_agent.global_option.option_idx, reward, next_state.features(), done, 1)
+
+    def create_skill_chains_if_needed(self, state, goal_salient_event):
+        current_salient_event = self.get_current_salient_event(state)
+
+        if current_salient_event is not None:
+            if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event) and \
+                    not self.is_path_under_construction(current_salient_event, goal_salient_event):
+
+                print(f"[DeepSkillGraphsAgent] Creating chain from {current_salient_event} -> {goal_salient_event}")
+                self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
+                                                                        init_salient_event=current_salient_event)
+
+    def get_current_salient_event(self, state):
+        assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
+        events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        for event in events:  # type: SalientEvent
+            if event(state):
+                return event
+        return None
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
