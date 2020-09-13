@@ -35,6 +35,7 @@ class GoalDirectedMDP(MDP):
         self._setup_initiation_sets(init_state, init_set_factor_idxs)
 
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
+        ipdb.set_trace()
 
     # ----------------------
     # -- Abstract methods --
