@@ -270,7 +270,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         file_name = f"event_graphs_episode_{self.kGraphIterationNumber}.png"
         plt.savefig(os.path.join(self.path, "event_graphs", file_name))
         plt.close()
-
+        ipdb.set_trace()
         self.kGraphIterationNumber += 1
 
     def visualize_plan_graph(self, plan_graph, seed, episode=None):
