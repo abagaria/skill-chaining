@@ -214,6 +214,9 @@ class SkillGraphPlanner(object):
 
         state_before_rollout = deepcopy(self.mdp.cur_state)
 
+        # Don't (off-policy) trigger the termination condition of options targeting the event we are currently leaving
+        self.chainer.disable_triggering_options_targeting_init_event(state=state_before_rollout)
+
         # Execute the option: if the option is the global-option, it doesn't have a default
         # goal in the task-agnostic setting. As a result, we ask it to target the same goal
         # as the policy-over-options.
@@ -333,7 +336,7 @@ class SkillGraphPlanner(object):
             self.plan_graph.add_edge(newly_created_option, target_salient_event, edge_weight=1.)
 
         # Case 2: Leaf option # TODO: Need to check intersection with the init_salient_event as well
-        if chain.is_chain_completed(self.chainer.chains) \
+        if chain.is_chain_completed() \
             and is_leaf_node \
                 and chain.should_exist_edge_from_event_to_option(init_salient_event, newly_created_option):
 
@@ -371,7 +374,15 @@ class SkillGraphPlanner(object):
                     print(f"Adding edge from {newly_created_option} to {other_option}")
                     self.plan_graph.add_edge(newly_created_option, other_option)
 
-        if chain.is_chain_completed(self.chainer.chains):
+        self.update_chain_init_descendants()
+
+        if chain.should_expand_initiation_classifier(newly_created_option):
+            newly_created_option.expand_initiation_classifier(chain.init_salient_event)
+
+        if chain.should_complete_chain(newly_created_option):
+            chain.set_chain_completed()
+
+        if chain.is_chain_completed():
             visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
 
     # -----------------------------–––––––--------------
@@ -398,8 +409,13 @@ class SkillGraphPlanner(object):
                 return True
         return False
 
+    def update_chain_init_descendants(self):
+        for chain in self.chainer.chains:  # type: SkillChain
+            descendants = self.plan_graph.get_reachable_nodes_from_source_node(chain.init_salient_event)
+            chain.set_init_descendants(descendants)
+
     def get_options_in_known_part_of_the_graph(self):
-        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed(self.chainer.chains)]
+        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed()]
 
         # Grab the learned options from the completed chains
         known_options = []
@@ -414,7 +430,7 @@ class SkillGraphPlanner(object):
         def _chain_contains_event(c, e):
             return c.target_salient_event == e or c.init_salient_event == e
 
-        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed(self.chainer.chains)]
+        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed()]
         known_events = self.plan_graph.salient_nodes
         known_events_inside_graph = []
         for event in known_events:  # type: SalientEvent
@@ -434,7 +450,7 @@ class SkillGraphPlanner(object):
         init_salient_event = self.mdp.get_start_state_salient_event()
         new_skill_chain = SkillChain(init_salient_event=init_salient_event,
                                      target_salient_event=target_salient_event,
-                                     is_backward_chain=False,
+                                     mdp_init_salient_event=self.mdp.get_start_state_salient_event(),
                                      option_intersection_salience=self.chainer.option_intersection_salience,
                                      event_intersection_salience=self.chainer.event_intersection_salience,
                                      chain_id=chain_id,
@@ -462,7 +478,6 @@ class SkillGraphPlanner(object):
                                       max_num_children=self.chainer.trained_options[1].max_num_children,
                                       use_warmup_phase=self.chainer.use_warmup_phase,
                                       update_global_solver=self.chainer.update_global_solver,
-                                      is_backward_option=False,
                                       init_salient_event=init_salient_event,
                                       target_salient_event=target_salient_event,
                                       initiation_period=0)  # TODO: This might not be wise in Ant
@@ -528,8 +543,6 @@ class SkillGraphPlanner(object):
 
     def measure_success(self, goal_salient_event, start_state=None, num_episodes=100):
         successes = 0
-        self.chainer.create_backward_options = False
-        self.chainer.learn_backward_options_offline = False  # TODO: Need a better way to say that we should not create back options at test time
         for episode in range(num_episodes):
             num_steps, reached_goal = self.run_loop(state=start_state,
                                                     goal_salient_event=goal_salient_event,
