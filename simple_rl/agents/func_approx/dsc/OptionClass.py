@@ -123,6 +123,8 @@ class Option(object):
 		self.last_episode_term_triggered = -1
 		self.nu = 0.01
 		self.pretrained_option_policy = False
+		self.started_at_target_salient_event = False
+		self.salient_event_for_initiation = None
 
 		self.final_transitions = []
 		self.terminal_states = []
@@ -268,40 +270,15 @@ class Option(object):
 		return siblings
 
 	def is_valid_init_data(self, state_buffer):
-		siblings = self.get_sibling_options()  # type: list
+		# TODO: Use should_expand_initiation_classifier() from ChainClass
 
-		if len(siblings) == 0:
-			return True
+		# Use the data if it could complete the chain
+		if self.init_salient_event is not None:
+			if any([self.is_init_true(s) for s in self.init_salient_event.trigger_points]):
+				return True
 
-		if len(state_buffer) == 0:
-			return False
-
-		def _get_sibling_count(sibling, buffer):
-			if sibling.initiation_classifier is not None:
-				sibling_count = 0.
-				for state in buffer:
-					sibling_count += sibling.is_init_true(state)
-				return sibling_count
-			return 0
-
-		sibling_counts = [_get_sibling_count(sibling, state_buffer) for sibling in siblings]
-
-		sibling_condition = 0 <= (max(sibling_counts) / len(state_buffer)) <= 0.2
-		#
-		# # # TODO: Hack - preventing chain id 3 from chaining to the start state
-		# # def _start_hallway_count(states):
-		# # 	count = 0
-		# # 	for s in states:
-		# # 		if s.position[0] < 8:
-		# # 			count += 1
-		# # 	return count
-		# #
-		# # if self.chain_id == 3:
-		# # 	backward_fraction = _start_hallway_count(state_buffer) / len(state_buffer)
-		# # 	backward_condition = 0 < backward_fraction <= 0.1
-		# # 	return backward_condition and sibling_condition
-		#
-		return sibling_condition
+		# Otherwise, use the data if it has enough data points
+		return len(state_buffer) >= self.buffer_length // 10
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
@@ -332,6 +309,15 @@ class Option(object):
 				self.solver.replay_buffer.clear()
 
 			self.pretrained_option_policy = True
+
+	def initialize_option_with_global_her_policy(self):
+		""" Work in progress: initialize option policy with the global option's goal-conditioned policy. """
+
+		for target_param, param in zip(self.global_solver.target_actor.parameters(), self.solver.actor.parameters()):
+			target_param.data.copy_(param.data)
+
+		for target_param, param in zip(self.global_solver.target_critic.parameters(), self.solver.critic.parameters()):
+			target_param.data.copy_(param.data)
 
 	def initialize_option_solver_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
 
@@ -369,7 +355,11 @@ class Option(object):
 
 			return np.ones((state_matrix.shape[0]))
 		position_matrix = state_matrix[:, :2]
-		return self.initiation_classifier.predict(position_matrix) == 1
+
+		event_decision = self.salient_event_for_initiation(position_matrix) \
+							if self.salient_event_for_initiation is not None else np.zeros((state_matrix.shape[0]))
+
+		return np.logical_or(self.initiation_classifier.predict(position_matrix) == 1, event_decision)
 
 	def batched_is_term_true(self, state_matrix):
 		if self.parent is not None:
@@ -404,7 +394,11 @@ class Option(object):
 			return True
 
 		features = ground_state.features()[:2] if isinstance(ground_state, State) else ground_state[:2]
-		return self.initiation_classifier.predict([features])[0] == 1
+
+		# If an option's initiation set is "expanded", we union its classifier with the init_salient_event
+		event_decision = self.salient_event_for_initiation(features) if self.salient_event_for_initiation is not None else False
+
+		return self.initiation_classifier.predict([features])[0] == 1 or event_decision
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -454,6 +448,9 @@ class Option(object):
 		assert self.backward_option
 		assert len(self.gestation_init_predicates) > 0, self.gestation_init_predicates
 		pass
+
+	def expand_initiation_classifier(self, salient_event):
+		self.salient_event_for_initiation = salient_event
 
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
@@ -812,18 +809,21 @@ class Option(object):
 		else:
 			raise NotImplementedError(self.overall_mdp)
 
-		return eligible_phase and not self.backward_option
+		return eligible_phase and not self.backward_option and not self.started_at_target_salient_event
 
 	def trigger_termination_condition_off_policy(self, trajectory, episode):
 		trajectory_so_far = []
 		states_so_far = []
+
+		if not self.is_eligible_for_off_policy_triggers():
+			return False
 
 		for state, action, reward, next_state in trajectory:  # type: State, np.ndarray, float, State
 			trajectory_so_far.append((state, action, reward, next_state))
 			states_so_far.append(state)
 
 			if self.is_term_true(next_state) and self.is_valid_init_data(states_so_far) and \
-					episode != self.last_episode_term_triggered and self.is_eligible_for_off_policy_triggers():
+					episode != self.last_episode_term_triggered:
 
 				print(f"Triggered termination condition for {self}")
 				self.effect_set.append(next_state)
