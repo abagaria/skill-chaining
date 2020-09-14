@@ -265,7 +265,7 @@ def train_solver(
 
             # Iterate to the next state, not yet augmented @HER
             state = next_state
-            if is_terminal:
+            if transition[4]:
                 break
             
         print(f'Episode terminated in {results[episode,0]} steps with reward {results[episode,1]}')
@@ -341,6 +341,10 @@ def main():
     np.random.seed(args.seed)
     environment.seed(args.seed)
 
+    # TODO: Right now, I assume all other goals are HER goals, which might not be right
+    goals = [parse_goal(goal) for goal in args.add_goal]
+    goal_states = [goal_state for (_, goal_state, _, _, _) in goals]
+
     for i, goal in enumerate(args.add_goal):
         # (i) Parse info about this goal
         (dense_reward, 
@@ -348,7 +352,10 @@ def main():
         pretrain, 
         num_samples, 
         source_goals
-        ) = parse_goal(goal)
+        ) = goal
+
+        # TODO: Figure out what our HER goals are @HER
+        her_goals = np.vstack(goal_states.remove(i))
 
         # (ii) Set up our DDPG
         solver = DDPGAgent(
@@ -378,6 +385,7 @@ def main():
             args.goal_dimension,
             args.goal_threshold,
             goal_state,
+            her_goals, 
             dense_reward,
             args.fixed_epsilon,
             args.num_episodes,
