@@ -76,7 +76,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             mdp (MDP): MDP
         """
         self.save_option_success_rate(dsg_agent.dsc_agent)
-        self.plot_learning_curve(dsg_agent, train_time=10)
+        self.plot_learning_curve(dsg_agent, train_time=250)
         self._generate_final_experiment_plots(dsg_agent)
         self.generate_episode_plots(dsg_agent.dsc_agent, 'post_testing')
 
