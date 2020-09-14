@@ -355,7 +355,7 @@ def main():
         ) = goal
 
         # TODO: Figure out what our HER goals are @HER
-        her_goals = np.vstack(goal_states.remove(i))
+        her_goals = np.vstack(goal_states[:i] + goal_states[i + 1:])
 
         # (ii) Set up our DDPG
         solver = DDPGAgent(
