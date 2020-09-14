@@ -345,7 +345,7 @@ def main():
     goals = [parse_goal(goal) for goal in args.add_goal]
     goal_states = [goal_state for (_, goal_state, _, _, _) in goals]
 
-    for i, goal in enumerate(args.add_goal):
+    for i, goal in enumerate(goals):
         # (i) Parse info about this goal
         (dense_reward, 
         goal_state, 
