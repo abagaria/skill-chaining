@@ -109,6 +109,10 @@ class LeapWrapperPlotter(MDPPlotter):
         plt.savefig(os.path.join(self.path, "final_results", "test_time_targets.png"))
         plt.close()
 
+    def _generate_final_experiment_plots(self, dsg_agent):
+        # No additional plots needed for Sawyer.
+        pass
+
     # -----------------------------
     # MDP-specific plotting methods
     # -----------------------------

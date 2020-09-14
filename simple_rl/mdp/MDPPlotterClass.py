@@ -45,13 +45,13 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         # value function
         # low level shaped rewards
         # high level shaped rewards
-        raise NotImplementedError()
+        pass
 
     @abc.abstractmethod
     def _generate_final_experiment_plots(self, dsg_agent):
         """
-        Only implement this method if you want any final plots for your MDP that
-        are not plotted in `generate_episode_plots`.
+        Make any final plots for your MDP that are not plotted in `generate_episode_plots`.
+        This method will only be called once after training is completed.
 
         Args:
             dsg_agent (DeepSkillGraphAgent)
@@ -67,7 +67,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             start_states (List[np.array])
             goal_salients (List[SalientEvent)
         """
-        raise NotImplementedError()
+        pass
 
     def generate_final_experiment_plots(self, dsg_agent):
         """
@@ -270,7 +270,6 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         file_name = f"event_graphs_episode_{self.kGraphIterationNumber}.png"
         plt.savefig(os.path.join(self.path, "event_graphs", file_name))
         plt.close()
-        ipdb.set_trace()
         self.kGraphIterationNumber += 1
 
     def visualize_plan_graph(self, plan_graph, seed, episode=None):
