@@ -357,9 +357,9 @@ def main():
         # TODO: Figure out what our HER goals are @HER
         her_goals = np.vstack(goal_states[:i] + goal_states[i + 1:])
 
-        # (ii) Set up our DDPG
+        # (ii) Set up our DDPG, remembering that we are now conditionin on goals @HER
         solver = DDPGAgent(
-            environment.observation_space.shape[0],
+            environment.observation_space.shape[0] + args.goal_dimension,
             environment.action_space.shape[0],
             args.seed,
             args.device
