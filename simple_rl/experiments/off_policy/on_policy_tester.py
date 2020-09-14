@@ -203,7 +203,7 @@ def train_solver(
     goal_dimension: int,
     goal_threshold: float,
     goal_state: np.ndarray,
-    her_goals: np.npdarray, # Added @HER
+    her_goals: np.darray, # Added @HER
     dense_reward: bool,
     fixed_epsilon: float,
     num_episodes: int, 
@@ -385,7 +385,7 @@ def main():
             args.goal_dimension,
             args.goal_threshold,
             goal_state,
-            her_goals, 
+            her_goals,
             dense_reward,
             args.fixed_epsilon,
             args.num_episodes,
