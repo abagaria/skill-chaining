@@ -154,9 +154,9 @@ def pickle_run(directory: Path, solver: DDPGAgent, results: np.ndarray) -> None:
 
 def reward_metric(
     state: np.ndarray,
-    goal_dimension,
+    goal_dimension: int,
     goal_threshold: float,
-    goal_state: np.ndarray,
+    goal_state: np.ndarray, # removed @HER
     dense_reward: bool
     ) -> Tuple[float, bool]:
 
@@ -169,12 +169,41 @@ def reward_metric(
     
     return reward, is_terminal
 
+# For getting transitions @HER
+def get_augmented_transition(
+        state: np.ndarray,
+        action: np.ndarray,
+        next_state: np.ndarray,
+        goal_dimension: int,
+        goal_state: np.ndarray,
+        goal_threshold: float,
+        dense_reward: bool,
+        ) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray, bool]:
+
+        # First, get our reward for the given conditioned goal
+        reward, is_terminal = reward_metric(
+            next_state, 
+            goal_dimension, 
+            goal_threshold, 
+            goal_state,
+            dense_reward
+            )
+        
+        # Then, augment our state vectors with that goal
+        state = np.concatenate((state, goal_state))
+        next_state = np.concatenate((next_state, goal_state))
+
+        # Finally, return the full transition tuple
+        return (state, action, reward, next_state, is_terminal)  
+
+
 def train_solver(
     solver: DDPGAgent,
     environment, # Gym Environment
     goal_dimension: int,
     goal_threshold: float,
     goal_state: np.ndarray,
+    her_goals: np.npdarray, # Added @HER
     dense_reward: bool,
     fixed_epsilon: float,
     num_episodes: int, 
@@ -185,7 +214,10 @@ def train_solver(
     results = np.zeros((num_episodes, 2))
     for episode in range(num_episodes):
         print(f'Executing episode {episode}/{num_episodes}')
+
+        # We need to augment our state with our desired goal @HER
         state = environment.reset()
+
         for _ in range(num_steps):
             # (i) Render the current state
             if render:
@@ -195,23 +227,43 @@ def train_solver(
             if fixed_epsilon < np.random.random():
                 action = environment.action_space.sample()
             else:
-                action = solver.act(state)
+                # Act on the goal-conditioned state @HER
+                augmented_state = np.concatenate((state, goal_state))
+                action = solver.act(augmented_state) 
             
             # (iii) Take a step and get our rewards
             next_state, _, _, _ = environment.step(action)
-            reward, is_terminal = reward_metric(
+
+            # Augment with (and record in results) our main goal @HER
+            transition = get_augmented_transition(
+                state, 
+                action, 
                 next_state, 
                 goal_dimension, 
-                goal_threshold, 
                 goal_state, 
+                goal_threshold, 
                 dense_reward
                 )
+            
+            # (iv) Train on and log our main goal transition
+            solver.step(*transition)
+            results[episode] += 1, transition[2]
 
-            # (iv) Train on and log our transition
-            solver.step(state, action, reward, next_state, is_terminal)
-            results[episode] += 1, reward
+            # Now, augment with and add to our sample buffer all our other HER goals @HER
+            for her_goal in her_goals:
+                her_transition = get_augmented_transition(
+                    state, 
+                    action, 
+                    next_state, 
+                    goal_dimension, 
+                    her_goal, 
+                    goal_threshold, 
+                    dense_reward
+                    )
+                
+                solver.step(*her_transition)
 
-            # Iterate to the next state
+            # Iterate to the next state, not yet augmented @HER
             state = next_state
             if is_terminal:
                 break
@@ -256,16 +308,8 @@ def pretrain_solver(
     
     for n in num_samples:
         print(f'Pretraining on sample {n}/{num_samples}')
-        state, action, _, next_state, _ = np.random.choice(combined_buffer, replace=False)
-        reward, is_terminal = reward_metric(
-                next_state, 
-                goal_dimension, 
-                goal_threshold, 
-                goal_state, 
-                dense_reward
-                )
-        
-        solver.step(state, action, reward, next_state, is_terminal)
+        transition = np.random.choice(combined_buffer, replace=False)
+        solver.step(*transition)
 
 
 ################################################################################
@@ -292,6 +336,7 @@ def main():
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
+    # TODO: Compat for non gym args
     environment = gym.make(args.environment)
     np.random.seed(args.seed)
     environment.seed(args.seed)
