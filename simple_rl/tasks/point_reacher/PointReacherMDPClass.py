@@ -152,7 +152,7 @@ class PointReacherMDP(MDP):
         outgoing_chains = [chain for chain in chains if chain.init_salient_event == salient_event]
 
         event_chains = incoming_chains + outgoing_chains
-        event_chains_completed = all([chain.is_chain_completed(chains) for chain in event_chains])
+        event_chains_completed = all([chain.is_chain_completed() for chain in event_chains])
         satisfied = len(incoming_chains) > 0 and len(outgoing_chains) and event_chains_completed
 
         return satisfied

@@ -494,7 +494,7 @@ class SkillGraphPlanningAgent(object):
 
         def _chain_is_completed(c):
             options_in_graph = all([o in self.plan_graph.option_nodes for o in c.options])
-            return options_in_graph and c.is_chain_completed(self.chainer.chains)
+            return options_in_graph and c.is_chain_completed()
 
         # Grab all the completed skill chains that contain the goal_state
         chains_with_goal_state = [chain for chain in self.chainer.chains if
@@ -551,7 +551,7 @@ class SkillGraphPlanningAgent(object):
         def _chain_contains_event(c, e):
             return c.target_salient_event == e or c.init_salient_event == e
 
-        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed(self.chainer.chains)]
+        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed()]
         known_events = self.plan_graph.salient_nodes
         known_events_inside_graph = []
         for event in known_events:  # type: SalientEvent

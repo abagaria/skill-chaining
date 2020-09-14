@@ -161,7 +161,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
         def write_chains_csv():
             fields = ['chain', 'is_completed']
-            rows = [(str(chain), chain.is_chain_completed(dsc_agent.chains)) for chain in dsc_agent.chains]
+            rows = [(str(chain), chain.is_chain_completed()) for chain in dsc_agent.chains]
             with open(os.path.join(self.path, "final_results", "chain_results.csv"), "w") as csv_file:
                 csv_writer = csv.writer(csv_file)
                 csv_writer.writerow(fields)
@@ -231,7 +231,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
 
     def visualize_graph(self, chains, plot_completed_events):
         def _completed(chain):
-            return chain.is_chain_completed(chains) if plot_completed_events else True
+            return chain.is_chain_completed() if plot_completed_events else True
 
         def _plot_event_pair(event1, event2):
             x = [event1.target_state[0], event2.target_state[0]]

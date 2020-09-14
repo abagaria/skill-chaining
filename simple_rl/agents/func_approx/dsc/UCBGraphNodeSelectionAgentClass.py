@@ -165,7 +165,7 @@ class UCBActionSelectionAgent(object):
         filtered_events = []
         for event in self.events:  # type: SalientEvent
             targeting_chains = [chain for chain in self.chains if _is_chain_eligible(chain, event)]
-            if any([chain.is_chain_completed(self.chains) for chain in targeting_chains]):
+            if any([chain.is_chain_completed() for chain in targeting_chains]):
                 filtered_events.append(event)
         return filtered_events
 
