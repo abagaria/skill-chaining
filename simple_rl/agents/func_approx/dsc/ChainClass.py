@@ -212,7 +212,7 @@ class SkillChain(object):
                     self.init_salient_event = event  # Rewiring operation
                 elif len(intersecting_events) > 1:
                     # Find the distance between the target_salient_event and the intersecting_events
-                    distances = [self.target_salient_event.distance_from_goal(event.target_state) for event in intersecting_events]
+                    distances = [self.target_salient_event.distance_to_other_event(event) for event in intersecting_events]
                     best_idx = np.argmin(distances)
                     best_idx = random.choice(best_idx) if isinstance(best_idx, np.ndarray) else best_idx
                     closest_event = intersecting_events[best_idx]
