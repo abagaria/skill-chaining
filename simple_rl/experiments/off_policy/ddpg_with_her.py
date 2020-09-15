@@ -61,8 +61,8 @@ args = parser.parse_args()
 #     pickle.dump(results, open(directory / 'results.pkl', 'wb'))
 
 def main():
-    directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
-    os.mkdir(directory)
+    # directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
+    # os.mkdir(directory)
 
     # (i) Maybe pretrain our DDPG agent using HER
     mdp = AntReacherMDP(seed=args.seed, render=args.render)
