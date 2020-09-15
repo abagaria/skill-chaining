@@ -85,10 +85,7 @@ def main():
             )
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
-    # TODO: fix argparsing the goal state
-    # goal_state = np.ndarray(args.goal_state)
-    goal_state = np.ndarray([1.74, 1.2])
-    mdp = AntReacherMDP(goal_state=goal_state, seed=args.seed, render=args.render)
+    mdp = AntReacherMDP(goal_state=np.array(args.goal_state), seed=args.seed, render=args.render)
 
     pes_ii, _ = train(
         solver,
