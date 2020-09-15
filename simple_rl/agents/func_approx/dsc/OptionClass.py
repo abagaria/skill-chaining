@@ -827,4 +827,4 @@ class Option(object):
 
     def add_negative_example(self, state):
         state = state.features() if isinstance(state, State) else state
-        self.negative_examples.append(state)
+        self.negative_examples.append([state])
