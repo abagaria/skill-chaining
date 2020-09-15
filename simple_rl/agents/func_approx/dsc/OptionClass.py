@@ -780,9 +780,7 @@ class Option(object):
             self.add_positive_examples(positive_states)
 
         elif num_steps == self.timeout and self.get_training_phase() == "initiation":
-            start_state_array = start_state.features()
-            negative_examples = [InitiationSet.get_initiation_set_factors(start_state_array)]
-            self.negative_examples.append(negative_examples)
+            self.add_negative_example(start_state)
         # else:
         # 	assert final_state.is_terminal() or outer_step_number == self.max_steps, \
         # 		"Hit else case, but {} was not terminal".format(final_state)
