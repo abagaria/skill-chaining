@@ -606,7 +606,7 @@ class Option(object):
 
         # For global and parent option, we use the negative distance to the goal state
         if self.parent is None:
-            distance_to_goal = self.target_salient_event.distance_from_goal(state)
+            distance_to_goal = self.target_salient_event.distance_to_state(state)
             return -distance_to_goal
 
         # We need a numpy array out here so we can shape it into a matrix below

@@ -135,6 +135,9 @@ class SalientEvent(object):
         else:
             raise TypeError(f"state was of type {type(state)} but must be a State, np.ndarray, or list")
 
+    def distance_to_state(self, state):
+        return self._point_to_point_distance(self.target_state, state)
+
     def distance_to_other_event(self, other):
         """
         Method to compute the distance between two salient events.
