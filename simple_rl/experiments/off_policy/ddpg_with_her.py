@@ -85,14 +85,14 @@ def main():
             )
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
-    mdp = AntReacherMDP(goal_state=np.array(args.goal_state), seed=args.seed, render=args.render)
+    # mdp = AntReacherMDP(goal_state=np.array(args.goal_state), seed=args.seed, render=args.render)
 
-    pes_ii, _ = train(
-        solver,
-        mdp,
-        args.num_episodes,
-        args.num_steps
-        )
+    # pes_ii, _ = train(
+    #     solver,
+    #     mdp,
+    #     args.num_episodes,
+    #     args.num_steps
+    #     )
     
     ipdb.set_trace()
 
