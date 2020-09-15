@@ -68,8 +68,8 @@ def main():
     mdp = AntReacherMDP(seed=args.seed, render=args.render)
 
     solver = DDPGAgent(
-            mdp.env.state_size + args.goal_dimension,
-            mdp.env.action_size,
+            mdp.state_space_size() + args.goal_dimension,
+            mdp.action_space_size(),
             args.seed,
             args.device
             )
