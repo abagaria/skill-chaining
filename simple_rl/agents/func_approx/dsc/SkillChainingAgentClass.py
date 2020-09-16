@@ -34,7 +34,8 @@ class SkillChaining(object):
 				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
 				 pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
 				 update_global_solver=False, use_warmup_phase=False, dense_reward=False, use_her=False,
-				 use_her_locally=False, log_dir="", seed=0, tensor_log=False, experiment_name=""):
+				 use_her_locally=False, off_policy_update_type="single",
+				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -62,6 +63,7 @@ class SkillChaining(object):
 			dense_reward (bool): Whether DSC will use dense rewards to train option policies
 			use_her (bool): Whether DSC will use Hindsight Experience Replay
 			use_her_locally (bool): Whether the local options will use Hindsight Experience Replay
+			off_policy_update_type (bool): What kind of off-policy updates to make to option policies not used
 			log_dir (os.path): directory to store all the scores for this run
 			seed (int): We are going to use the same random seed for all the DQN solvers
 			tensor_log (bool): Tensorboard logging enable
@@ -91,9 +93,12 @@ class SkillChaining(object):
 		self.pretrain_option_policies = pretrain_option_policies
 		self.create_backward_options = create_backward_options
 		self.learn_backward_options_offline = learn_backward_options_offline
+		self.off_policy_update_type = off_policy_update_type
 		self.update_global_solver = update_global_solver
 		self.use_warmup_phase = use_warmup_phase
 		self.experiment_name = experiment_name
+
+		assert off_policy_update_type in ("none", "single", "batched"), off_policy_update_type
 
 		tensor_name = "runs/{}_{}".format(self.experiment_name, seed)
 		self.writer = SummaryWriter(tensor_name) if tensor_log else None
@@ -494,6 +499,51 @@ class SkillChaining(object):
 					and untrained_option.get_training_phase() == "initiation_done":
 				print(f"Triggered final termination condition for {untrained_option} while executing {executed_option}")
 
+	def make_off_policy_option_updates(self, executed_option, pre_rollout_state, option_transitions, k=3):
+		if self.off_policy_update_type == "single":
+			self.make_single_transition_off_policy_updates(executed_option, option_transitions, k=k)
+		elif self.off_policy_update_type == "batched":
+			self.make_batched_off_policy_option_updates(executed_option, pre_rollout_state, option_transitions, k=k)
+
+	def make_batched_off_policy_option_updates(self, executed_option, pre_rollout_state, option_transitions, k=3):
+		assert isinstance(executed_option, Option), f"{type(executed_option)}"
+		assert not self.use_her_locally, "Not implemented off-policy option updates for HER yet"
+
+		eligible = lambda o, s: o.is_init_true(s) and not o.is_term_true(s) and \
+								o != executed_option and o.get_training_phase() == "initiation_done"
+
+		options = [o for o in self.trained_options[1:] if eligible(o, pre_rollout_state)]
+		td_errors = np.array([o.get_mean_td_error(option_transitions) for o in options])
+		sorted_option_idx = np.argsort(-td_errors)[:k]
+		selected_options = [options[idx] for idx in sorted_option_idx]
+		for option in selected_options:  # type: Option
+			print(f"Performing batched off-policy update for {option} at {pre_rollout_state.position}")
+			option.local_option_experience_replay(option_transitions, goal_state=None)
+
+	def make_single_transition_off_policy_updates(self, executed_option, option_transitions, k=3):
+		assert isinstance(executed_option, Option), f"{type(executed_option)}"
+		assert not self.use_her_locally, "Not implemented off-policy option updates for HER yet"
+
+		def _numpify_transition(s, a, r, sp, done):
+			return s.features(), a, r, sp.features(), done
+
+		eligible = lambda o, s: o.is_init_true(s) and not o.is_term_true(s) and \
+								o != executed_option and o.get_training_phase() == "initiation_done"
+
+		for transition in option_transitions:
+			options = [o for o in self.trained_options[1:] if eligible(o, transition[0])]
+			td_errors = []
+			for option in options:
+				relabeled_transition = option.relabel_transitions_with_option_reward_function([transition])[0]
+				relabeled_transition_np = _numpify_transition(*relabeled_transition)
+				td_error = option.solver.get_td_error(*relabeled_transition_np)
+				td_errors.append(td_error.item())
+			td_errors = np.array(td_errors)
+			sorted_option_idx = np.argsort(-td_errors)[:k]
+			selected_options = [options[idx] for idx in sorted_option_idx]
+			for option in selected_options:  # type: Option
+				option.update_option_solver(*transition)
+
 	def get_augmented_state(self, state, goal):
 		if goal is not None and self.use_her:
 			return np.concatenate((state.features(), goal))
@@ -625,6 +675,11 @@ class SkillChaining(object):
 		self.update_policy_over_options_after_option_rollout(state_before_rollout=state_before_rollout,
 															 executed_option=executed_option,
 															 option_transitions=option_transitions)
+
+		# Off-policy policy updates for other options
+		self.make_off_policy_option_updates(executed_option=executed_option,
+											pre_rollout_state=state_before_rollout,
+											option_transitions=option_transitions)
 
 		# In the skill-tree setting we could be learning many options at the current time
 		# We must iterate through all such options and check if the current transition

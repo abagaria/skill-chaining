@@ -2,7 +2,7 @@
 import random
 import numpy as np
 from copy import deepcopy
-from collections import deque
+from collections import deque, Sequence
 import argparse
 import ipdb
 
@@ -162,6 +162,55 @@ class DDPGAgent(Agent):
             self.writer.add_scalar("{}_state_ydot".format(self.name), state[3], self.n_acting_iterations)
 
         return action
+
+    @staticmethod
+    def batchify_transitions(transitions):
+        # Assuming that we have transition tuples of the form (State, action, reward, State, done)
+        states, actions, rewards, next_states, dones = [], [], [], [], []
+        for transition in transitions:
+            assert len(transition) == 5, f"{len(transition)}"
+            states.append(transition[0].features())
+            actions.append(transition[1])
+            rewards.append(transition[2])
+            next_states.append(transition[3].features())
+            dones.append(transition[4])
+        return np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones)
+
+    def get_td_error(self, states, actions, rewards, next_states, dones):
+        def _prepare_data(s, a, r, sp, d):
+            def _unsqueeze(x):
+                if len(x.shape) == 1:
+                    return x[None, ...]
+                return x
+            def _array(x):
+                if np.isscalar(x):
+                    return np.array([x])
+                if isinstance(x, Sequence) and not isinstance(x, np.ndarray):
+                    return np.array(x)
+                return x
+            s = _unsqueeze(s)
+            a = _unsqueeze(a)
+            r = _array(r)
+            sp = _unsqueeze(sp)
+            d = _array(d)
+            return s, a, r, sp, d
+
+        with torch.no_grad():
+            states, actions, rewards, next_states, dones = _prepare_data(states, actions, rewards, next_states, dones)
+            self.target_actor.eval(); self.target_critic.eval(); self.critic.eval()
+            states = torch.FloatTensor(states).to(self.device)
+            actions = torch.FloatTensor(actions).to(self.device)
+            next_states = torch.FloatTensor(next_states).to(self.device)
+            rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
+            dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
+
+            next_actions = self.target_actor(next_states)
+            target = rewards + (1. - dones) * self.target_critic(next_states, next_actions)
+            prediction = self.critic(states, actions)
+            td_error = (target - prediction).cpu().numpy()
+
+            self.target_actor.train(); self.target_critic.train(); self.critic.train()
+            return td_error
 
     def step(self, state, action, reward, next_state, done):
         self.replay_buffer.add(state, action, reward, next_state, done)

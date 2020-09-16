@@ -319,6 +319,8 @@ class Option(object):
 		for target_param, param in zip(self.global_solver.target_critic.parameters(), self.solver.critic.parameters()):
 			target_param.data.copy_(param.data)
 
+		self.use_her = True
+
 	def initialize_option_solver_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
 
 		assert self.initiation_classifier is not None, f"{self.name} in phase {self.get_training_phase()}"
@@ -652,6 +654,21 @@ class Option(object):
 		else:
 			subgoal_reward = self.get_subgoal_reward(s_prime) if self.name != "global_option" else r
 			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
+
+	def relabel_transitions_with_option_reward_function(self, transitions):
+		assert not self.use_her, "Not implemented for HER transitions yet b/c that requires picking a goal-state"
+		relabeled_transitions = []
+		for state, action, _, next_state in transitions:
+			done = self.is_term_true(next_state) or next_state.is_terminal()
+			reward = self.subgoal_reward if done else self.get_subgoal_reward(next_state)
+			relabeled_transitions.append((state, action, reward, next_state, done))
+		return relabeled_transitions
+
+	def get_mean_td_error(self, transitions):
+		relabeled_transitions = self.relabel_transitions_with_option_reward_function(transitions)
+		batched_transitions = DDPGAgent.batchify_transitions(relabeled_transitions)
+		td_errors = self.solver.get_td_error(*batched_transitions)
+		return np.mean(np.abs(td_errors))
 
 	def get_goal_for_option_rollout(self, method="use_effect_set"):
 		assert method in ("use_effect_set", "use_term_set"), method
