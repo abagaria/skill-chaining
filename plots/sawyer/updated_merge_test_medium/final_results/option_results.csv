@@ -1,0 +1,20 @@
+option,salient event,num_goal_hits,num_on_policy_goal_hits,num_executions,success_rate
+global_option,,0,0,510699,0.0
+goal_option_1,RRT Salient Episode 5,141,136,2494,0.0545308740978348
+goal_option_2,RRT Salient Episode 205,182,179,1902,0.09411146161934805
+goal_option_3,RRT Salient Episode 405,125,118,981,0.12028542303771661
+goal_option_4,RRT Salient Episode 423,109,101,324,0.3117283950617284
+goal_option_5,RRT Salient Episode 492,27,21,554,0.03790613718411552
+goal_option_6,RRT Salient Episode 605,39,33,226,0.14601769911504425
+goal_option_7,RRT Salient Episode 664,75,68,677,0.10044313146233383
+goal_option_8,RRT Salient Episode 705,35,27,179,0.15083798882681565
+goal_option_9,RRT Salient Episode 721,105,97,326,0.29754601226993865
+option_9_0,,299,292,1404,0.20797720797720798
+goal_option_10,RRT Salient Episode 771,47,40,417,0.09592326139088729
+goal_option_11,RRT Salient Episode 795,30,25,342,0.07309941520467836
+goal_option_12,RRT Salient Episode 907,26,18,577,0.03119584055459272
+goal_option_13,RRT Salient Episode 1044,26,18,343,0.052478134110787174
+goal_option_14,RRT Salient Episode 1126,21,13,56,0.23214285714285715
+goal_option_15,RRT Salient Episode 1258,15,7,66,0.10606060606060606
+goal_option_16,RRT Salient Episode 1300,14,7,90,0.07777777777777778
+goal_option_17,RRT Salient Episode 1368,16,8,84,0.09523809523809523
