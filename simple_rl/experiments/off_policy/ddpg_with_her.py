@@ -128,7 +128,8 @@ def main():
             args.num_episodes, 
             args.num_steps, 
             goal_state=None, 
-            sampling_strategy="diverse"
+            sampling_strategy="diverse",
+            dense_reward=args.dense_reward
             )
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
@@ -139,7 +140,8 @@ def main():
         args.num_episodes,
         args.num_steps,
         goal_state = goal_state,
-        sampling_strategy="test"
+        sampling_strategy="test",
+        dense_reward=args.dense_reward
         )
     
     plot_learning_curve(directory, pes_ii)
