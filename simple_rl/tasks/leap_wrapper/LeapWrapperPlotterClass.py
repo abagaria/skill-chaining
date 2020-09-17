@@ -61,7 +61,7 @@ class LeapWrapperPlotter(MDPPlotter):
         # had the final initiation set already plotted.
         self.final_initiation_set_has_been_plotted = set()
 
-        self.init_state = self.mdp.init_state
+        self.init_state = mdp.init_state
 
         super().__init__(task_name, experiment_name,
                          ["initiation_set_plots", "value_function_plots", "option_policy_plots", "salient_event_locations"],
