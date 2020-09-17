@@ -316,7 +316,7 @@ def train(agent, mdp, episodes, steps):
     return per_episode_scores, per_episode_durations
 
 
-def her_rollout(agent, goal, mdp, steps):
+def her_rollout(agent, goal, mdp, steps, dense_reward):
     score = 0.
     mdp.reset()
     trajectory = []
@@ -331,12 +331,17 @@ def her_rollout(agent, goal, mdp, steps):
             action = mdp.sample_random_action()
         else:
             action = agent.act(aug_state)
-            
-        reward, next_state = mdp.execute_agent_action(action)
+
+        _, next_state = mdp.execute_agent_action(action)
         agent.update_epsilon()
+
+        reward_func = mdp.dense_gc_reward_function if dense_reward else mdp.sparse_gc_reward_function
+        reward, done = reward_func(next_state, goal, {})
+
         score = score + reward
         trajectory.append((state, action, reward, next_state))
-        if next_state.is_terminal():
+
+        if done:
             break
 
     return score, trajectory
@@ -360,13 +365,12 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
             goal_state = np.random.uniform([0,0], [4,4])
 
         # Roll-out current policy for one episode
-        _, trajectory = her_rollout(agent, goal_state, mdp, steps, fixed_epsilon)
+        score, trajectory = her_rollout(agent, goal_state, mdp, steps, dense_reward)
 
         # Debug log the trajectories
         trajectories.append(trajectory)
 
         # Regular Experience Replay
-        score = 0
         for state, action, _, next_state in trajectory:
 
             reward_func = mdp.dense_gc_reward_function if dense_reward else mdp.sparse_gc_reward_function
@@ -375,8 +379,6 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
             augmented_state = np.concatenate((state.features(), goal_state), axis=0)
             augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
             agent.step(augmented_state, action, reward, augmented_next_state, done)
-
-            score += reward
 
         # If traj is empty, we avoid doing hindsight experience replay
         if len(trajectory) == 0:

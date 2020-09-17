@@ -93,7 +93,7 @@ def main():
     os.mkdir(directory)
 
     # (i) Maybe pretrain our DDPG agent using HER
-    mdp = AntReacherMDP(seed=args.seed, render=args.render, task_agnostic=False)
+    mdp = AntReacherMDP(seed=args.seed, render=args.render)
 
     solver = DDPGAgent(
             mdp.state_space_size() + args.goal_dimension,
