@@ -9,7 +9,7 @@ sns.set()
 
 def get_scores(log_dir):
     overall_scores = []
-    glob_pattern = log_dir + "/scores/" + "*.pkl"
+    glob_pattern = log_dir + "/" + "*.pkl"
     for score_file in glob.glob(glob_pattern):
         with open(score_file, "rb") as f:
             scores = pickle.load(f)
