@@ -5,161 +5,69 @@ import itertools
 import glob
 import os
 
-from simple_rl.agents.func_approx.dsc.DeepSkillGraphAgentClass import DeepSkillGraphAgent
+from simple_rl.mdp.StateClass import State
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+
+# ---------––––––––---------––––––––---------––––––––
+# Eval utils
+# ---------––––––––---------––––––––---------––––––––
+
+def create_test_event(dsg_agent, goal_state):
+    assert isinstance(goal_state, (State, np.ndarray))
+
+    events = dsg_agent.mdp.get_all_target_events_ever() + [dsg_agent.mdp.get_start_state_salient_event()]
+    event_indices = [event.event_idx for event in events]
+    event_idx = max(event_indices) + 1
+    test_event = SalientEvent(target_state=goal_state, event_idx=event_idx)
+
+    known_events = [event for event in events if event.is_subset(test_event)]
+
+    if len(known_events) > 0:
+        sorted_known_events = sorted(known_events, key=lambda e: len(e.trigger_points), reverse=True)
+        return sorted_known_events[0]
+
+    return test_event
 
 
-def sample_state_inside_graph(dsg_agent):
-    """
+def success_curve(dsg_agent, goal_state, num_episodes, num_steps, start_state=None):
 
-    Args:
-        dsg_agent (DeepSkillGraphAgent)
+    print("*" * 80)
+    print(f"Generating success curve from {start_state} -> {goal_state}")
+    print("*" * 80)
 
-    Returns:
-
-    """
-    def flatten(l):
-        return list(itertools.chain.from_iterable(l))
-
-    options = dsg_agent.planning_agent.get_options_in_known_part_of_the_graph()
-    positive_examples = [option.positive_examples for option in options]
-
-    done = False
-    sampled_state = None
-
-    while not done:
-        sampled_state = random.choice(flatten(flatten(positive_examples)))
-        done = dsg_agent.planning_agent.is_state_inside_graph(sampled_state)
-
-    assert sampled_state is not None
-
-    return sampled_state
+    test_event = create_test_event(dsg_agent, goal_state)
+    successes = dsg_agent.dsg_run_loop(num_episodes, num_steps, start_state, test_event, eval_mode=True)
+    return successes
 
 
-def sample_state_outside_graph(dsg_agent, mdp):
-    num_tries = 0
-    done = False
-    sampled_state = None
-    while not done and num_tries < 200:
-        sampled_state = generate_test_states(mdp, num_states=1)[0]
-        done = not dsg_agent.planning_agent.is_state_inside_graph(sampled_state)
-    assert sampled_state is not None
-    return sampled_state
+def learning_curve(dsg_agent, start_states, goal_states, num_episodes, num_steps):
 
-
-def generate_test_states(mdp, num_states=10):
-    generated_states = []
-    for i in range(num_states):
-        goal_position = mdp.sample_random_state()[:2]
-        generated_states.append(goal_position)
-    return generated_states
-
-
-def success_curve(dsg_agent, start_state, goal_state, episodes, episode_interval):
-    success_rates_over_time = []
-    for episode in range(episodes):
-        success_rate = dsg_agent.planning_agent.measure_success(goal_state=goal_state,
-                                                                start_state=start_state,
-                                                                starting_episode=episode,
-                                                                num_episodes=episode_interval)
-
-        print("*" * 80)
-        print(f"[{goal_state}]: Episode {episode}: Success Rate: {success_rate}")
-        print("*" * 80)
-
-        success_rates_over_time.append(success_rate)
-    return success_rates_over_time
-
-
-def learning_curve(agent, mdp, episodes, episode_interval, randomize_start_states=False):
-    start_states = generate_test_states(mdp)
-    goal_states = generate_test_states(mdp)
-    all_runs = []
-    for start_state in start_states:
-        for goal_state in goal_states:
-            start_state = start_state if randomize_start_states else None
-            single_run = success_curve(agent,
-                                       start_state,
-                                       goal_state,
-                                       episodes,
-                                       episode_interval)
-            all_runs.append(single_run)
-    return all_runs
-
-
-def learning_curve_inside_graph(agent, mdp, episodes, episode_interval, randomize_start_states=False,
-                                experiment_name="", num_runs=5):
-    start_states = [sample_state_inside_graph(dsg_agent=agent) for _ in range(num_runs)]
-    goal_states = [sample_state_inside_graph(dsg_agent=agent) for _ in range(num_runs)]
-
-    if randomize_start_states:
-        with open(f"{experiment_name}/lc_randomized_start_states_{randomize_start_states}_start_states.pkl",
-                  "wb+") as f:
-            pickle.dump(start_states, f)
-
-    with open(f"{experiment_name}/lc_randomized_start_states_{randomize_start_states}_goal_states.pkl", "wb+") as f:
-        pickle.dump(goal_states, f)
-
-    if randomize_start_states:
-        all_runs = learning_curve_with_start_states(agent, start_states, goal_states, episodes, episode_interval)
-        return all_runs
-
-    all_runs = learning_curve_without_random_start_states(agent, goal_states, episodes, episode_interval)
-    return all_runs
-
-
-def learning_curve_fully_random(agent, mdp, episodes, episode_interval, randomize_start_states=False, experiment_name="", num_runs=5):
-    start_states = [mdp.sample_random_state() for _ in range(num_runs)]
-    goal_states = [mdp.sample_random_state() for _ in range(num_runs)]
-
-    if randomize_start_states:
-        with open(f"{experiment_name}/lc_randomized_start_states_{randomize_start_states}_start_states.pkl",
-                  "wb+") as f:
-            pickle.dump(start_states, f)
-
-    with open(f"{experiment_name}/lc_randomized_start_states_{randomize_start_states}_goal_states.pkl", "wb+") as f:
-        pickle.dump(goal_states, f)
-
-    if randomize_start_states:
-        all_runs = learning_curve_with_start_states(agent, start_states, goal_states, episodes, episode_interval)
-        return all_runs
-
-    all_runs = learning_curve_without_random_start_states(agent, goal_states, episodes, episode_interval)
-    return all_runs
-
-
-def learning_curve_outside_graph(agent, mdp, episodes, episode_interval, randomize_start_states=False):
-    start_states = [sample_state_inside_graph(dsg_agent=agent) for _ in range(5)]
-    goal_states = [sample_state_outside_graph(dsg_agent=agent, mdp=mdp) for _ in range(5)]
-
-    if randomize_start_states:
-        all_runs = learning_curve_with_start_states(agent, start_states, goal_states, episodes, episode_interval)
-        return all_runs
-
-    all_runs = learning_curve_without_random_start_states(agent, goal_states, episodes, episode_interval)
-    return all_runs
-
-def learning_curve_with_start_states(agent, start_states, goal_states, episodes, episode_interval):
-    all_runs = []
+    scores = []
     for start_state, goal_state in zip(start_states, goal_states):
-        single_run = success_curve(agent,
-                                   start_state,
-                                   goal_state,
-                                   episodes,
-                                   episode_interval)
-        all_runs.append(single_run)
-    return all_runs
+        successes = success_curve(dsg_agent, goal_state, num_episodes, num_steps, start_state)
+        scores.append(successes)
+    return scores
 
-def learning_curve_without_random_start_states(agent, goal_states, episodes, episode_interval):
-    all_runs = []
-    for goal_state in goal_states:
-        single_run = success_curve(agent,
-                                   None,
-                                   goal_state,
-                                   episodes,
-                                   episode_interval)
-        all_runs.append(single_run)
-    return all_runs
 
+def generate_learning_curve(dsg_agent, num_episodes, num_steps, num_goals, randomize_start_states=False):
+
+    sampling_func = dsg_agent.mdp.sample_random_state
+    goal_states = [sampling_func()[:2] for _ in range(num_goals)]
+    start_states = [sampling_func()[:2] for _ in range(num_goals)] if randomize_start_states else [None] * num_goals
+
+    scores = learning_curve(dsg_agent, start_states, goal_states, num_episodes, num_steps)
+
+    file_name = f"dsg_{num_goals}_random_starts_{randomize_start_states}_scores_{dsg_agent.seed}.pkl"
+    print("*" * 80); print(f"Saving DSG scores to {dsg_agent.experiment_name}/{file_name}"); print("*" * 80)
+    with open(f"{dsg_agent.experiment_name}/{file_name}", "wb+") as f:
+        pickle.dump(scores, f)
+
+    return scores
+
+
+# ---------––––––––---------––––––––---------––––––––
+# Saving and loading utils
+# ---------––––––––---------––––––––---------––––––––
 
 def save_options_and_events(options, events, experiment_name, seed):
 
