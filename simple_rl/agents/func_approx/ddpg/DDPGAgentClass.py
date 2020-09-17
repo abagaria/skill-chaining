@@ -385,10 +385,11 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         for state, action, _, next_state in trajectory:
             augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
             augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
+
+            done = np.linalg.norm(next_state.features()[:2] - reached_goal) <= 0.6
             if dense_reward:
                 reward = -1 * np.linalg.norm(next_state.features()[:2] - reached_goal)
             else:
-                done = np.linalg.norm(next_state.features()[:2] - reached_goal) <= 0.6
                 reward = 0. if done else -1.
 
             agent.step(augmented_state, action, reward, augmented_next_state, done)
