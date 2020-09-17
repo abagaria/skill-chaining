@@ -161,16 +161,12 @@ class SkillGraphPlanner(object):
 
         return state, step
 
-    def run_loop(self, *, state, goal_salient_event, episode, step, eval_mode, to_reset):
+    def run_loop(self, *, state, goal_salient_event, episode, step, eval_mode):
         assert isinstance(state, State)
         assert isinstance(goal_salient_event, SalientEvent)
         assert isinstance(episode, int)
         assert isinstance(step, int)
         assert isinstance(eval_mode, bool)
-        assert isinstance(to_reset, bool)
-
-        if to_reset:
-            self.reset(state)
 
         planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
@@ -259,9 +255,6 @@ class SkillGraphPlanner(object):
             if closest_vertex_pair is not None:
                 planner_goal_vertex, dsc_goal_vertex = closest_vertex_pair
                 print(f"Revised planner goal vertex to {planner_goal_vertex} and dsc goal vertex to {dsc_goal_vertex}")
-
-            if not self.does_exist_chain_for_event(goal_salient_event):
-                self.create_goal_option_outside_graph(goal_salient_event)
 
         return planner_goal_vertex, dsc_goal_vertex
 
@@ -426,99 +419,6 @@ class SkillGraphPlanner(object):
         known_options = list(itertools.chain.from_iterable(known_options))
         return known_options
 
-    def get_events_in_known_part_of_the_graph(self):
-        def _chain_contains_event(c, e):
-            return c.target_salient_event == e or c.init_salient_event == e
-
-        completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed()]
-        known_events = self.plan_graph.salient_nodes
-        known_events_inside_graph = []
-        for event in known_events:  # type: SalientEvent
-            if any([_chain_contains_event(chain, event) for chain in completed_chains]):
-                known_events_inside_graph.append(event)
-        return list(set(known_events_inside_graph))
-
-    def is_plan_graph_empty(self):
-        return len(self.get_options_in_known_part_of_the_graph()) == 0
-
-    def create_goal_option_outside_graph(self, target_salient_event):
-        chain_id = max([chain.chain_id for chain in self.chainer.chains]) + 1
-
-        # The init salient event of this new chain is initialized to be the start state of the MDP
-        # However, as DSC adds skills to this chain, it will eventually stop when it finds a chain intersection
-        # At that point it will rewire the chain to set its init_salient_event to be the region of intersection
-        init_salient_event = self.mdp.get_start_state_salient_event()
-        new_skill_chain = SkillChain(init_salient_event=init_salient_event,
-                                     target_salient_event=target_salient_event,
-                                     mdp_init_salient_event=self.mdp.get_start_state_salient_event(),
-                                     option_intersection_salience=self.chainer.option_intersection_salience,
-                                     event_intersection_salience=self.chainer.event_intersection_salience,
-                                     chain_id=chain_id,
-                                     options=[])
-
-        if new_skill_chain not in self.chainer.chains:
-            self.chainer.add_skill_chain(new_skill_chain)
-
-        # Create the root option for this new skill-chain
-        name = f"goal_option_{target_salient_event.event_idx}"
-        new_untrained_option = Option(self.mdp, name=name, global_solver=self.chainer.global_option.solver,
-                                      lr_actor=self.chainer.global_option.solver.actor_learning_rate,
-                                      lr_critic=self.chainer.global_option.solver.critic_learning_rate,
-                                      ddpg_batch_size=self.chainer.global_option.solver.batch_size,
-                                      subgoal_reward=self.chainer.subgoal_reward,
-                                      buffer_length=self.chainer.buffer_length,
-                                      classifier_type=self.chainer.classifier_type,
-                                      num_subgoal_hits_required=self.chainer.num_subgoal_hits_required,
-                                      seed=self.seed, parent=None, max_steps=self.chainer.max_steps,
-                                      enable_timeout=self.chainer.enable_option_timeout,
-                                      chain_id=chain_id,
-                                      writer=self.chainer.writer, device=self.chainer.device,
-                                      dense_reward=self.chainer.dense_reward,
-                                      initialize_everywhere=self.chainer.trained_options[1].initialize_everywhere,
-                                      max_num_children=self.chainer.trained_options[1].max_num_children,
-                                      use_warmup_phase=self.chainer.use_warmup_phase,
-                                      update_global_solver=self.chainer.update_global_solver,
-                                      init_salient_event=init_salient_event,
-                                      target_salient_event=target_salient_event,
-                                      initiation_period=0)  # TODO: This might not be wise in Ant
-
-        print(f"Created {new_untrained_option} targeting {target_salient_event}")
-
-        # Augment the DSC agent with the new option and pre-train it's policy
-        if self.pretrain_option_policies:
-            self.pretrain_option_policy(new_untrained_option)
-
-        self.chainer.untrained_options.append(new_untrained_option)
-        self.chainer.augment_agent_with_new_option(new_untrained_option, 0.)
-
-        # Note: we are not adding the new option to the plan-graph
-
-        return new_untrained_option
-
-    def pretrain_option_policy(self, new_untrained_option):
-        new_untrained_option.initialize_with_global_solver()
-
-        # Check if the value function diverges - if it does, then retry. If it still does,
-        # then initialize to random weights and use that
-        max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                       self.experiment_name,
-                                                       replay_buffer=self.chainer.global_option.solver.replay_buffer)
-        if max_q_value > 500:
-            print("=" * 80)
-            print(f"{new_untrained_option} VF diverged")
-            print("=" * 80)
-            new_untrained_option.reset_option_solver()
-            new_untrained_option.initialize_with_global_solver()
-            max_q_value = make_chunked_value_function_plot(new_untrained_option.solver, -1, self.seed,
-                                                           self.experiment_name,
-                                                           replay_buffer=self.chainer.global_option.solver.replay_buffer)
-            if max_q_value > 500:
-                print("=" * 80)
-                print(f"{new_untrained_option} VF diverged AGAIN")
-                print("Just initializing to random weights")
-                print("=" * 80)
-                new_untrained_option.reset_option_solver()
-
     @staticmethod
     def sample_from_vertex(vertex):
         assert isinstance(vertex, (Option, SalientEvent)), f"{type(vertex)}"
@@ -528,28 +428,3 @@ class SkillGraphPlanner(object):
         if vertex.get_target_position() is not None:
             return vertex.get_target_position()
         return random.sample(vertex.trigger_points, k=1)[0]
-
-    # -----------------------------–––––––--------------
-    # Evaluation Functions
-    # -----------------------------–––––––--------------
-
-    def reset(self, start_state=None):
-        """ Reset the MDP to either the default start state or to the specified one. """
-        self.mdp.reset()
-
-        if start_state is not None:
-            start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
-            self.mdp.set_xy(start_position)
-
-    def measure_success(self, goal_salient_event, start_state=None, num_episodes=100):
-        successes = 0
-        for episode in range(num_episodes):
-            num_steps, reached_goal = self.run_loop(state=start_state,
-                                                    goal_salient_event=goal_salient_event,
-                                                    episode=episode,
-                                                    step=0,
-                                                    eval_mode=True,
-                                                    to_reset=True)
-            if reached_goal:
-                successes += 1
-        return successes
