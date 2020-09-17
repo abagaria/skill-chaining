@@ -326,7 +326,12 @@ def her_rollout(agent, goal, mdp, steps):
     for step in range(steps):
         state = deepcopy(mdp.cur_state)
         aug_state = np.concatenate((state.features(), goal), axis=0)
-        action = agent.act(aug_state)
+
+        if np.random.uniform() < 0.25:
+            action = mdp.sample_random_action()
+        else:
+            action = agent.act(aug_state)
+            
         reward, next_state = mdp.execute_agent_action(action)
         agent.update_epsilon()
         score = score + reward
@@ -355,7 +360,7 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
             goal_state = np.random.uniform([0,0], [4,4])
 
         # Roll-out current policy for one episode
-        _, trajectory = her_rollout(agent, goal_state, mdp, steps)
+        _, trajectory = her_rollout(agent, goal_state, mdp, steps, fixed_epsilon)
 
         # Debug log the trajectories
         trajectories.append(trajectory)
@@ -363,14 +368,13 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         # Regular Experience Replay
         score = 0
         for state, action, _, next_state in trajectory:
-            if dense_reward:
-                reward = -1 * np.linalg.norm(next_state.features()[:2] - goal_state)
-            else:
-                done = np.linalg.norm(next_state.features()[:2] - goal_state) <= 0.6
-                reward = 0. if done else -1
+
+            reward_func = mdp.dense_gc_reward_function if dense_reward else mdp.sparse_gc_reward_function
+            reward, done = reward_func(next_state, goal_state, {})
+
             augmented_state = np.concatenate((state.features(), goal_state), axis=0)
             augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
-            agent.step(augmented_state, action, reward, augmented_next_state, next_state.is_terminal())
+            agent.step(augmented_state, action, reward, augmented_next_state, done)
 
             score += reward
 
@@ -383,15 +387,12 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
 
         # Hindsight Experience Replay
         for state, action, _, next_state in trajectory:
+
+            reward_func = mdp.dense_gc_reward_function if dense_reward else mdp.sparse_gc_reward_function
+            reward, done = reward_func(next_state, reached_goal, {})
+
             augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
             augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
-
-            done = np.linalg.norm(next_state.features()[:2] - reached_goal) <= 0.6
-            if dense_reward:
-                reward = -1 * np.linalg.norm(next_state.features()[:2] - reached_goal)
-            else:
-                reward = 0. if done else -1.
-
             agent.step(augmented_state, action, reward, augmented_next_state, done)
 
         # Logging

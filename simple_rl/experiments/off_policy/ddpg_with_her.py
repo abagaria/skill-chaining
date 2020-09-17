@@ -26,14 +26,11 @@ from typing import List, Tuple, Callable
 parser = argparse.ArgumentParser()
 parser.add_argument('--experiment_name', type=str)
 parser.add_argument('--seed', type=int)
-parser.add_argument('--environment', type=str)
 parser.add_argument('--num_episodes', type=int)
 parser.add_argument('--num_steps', type=int)
 parser.add_argument('--device', type=str, default='cpu')
 parser.add_argument('--save_plots', action='store_true', default=False)
-# parser.add_argument('--save_pickles', action='store_true', default=False)
 parser.add_argument('--render', action='store_true', default=False)
-parser.add_argument('--fixed_epsilon', type=float, default=0)
 parser.add_argument('--pretrain_with_her', action='store_true', default=False)
 parser.add_argument('--goal_threshold', type=float, default=0.6)
 parser.add_argument('--goal_dimension', type=int, default=2)
@@ -91,28 +88,12 @@ def plot_ant_value_function(
 
     plt.savefig(directory / 'value_function.png')
 
-# def plot_learning_curve(
-#     directory: Path, 
-#     per_episode_scores: np.ndarray, 
-#     num_steps: int) -> None:
-
-#     fig, ax = plt.subplots()
-#     ax.plot(episode_nums, smooth_scores)
-
-#     ax.set(xlabel='score', ylabel='episode', title=f'{num_steps} per episode')
-#     fig.savefig(directory / 'learning_curve.png')
-
-# def pickle_run(directory: Path, solver: DDPGAgent, results: np.ndarray) -> None:
-#     buffer = solver.replay_buffer.memory
-#     pickle.dump(buffer, open(directory / 'buffer.pkl', 'wb'))
-#     pickle.dump(results, open(directory / 'results.pkl', 'wb'))
-
 def main():
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
     # (i) Maybe pretrain our DDPG agent using HER
-    mdp = AntReacherMDP(seed=args.seed, render=args.render)
+    mdp = AntReacherMDP(seed=args.seed, render=args.render, task_agnostic=False)
 
     solver = DDPGAgent(
             mdp.state_space_size() + args.goal_dimension,
