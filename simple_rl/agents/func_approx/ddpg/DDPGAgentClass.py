@@ -355,12 +355,13 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
             goal_state = np.random.uniform([0,0], [4,4])
 
         # Roll-out current policy for one episode
-        score, trajectory = her_rollout(agent, goal_state, mdp, steps)
+        _, trajectory = her_rollout(agent, goal_state, mdp, steps)
 
         # Debug log the trajectories
         trajectories.append(trajectory)
 
         # Regular Experience Replay
+        score = 0
         for state, action, _, next_state in trajectory:
             if dense_reward:
                 reward = -1 * np.linalg.norm(next_state.features()[:2] - goal_state)
@@ -370,6 +371,8 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
             augmented_state = np.concatenate((state.features(), goal_state), axis=0)
             augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
             agent.step(augmented_state, action, reward, augmented_next_state, next_state.is_terminal())
+
+            score += reward
 
         # If traj is empty, we avoid doing hindsight experience replay
         if len(trajectory) == 0:
