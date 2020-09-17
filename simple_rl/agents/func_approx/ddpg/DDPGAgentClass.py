@@ -336,8 +336,8 @@ def her_rollout(agent, goal, mdp, steps):
 
     return score, trajectory
 
-
-def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed"):
+# I totally butchered this function on this branch, def don't merge this back in to main -Kiran
+def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed", dense_reward=False):
 
     assert sampling_strategy in ("fixed", "diverse", "test"), sampling_strategy
     if sampling_strategy == "test": assert goal_state is not None, goal_state
@@ -352,7 +352,7 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         if sampling_strategy == "fixed":
             goal_state = np.array([0., 8.])
         if sampling_strategy == "diverse":
-            goal_state = mdp.sample_random_state()
+            goal_state = np.random.uniform([0,0], [4,4])
 
         # Roll-out current policy for one episode
         score, trajectory = her_rollout(agent, goal_state, mdp, steps)
@@ -361,7 +361,12 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         trajectories.append(trajectory)
 
         # Regular Experience Replay
-        for state, action, reward, next_state in trajectory:
+        for state, action, _, next_state in trajectory:
+            if dense_reward:
+                reward = -1 * np.linalg.norm(next_state.features()[:2] - goal_state)
+            else:
+                done = np.linalg.norm(next_state.features()[:2] - goal_state) <= 0.6
+                reward = 0. if done else -1
             augmented_state = np.concatenate((state.features(), goal_state), axis=0)
             augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
             agent.step(augmented_state, action, reward, augmented_next_state, next_state.is_terminal())
@@ -377,8 +382,12 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         for state, action, _, next_state in trajectory:
             augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
             augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
-            done = np.linalg.norm(next_state.features()[:2] - reached_goal) <= 0.6
-            reward = 10. if done else -1.
+            if dense_reward:
+                reward = -1 * np.linalg.norm(next_state.features()[:2] - reached_goal)
+            else:
+                done = np.linalg.norm(next_state.features()[:2] - reached_goal) <= 0.6
+                reward = 0. if done else -1.
+
             agent.step(augmented_state, action, reward, augmented_next_state, done)
 
         # Logging
