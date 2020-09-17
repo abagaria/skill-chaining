@@ -61,6 +61,8 @@ class LeapWrapperPlotter(MDPPlotter):
         # had the final initiation set already plotted.
         self.final_initiation_set_has_been_plotted = set()
 
+        self.init_state = self.mdp.init_state
+
         super().__init__(task_name, experiment_name,
                          ["initiation_set_plots", "value_function_plots", "option_policy_plots", "salient_event_locations"],
                          self.axis_x_range,
@@ -96,7 +98,7 @@ class LeapWrapperPlotter(MDPPlotter):
         fig, ax = self._setup_plot((1, 1))
         for i, (start_state, goal_salient) in enumerate(zip(start_states, goal_salients)):
             goal_state = goal_salient.target_state
-            if start_state != self.mdp.init_state:
+            if start_state != self.init_state:
                 _plot_event_pair(start_state, goal_state)
                 puck_circle = plt.Circle(start_state[3:], 0.06, alpha=0.3, color='c')
                 ax.add_patch(puck_circle)
