@@ -362,7 +362,7 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         if sampling_strategy == "fixed":
             goal_state = np.array([0., 8.])
         if sampling_strategy == "diverse":
-            goal_state = np.random.uniform([0,0], [4,4])
+            goal_state = np.random.uniform([-4,-4], [4,4])
 
         # Roll-out current policy for one episode
         score, trajectory = her_rollout(agent, goal_state, mdp, steps, dense_reward)
