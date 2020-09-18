@@ -34,7 +34,9 @@ class SkillChain(object):
 
         # Data structures for determining when a skill chain is completed
         self._init_descendants = []
+        self._init_ancestors = []
         self._is_deemed_completed = False
+        self.completing_vertex = None
 
         if target_salient_event is None and len(intersecting_options) > 0:
             self.target_predicate = lambda s: all([option.is_init_true(s) for option in intersecting_options])
@@ -62,6 +64,12 @@ class SkillChain(object):
         if len(descendants) > 0:
             assert all([isinstance(node, (Option, SalientEvent)) for node in descendants]), f"{descendants}"
             self._init_descendants = descendants
+
+    def set_init_ancestors(self, ancestors):
+        """ The `ancestors` are the set of vertices from which you can get to the chain's init-salient-event. """
+        if len(ancestors) > 0:
+            assert all([isinstance(node, (Option, SalientEvent)) for node in ancestors]), f"{ancestors}"
+            self._init_ancestors = ancestors
 
     def state_in_chain(self, state):
         """ Is state inside the initiation set of any of the options in the chain. """
@@ -145,17 +153,39 @@ class SkillChain(object):
         for descendant in self._init_descendants:
             if isinstance(descendant, SalientEvent):
                 if self.should_exist_edge_from_event_to_option(descendant, option):
+                    self.completing_vertex = descendant, "descendant"
                     return True
             if isinstance(descendant, Option):
                 if self.should_exist_edge_between_options(descendant, option):
+                    self.completing_vertex = descendant, "descendant"
                     return True
 
         # If not, then check if there is a direct path from the init-salient-event to the new option
         if self.should_exist_edge_from_event_to_option(self.init_salient_event, option):
+            self.completing_vertex = self.init_salient_event, "init_event"
             return True
 
+        # If you intersect with a vertex which is further way from the target than the init-salient-event,
+        # then also the chain building can be considered complete
+        init_distance = self.init_salient_event.distance_to_other_event(self.target_salient_event)
+        for ancestor in self._init_ancestors:
+            if isinstance(ancestor, SalientEvent):
+                if self.should_exist_edge_from_event_to_option(ancestor, option) and \
+                        ancestor.distance_to_other_event(self.target_salient_event) > init_distance:
+                    self.completing_vertex = ancestor, "ancestor"
+                    return True
+            if isinstance(ancestor, Option):
+                if self.should_exist_edge_between_options(ancestor, option) and \
+                        SalientEvent.set_to_set_distance(option.effect_set, ancestor.effect_set) > init_distance:
+                    self.completing_vertex = ancestor, "ancestor"
+                    return True
+
         # Finally, default to the start-state salient event of the entire MDP
-        return self.should_exist_edge_from_event_to_option(self.mdp_init_salient_event, option)
+        if self.should_exist_edge_from_event_to_option(self.mdp_init_salient_event, option):
+            self.completing_vertex = self.mdp_init_salient_event, "mdp_init_salient_event"
+            return True
+
+        return False
 
     def is_chain_completed(self):
         """

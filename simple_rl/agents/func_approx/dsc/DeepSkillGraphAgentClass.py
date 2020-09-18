@@ -5,6 +5,7 @@ from copy import deepcopy
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.SkillGraphPlannerClass import SkillGraphPlanner
+from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
@@ -58,21 +59,40 @@ class DeepSkillGraphAgent(object):
 
         return target_event
 
-    # TODO: Account for ancestors and descendants --
-
     def _select_closest_unconnected_salient_event(self, state, events):
+        graph = self.planning_agent.plan_graph
         candidate_salient_events = self.generate_candidate_salient_events(state)
         current_salient_events = [event for event in events if event(state)]
 
-        smallest_distance, closest_event = np.inf, None
-        for current_salient_event in current_salient_events:  # type: SalientEvent
-            for candidate_salient_event in candidate_salient_events:  # type: SalientEvent
-                distance = current_salient_event.distance_to_other_event(candidate_salient_event)
-                if distance < smallest_distance and current_salient_event != candidate_salient_event:
-                    smallest_distance = distance
-                    closest_event = candidate_salient_event
+        # Grab all the descendants of the current salient event
+        descendant_events = deepcopy(current_salient_events)
+        for salient_event in current_salient_events:
+            descendants = graph.get_reachable_nodes_from_source_node(salient_event)
+            descendant_events += descendants
 
-        if closest_event is not None:
+        if not all([isinstance(e, (SalientEvent, Option)) for e in descendant_events]):
+            ipdb.set_trace()
+
+        # Grab all the ancestor Salient Events of each candidate salient event
+        ancestor_events = deepcopy(candidate_salient_events)
+        for salient_event in candidate_salient_events:
+            ancestors = graph.get_nodes_that_reach_target_node(salient_event)
+            if any([ancestor in descendant_events for ancestor in ancestors]):
+                ipdb.set_trace()
+            filtered_ancestors = [e for e in ancestors if isinstance(e, SalientEvent)]
+            if len(filtered_ancestors) > 0:
+                ancestor_events += filtered_ancestors
+
+        if not all([isinstance(e, SalientEvent) for e in ancestor_events]):
+            ipdb.set_trace()
+
+        # Compute the pair-wise distances between the descendants and ancestors
+        closest_event_pair = self.planning_agent.get_closest_pair_of_vertices(descendant_events, ancestor_events)
+
+        # Finally, return the ancestor event closest to one of the descendants
+        if closest_event_pair is not None:
+            assert len(closest_event_pair) == 2, closest_event_pair
+            closest_event = closest_event_pair[1]
             assert isinstance(closest_event, SalientEvent), f"{type(closest_event)}"
             if not closest_event(state):
                 return closest_event
@@ -225,8 +245,10 @@ class DeepSkillGraphAgent(object):
         )
 
     def generate_candidate_salient_events(self, state):
+        """ Return the events that we are currently NOT in and to whom there is no path on the graph. """
+        connected = lambda s, e: self.planning_agent.plan_graph.does_path_exist(s, e)
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
-        unconnected_events = [event for event in events if not self.planning_agent.plan_graph.does_path_exist(state, event)]
+        unconnected_events = [event for event in events if not connected(state, event) and not event(state)]
         return unconnected_events
 
     def take_random_action(self):
@@ -329,8 +351,7 @@ if __name__ == "__main__":
     elif args.env == "ant-reacher":
         from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
         overall_mdp = AntReacherMDP(seed=args.seed,
-                                    render=args.render,
-                                    use_hard_coded_events=args.use_hard_coded_events)
+                                    render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-ant-maze":
@@ -342,7 +363,6 @@ if __name__ == "__main__":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
-                                       use_hard_coded_events=args.use_hard_coded_events,
                                        difficulty="medium")
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
@@ -350,7 +370,6 @@ if __name__ == "__main__":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
-                                       use_hard_coded_events=args.use_hard_coded_events,
                                        difficulty="hard")
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()

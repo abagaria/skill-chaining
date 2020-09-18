@@ -54,34 +54,11 @@ class SkillGraphPlanner(object):
             closest_source (SalientEvent or Option)
             closest_target (SalientEvent or Option)
         """
-
-        def _distance_between_vertices(v1, v2):
-            if isinstance(v1, SalientEvent) and isinstance(v2, SalientEvent):
-                return v1.distance_to_other_event(v2)
-            if isinstance(v1, SalientEvent) and isinstance(v2, Option):
-                return v1.distance_to_effect_set(v2.effect_set)
-            if isinstance(v1, Option) and isinstance(v2, SalientEvent):
-                return v2.distance_to_effect_set(v1.effect_set)  # Assuming a symmetric distance function here
-            if isinstance(v1, Option) and isinstance(v2, Option):
-                return SalientEvent.set_to_set_distance(v1.effect_set, v2.effect_set)
-            raise NotImplementedError(f"{type(v1), type(v2)}")
-
         candidate_vertices_to_fall_from = self.plan_graph.get_reachable_nodes_from_source_state(state)
         candidate_vertices_to_jump_to = self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event)
         candidate_vertices_to_jump_to = list(candidate_vertices_to_jump_to) + [goal_salient_event]
 
-        closest_pair = None
-        min_distance = np.inf
-
-        for source in candidate_vertices_to_fall_from:  # type: SalientEvent or Option
-            for target in candidate_vertices_to_jump_to:  # type: SalientEvent or Option
-                assert source != target, f"{source, target}"
-                distance = _distance_between_vertices(source, target)
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_pair = source, target
-
-        return closest_pair
+        return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from, candidate_vertices_to_jump_to)
 
     def act(self, state, goal_vertex, sampled_goal):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
@@ -202,7 +179,7 @@ class SkillGraphPlanner(object):
 
         print(f"Returned from DSC runloop having learned {newly_created_options}")
 
-        self.manage_options_learned_during_rollout(newly_created_options)
+        self.manage_options_learned_during_rollout(newly_created_options, episode)
 
         return deepcopy(self.mdp.cur_state), step_number
 
@@ -232,18 +209,18 @@ class SkillGraphPlanner(object):
         state_after_rollout = deepcopy(self.mdp.cur_state)
 
         # With off-policy triggers, you can trigger the termination condition of an option w/o rolling it out
-        self.manage_options_learned_during_rollout(newly_created_options=new_options)
+        self.manage_options_learned_during_rollout(newly_created_options=new_options, episode=episode)
 
         # Modify the edge weight associated with the executed option
         self.modify_edge_weight(executed_option=option, final_state=state_after_rollout)
 
         return step + len(option_transitions), option_transitions
 
-    def manage_options_learned_during_rollout(self, newly_created_options):
+    def manage_options_learned_during_rollout(self, newly_created_options, episode):
 
         # TODO: Adding new options is not enough - we also have to create their children
         for newly_created_option in newly_created_options:  # type: Option
-            self.add_newly_created_option_to_plan_graph(newly_created_option)
+            self.add_newly_created_option_to_plan_graph(newly_created_option, episode)
 
     def _get_goal_vertices_for_rollout(self, state, goal_salient_event):
         dsc_goal_vertex = deepcopy(goal_salient_event)
@@ -294,10 +271,10 @@ class SkillGraphPlanner(object):
         for vertex in failed_reaching_vertices:
             modify(vertex, False)
 
-    def add_newly_created_option_to_plan_graph(self, newly_created_option):
+    def add_newly_created_option_to_plan_graph(self, newly_created_option, episode):
 
-        assert newly_created_option.get_training_phase() == "initiation_done",\
-               f"{newly_created_option} in {newly_created_option.get_training_phase()}"
+        assert newly_created_option.get_training_phase() == "initiation_done", \
+            f"{newly_created_option} in {newly_created_option.get_training_phase()}"
 
         # If the new option isn't already in the graph, add it
         self.plan_graph.add_node(newly_created_option)
@@ -330,7 +307,7 @@ class SkillGraphPlanner(object):
 
         # Case 2: Leaf option # TODO: Need to check intersection with the init_salient_event as well
         if chain.is_chain_completed() \
-            and is_leaf_node \
+                and is_leaf_node \
                 and chain.should_exist_edge_from_event_to_option(init_salient_event, newly_created_option):
 
             print(f"Case 2: Adding edge from {init_salient_event} to {newly_created_option}")
@@ -376,11 +353,38 @@ class SkillGraphPlanner(object):
             chain.set_chain_completed()
 
         if chain.is_chain_completed():
-            visualize_graph(self.chainer.chains, self.chainer.experiment_name, True)
+            visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
 
     # -----------------------------–––––––--------------
     # Utility Functions
     # -----------------------------–––––––--------------
+
+    @staticmethod
+    def get_closest_pair_of_vertices(src_vertices, dest_vertices):
+        closest_pair = None
+        min_distance = np.inf
+
+        for source in src_vertices:  # type: SalientEvent or Option
+            for target in dest_vertices:  # type: SalientEvent or Option
+                assert source != target, f"{source, target}"
+                distance = SkillGraphPlanner.distance_between_vertices(source, target)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_pair = source, target
+
+        return closest_pair
+
+    @staticmethod
+    def distance_between_vertices(v1, v2):
+        if isinstance(v1, SalientEvent) and isinstance(v2, SalientEvent):
+            return v1.distance_to_other_event(v2)
+        if isinstance(v1, SalientEvent) and isinstance(v2, Option):
+            return v1.distance_to_effect_set(v2.effect_set)
+        if isinstance(v1, Option) and isinstance(v2, SalientEvent):
+            return v2.distance_to_effect_set(v1.effect_set)  # Assuming a symmetric distance function here
+        if isinstance(v1, Option) and isinstance(v2, Option):
+            return SalientEvent.set_to_set_distance(v1.effect_set, v2.effect_set)
+        raise NotImplementedError(f"{type(v1), type(v2)}")
 
     @staticmethod
     def is_state_inside_vertex(state, vertex):
@@ -405,7 +409,9 @@ class SkillGraphPlanner(object):
     def update_chain_init_descendants(self):
         for chain in self.chainer.chains:  # type: SkillChain
             descendants = self.plan_graph.get_reachable_nodes_from_source_node(chain.init_salient_event)
+            ancestors = self.plan_graph.get_nodes_that_reach_target_node(chain.init_salient_event)
             chain.set_init_descendants(descendants)
+            chain.set_init_ancestors(ancestors)
 
     def get_options_in_known_part_of_the_graph(self):
         completed_chains = [chain for chain in self.chainer.chains if chain.is_chain_completed()]
@@ -414,7 +420,7 @@ class SkillGraphPlanner(object):
         known_options = []
         for chain in completed_chains:  # type: SkillChain
             chain_options = [option for option in chain.options if option.get_training_phase() == "initiation_done"
-                                and option in self.plan_graph.option_nodes]
+                             and option in self.plan_graph.option_nodes]
             known_options.append(chain_options)
         known_options = list(itertools.chain.from_iterable(known_options))
         return known_options

@@ -510,12 +510,7 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
-kGraphIterationNumber = 0
-
-def visualize_graph(chains, experiment_name, plot_completed_events):
-
-    global kGraphIterationNumber
-
+def visualize_graph(planner, episode, experiment_name, seed, use_target_states=True):
     def _get_representative_point(event):
         assert isinstance(event, SalientEvent)
         if event.get_target_position() is not None:
@@ -524,35 +519,74 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
         trigger_positions = np.array(trigger_positions)
         return trigger_positions.mean(axis=0)
 
-    def _plot_event_pair(event1, event2):
-        x1, y1 = _get_representative_point(event1)
-        x2, y2 = _get_representative_point(event2)
+    def _plot_event_pair(e1, e2, marker="o-", edge_color="black"):
+        x1, y1 = _get_representative_point(e1)
+        x2, y2 = _get_representative_point(e2)
         x = [x1, x2]; y = [y1, y2]
-        plt.plot(x, y, "o-", c="black")
+        plt.plot(x, y, marker, c=edge_color, alpha=0.1)
+        plt.scatter(x, y, c="black")
 
-    sns.set_style("white")
+    def is_connected(n1, n2):
+        if use_target_states:
+            return planner.plan_graph.does_path_exist(_get_representative_point(n1), n2)
+        return planner.plan_graph.does_path_exist_between_nodes(n1, n2)
 
-    plt.figure()
+    events = planner.mdp.all_salient_events_ever + [planner.mdp.get_start_state_salient_event()]
 
-    completed = lambda chain: chain.is_chain_completed() if plot_completed_events else True
+    for event1 in events:
+        for event2 in events:
+            if event1 != event2:
+                if is_connected(event1, event2) and is_connected(event2, event1):
+                    _plot_event_pair(event1, event2, "o-", edge_color="black")
+                elif is_connected(event1, event2) or is_connected(event2, event1):
+                    _plot_event_pair(event1, event2, "o--", edge_color="red")
 
-    forward_chains = [chain for chain in chains if completed(chain)]
+    plt.xticks([])
+    plt.yticks([])
 
-    for chain in forward_chains:
-        _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
-
-    plt.xticks([]); plt.yticks([])
-
-    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
+    x_low_lim, y_low_lim = planner.mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = planner.mdp.get_x_y_high_lims()
 
     plt.xlim((x_low_lim, x_high_lim))
     plt.ylim((y_low_lim, y_high_lim))
 
-    plt.savefig(f"value_function_plots/{experiment_name}/event_graphs_episode_{kGraphIterationNumber}.png")
+    prefix = "bi_state_event_graph" if use_target_states else "bi_event_graph"
+    plt.savefig(f"value_function_plots/{experiment_name}/{prefix}_episode_{episode}_seed_{seed}.png")
     plt.close()
 
-    kGraphIterationNumber += 1
+
+def visualize_chain_graph(planner, episode, experiment_name, seed):
+    def _get_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.get_target_position()
+        trigger_positions = [event._get_position(s) for s in event.trigger_points]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
+
+    def _plot_pair(xa, ya, xb, yb, marker="o-", edge_color="black"):
+        x = [xa, ya]; y = [xb, yb]
+        plt.plot(x, y, marker, c=edge_color, alpha=0.1)
+        plt.scatter(x, y, c="black")
+
+    for chain in planner.chainer.chains:
+        if chain.is_chain_completed():
+            assert chain.completing_vertex is not None, f"{chain}, {chain.completing_vertex}"
+            x1, y1 = _get_representative_point(chain.completing_vertex[0])
+            x2, y2 = _get_representative_point(chain.target_salient_event)
+            _plot_pair(x1, y1, x2, y2)
+
+    plt.xticks([])
+    plt.yticks([])
+
+    x_low_lim, y_low_lim = planner.mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = planner.mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    plt.savefig(f"value_function_plots/{experiment_name}/chain_graph_episode_{episode}_seed_{seed}.png")
+    plt.close()
 
 def plot_dco_salient_event(ax, salient_event, states):
     option = salient_event.covering_option

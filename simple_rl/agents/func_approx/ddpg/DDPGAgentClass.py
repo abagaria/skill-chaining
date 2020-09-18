@@ -198,11 +198,15 @@ class DDPGAgent(Agent):
         with torch.no_grad():
             states, actions, rewards, next_states, dones = _prepare_data(states, actions, rewards, next_states, dones)
             self.target_actor.eval(); self.target_critic.eval(); self.critic.eval()
-            states = torch.FloatTensor(states).to(self.device)
-            actions = torch.FloatTensor(actions).to(self.device)
-            next_states = torch.FloatTensor(next_states).to(self.device)
-            rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
-            dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
+
+            try:
+                states = torch.FloatTensor(states).to(self.device)
+                actions = torch.FloatTensor(actions).to(self.device)
+                next_states = torch.FloatTensor(next_states).to(self.device)
+                rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
+                dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
+            except:
+                ipdb.set_trace()
 
             next_actions = self.target_actor(next_states)
             target = rewards + (1. - dones) * self.target_critic(next_states, next_actions)
