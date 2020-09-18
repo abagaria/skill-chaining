@@ -29,7 +29,6 @@ parser.add_argument('--seed', type=int)
 parser.add_argument('--num_episodes', type=int)
 parser.add_argument('--num_steps', type=int)
 parser.add_argument('--device', type=str, default='cpu')
-parser.add_argument('--save_plots', action='store_true', default=False)
 parser.add_argument('--render', action='store_true', default=False)
 parser.add_argument('--pretrain_with_her', action='store_true', default=False)
 parser.add_argument('--goal_threshold', type=float, default=0.6)
@@ -46,49 +45,48 @@ def plot_learning_curve(
     directory: Path, 
     pes) -> None:
 
+    smoothed_pes = uniform_filter1d(pes)
+
     fig, ax = plt.subplots()
-    ax.plot(pes)
+    ax.plot(smoothed_pes)
 
     ax.set(xlabel='score', ylabel='episode', title=f'per episode scores')
     fig.savefig(directory / 'learning_curve.png')
 
-def plot_ant_value_function(
-    directory: Path, 
-    solver: DDPGAgent,
-    goal_dimension: int,
-    goal_threshold: float,
-    goal_state: np.ndarray,
-    dense_reward: bool
-    ) -> None:
+def make_chunked_goal_conditioned_value_function_plot(directory, solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
+    replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
+    # Take out the original goal and append the new goal
+    states = [exp[0] for exp in replay_buffer]
+    states = [state[:-2] for state in states]
+    states = np.array([np.concatenate((state, goal), axis=0) for state in states])
+    actions = np.array([exp[1] for exp in replay_buffer])
+    # Chunk up the inputs so as to conserve GPU memory
+    num_chunks = int(np.ceil(states.shape[0] / chunk_size))
+    if num_chunks == 0:
+        return 0.
+    state_chunks = np.array_split(states, num_chunks, axis=0)
+    action_chunks = np.array_split(actions, num_chunks, axis=0)
+    qvalues = np.zeros((states.shape[0],))
+    current_idx = 0
+    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+        action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
+        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        current_chunk_size = len(state_chunk)
+        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+        current_idx += current_chunk_size
+    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+    plt.colorbar()
+    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+    plt.title(f"VF Targeting {np.round(goal, 2)}")
+    plt.savefig(f"{directory}/{file_name}.png")
+    plt.close()
+    return qvalues.max()
 
-    if goal_dimension != 2:
-        print('We don\'t have code to plot an n-d value function for n != 2')
-        return
+def pickle_solver(directory, solver):
+    pickle.dump(solver, open(directory / 'ddpg.pkl', 'wb'))
 
-    buffer = solver.replay_buffer.memory
-    states = np.array([x[0] for x in buffer])
-    actions = np.array([x[1] for x in buffer])
-
-    states_tensor = torch.from_numpy(states).float().to(solver.device)
-    actions_tensor = torch.from_numpy(actions).float().to(solver.device)
-    qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
-    
-    fig, ax = plt.subplots()
-    scatter = ax.scatter(states[:, 0], states[:, 1], c = qvalues)
-    fig.colorbar(scatter, ax=ax)
-
-    ax.set_xlim((-10, 10))
-    ax.set_ylim((-10, 10))
-
-    ax.add_patch(
-        plt.Circle(goal_state, goal_threshold, alpha=0.7, color='gold'))
-    
-    reward_name = 'dense' if dense_reward else 'sparse'
-    ax.set(xlabel='x axis', ylabel='y axis', title=f'{reward_name} targeting {goal_state}')
-
-    plt.savefig(directory / 'value_function.png')
-
-def main():
+if __name__ == '__main__':
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
@@ -99,7 +97,8 @@ def main():
             mdp.state_space_size() + args.goal_dimension,
             mdp.action_space_size(),
             args.seed,
-            args.device
+            args.device,
+            name="ddpg"
             )
 
     if args.pretrain_with_her:
@@ -126,10 +125,11 @@ def main():
         )
     
     plot_learning_curve(directory, pes_ii)
-    plot_ant_value_function(directory, solver, args.goal_dimension, args.goal_threshold, goal_state, args.dense_reward)
+    make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_episodes, args.seed, args.experiment_name)
 
-if __name__ == '__main__':
-    main()
+    pickle_solver(directory, solver)
+
+    ipdb.set_trace()
 
 
     
