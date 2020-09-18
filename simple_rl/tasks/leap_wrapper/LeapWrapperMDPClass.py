@@ -22,7 +22,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env_name = "sawyer"
         self.render = render
         dense_reward = False
-        salient_tolerance = 0.10
+        salient_tolerance = 0.06
 
         if self.render:
             self.movie_width = 512
@@ -66,7 +66,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  goal_state=goal_state,
                                  task_agnostic=task_agnostic,
                                  init_set_factor_idxs=list(range(5)),
-                                 salient_event_factor_idxs=[3, 4]
+                                 salient_event_factor_idxs=list(range(5))
                                  )
 
     def __str__(self):
