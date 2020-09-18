@@ -225,7 +225,7 @@ class DQNAgent(Agent):
         Agent.__init__(self, name, range(action_size), GAMMA)
 
     def get_impossible_option_idx(self, state):
-
+        assert isinstance(state, np.ndarray)
         # Arg-max only over actions that can be executed from the current state
         # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
         # -- However, in the case of the goal option we just need to ensure that we are in its initiation set since
@@ -234,13 +234,11 @@ class DQNAgent(Agent):
 
         impossible_option_idx = []
         for idx, option in enumerate(self.trained_options):
-            np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
-
             # if option.parent is None:
             #     assert "goal_option" in option.name or option.name == "global_option" or option.name == "intersection_option", option.name
             #     impossible = not option.is_init_true(np_state)
             # else:
-            impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
+            impossible = (not option.is_init_true(state)) or option.is_term_true(state)
 
             if impossible:
                 impossible_option_idx.append(idx)
@@ -259,11 +257,10 @@ class DQNAgent(Agent):
         """
         self.num_executions += 1
         epsilon = self.epsilon if train_mode else self.evaluation_epsilon
-
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        torch_state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
-            action_values = self.policy_network(state)
+            action_values = self.policy_network(torch_state)
         self.policy_network.train()
 
         impossible_option_idx = self.get_impossible_option_idx(state)

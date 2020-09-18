@@ -181,20 +181,22 @@ class DeepSkillGraphAgent(object):
                                                   reject_high,
                                                   self.experiment_name)
         else:
-            salient_idx = len(self.mdp.all_salient_events_ever)
+            new_salient_idx = len(self.mdp.all_salient_events_ever) + 1
             low_salient_event = SalientEvent(target_state=self.mdp.sample_goal_state(),
-                                             event_idx=salient_idx + 1,
+                                             event_idx=new_salient_idx,
                                              name=f"RRT Salient Episode {episode}")
             reject_low = self.add_salient_event(low_salient_event, episode)
 
+            # need to do this twice because we don't know if low_salient_event was added or not.
+            new_salient_idx = len(self.mdp.all_salient_events_ever) + 1
             high_salient_event = SalientEvent(target_state=self.mdp.sample_goal_state(),
-                                              event_idx=salient_idx + 2,
+                                              event_idx=new_salient_idx,
                                               name=f"RRT Salient Episode {episode}")
             reject_high = self.add_salient_event(high_salient_event, episode)
 
         print(f"Generated {low_salient_event} and {high_salient_event}")
         self.last_event_creation_episode = episode
-        self.last_event_rejection_episode = episode if reject_low and reject_high else -1
+        self.last_event_rejection_episode = episode if reject_low and reject_high else self.last_event_rejection_episode
         self.most_recent_generated_salient_events = (
             low_salient_event if not reject_low else None,
             high_salient_event if not reject_high else None,
