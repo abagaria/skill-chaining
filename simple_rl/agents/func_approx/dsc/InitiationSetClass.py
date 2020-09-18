@@ -22,7 +22,7 @@ class InitiationSet(object):
         matrix = self.get_initiation_set_factors(matrix)
         return self.svm.predict(matrix)
 
-    def decision(self, matrix):
+    def decision_function(self, matrix):
         matrix = self.get_initiation_set_factors(matrix)
         return self.svm.decision_function(matrix)
         
