@@ -1,0 +1,167 @@
+option,salient event,num_goal_hits,num_on_policy_goal_hits,num_executions,success_rate
+global_option,,0,0,132164,0.0
+goal_option_1,RRT Salient Episode 5,529,525,2356,0.2228353140916808
+goal_option_2,RRT Salient Episode 5,14,9,1748,0.005148741418764302
+option_1_0,,1078,1072,3134,0.34205488194001277
+option_1_0_0,,1048,1041,1534,0.6786179921773142
+goal_option_3,RRT Salient Episode 205,9,2,1777,0.0011254924029262803
+goal_option_4,RRT Salient Episode 405,2,0,1772,0.0
+goal_option_5,RRT Salient Episode 605,8,0,508,0.0
+option_2_0,,550,542,3120,0.1737179487179487
+goal_option_6,RRT Salient Episode 805,0,0,913,0.0
+goal_option_7,RRT Salient Episode 1005,4,0,685,0.0
+goal_option_8,RRT Salient Episode 1205,0,0,497,0.0
+goal_option_9,RRT Salient Episode 1405,7,2,339,0.0058997050147492625
+goal_option_10,RRT Salient Episode 1605,2,0,182,0.0
+option_3_0,,103,97,529,0.1833648393194707
+goal_option_11,RRT Salient Episode 1815,8,0,47,0.0
+goal_option_12,RRT Salient Episode 1816,0,0,61,0.0
+goal_option_13,RRT Salient Episode 1817,2,0,69,0.0
+goal_option_14,RRT Salient Episode 1818,4,0,41,0.0
+goal_option_15,RRT Salient Episode 1819,8,0,62,0.0
+goal_option_16,RRT Salient Episode 1820,3,0,57,0.0
+goal_option_17,RRT Salient Episode 1821,1,0,49,0.0
+goal_option_18,RRT Salient Episode 1822,0,0,50,0.0
+goal_option_19,RRT Salient Episode 1823,1,0,57,0.0
+goal_option_20,RRT Salient Episode 1824,5,0,22,0.0
+goal_option_21,RRT Salient Episode 1825,0,0,57,0.0
+goal_option_22,RRT Salient Episode 1826,1,0,68,0.0
+goal_option_23,RRT Salient Episode 1837,2,0,48,0.0
+goal_option_24,RRT Salient Episode 1848,10,2,74,0.02702702702702703
+goal_option_25,RRT Salient Episode 1849,0,0,49,0.0
+goal_option_26,RRT Salient Episode 1850,8,0,68,0.0
+goal_option_27,RRT Salient Episode 1851,2,0,48,0.0
+goal_option_28,RRT Salient Episode 1852,0,0,50,0.0
+goal_option_29,RRT Salient Episode 1863,0,0,64,0.0
+goal_option_30,RRT Salient Episode 1864,4,0,39,0.0
+goal_option_31,RRT Salient Episode 1865,12,4,107,0.037383177570093455
+goal_option_32,RRT Salient Episode 1876,9,1,17,0.058823529411764705
+goal_option_33,RRT Salient Episode 1877,0,0,51,0.0
+goal_option_34,RRT Salient Episode 1888,3,0,37,0.0
+goal_option_35,RRT Salient Episode 1889,7,0,42,0.0
+goal_option_36,RRT Salient Episode 1900,0,0,46,0.0
+goal_option_37,RRT Salient Episode 1911,1,0,50,0.0
+goal_option_38,RRT Salient Episode 1912,3,0,59,0.0
+goal_option_39,RRT Salient Episode 1923,0,0,51,0.0
+goal_option_40,RRT Salient Episode 1934,7,0,8,0.0
+goal_option_41,RRT Salient Episode 1945,1,0,47,0.0
+goal_option_42,RRT Salient Episode 1946,8,0,94,0.0
+goal_option_43,RRT Salient Episode 1957,1,0,39,0.0
+goal_option_44,RRT Salient Episode 1958,2,0,42,0.0
+goal_option_45,RRT Salient Episode 1959,0,0,36,0.0
+goal_option_46,RRT Salient Episode 1960,5,0,24,0.0
+goal_option_47,RRT Salient Episode 1961,4,0,44,0.0
+goal_option_48,RRT Salient Episode 1972,1,0,50,0.0
+goal_option_49,RRT Salient Episode 1973,6,0,13,0.0
+goal_option_50,RRT Salient Episode 1974,3,0,30,0.0
+goal_option_51,RRT Salient Episode 1975,6,0,10,0.0
+goal_option_52,RRT Salient Episode 1976,1,0,35,0.0
+goal_option_53,RRT Salient Episode 1987,4,0,23,0.0
+goal_option_54,RRT Salient Episode 1998,1,0,44,0.0
+goal_option_55,RRT Salient Episode 2019,10,2,47,0.0425531914893617
+goal_option_56,RRT Salient Episode 2030,0,0,42,0.0
+goal_option_57,RRT Salient Episode 2041,0,0,37,0.0
+goal_option_58,RRT Salient Episode 2052,1,0,44,0.0
+goal_option_59,RRT Salient Episode 2063,5,0,31,0.0
+goal_option_60,RRT Salient Episode 2064,0,0,25,0.0
+goal_option_61,RRT Salient Episode 2075,8,0,131,0.0
+goal_option_62,RRT Salient Episode 2096,1,0,44,0.0
+goal_option_63,RRT Salient Episode 2097,7,0,15,0.0
+goal_option_64,RRT Salient Episode 2098,0,0,38,0.0
+goal_option_65,RRT Salient Episode 2099,5,0,19,0.0
+goal_option_66,RRT Salient Episode 2100,8,0,25,0.0
+goal_option_67,RRT Salient Episode 2101,0,0,30,0.0
+goal_option_68,RRT Salient Episode 2102,1,0,32,0.0
+goal_option_69,RRT Salient Episode 2113,0,0,22,0.0
+goal_option_70,RRT Salient Episode 2114,2,0,36,0.0
+goal_option_71,RRT Salient Episode 2115,0,0,23,0.0
+goal_option_72,RRT Salient Episode 2116,2,0,28,0.0
+goal_option_73,RRT Salient Episode 2117,8,0,17,0.0
+goal_option_74,RRT Salient Episode 2118,0,0,28,0.0
+goal_option_75,RRT Salient Episode 2119,0,0,24,0.0
+goal_option_76,RRT Salient Episode 2130,1,0,25,0.0
+goal_option_77,RRT Salient Episode 2131,4,0,9,0.0
+option_32_0,,14,6,59,0.1016949152542373
+goal_option_78,RRT Salient Episode 2132,0,0,34,0.0
+goal_option_79,RRT Salient Episode 2133,5,0,5,0.0
+goal_option_80,RRT Salient Episode 2134,8,0,12,0.0
+goal_option_81,RRT Salient Episode 2145,0,0,36,0.0
+option_24_0,,38,30,233,0.12875536480686695
+goal_option_82,RRT Salient Episode 2156,4,0,35,0.0
+goal_option_83,RRT Salient Episode 2157,8,0,9,0.0
+goal_option_84,RRT Salient Episode 2158,0,0,25,0.0
+goal_option_85,RRT Salient Episode 2159,1,0,20,0.0
+goal_option_86,RRT Salient Episode 2160,8,0,22,0.0
+goal_option_87,RRT Salient Episode 2171,1,0,34,0.0
+goal_option_88,RRT Salient Episode 2172,1,0,25,0.0
+goal_option_89,RRT Salient Episode 2173,1,0,25,0.0
+goal_option_90,RRT Salient Episode 2174,0,0,28,0.0
+goal_option_91,RRT Salient Episode 2175,4,0,6,0.0
+goal_option_92,RRT Salient Episode 2176,1,0,21,0.0
+goal_option_93,RRT Salient Episode 2187,0,0,25,0.0
+goal_option_94,RRT Salient Episode 2188,1,0,28,0.0
+option_26_0,,24,16,142,0.11267605633802817
+goal_option_95,RRT Salient Episode 2199,2,0,24,0.0
+goal_option_96,RRT Salient Episode 2200,0,0,31,0.0
+goal_option_97,RRT Salient Episode 2211,0,0,23,0.0
+goal_option_98,RRT Salient Episode 2222,7,0,17,0.0
+option_42_0,,37,29,225,0.1288888888888889
+goal_option_99,RRT Salient Episode 2233,0,0,18,0.0
+goal_option_100,RRT Salient Episode 2244,8,0,28,0.0
+option_32_0_0,,55,47,134,0.35074626865671643
+goal_option_101,RRT Salient Episode 2275,0,0,29,0.0
+goal_option_102,RRT Salient Episode 2296,2,0,30,0.0
+goal_option_103,RRT Salient Episode 2297,0,0,27,0.0
+goal_option_104,RRT Salient Episode 2308,1,0,18,0.0
+goal_option_105,RRT Salient Episode 2319,1,0,20,0.0
+goal_option_106,RRT Salient Episode 2330,2,0,13,0.0
+goal_option_107,RRT Salient Episode 2331,1,0,19,0.0
+goal_option_108,RRT Salient Episode 2342,1,0,16,0.0
+goal_option_109,RRT Salient Episode 2353,26,18,206,0.08737864077669903
+option_55_0,,23,15,95,0.15789473684210525
+option_11_0,,24,16,37,0.43243243243243246
+goal_option_110,RRT Salient Episode 2374,0,0,16,0.0
+goal_option_111,RRT Salient Episode 2375,0,0,18,0.0
+option_55_0_0,,88,80,137,0.583941605839416
+goal_option_112,RRT Salient Episode 2386,0,0,21,0.0
+goal_option_113,RRT Salient Episode 2387,0,0,20,0.0
+goal_option_114,RRT Salient Episode 2388,1,0,19,0.0
+goal_option_115,RRT Salient Episode 2399,3,0,21,0.0
+goal_option_116,RRT Salient Episode 2400,3,0,18,0.0
+goal_option_117,RRT Salient Episode 2401,0,0,17,0.0
+goal_option_118,RRT Salient Episode 2402,2,0,22,0.0
+goal_option_119,RRT Salient Episode 2433,0,0,16,0.0
+goal_option_120,RRT Salient Episode 2444,0,0,14,0.0
+goal_option_121,RRT Salient Episode 2445,0,0,13,0.0
+goal_option_122,RRT Salient Episode 2456,0,0,12,0.0
+option_31_0,,29,21,88,0.23863636363636365
+goal_option_123,RRT Salient Episode 2467,0,0,17,0.0
+goal_option_124,RRT Salient Episode 2478,8,0,6,0.0
+option_109_0,,67,59,113,0.5221238938053098
+option_5_0,,8,0,6,0.0
+goal_option_125,RRT Salient Episode 2489,0,0,13,0.0
+goal_option_126,RRT Salient Episode 2490,1,0,13,0.0
+goal_option_127,RRT Salient Episode 2501,0,0,15,0.0
+goal_option_128,RRT Salient Episode 2512,0,0,9,0.0
+goal_option_129,RRT Salient Episode 2543,1,0,6,0.0
+option_66_0,,19,11,38,0.2894736842105263
+option_80_0,,11,3,14,0.21428571428571427
+goal_option_130,RRT Salient Episode 2574,0,0,14,0.0
+goal_option_131,RRT Salient Episode 2585,0,0,7,0.0
+goal_option_132,RRT Salient Episode 2586,0,0,12,0.0
+goal_option_133,RRT Salient Episode 2627,0,0,6,0.0
+goal_option_134,RRT Salient Episode 2678,1,0,11,0.0
+option_61_0,,55,47,92,0.5108695652173914
+goal_option_135,RRT Salient Episode 2719,0,0,8,0.0
+goal_option_136,RRT Salient Episode 2720,0,0,11,0.0
+goal_option_137,RRT Salient Episode 2741,0,0,7,0.0
+goal_option_138,RRT Salient Episode 2762,0,0,6,0.0
+option_86_0,,9,1,5,0.2
+goal_option_139,RRT Salient Episode 2843,0,0,4,0.0
+goal_option_140,RRT Salient Episode 2844,4,0,0,1.0
+goal_option_141,RRT Salient Episode 2855,0,0,4,0.0
+goal_option_142,RRT Salient Episode 2896,0,0,2,0.0
+option_100_0,,11,3,10,0.3
+goal_option_143,RRT Salient Episode 2917,0,0,3,0.0
+option_83_0,,8,0,0,1.0
+goal_option_144,RRT Salient Episode 2968,1,0,0,1.0
