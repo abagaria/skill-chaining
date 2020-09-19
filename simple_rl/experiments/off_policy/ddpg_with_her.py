@@ -35,6 +35,7 @@ parser.add_argument('--goal_threshold', type=float, default=0.6)
 parser.add_argument('--goal_dimension', type=int, default=2)
 parser.add_argument('--goal_state', type=float, nargs='+')
 parser.add_argument('--dense_reward', action='store_true', default=False)
+parser.add_argument('--sparse_reward_amount', type=float, default=0.)
 args = parser.parse_args()
 
 ################################################################################
@@ -91,7 +92,11 @@ if __name__ == '__main__':
     os.mkdir(directory)
 
     # (i) Maybe pretrain our DDPG agent using HER
-    mdp = AntReacherMDP(seed=args.seed, render=args.render)
+    mdp = AntReacherMDP(
+        seed=args.seed, 
+        render=args.render, 
+        sparse_reward_amount=args.sparse_reward_amount
+        )
 
     solver = DDPGAgent(
             mdp.state_space_size() + args.goal_dimension,
