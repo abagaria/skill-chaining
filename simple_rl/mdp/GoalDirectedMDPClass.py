@@ -8,13 +8,13 @@ from simple_rl.mdp import MDP, State
 class GoalDirectedMDP(MDP):
     def __init__(self, actions, transition_func, reward_func, init_state,
                  salient_positions, task_agnostic, goal_state=None, goal_tolerance=0.6, 
-                 sparse_reward_amount=0.):
+                 goal_reward=0.):
 
         self.task_agnostic = task_agnostic
         self.goal_tolerance = goal_tolerance
         self.goal_state = goal_state
         self.dense_reward = False
-        self.sparse_reward_amount = sparse_reward_amount
+        self.goal_reward = goal_reward
         self.salient_positions = salient_positions + [goal_state] if goal_state is not None else salient_positions
 
         if not task_agnostic:
@@ -31,7 +31,7 @@ class GoalDirectedMDP(MDP):
             ipdb.set_trace()
         time_limit_truncated = info.get('TimeLimit.truncated', False)
         is_terminal = done and not time_limit_truncated
-        reward = self.sparse_reward_amount if is_terminal else -1.
+        reward = self.goal_reward if is_terminal else -1.
         return reward, is_terminal
 
     def dense_gc_reward_function(self, state, goal, info):
@@ -41,7 +41,7 @@ class GoalDirectedMDP(MDP):
         distance_to_goal = np.linalg.norm(curr_pos - goal_pos)
         done = distance_to_goal <= self.goal_tolerance
         is_terminal = done and not time_limit_truncated
-        reward = +0. if is_terminal else -distance_to_goal
+        reward = self.goal_reward if is_terminal else -distance_to_goal
         return reward, is_terminal
 
     def _initialize_salient_events(self):

@@ -35,7 +35,7 @@ parser.add_argument('--goal_threshold', type=float, default=0.6)
 parser.add_argument('--goal_dimension', type=int, default=2)
 parser.add_argument('--goal_state', type=float, nargs='+')
 parser.add_argument('--dense_reward', action='store_true', default=False)
-parser.add_argument('--sparse_reward_amount', type=float, default=0.)
+parser.add_argument('--goal_reward', type=float, default=0.)
 args = parser.parse_args()
 
 ################################################################################
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     mdp = AntReacherMDP(
         seed=args.seed, 
         render=args.render, 
-        sparse_reward_amount=args.sparse_reward_amount
+        goal_reward=args.goal_reward
         )
 
     solver = DDPGAgent(
