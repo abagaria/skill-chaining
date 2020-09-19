@@ -350,7 +350,8 @@ class SkillGraphPlanner(object):
                     self.plan_graph.add_edge(newly_created_option, other_option)
 
         # if chain.is_chain_completed(self.chainer.chains) and self.chainer.plotter is not None:
-        self.chainer.plotter.visualize_graph(self.chainer.chains, True)
+        if self.chainer.plotter is not None:
+            self.chainer.plotter.visualize_graph(self.chainer.chains, True)
 
     # -----------------------------–––––––--------------
     # Utility Functions

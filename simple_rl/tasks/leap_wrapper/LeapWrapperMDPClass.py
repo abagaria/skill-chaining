@@ -21,6 +21,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                  wait_n_episodes_between_clips, movie_output_folder, task_agnostic):
         self.env_name = "sawyer"
         self.render = render
+        dense_reward = dense_reward
         salient_tolerance = 0.06
 
         if self.render:
@@ -65,7 +66,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  goal_state=goal_state,
                                  task_agnostic=task_agnostic,
                                  init_set_factor_idxs=list(range(5)),
-                                 salient_event_factor_idxs=list(range(5))
+                                 salient_event_factor_idxs=[3, 4]
                                  )
 
     def __str__(self):

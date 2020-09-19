@@ -196,7 +196,7 @@ class DeepSkillGraphAgent(object):
 
         print(f"Generated {low_salient_event} and {high_salient_event}")
         self.last_event_creation_episode = episode
-        self.last_event_rejection_episode = episode if reject_low and reject_high else self.last_event_rejection_episode
+        self.last_event_rejection_episode = episode if reject_low and reject_high else -1
         self.most_recent_generated_salient_events = (
             low_salient_event if not reject_low else None,
             high_salient_event if not reject_high else None,

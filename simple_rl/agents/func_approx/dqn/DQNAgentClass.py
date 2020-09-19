@@ -523,6 +523,19 @@ class ReplayBuffer:
 
         self.positive_transitions = []
 
+    def __getstate__(self):
+        excluded_keys = ("experience")
+        state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+        return state_dictionary
+
+    def __setstate__(self, state_dictionary):
+        excluded_keys = ("experience")
+        for key in state_dictionary:
+            if key not in excluded_keys:
+                self.__dict__[key] = state_dictionary[key]
+
+        namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
+
     def add(self, state, action, reward, next_state, done, num_steps):
         """
         Add new experience to memory.
