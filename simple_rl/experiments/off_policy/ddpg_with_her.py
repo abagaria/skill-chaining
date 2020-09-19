@@ -45,7 +45,7 @@ def plot_learning_curve(
     directory: Path, 
     pes) -> None:
 
-    smoothed_pes = uniform_filter1d(pes)
+    smoothed_pes = uniform_filter1d(pes, 20, mode='nearest')
 
     fig, ax = plt.subplots()
     ax.plot(smoothed_pes)
@@ -68,7 +68,7 @@ def make_chunked_goal_conditioned_value_function_plot(directory, solver, goal, e
     action_chunks = np.array_split(actions, num_chunks, axis=0)
     qvalues = np.zeros((states.shape[0],))
     current_idx = 0
-    for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
+    for chunk_number, (state_chunk, action_chunk) in enumerate(zip(state_chunks, action_chunks)): 
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
         chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
