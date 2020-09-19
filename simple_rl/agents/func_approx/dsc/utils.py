@@ -685,7 +685,7 @@ def visualize_mpc_rollout_result(chains, goal_state, start_state, result_state, 
     plt.savefig(f"value_function_plots/{experiment_name}/mpc_episode_{episode}.png")
     plt.close()
 
-def visualize_mpc_rollout_and_graph_result(chains, goal_state, start_state, result_state, steps_taken, episode, rejected, experiment_name, plot_completed_events):
+def visualize_mpc_rollout_and_graph_result(mdp, chains, goal_state, start_state, result_state, steps_taken, episode, rejected, experiment_name, plot_completed_events):
     def _get_representative_point(event):
         assert isinstance(event, SalientEvent)
         if event.get_target_position() is not None:
@@ -710,8 +710,8 @@ def visualize_mpc_rollout_and_graph_result(chains, goal_state, start_state, resu
     for chain in forward_chains:
         _plot_event_pair(chain.init_salient_event, chain.target_salient_event)
 
-    x_low_lim, y_low_lim = chains[0].options[0].overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = chains[0].options[0].overall_mdp.get_x_y_high_lims()
+    x_low_lim, y_low_lim = mdp.get_x_y_low_lims() # chains[0].options[0].overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = mdp.get_x_y_high_lims() # chains[0].options[0].overall_mdp.get_x_y_high_lims()
 
     plt.xlim((x_low_lim, x_high_lim))
     plt.ylim((y_low_lim, y_high_lim))
@@ -726,13 +726,13 @@ def visualize_mpc_rollout_and_graph_result(chains, goal_state, start_state, resu
     plt.savefig(f"value_function_plots/{experiment_name}/mpc_episode_{episode}_{rejected}.png")
     plt.close()
 
-def visualize_mpc_train_data_distribution(states, episode, experiment_name):
+def visualize_mpc_train_data_distribution(mdp, states, episode, experiment_name):
     sns.set_style("white")
     plt.figure()
 
     # TODO automate this from MDP
-    x_low_lim, y_low_lim = -10, -10
-    x_high_lim, y_high_lim = 10, 10
+    x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
 
     plt.xlim((x_low_lim, x_high_lim))
     plt.ylim((y_low_lim, y_high_lim))
