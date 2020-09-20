@@ -1,5 +1,5 @@
 # Hyperparameters
-BUFFER_SIZE = int(3e5)
+BUFFER_SIZE = int(1e6)
 BATCH_SIZE = 64
 GAMMA = 0.99
 TAU = 0.01

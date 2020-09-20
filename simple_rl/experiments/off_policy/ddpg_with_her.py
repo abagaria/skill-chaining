@@ -27,10 +27,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--experiment_name', type=str)
 parser.add_argument('--seed', type=int)
 parser.add_argument('--num_episodes', type=int)
+parser.add_argument('--num_pretrain_episodes', type=int, default=0)
 parser.add_argument('--num_steps', type=int)
 parser.add_argument('--device', type=str, default='cpu')
 parser.add_argument('--render', action='store_true', default=False)
-parser.add_argument('--pretrain_with_her', action='store_true', default=False)
 parser.add_argument('--goal_threshold', type=float, default=0.6)
 parser.add_argument('--goal_dimension', type=int, default=2)
 parser.add_argument('--goal_state', type=float, nargs='+')
@@ -44,6 +44,7 @@ args = parser.parse_args()
 
 def plot_learning_curve(
     directory: Path, 
+    title,
     pes) -> None:
 
     smoothed_pes = uniform_filter1d(pes, 20, mode='nearest')
@@ -51,8 +52,10 @@ def plot_learning_curve(
     fig, ax = plt.subplots()
     ax.plot(smoothed_pes)
 
-    ax.set(xlabel='score', ylabel='episode', title=f'per episode scores')
+    ax.set(xlabel='score', ylabel='episode', title=title)
     fig.savefig(directory / 'learning_curve.png')
+
+    plt.close()
 
 def make_chunked_goal_conditioned_value_function_plot(directory, solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
@@ -106,16 +109,19 @@ if __name__ == '__main__':
             name="ddpg"
             )
 
-    if args.pretrain_with_her:
+    if args.num_pretrain_episodes > 0:
         pes_i, _ = her_train(
             solver,
             mdp, 
-            args.num_episodes, 
+            args.num_pretrain_episodes, 
             args.num_steps, 
             goal_state=None, 
             sampling_strategy="diverse",
             dense_reward=args.dense_reward
             )
+        
+        plot_learning_curve(directory, 'pretrain with her', pes_i)
+        make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_pretrain_episodes, args.seed, args.experiment_name)
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
     goal_state = np.array(args.goal_state)
@@ -129,8 +135,8 @@ if __name__ == '__main__':
         dense_reward=args.dense_reward
         )
     
-    plot_learning_curve(directory, pes_ii)
-    make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_episodes, args.seed, args.experiment_name)
+    plot_learning_curve(directory, 'test time', pes_ii)
+    make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_pretrain_episodes + args.num_episodes, args.seed, args.experiment_name)
 
     pickle_solver(directory, solver)
 
