@@ -8,7 +8,7 @@ from simple_rl.tasks.point_maze.environments.point_maze_env import PointMazeEnv
 
 
 class D4RLPointMazeMDP(GoalDirectedMDP):
-    def __init__(self, difficulty, goal_directed, use_hard_coded_events=False, seed=0, render=False):
+    def __init__(self, difficulty, goal_directed, seed=0, render=False):
         assert difficulty in ("easy", "medium", "hard")
 
         self.env_name = f"d4rl-{difficulty}-point-maze"
@@ -42,11 +42,9 @@ class D4RLPointMazeMDP(GoalDirectedMDP):
         self.env = PointMazeEnv(**gym_mujoco_kwargs)
         self.reset()
 
-        self.current_goal = self.env.goal_xy
+        self.current_goal = self.env.goal_xy if self.goal_directed else None
 
         salient_positions = []
-        if use_hard_coded_events:
-            salient_positions = self._determine_salient_positions()
 
         self._determine_x_y_lims()
         self.hard_coded_salient_positions = np.copy(salient_positions)

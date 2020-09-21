@@ -108,8 +108,8 @@ class DeepSkillGraphAgent(object):
             target_event (SalientEvent)
         """
         assert selection_criteria in ("closest", "random"), selection_criteria
-        if len(self.mdp.get_all_target_events_ever()) > 1:
-            events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        if len(self.mdp.get_all_target_events_ever()) > 0:
             if selection_criteria == "closest":
                 selected_event = self._select_closest_unconnected_salient_event(state, events)
                 if selected_event is not None:
@@ -126,6 +126,7 @@ class DeepSkillGraphAgent(object):
                 self.generate_new_salient_events(episode)
 
             step_number = 0
+            random_episodic_trajectory = []
             self.reset(episode, start_state)
 
             state = deepcopy(self.mdp.cur_state)
@@ -134,9 +135,10 @@ class DeepSkillGraphAgent(object):
                 goal_salient_event = self.select_goal_salient_event(state) if test_event is None else test_event
 
                 if goal_salient_event is None:
-                    self.take_random_action()
+                    random_transition = self.take_random_action()
                     step_number += 1
                     success = False
+                    random_episodic_trajectory.append(random_transition)
                 else:
                     self.create_skill_chains_if_needed(state, goal_salient_event)
 
@@ -155,6 +157,10 @@ class DeepSkillGraphAgent(object):
 
                 if eval_mode:
                     break
+
+            if episode < 5:
+                goal_state = self.mdp.get_position(self.mdp.sample_random_state())
+                self.dsc_agent.global_option_experience_replay(random_episodic_trajectory, goal_state=goal_state)
 
         return successes
 
@@ -261,13 +267,14 @@ class DeepSkillGraphAgent(object):
             self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
             self.dsc_agent.agent_over_options.step(state.features(), 0, reward, next_state.features(), done, 1)
 
+        return state, action, reward, next_state
+
     def create_skill_chains_if_needed(self, state, goal_salient_event):
         current_salient_event = self._get_current_salient_event(state)
 
         if current_salient_event is not None:
             if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event) and \
                     not self.is_path_under_construction(current_salient_event, goal_salient_event):
-
                 print(f"[DeepSkillGraphsAgent] Creating chain from {current_salient_event} -> {goal_salient_event}")
                 self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
                                                                         init_salient_event=current_salient_event)
@@ -363,14 +370,16 @@ if __name__ == "__main__":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
-                                       difficulty="medium")
+                                       difficulty="medium",
+                                       goal_directed=False)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-hard-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
-                                       difficulty="hard")
+                                       difficulty="hard",
+                                       goal_directed=False)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
     else:
