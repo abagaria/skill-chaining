@@ -15,8 +15,10 @@ from scipy.ndimage.filters import uniform_filter1d
 
 # Other imports
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent, her_train, train
+from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
 from typing import List, Tuple, Callable
+
 
 
 ################################################################################
@@ -36,6 +38,8 @@ parser.add_argument('--goal_dimension', type=int, default=2)
 parser.add_argument('--goal_state', type=float, nargs='+')
 parser.add_argument('--dense_reward', action='store_true', default=False)
 parser.add_argument('--goal_reward', type=float, default=0.)
+parser.add_argument('--preload_solver_path', type=str, default=None)
+parser.add_argument('--empty_replay_buffer', action='store_true', default=False)
 args = parser.parse_args()
 
 ################################################################################
@@ -101,12 +105,21 @@ if __name__ == '__main__':
         goal_reward=args.goal_reward
         )
 
-    solver = DDPGAgent(
-            mdp.state_space_size() + args.goal_dimension,
-            mdp.action_space_size(),
-            args.seed,
-            args.device,
-            name="ddpg"
+    if args.preload_solver_path is None:
+        solver = DDPGAgent(
+                mdp.state_space_size() + args.goal_dimension,
+                mdp.action_space_size(),
+                args.seed,
+                args.device,
+                name="ddpg"
+                )
+    else:
+        solver = pickle.load(open(args.preload_solver_path, 'rb'))
+    
+    if args.empty_replay_buffer:
+        solver.replay_buffer = ReplayBuffer(
+            buffer_size=solver.replay_buffer.buffer_size,
+            name_buffer = solver.replay_buffer.name
             )
 
     if args.num_pretrain_episodes > 0:
