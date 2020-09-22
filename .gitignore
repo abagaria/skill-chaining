@@ -9,3 +9,9 @@ update.py
 .DS_Store
 to_update_instr.txt
 examples/blank_example.py
+archives/
+value_function_plots/
+dsg-ant-maze-MPC-30/
+dsg-ant-maze-MPC-30-her/
+dsg-ant-reacher-MPC-30/
+initiation_set_plots/

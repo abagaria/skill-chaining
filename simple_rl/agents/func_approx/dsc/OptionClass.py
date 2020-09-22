@@ -800,8 +800,10 @@ class Option(object):
 
 	def is_at_local_goal(self, state, goal_state):
 		assert isinstance(state, State)
+		if goal_state is None:
+			return self.is_term_true(state)
 		global_done = self.is_term_true(state) or state.is_terminal() or self.name == "global_option"
-		local_done = self.overall_mdp.sparse_gc_reward_function(state, goal_state, {})[1] if self.use_her else True
+		local_done = self.overall_mdp.sparse_gc_reward_function(state, goal_state, {})[1] if self.use_her or self.name == "global_option" else True
 		done = global_done and local_done
 		return done
 

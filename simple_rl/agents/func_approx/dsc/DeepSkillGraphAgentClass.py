@@ -9,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.utils import *
 from simple_rl.mdp import MDP, State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
-
+from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq,
@@ -41,6 +41,8 @@ class DeepSkillGraphAgent(object):
         self.most_recent_generated_salient_events = (None, None)
         self.last_event_creation_episode = -1
 
+        self.mpc = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.dsc_agent.device)
+
     @staticmethod
     def _randomly_select_salient_event(state, candidate_salient_events):
         num_tries = 0
@@ -65,16 +67,32 @@ class DeepSkillGraphAgent(object):
         current_salient_events = [event for event in events if event(state)]
 
         # Grab all the descendants of the current salient event
-        descendant_events = deepcopy(current_salient_events)
+        # descendant_events = deepcopy(current_salient_events)
+        # descendant_events = current_salient_events
+        # for salient_event in current_salient_events:
+        #     descendants = graph.get_reachable_nodes_from_source_node(salient_event)
+        #     descendant_events += descendants
+
+        descendant_events = []
         for salient_event in current_salient_events:
             descendants = graph.get_reachable_nodes_from_source_node(salient_event)
             descendant_events += descendants
+        descendant_events += current_salient_events
 
         if not all([isinstance(e, (SalientEvent, Option)) for e in descendant_events]):
             ipdb.set_trace()
 
         # Grab all the ancestor Salient Events of each candidate salient event
-        ancestor_events = deepcopy(candidate_salient_events)
+        # ancestor_events = deepcopy(candidate_salient_events)
+        # ancestor_events = candidate_salient_events
+        # for salient_event in candidate_salient_events:
+        #     ancestors = graph.get_nodes_that_reach_target_node(salient_event)
+        #     if any([ancestor in descendant_events for ancestor in ancestors]):
+        #         ipdb.set_trace()
+        #     filtered_ancestors = [e for e in ancestors if isinstance(e, SalientEvent)]
+        #     if len(filtered_ancestors) > 0:
+        #         ancestor_events += filtered_ancestors
+        ancestor_events = []
         for salient_event in candidate_salient_events:
             ancestors = graph.get_nodes_that_reach_target_node(salient_event)
             if any([ancestor in descendant_events for ancestor in ancestors]):
@@ -82,6 +100,7 @@ class DeepSkillGraphAgent(object):
             filtered_ancestors = [e for e in ancestors if isinstance(e, SalientEvent)]
             if len(filtered_ancestors) > 0:
                 ancestor_events += filtered_ancestors
+        ancestor_events += candidate_salient_events
 
         if not all([isinstance(e, SalientEvent) for e in ancestor_events]):
             ipdb.set_trace()
@@ -108,8 +127,10 @@ class DeepSkillGraphAgent(object):
             target_event (SalientEvent)
         """
         assert selection_criteria in ("closest", "random"), selection_criteria
-        if len(self.mdp.get_all_target_events_ever()) > 1:
-            events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()] #
+        # if len(self.mdp.get_all_target_events_ever()) > 1:
+        if len(self.mdp.get_all_target_events_ever()) > 0: #
+            # events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
             if selection_criteria == "closest":
                 selected_event = self._select_closest_unconnected_salient_event(state, events)
                 if selected_event is not None:
@@ -121,6 +142,15 @@ class DeepSkillGraphAgent(object):
         successes = []
 
         for episode in range(episodes):
+            random_episodic_trajectory = [] #
+
+            # TODO utilize argparse
+            if (episode % 250 == 0 and episode > 0) or episode == 5 or episode == 30:
+                states, actions, states_p = self._prepare_dataset()
+                visualize_mpc_train_data_distribution(self.mdp, states, episode, self.dsc_agent.experiment_name)
+                print(f"Size of dataset: {len(states)}")
+                self.mpc.load_data(states, actions, states_p)
+                self.mpc.train(epochs=100, batch_size=1024)
 
             if self.should_generate_new_salient_events(episode) and not eval_mode:
                 self.generate_new_salient_events(episode)
@@ -134,17 +164,24 @@ class DeepSkillGraphAgent(object):
                 goal_salient_event = self.select_goal_salient_event(state) if test_event is None else test_event
 
                 if goal_salient_event is None:
-                    self.take_random_action()
+                    # self.take_random_action()
+                    random_transition = self.take_random_action() #
                     step_number += 1
                     success = False
+                    took_random_actions = True #
+                    random_episodic_trajectory.append(random_transition) #
                 else:
                     self.create_skill_chains_if_needed(state, goal_salient_event)
 
-                    step_number, success = self.planning_agent.run_loop(state=state,
-                                                                        goal_salient_event=goal_salient_event,
-                                                                        episode=episode,
-                                                                        step=step_number,
-                                                                        eval_mode=eval_mode)
+                    step_number, success, override = self.planning_agent.run_loop(mpc=self.mpc,
+                                                                                  state=state,
+                                                                                  goal_salient_event=goal_salient_event,
+                                                                                  episode=episode,
+                                                                                  step=step_number,
+                                                                                  eval_mode=eval_mode)
+                    if override:
+                        self.generate_new_salient_events(episode)
+                    
 
                 state = deepcopy(self.mdp.cur_state)
 
@@ -156,7 +193,27 @@ class DeepSkillGraphAgent(object):
                 if eval_mode:
                     break
 
+            if episode < 5: #
+                goal_state = self.mdp.get_position(self.mdp.sample_random_state()) #
+                self.dsc_agent.global_option_experience_replay(random_episodic_trajectory, goal_state=goal_state) #
+
         return successes
+
+    def _prepare_dataset(self):
+        data = self.dsc_agent.global_option.solver.replay_buffer.memory
+        states = []
+        actions = []
+        states_p = []
+        for state, action, reward, next_state, terminal in tqdm(data, desc='Preparing dataset for MPC'):
+            if not self.planning_agent.use_her:
+                states.append(state.astype('float64'))
+                actions.append(action.astype('float64'))
+                states_p.append(next_state.astype('float64'))
+            else:
+                states.append(state[:-2].astype('float64'))
+                actions.append(action.astype('float64'))
+                states_p.append(next_state[:-2].astype('float64'))
+        return states, actions, states_p
 
     def generate_new_salient_events(self, episode):
 
@@ -260,17 +317,19 @@ class DeepSkillGraphAgent(object):
         if not self.planning_agent.use_her:
             self.dsc_agent.global_option.solver.step(state.features(), action, reward, next_state.features(), done)
             self.dsc_agent.agent_over_options.step(state.features(), 0, reward, next_state.features(), done, 1)
+        
+        return state, action, reward, next_state #
 
     def create_skill_chains_if_needed(self, state, goal_salient_event):
         current_salient_event = self._get_current_salient_event(state)
+        if goal_salient_event.revised_by_mpc:
+            if current_salient_event is not None:
+                if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event) and \
+                        not self.is_path_under_construction(current_salient_event, goal_salient_event):
 
-        if current_salient_event is not None:
-            if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event) and \
-                    not self.is_path_under_construction(current_salient_event, goal_salient_event):
-
-                print(f"[DeepSkillGraphsAgent] Creating chain from {current_salient_event} -> {goal_salient_event}")
-                self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
-                                                                        init_salient_event=current_salient_event)
+                    print(f"[DeepSkillGraphsAgent] Creating chain from {current_salient_event} -> {goal_salient_event}")
+                    self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
+                                                                            init_salient_event=current_salient_event)
 
     def _get_current_salient_event(self, state):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"

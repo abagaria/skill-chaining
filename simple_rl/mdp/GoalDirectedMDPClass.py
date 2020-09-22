@@ -24,7 +24,9 @@ class GoalDirectedMDP(MDP):
 
     def sparse_gc_reward_function(self, state, goal, info):
         try:
-            done = np.linalg.norm(state[:2] - goal) <= self.goal_tolerance
+            curr_pos = self.get_position(state)
+            goal_pos = self.get_position(goal)
+            done = np.linalg.norm(curr_pos - goal_pos) <= self.goal_tolerance
         except:
             ipdb.set_trace()
         time_limit_truncated = info.get('TimeLimit.truncated', False)

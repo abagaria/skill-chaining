@@ -1,5 +1,6 @@
 import ipdb
 import random
+import logging
 import itertools
 import numpy as np
 from copy import deepcopy
@@ -8,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
+from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph, visualize_mpc_rollout_and_graph_result
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 
 
@@ -35,6 +36,11 @@ class SkillGraphPlanner(object):
         self.seed = seed
 
         self.plan_graph = PlanGraph()
+
+        self.logger = logging
+        for handler in self.logger.root.handlers[:]:
+            self.logger.root.removeHandler(handler)
+        self.logger.basicConfig(filename=f"value_function_plots/{self.chainer.experiment_name}/SkillGraphPlanner.log", filemode='w', format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -138,21 +144,68 @@ class SkillGraphPlanner(object):
 
         return state, step
 
-    def run_loop(self, *, state, goal_salient_event, episode, step, eval_mode):
+    def mpc_revise_salient_event(self, mpc, state, goal_salient_event, step, episode, max_steps):
+        if step + max_steps > self.chainer.max_steps:
+            self.logger.debug(f'Episode {episode}: Not enough budget to run MPC, terminating early')
+            return state, self.chainer.max_steps, False # ends episode
+        
+        self.logger.debug(f'Episode {episode}: MPC starting at {(state[0], state[1])}')
+        mpc_result_state, steps_taken = mpc.rollout(self.mdp, 14000, 7, goal_salient_event.get_target_position(), max_steps=max_steps)
+        self.logger.debug(f'Episode {episode}: MPC ended at {(mpc_result_state[0], mpc_result_state[1])}')
+
+        reject_mpc = self.should_reject_mpc_rollout(mpc_result_state, goal_salient_event)
+        visualize_mpc_rollout_and_graph_result(self, self.mdp, self.chainer.chains, goal_salient_event.get_target_position(), state, mpc_result_state, steps_taken, episode, reject_mpc, self.chainer.experiment_name, True)
+
+        if reject_mpc:
+            self.logger.debug(f'Episode {episode}: MPC rollout rejected')
+            self.mdp.all_salient_events_ever.remove(goal_salient_event)
+            return mpc_result_state, self.chainer.max_steps, True
+        
+        goal_salient_event.target_state = mpc_result_state.position # TODO [:2]?
+        goal_salient_event._initialize_trigger_points()
+        goal_salient_event.revised_by_mpc = True
+        self.logger.debug(f'Episode {episode}: MPC rollout succeeded, revised goal_salient_event!')
+
+        return mpc_result_state, step + steps_taken, False
+            
+
+    def run_loop(self, *, mpc, state, goal_salient_event, episode, step, eval_mode):
+        # TODO add assert statement here for mpc?
         assert isinstance(state, State)
         assert isinstance(goal_salient_event, SalientEvent)
         assert isinstance(episode, int)
         assert isinstance(step, int)
         assert isinstance(eval_mode, bool)
 
+        if episode != 0 and episode % 250 == 0:
+            for option in self.chainer.trained_options[1:]:
+                if option.parent is None and option.get_training_phase() == "initiation_done":
+                    self.logger.debug(f'Episode {episode}: option success rates {option}, {option.get_option_success_rate()}')
+
         planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
+        self.logger.debug(f'Episode {episode}: goal_salient_event at {(goal_salient_event.target_state[0], goal_salient_event.target_state[1])}')
+        if isinstance(planner_goal_vertex, SalientEvent):
+            self.logger.debug(f'Episode {episode}: planner_goal_vertex at {(planner_goal_vertex.target_state[0], planner_goal_vertex.target_state[1])}')
+        else:
+            self.logger.debug(f'Episode {episode}: planner_goal_vertex is option {planner_goal_vertex}')
+        if isinstance(dsc_goal_vertex, SalientEvent):
+            self.logger.debug(f'Episode {episode}: dsc_goal_vertex at {(dsc_goal_vertex.target_state[0], dsc_goal_vertex.target_state[1])}')
+        else:
+            self.logger.debug(f'Episode {episode}: dsc_goal_vertex is option {dsc_goal_vertex}')
 
-        state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
-        state, step = self.run_sub_loop(state, dsc_goal_vertex, step, goal_salient_event, episode, eval_mode)
-        state, step = self.run_sub_loop(state, goal_salient_event, step, goal_salient_event, episode, eval_mode)
-
-        return step, goal_salient_event(state)
+        if eval_mode is False and not goal_salient_event.revised_by_mpc and self.mdp.get_start_state_salient_event()(state):
+            # TODO potential infinite loop here
+            print("running mpc")
+            if not goal_salient_event == planner_goal_vertex:
+                state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
+            state, step, rejected = self.mpc_revise_salient_event(mpc, state, goal_salient_event, step, episode, 100) # TODO hardcode 100?
+            return self.chainer.max_steps, not rejected, rejected
+        else:
+            state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
+            state, step = self.run_sub_loop(state, dsc_goal_vertex, step, goal_salient_event, episode, eval_mode)
+            state, step = self.run_sub_loop(state, goal_salient_event, step, goal_salient_event, episode, eval_mode)
+        return step, goal_salient_event(state), False
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
@@ -354,6 +407,25 @@ class SkillGraphPlanner(object):
 
         if chain.is_chain_completed():
             visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
+
+    def should_reject_mpc_rollout(self, target_state, goal_salient_event):
+        """
+        Reject the discovered salient event if it is the same as an old one or inside the initiation set of an option.
+        Args:
+            salient_event (SalientEvent)
+        Returns:
+            should_reject (bool)
+        """
+        existing_target_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()] # start state isn't revised by MPC
+        if any([event(target_state) for event in existing_target_events if event != goal_salient_event and event.revised_by_mpc]): # TODO debug
+            self.logger.debug('mpc rollout rejected because similar salient event already exists')
+            return True
+
+        if self.chainer.state_in_any_completed_option(target_state):
+            self.logger.debug('mpc rollout rejected because state is in a completed option')
+            return True
+
+        return False
 
     # -----------------------------–––––––--------------
     # Utility Functions
