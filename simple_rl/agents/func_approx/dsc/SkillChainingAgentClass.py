@@ -395,6 +395,7 @@ class SkillChaining(object):
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
 		def perform_gc_experience_replay(g, o, transitions):
+			if len(transitions) == 0: ipdb.set_trace()
 			option_final_state = transitions[-1][-1]
 			sp_augmented = np.concatenate((option_final_state.features(), g), axis=0)
 			for i, transition in enumerate(transitions):
