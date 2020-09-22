@@ -153,6 +153,7 @@ if __name__ == '__main__':
     solver = pickle.load(open('ddpg_with_her_dense_big_buffer_long_0/ddpg.pkl', 'rb'))
     solver.replay_buffer.memory = deque(maxlen=int(1e6))
     solver.use_fixed_noise = True
+    solver.evaluation_epsilon = True
 
     # (ii) Test on a fixed-goal domain, maybe pretrained
     goal_state = np.array([3.8,3.7])
