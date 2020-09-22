@@ -150,7 +150,7 @@ if __name__ == '__main__':
         goal_reward=0.
         )
     
-    solver = pickle.load(open('~/git-repos/skill-chaining/ddpg_with_her_big_buffer_long_0', 'rb'))
+    solver = pickle.load(open('ddpg_with_her_dense_big_buffer_long_0/ddpg.pkl', 'rb'))
     solver.replay_buffer.memory = deque(maxlen=int(1e6))
 
     # (ii) Test on a fixed-goal domain, maybe pretrained
