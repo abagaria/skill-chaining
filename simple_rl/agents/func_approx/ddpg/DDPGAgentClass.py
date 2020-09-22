@@ -347,7 +347,7 @@ def her_rollout(agent, goal, mdp, steps, dense_reward):
     return score, trajectory
 
 # I totally butchered this function on this branch, def don't merge this back in to main -Kiran
-def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed", dense_reward=False, use_her=True:
+def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed", dense_reward=False, use_her=True):
 
     assert sampling_strategy in ("fixed", "diverse", "test"), sampling_strategy
     if sampling_strategy == "test": assert goal_state is not None, goal_state
