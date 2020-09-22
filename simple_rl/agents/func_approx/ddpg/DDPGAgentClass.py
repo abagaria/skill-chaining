@@ -347,7 +347,7 @@ def her_rollout(agent, goal, mdp, steps, dense_reward):
     return score, trajectory
 
 # I totally butchered this function on this branch, def don't merge this back in to main -Kiran
-def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed", dense_reward=False):
+def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed", dense_reward=False, use_her=True:
 
     assert sampling_strategy in ("fixed", "diverse", "test"), sampling_strategy
     if sampling_strategy == "test": assert goal_state is not None, goal_state
@@ -380,22 +380,23 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
             augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
             agent.step(augmented_state, action, reward, augmented_next_state, done)
 
-        # If traj is empty, we avoid doing hindsight experience replay
-        if len(trajectory) == 0:
-            continue
+        if use_her:
+            # If traj is empty, we avoid doing hindsight experience replay
+            if len(trajectory) == 0:
+                continue
 
-        # `final` strategy for picking up the hindsight goal
-        reached_goal = trajectory[-1][-1].features()[:2]
+            # `final` strategy for picking up the hindsight goal
+            reached_goal = trajectory[-1][-1].features()[:2]
 
-        # Hindsight Experience Replay
-        for state, action, _, next_state in trajectory:
+            # Hindsight Experience Replay
+            for state, action, _, next_state in trajectory:
 
-            reward_func = mdp.dense_gc_reward_function if dense_reward else mdp.sparse_gc_reward_function
-            reward, done = reward_func(next_state, reached_goal, {})
+                reward_func = mdp.dense_gc_reward_function if dense_reward else mdp.sparse_gc_reward_function
+                reward, done = reward_func(next_state, reached_goal, {})
 
-            augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
-            augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
-            agent.step(augmented_state, action, reward, augmented_next_state, done)
+                augmented_state = np.concatenate((state.features(), reached_goal), axis=0)
+                augmented_next_state = np.concatenate((next_state.features(), reached_goal), axis=0)
+                agent.step(augmented_state, action, reward, augmented_next_state, done)
 
         # Logging
         per_episode_scores.append(score)

@@ -40,6 +40,7 @@ parser.add_argument('--dense_reward', action='store_true', default=False)
 parser.add_argument('--goal_reward', type=float, default=0.)
 parser.add_argument('--preload_solver_path', type=str, default=None)
 parser.add_argument('--empty_replay_buffer', action='store_true', default=False)
+parser.add_argument('--her_at_test_time', action='store_true', default=False)
 args = parser.parse_args()
 
 ################################################################################
@@ -145,7 +146,8 @@ if __name__ == '__main__':
         args.num_steps,
         goal_state = goal_state,
         sampling_strategy="test",
-        dense_reward=args.dense_reward
+        dense_reward=args.dense_reward,
+        use_her=args.her_at_test_time
         )
     
     plot_learning_curve(directory, 'test time', pes_ii)
