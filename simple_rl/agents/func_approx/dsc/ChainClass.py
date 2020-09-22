@@ -180,10 +180,7 @@ class SkillChain(object):
                     self.completing_vertex = ancestor, "ancestor"
                     return True
 
-        # Finally, default to the start-state salient event of the entire MDP
-        if self.should_exist_edge_from_event_to_option(self.mdp_init_salient_event, option):
-            self.completing_vertex = self.mdp_init_salient_event, "mdp_init_salient_event"
-            return True
+        # TODO: Can't check for intersection with start event for backward chains - can we cap by num_skills?
 
         return False
 

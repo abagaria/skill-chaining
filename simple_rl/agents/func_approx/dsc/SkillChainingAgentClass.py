@@ -111,9 +111,11 @@ class SkillChaining(object):
 		self.validation_scores = []
 
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
-		goal_salient_event = mdp.get_original_target_events()[0] if len(mdp.get_original_target_events()) > 0 else None
+		if not self.mdp.task_agnostic:
+			raise NotImplementedError("Need target_salient_event for the global-option")
+
 		self.global_option = Option(overall_mdp=self.mdp, name="global_option",
-									global_solver=None, target_salient_event=goal_salient_event,
+									global_solver=None, target_salient_event=None,
 									lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
@@ -393,6 +395,7 @@ class SkillChaining(object):
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
 		def perform_gc_experience_replay(g, o, transitions):
+			if len(transitions) == 0: ipdb.set_trace()
 			option_final_state = transitions[-1][-1]
 			sp_augmented = np.concatenate((option_final_state.features(), g), axis=0)
 			for i, transition in enumerate(transitions):
@@ -413,8 +416,10 @@ class SkillChaining(object):
 		for option, trajectory in option_trajectories:  # type: Option, list
 			perform_gc_experience_replay(goal_position, option, transitions=trajectory)
 
-		for option, trajectory in option_trajectories:  # type: Option, list
-			perform_gc_experience_replay(reached_goal, option, transitions=trajectory)
+		# Only perform the hindsight update if you didn't reach the goal
+		if not self.mdp.sparse_gc_reward_function(reached_goal, goal_position, {})[1]:
+			for option, trajectory in option_trajectories:  # type: Option, list
+				perform_gc_experience_replay(reached_goal, option, transitions=trajectory)
 
 	def get_init_q_value_for_new_option(self, newly_trained_option):
 		global_solver = self.agent_over_options  # type: DQNAgent
@@ -563,6 +568,7 @@ class SkillChaining(object):
 
 		# Hack - do not take option from a salient event targeting it
 		if selected_option.is_term_true(state):
+			ipdb.set_trace()
 			selected_option = self.global_option
 
 		return selected_option
@@ -724,8 +730,11 @@ class SkillChaining(object):
 		self.global_option_experience_replay(episodic_trajectory, goal_state=overall_goal)
 
 		if self.use_her:
-			self.global_option_experience_replay(episodic_trajectory, goal_state=reached_goal)
-			self.make_goal_conditioned_smdp_update(goal=overall_goal, final_state=state, option_trajectories=option_trajectory)
+			reached_overall_goal = self.mdp.sparse_gc_reward_function(reached_goal, overall_goal, {})[1]
+			if len(episodic_trajectory) > 0 and not reached_overall_goal:
+				self.global_option_experience_replay(episodic_trajectory, goal_state=reached_goal)
+			if len(option_trajectory) > 1:
+				self.make_goal_conditioned_smdp_update(goal=overall_goal, final_state=state, option_trajectories=option_trajectory)
 
 	def dsc_rollout(self, *, episode_number, step_number, interrupt_handle=lambda x: False, overall_goal=None):
 		""" Single episode rollout of deep skill chaining from the current state in the MDP. """
