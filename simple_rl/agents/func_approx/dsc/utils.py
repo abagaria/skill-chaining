@@ -168,7 +168,7 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
     plt.close()
 
 
-def plot_two_class_classifier(option, episode, experiment_name, plot_examples=False):
+def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True):
     states = get_grid_states(option.overall_mdp)
     values = get_initiation_set_values(option)
 
@@ -178,7 +178,7 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Fa
     xx, yy = np.meshgrid(xi, yi)
     rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
     zz = rbf(xx, yy)
-    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.bwr)
+    plt.imshow(zz, vmin=min(values), vmax=max(values), extent=[x.min(), x.max(), y.min(), y.max()], origin="lower", alpha=0.6, cmap=plt.cm.coolwarm)
     plt.colorbar()
 
     # Plot trajectories
@@ -186,16 +186,17 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Fa
     negative_examples = option.construct_feature_matrix(option.negative_examples)
 
     if positive_examples.shape[0] > 0 and plot_examples:
-        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", cmap=plt.cm.coolwarm, alpha=0.3)
+        plt.scatter(positive_examples[:, 0], positive_examples[:, 1], label="positive", c="black", alpha=0.3, s=10)
 
     if negative_examples.shape[0] > 0 and plot_examples:
-        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", cmap=plt.cm.coolwarm, alpha=0.3)
+        plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", c="magenta", alpha=0.3, s=10)
 
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.title("{} Initiation Set".format(option.name))
+    plt.legend()
     plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
     plt.close()
 

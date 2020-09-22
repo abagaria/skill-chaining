@@ -485,10 +485,10 @@ class Option(object):
 		return distances
 
 	@staticmethod
-	def distance_to_weights(distances):
+	def distance_to_weights(distances, tol=0.6):
 		weights = np.copy(distances)
 		for row in range(weights.shape[0]):
-			if weights[row] > 0.:
+			if weights[row] > tol:
 				weights[row] = np.exp(-1. * weights[row])
 			else:
 				weights[row] = 1.
@@ -501,7 +501,15 @@ class Option(object):
 
 		# Smaller gamma -> influence of example reaches farther. Using scale leads to smaller gamma than auto.
 		self.initiation_classifier = svm.OneClassSVM(kernel="rbf", nu=self.nu, gamma="scale")
-		self.initiation_classifier.fit(positive_feature_matrix)
+
+		weights = None
+
+		if self.parent is None and self.target_salient_event.get_target_position() is not None:
+			goal = self.target_salient_event.get_target_position()[None, ...]
+			distances = distance.cdist(positive_feature_matrix, goal)
+			weights = self.distance_to_weights(distances, tol=self.target_salient_event.tolerance).squeeze(1)
+
+		self.initiation_classifier.fit(positive_feature_matrix, sample_weight=weights)
 
 		return True
 

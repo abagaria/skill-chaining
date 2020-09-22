@@ -62,13 +62,7 @@ class DeepSkillGraphAgent(object):
     def _select_closest_unconnected_salient_event(self, state, events):
         graph = self.planning_agent.plan_graph
         candidate_salient_events = self.generate_candidate_salient_events(state)
-        current_salient_events = [event for event in events if event(state)]
-
-        # Grab all the descendants of the current salient event
-        descendant_events = deepcopy(current_salient_events)
-        for salient_event in current_salient_events:
-            descendants = graph.get_reachable_nodes_from_source_node(salient_event)
-            descendant_events += descendants
+        descendant_events = self.planning_agent.plan_graph.get_reachable_nodes_from_source_state(state)
 
         if not all([isinstance(e, (SalientEvent, Option)) for e in descendant_events]):
             ipdb.set_trace()
