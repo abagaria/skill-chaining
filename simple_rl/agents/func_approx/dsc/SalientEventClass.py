@@ -45,7 +45,7 @@ class SalientEvent(object):
         def _state_eq(s1, s2):
             s1 = self._get_position(s1)
             s2 = self._get_position(s2)
-            return (s1 == s2).all()
+            return np.allclose(s1, s2)
 
         if not isinstance(other, SalientEvent):
             return False

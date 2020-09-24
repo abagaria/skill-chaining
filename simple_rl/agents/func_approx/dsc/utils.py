@@ -21,6 +21,7 @@ import math
 # Other imports.
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
 class Experience(object):
     def __init__(self, s, a, r, s_prime):
@@ -375,7 +376,11 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
     for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        if isinstance(solver, DQNAgent):
+            chunk_qvalues = solver.get_batched_qvalues(state_chunk).cpu().numpy()
+            chunk_qvalues = np.max(chunk_qvalues, axis=1)
+        else:
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
         current_chunk_size = len(state_chunk)
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
@@ -413,7 +418,11 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     for chunk_number, (state_chunk, action_chunk) in tqdm(enumerate(zip(state_chunks, action_chunks)), desc="Making VF plot"):  # type: (int, np.ndarray)
         state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
         action_chunk = torch.from_numpy(action_chunk).float().to(solver.device)
-        chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
+        if isinstance(solver, DQNAgent):
+            chunk_qvalues = solver.get_batched_qvalues(state_chunk).cpu().numpy()
+            chunk_qvalues = np.max(chunk_qvalues, axis=1)
+        else:
+            chunk_qvalues = solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1)
         current_chunk_size = len(state_chunk)
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size

@@ -24,7 +24,7 @@ from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import Co
 
 class DDPGAgent(Agent):
     def __init__(self, state_size, action_size, seed, device, lr_actor=LRA, lr_critic=LRC,
-                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="shaping",
+                 batch_size=BATCH_SIZE, tensor_log=False, writer=None, name="Global-DDPG-Agent", exploration="",
                  trained_options=[], evaluation_epsilon=0.1, use_fixed_noise=True):
         self.state_size = state_size
         self.action_size = action_size
@@ -247,6 +247,8 @@ class DDPGAgent(Agent):
                         phi = option.batched_is_init_true
                         shaped_bonus = 1. * phi(np_next_states)
                         rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
+
+        assert self.exploration_method == "", self.exploration_method
 
         next_actions = self.target_actor(next_states)
         Q_targets_next = self.target_critic(next_states, next_actions)

@@ -402,6 +402,8 @@ class DQNAgent(Agent):
             shaped_bonus = 1. * np.array(encouraged_options)
             rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
 
+        assert self.exploration_strategy not in ("shaping", "counts"), self.exploration_strategy
+
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
 

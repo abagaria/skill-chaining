@@ -181,8 +181,8 @@ class SkillChain(object):
                     return True
 
         # TODO: Can't check for intersection with start event for backward chains - can we cap by num_skills?
-
-        return False
+        trained_options = [option for option in self.options if option.get_training_phase() == 'initiation_done']
+        return len(trained_options) > 5
 
     def is_chain_completed(self):
         """
