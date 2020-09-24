@@ -83,6 +83,10 @@ class Option(object):
 		self.solver_type = solver_type
 		self.use_her = use_her
 
+		if self.name not in ("global_option", "exploration_option"):
+			assert self.init_salient_event is not None
+			assert self.target_salient_event is not None
+
 		self.state_size = self.overall_mdp.state_space_size() + 2 if use_her else self.overall_mdp.state_space_size()
 		self.action_size = self.overall_mdp.action_space_size()
 
@@ -205,9 +209,8 @@ class Option(object):
 			ddpg_batch_size = self.global_solver.batch_size
 			writer = self.writer
 			solver_name = "{}_ddpg_agent".format(self.name)
-			exploration = "shaping" if self.name == "global_option" else ""
 			self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
-									tensor_log=(writer is not None), writer=writer, name=solver_name, exploration=exploration)
+									tensor_log=(writer is not None), writer=writer, name=solver_name)
 		elif self.solver_type == "td3":
 			exploration_method = "shaping" if self.name == "global_option" else ""
 			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
@@ -216,6 +219,16 @@ class Option(object):
 
 		else:
 			raise NotImplementedError(self.solver_type)
+
+	@staticmethod
+	def is_between(x1, x2, x3):
+		""" is x3 in between x1 and x2? """
+		d0 = x2 - x1
+		d0m = np.linalg.norm(d0)
+		v = d0 / d0m
+		d1 = x3 - x1
+		r = v.dot(d1)
+		return 0 <= r <= d0m
 
 	def sample_state(self):
 		""" Return a state from the option's initiation set. """
@@ -272,13 +285,25 @@ class Option(object):
 	def is_valid_init_data(self, state_buffer):
 		# TODO: Use should_expand_initiation_classifier() from ChainClass
 
+		def get_points_in_between(init_point, final_point, positions):
+			return [position for position in positions if self.is_between(init_point, final_point, position)]
+
 		# Use the data if it could complete the chain
 		if self.init_salient_event is not None:
 			if any([self.is_init_true(s) for s in self.init_salient_event.trigger_points]):
 				return True
 
-		# Otherwise, use the data if it has enough data points
-		return len(state_buffer) >= self.buffer_length // 10
+		length_condition = len(state_buffer) >= self.buffer_length // 10
+
+		if not length_condition:
+			return False
+
+		position_buffer = [self.overall_mdp.get_position(state) for state in state_buffer]
+		points_in_between = get_points_in_between(self.init_salient_event.get_target_position(),
+												  self.target_salient_event.get_target_position(),
+												  position_buffer)
+		in_between_condition = len(points_in_between) >= self.buffer_length // 10
+		return in_between_condition
 
 	def get_training_phase(self):
 		if self.num_goal_hits < self.num_subgoal_hits_required:
@@ -370,12 +395,11 @@ class Option(object):
 		# Extract the relevant dimensions from the state matrix (x, y)
 		state_matrix = state_matrix[:, :2]
 
-		if self.target_salient_event is not None:
-			return self.target_salient_event(state_matrix)
-
-		# If the option does not have a parent, it must be targeting a pre-specified salient event
 		if self.name == "global_option" or self.name == "exploration_option":
-			return np.zeros((state_matrix.shape[0]))
+			return np.zeros((state_matrix.shape[0]))  # TODO: Create and use a batched version of MDP::is-goal-state()
+
+		assert self.target_salient_event is not None
+		return self.target_salient_event(state_matrix)
 
 	def is_init_true(self, ground_state):
 
@@ -406,12 +430,11 @@ class Option(object):
 		if self.parent is not None:
 			return self.parent.is_init_true(ground_state)
 
-		if self.target_salient_event is not None:
-			return self.target_salient_event(ground_state)
-
-		# If option does not have a parent, it must be the goal option or the global option
 		if self.name == "global_option" or self.name == "exploration_option":
 			return self.overall_mdp.is_goal_state(ground_state)
+
+		assert self.target_salient_event is not None, self.target_salient_event
+		return self.target_salient_event(ground_state)
 
 	def should_target_with_bonus(self):
 		"""
@@ -700,13 +723,15 @@ class Option(object):
 			sample = random.sample(self.effect_set, k=1)[0]
 			return self.overall_mdp.get_position(sample)
 
-		if self.target_salient_event is not None:
-			return self.target_salient_event.get_target_position()
-
 		# If the effect set is empty, then sample from the parent option's initiation set classifier
 		if self.parent is not None:
 			goal = _sample_from_parent_initiation_set()
 			if goal is not None: return goal
+
+		# If not a root option, and can't sample from either the term or effect sets,
+		# then just use the chain's target salient event as the goal
+		if self.target_salient_event is not None:
+			return self.target_salient_event.get_target_position()
 
 		return self.overall_mdp.get_position(self.overall_mdp.goal_state)
 

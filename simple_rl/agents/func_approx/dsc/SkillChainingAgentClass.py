@@ -342,6 +342,7 @@ class SkillChaining(object):
 									  initialize_everywhere=parent_option.initialize_everywhere,
 									  max_num_children=parent_option.max_num_children,
 									  init_salient_event=chain.init_salient_event,
+									  target_salient_event=chain.target_salient_event,
 									  use_warmup_phase=self.use_warmup_phase,
 									  update_global_solver=self.update_global_solver,
 									  initiation_period=parent_option.initiation_period,
@@ -395,7 +396,7 @@ class SkillChaining(object):
 			return sum([(gamma ** idx) * rr for idx, rr in enumerate(raw_rewards)])
 
 		def perform_gc_experience_replay(g, o, transitions):
-			if len(transitions) == 0: ipdb.set_trace()
+			if len(transitions) == 0: return
 			option_final_state = transitions[-1][-1]
 			sp_augmented = np.concatenate((option_final_state.features(), g), axis=0)
 			for i, transition in enumerate(transitions):
@@ -461,7 +462,7 @@ class SkillChaining(object):
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
 									writer=self.writer, device=self.device,
-									exploration_strategy="shaping")
+									exploration_strategy=self.agent_over_options.exploration_strategy)
 		new_global_agent.replay_buffer = self.agent_over_options.replay_buffer
 
 		init_q = self.get_init_q_value_for_new_option(newly_trained_option) if init_q_value is None else init_q_value
@@ -481,7 +482,7 @@ class SkillChaining(object):
 									use_double_dqn=self.agent_over_options.use_ddqn,
 									lr=self.agent_over_options.learning_rate,
 									writer=self.writer, device=self.device,
-									exploration_strategy="shaping")
+									exploration_strategy=self.agent_over_options.exploration_strategy)
 		self.agent_over_options = new_global_agent
 
 	def trigger_option_termination_conditions_off_policy(self, untrained_option, executed_option, option_transitions, episode_number):

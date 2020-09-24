@@ -62,13 +62,16 @@ class DeepSkillGraphAgent(object):
     def _select_closest_unconnected_salient_event(self, state, events):
         graph = self.planning_agent.plan_graph
         candidate_salient_events = self.generate_candidate_salient_events(state)
+
+        current_events = [event for event in events if event(state)]
         descendant_events = self.planning_agent.plan_graph.get_reachable_nodes_from_source_state(state)
+        descendant_events += current_events
 
         if not all([isinstance(e, (SalientEvent, Option)) for e in descendant_events]):
             ipdb.set_trace()
 
         # Grab all the ancestor Salient Events of each candidate salient event
-        ancestor_events = deepcopy(candidate_salient_events)
+        ancestor_events = []
         for salient_event in candidate_salient_events:
             ancestors = graph.get_nodes_that_reach_target_node(salient_event)
             if any([ancestor in descendant_events for ancestor in ancestors]):
@@ -76,6 +79,7 @@ class DeepSkillGraphAgent(object):
             filtered_ancestors = [e for e in ancestors if isinstance(e, SalientEvent)]
             if len(filtered_ancestors) > 0:
                 ancestor_events += filtered_ancestors
+        ancestor_events += candidate_salient_events
 
         if not all([isinstance(e, SalientEvent) for e in ancestor_events]):
             ipdb.set_trace()
@@ -155,6 +159,15 @@ class DeepSkillGraphAgent(object):
             if episode < 5:
                 goal_state = self.mdp.get_position(self.mdp.sample_random_state())
                 self.dsc_agent.global_option_experience_replay(random_episodic_trajectory, goal_state=goal_state)
+
+            if episode > 0 and episode % 50 == 0 and args.plot_gc_value_functions:
+                assert goal_salient_event is not None
+                make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,
+                                                                  goal_salient_event.get_target_position(),
+                                                                  episode, self.seed, self.experiment_name)
+                make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.agent_over_options,
+                                                                  goal_salient_event.get_target_position(),
+                                                                  episode, self.seed, self.experiment_name)
 
         return successes
 
@@ -338,6 +351,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_her", action="store_true", default=False)
     parser.add_argument("--use_her_locally", action="store_true", help="HER for local options", default=False)
     parser.add_argument("--off_policy_update_type", type=str, default="none")
+    parser.add_argument("--plot_gc_value_functions", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
