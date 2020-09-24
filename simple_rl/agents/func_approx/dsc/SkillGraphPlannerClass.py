@@ -161,7 +161,7 @@ class SkillGraphPlanner(object):
             self.mdp.all_salient_events_ever.remove(goal_salient_event)
             return mpc_result_state, self.chainer.max_steps, True
         
-        goal_salient_event.target_state = mpc_result_state.position # TODO [:2]?
+        goal_salient_event.target_state = mpc_result_state.position
         goal_salient_event._initialize_trigger_points()
         goal_salient_event.revised_by_mpc = True
         self.logger.debug(f'Episode {episode}: MPC rollout succeeded, revised goal_salient_event!')
@@ -195,7 +195,6 @@ class SkillGraphPlanner(object):
             self.logger.debug(f'Episode {episode}: dsc_goal_vertex is option {dsc_goal_vertex}')
 
         if eval_mode is False and not goal_salient_event.revised_by_mpc and self.mdp.get_start_state_salient_event()(state):
-            # TODO potential infinite loop here
             print("running mpc")
             if not goal_salient_event == planner_goal_vertex:
                 state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)

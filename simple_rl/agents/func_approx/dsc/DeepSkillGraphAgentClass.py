@@ -38,10 +38,10 @@ class DeepSkillGraphAgent(object):
 
         self.num_covering_options_generated = 0
         self.generated_salient_events = []
-        self.most_recent_generated_salient_events = (None, None)
         self.last_event_creation_episode = -1
 
         self.mpc = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.dsc_agent.device)
+        self.mpc_resample = 0
 
     @staticmethod
     def _randomly_select_salient_event(state, candidate_salient_events):
@@ -64,7 +64,10 @@ class DeepSkillGraphAgent(object):
     def _select_closest_unconnected_salient_event(self, state, events):
         graph = self.planning_agent.plan_graph
         candidate_salient_events = self.generate_candidate_salient_events(state)
+        
+        current_events = [event for event in events if event(state)]
         descendant_events = self.planning_agent.plan_graph.get_reachable_nodes_from_source_state(state)
+        descendant_events += current_events
 
         if not all([isinstance(e, (SalientEvent, Option)) for e in descendant_events]):
             ipdb.set_trace()
@@ -104,15 +107,8 @@ class DeepSkillGraphAgent(object):
             target_event (SalientEvent)
         """
         assert selection_criteria in ("closest", "random"), selection_criteria
-# <<<<<<< HEAD
-#         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()] #
-#         # if len(self.mdp.get_all_target_events_ever()) > 1:
-#         if len(self.mdp.get_all_target_events_ever()) > 0: #
-#             # events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
-# =======
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
         if len(self.mdp.get_all_target_events_ever()) > 0:
-# >>>>>>> origin/abagaria/dsg-new-backwards
             if selection_criteria == "closest":
                 selected_event = self._select_closest_unconnected_salient_event(state, events)
                 if selected_event is not None:
@@ -120,11 +116,11 @@ class DeepSkillGraphAgent(object):
                     return selected_event
             return self._randomly_select_salient_event(state, events)
 
-    def dsg_run_loop(self, episodes, num_steps, start_state=None, test_event=None, eval_mode=False):
+    def dsg_run_loop(self, episodes, num_steps, start_episode=0, start_state=None, test_event=None, eval_mode=False):
         successes = []
 
-        for episode in range(episodes):
-            random_episodic_trajectory = [] #
+        for episode in range(start_episode, episodes):
+            random_episodic_trajectory = []
 
             # TODO utilize argparse
             if (episode % 250 == 0 and episode > 0) or episode == 5 or episode == 30:
@@ -136,6 +132,9 @@ class DeepSkillGraphAgent(object):
 
             if self.should_generate_new_salient_events(episode) and not eval_mode:
                 self.generate_new_salient_events(episode)
+
+            # if self.mpc_resample > 0 and not eval_mode:
+            #     self.generate_new_salient_events(episode, mpc_revised=True)
 
             step_number = 0
             random_episodic_trajectory = []
@@ -154,15 +153,15 @@ class DeepSkillGraphAgent(object):
                 else:
                     self.create_skill_chains_if_needed(state, goal_salient_event)
 
-                    step_number, success, override = self.planning_agent.run_loop(mpc=self.mpc,
+                    step_number, success, mpc_failed = self.planning_agent.run_loop(mpc=self.mpc,
                                                                                   state=state,
                                                                                   goal_salient_event=goal_salient_event,
                                                                                   episode=episode,
                                                                                   step=step_number,
                                                                                   eval_mode=eval_mode)
-                    if override:
+                    if mpc_failed:
+                        self.mpc_resample += 1
                         self.generate_new_salient_events(episode)
-                    
 
                 state = deepcopy(self.mdp.cur_state)
 
@@ -196,26 +195,16 @@ class DeepSkillGraphAgent(object):
                 states_p.append(next_state[:-2].astype('float64'))
         return states, actions, states_p
 
-    def generate_new_salient_events(self, episode):
-
+    def generate_new_salient_events(self, episode, mpc_revised=False):
         event_idx = len(self.mdp.all_salient_events_ever) + 1
         target_state = self.mdp.sample_random_state()[:2]
-        low_salient_event = SalientEvent(target_state, event_idx)
-        reject_low = self.add_salient_event(low_salient_event)
+        salient_event = SalientEvent(target_state, event_idx)
+        reject = self.add_salient_event(salient_event)
 
-        event_idx = len(self.mdp.all_salient_events_ever) + 1
-        target_state = self.mdp.sample_random_state()[:2]
-        high_salient_event = SalientEvent(target_state, event_idx)
-        reject_high = self.add_salient_event(high_salient_event)
-
-        print(f"Generated {low_salient_event} and {high_salient_event}")
-
-        self.last_event_creation_episode = episode
-
-        self.most_recent_generated_salient_events = (
-            low_salient_event if not reject_low else None,
-            high_salient_event if not reject_high else None,
-        )
+        print(f"Generated {salient_event}")
+        self.last_event_creation_episode = episode if not reject else self.last_event_creation_episode
+        if not reject and mpc_revised:
+            self.mpc_resample -= 1
 
     def add_salient_event(self, salient_event):
         reject = self.should_reject_discovered_salient_event(salient_event)
@@ -263,24 +252,7 @@ class DeepSkillGraphAgent(object):
         elif episode == 5:
             return True
 
-        def _all_events_chained(low_event, high_event):
-            chains = self.dsc_agent.chains
-            chains_targeting_low_event =  [chain for chain in chains if chain.target_salient_event == low_event and
-                                           chain.is_chain_completed()]
-            chains_targeting_high_event = [chain for chain in chains if chain.target_salient_event == high_event and
-                                           chain.is_chain_completed()]
-            return (
-                not (low_event is None and high_event is None) and              # most_recent_events were not both rejected AND
-                (len(chains_targeting_low_event) > 0 or low_event is None) and  # low_event is chained to or was rejected AND
-                (len(chains_targeting_high_event) > 0 or high_event is None)    # high_event is chained to or was rejected
-            )
-
-        most_recent_events = self.most_recent_generated_salient_events
-
-        return (
-            _all_events_chained(*most_recent_events) or
-            episode - self.last_event_creation_episode >= self.salient_event_freq
-        )
+        return episode - self.last_event_creation_episode >= self.salient_event_freq
 
     def generate_candidate_salient_events(self, state):
         """ Return the events that we are currently NOT in and to whom there is no path on the graph. """

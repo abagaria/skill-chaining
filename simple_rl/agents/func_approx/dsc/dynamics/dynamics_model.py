@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-from torch.utils.data import DataLoader
-
 class DynamicsModel(nn.Module):
     def __init__(self, state_size, action_size, mean_x, mean_y, mean_z, std_x, std_y, std_z, device):
         super(DynamicsModel, self).__init__()
