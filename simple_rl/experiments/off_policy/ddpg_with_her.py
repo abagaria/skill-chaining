@@ -122,6 +122,8 @@ if __name__ == '__main__':
             buffer_size=solver.replay_buffer.buffer_size,
             name_buffer = solver.replay_buffer.name
             )
+    
+    goal_state = np.array(args.goal_state)
 
     if args.num_pretrain_episodes > 0:
         pes_i, _ = her_train(
@@ -138,7 +140,6 @@ if __name__ == '__main__':
         make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_pretrain_episodes, args.seed, args.experiment_name)
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
-    goal_state = np.array(args.goal_state)
     pes_ii, _ = her_train(
         solver,
         mdp,
