@@ -57,8 +57,8 @@ def plot_learning_curve(
     ax.plot(smoothed_pes)
 
     ax.set(xlabel='score', ylabel='episode', title=title)
-    fig.savefig(directory / 'learning_curve.png')
 
+    fig.savefig(directory / 'learning_curve.png')
     plt.close()
 
 def make_chunked_goal_conditioned_value_function_plot(directory, solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
@@ -85,6 +85,10 @@ def make_chunked_goal_conditioned_value_function_plot(directory, solver, goal, e
         current_idx += current_chunk_size
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
+
+    plt.xlim([-10, 10])
+    plt.ylim([-10,10])
+
     file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
     plt.title(f"VF Targeting {np.round(goal, 2)}")
     plt.savefig(f"{directory}/{file_name}.png")

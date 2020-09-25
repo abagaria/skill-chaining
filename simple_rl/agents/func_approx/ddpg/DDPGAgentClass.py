@@ -347,6 +347,7 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
     trajectories = []
     per_episode_scores = []
     last_10_scores = deque(maxlen=10)
+    last_10_durations = deque(maxlen=10)
 
     for episode in range(episodes):
 
@@ -391,9 +392,11 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
                 agent.step(augmented_state, action, reward, augmented_next_state, done)
 
         # Logging
+        duration = len(trajectory)
         per_episode_scores.append(score)
         last_10_scores.append(score)
-        print(f"[Goal={goal_state}] Episode: {episode} \t Score: {score} \t Average Score: {np.mean(last_10_scores)} \t Duration: {steps}")
+        last_10_durations.append(duration)
+        print(f"[Goal={goal_state}] Episode: {episode} \t Score: {score} \t Average Score: {np.mean(last_10_scores)} \t Duration: {duration} \t Average Duration: {np.mean(last_10_durations)}")
 
     return per_episode_scores, trajectories
 
