@@ -124,6 +124,9 @@ class DDPGAgent(Agent):
             if x not in excluded_keys:
                 self.__dict__[x] = state_dictionary[x]
 
+        self.critic_learning_rate = state_dictionary["lr_critic"]
+        self.actor_learning_rate = state_dictionary["lr_actor"]
+
         self.actor = Actor(self.state_size, self.action_size, device=self.device)
         self.critic = Critic(self.state_size, self.action_size, device=self.device)
         self.target_actor = Actor(self.state_size, self.action_size, device=self.device)
