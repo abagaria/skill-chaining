@@ -417,7 +417,7 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         # Logging
         per_episode_scores.append(score)
         last_10_scores.append(score)
-        print(f"[Goal={goal_state}] Episode: {episode} \t Score: {score} \t Average Score: {np.mean(last_10_scores)}")
+        print(f"[Goal={goal_state}] Episode: {episode} \t Score: {score} \t Average Score: {np.mean(last_10_scores)} \t Duration: {steps}")
 
     return per_episode_scores, trajectories
 

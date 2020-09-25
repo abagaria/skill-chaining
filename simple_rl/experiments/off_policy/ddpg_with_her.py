@@ -145,6 +145,7 @@ if __name__ == '__main__':
                 args.device,
                 name="test"
             )
+    ipdb.set_trace()
     
     make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, -1, args.seed, args.experiment_name)
     test_solver.actor.load_state_dict(solver.actor.state_dict())
