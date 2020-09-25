@@ -566,13 +566,25 @@ def visualize_graph(planner, episode, experiment_name, seed, use_target_states=T
 
 
 def visualize_chain_graph(planner, episode, experiment_name, seed):
-    def _get_representative_point(event):
-        assert isinstance(event, SalientEvent)
+    from simple_rl.agents.func_approx.dsc.OptionClass import Option
+
+    def _get_option_representative_point(option):
+        effect_positions = np.array([planner.mdp.get_position(state) for state in option.effect_set])
+        return np.median(effect_positions, axis=0)
+
+    def _get_event_representative_point(event):
         if event.get_target_position() is not None:
             return event.get_target_position()
         trigger_positions = [event._get_position(s) for s in event.trigger_points]
         trigger_positions = np.array(trigger_positions)
-        return trigger_positions.mean(axis=0)
+        return np.median(trigger_positions, axis=0)
+
+    def _get_representative_point(event):
+        if isinstance(event, Option):
+            return _get_option_representative_point(event)
+        elif isinstance(event, SalientEvent):
+            return _get_event_representative_point(event)
+        raise ValueError(event)
 
     def _plot_pair(xa, ya, xb, yb, marker="o-", edge_color="black"):
         x = [xa, ya]; y = [xb, yb]
@@ -581,10 +593,10 @@ def visualize_chain_graph(planner, episode, experiment_name, seed):
 
     for chain in planner.chainer.chains:
         if chain.is_chain_completed():
-            assert chain.completing_vertex is not None, f"{chain}, {chain.completing_vertex}"
-            x1, y1 = _get_representative_point(chain.completing_vertex[0])
-            x2, y2 = _get_representative_point(chain.target_salient_event)
-            _plot_pair(x1, y1, x2, y2)
+            if chain.completing_vertex is not None:
+                x1, y1 = _get_representative_point(chain.completing_vertex[0])
+                x2, y2 = _get_representative_point(chain.target_salient_event)
+                _plot_pair(x1, y1, x2, y2)
 
     plt.xticks([])
     plt.yticks([])
