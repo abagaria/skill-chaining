@@ -147,12 +147,12 @@ if __name__ == '__main__':
             )
     ipdb.set_trace()
     
-    make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, -1, args.seed, args.experiment_name)
+    make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, -1, args.seed, args.experiment_name, replay_buffer=solver.replay_buffer)
     test_solver.actor.load_state_dict(solver.actor.state_dict())
     test_solver.critic.load_state_dict(solver.critic.state_dict())
     test_solver.target_actor.load_state_dict(solver.target_actor.state_dict())
     test_solver.target_critic.load_state_dict(solver.target_critic.state_dict())  
-    make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, 0, args.seed, args.experiment_name)  
+    make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, 0, args.seed, args.experiment_name, replay_buffer=solver.replay_buffer)  
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
     pes_ii, _ = her_train(
