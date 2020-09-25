@@ -93,7 +93,7 @@ def make_chunked_goal_conditioned_value_function_plot(directory, solver, goal, e
     return qvalues.max()
 
 def pickle_solver(directory, solver):
-    pickle.dump(solver, open(directory / 'ddpg.pkl', 'wb'))
+    pickle.dump(solver, open(directory / f'ddpg_{solver.name}.pkl', 'wb'))
 
 if __name__ == '__main__':
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
@@ -106,42 +106,57 @@ if __name__ == '__main__':
         goal_reward=args.goal_reward
         )
 
+    goal_state = np.array(args.goal_state)
+
     if args.preload_solver_path is None:
         solver = DDPGAgent(
                 mdp.state_space_size() + args.goal_dimension,
                 mdp.action_space_size(),
                 args.seed,
                 args.device,
-                name="ddpg"
+                name="pretrain"
                 )
+        
+        if args.num_pretrain_episodes > 0:
+            pes_i, _ = her_train(
+                solver,
+                mdp, 
+                args.num_pretrain_episodes, 
+                args.num_steps, 
+                goal_state=None, 
+                sampling_strategy="diverse",
+                dense_reward=args.dense_reward
+                )
+        
+            plot_learning_curve(directory, 'pretrain with her', pes_i)
+            pickle.dump(pes_i, open(directory / 'pretraining_scores.pkl', 'wb'))
+            make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_pretrain_episodes, args.seed, args.experiment_name)
+
+            pickle_solver(directory, solver)
+        else:
+            raise ValueError("Need to specify number of pretrain episodes")
     else:
         solver = pickle.load(open(args.preload_solver_path, 'rb'))
     
-    if args.empty_replay_buffer:
-        solver.replay_buffer = ReplayBuffer(
-            buffer_size=solver.replay_buffer.buffer_size,
-            name_buffer = solver.replay_buffer.name
+    # At this point, we have a pre-trained goal conditioned solver
+    test_solver = DDPGAgent(
+                mdp.state_space_size() + args.goal_dimension,
+                mdp.action_space_size(),
+                args.seed,
+                args.device,
+                name="test"
             )
     
-    goal_state = np.array(args.goal_state)
-
-    if args.num_pretrain_episodes > 0:
-        pes_i, _ = her_train(
-            solver,
-            mdp, 
-            args.num_pretrain_episodes, 
-            args.num_steps, 
-            goal_state=None, 
-            sampling_strategy="diverse",
-            dense_reward=args.dense_reward
-            )
-        
-        plot_learning_curve(directory, 'pretrain with her', pes_i)
-        make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_pretrain_episodes, args.seed, args.experiment_name)
+    make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, -1, args.seed, args.experiment_name)
+    test_solver.actor.load_state_dict(solver.actor.state_dict())
+    test_solver.critic.load_state_dict(solver.critc.state_dict())
+    test_solver.target_actor.load_state_dict(solver.target_actor.state_dict())
+    test_solver.target_critic.load_state_dict(solver.target_critic.state_dict())  
+    make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, 0, args.seed, args.experiment_name)  
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
     pes_ii, _ = her_train(
-        solver,
+        test_solver,
         mdp,
         args.num_episodes,
         args.num_steps,
@@ -151,10 +166,11 @@ if __name__ == '__main__':
         use_her=args.her_at_test_time
         )
     
+    pickle.dump(pes_ii, open(directory / 'test_time_scores.pkl', 'wb'))
     plot_learning_curve(directory, 'test time', pes_ii)
-    make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_pretrain_episodes + args.num_episodes, args.seed, args.experiment_name)
+    make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, args.num_episodes, args.seed, args.experiment_name)
 
-    pickle_solver(directory, solver)
+    pickle_solver(directory, test_solver)
 
     ipdb.set_trace()
 
