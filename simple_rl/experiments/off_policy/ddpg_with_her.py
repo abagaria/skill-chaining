@@ -39,7 +39,6 @@ parser.add_argument('--goal_state', type=float, nargs='+')
 parser.add_argument('--dense_reward', action='store_true', default=False)
 parser.add_argument('--goal_reward', type=float, default=0.)
 parser.add_argument('--preload_solver_path', type=str, default=None)
-parser.add_argument('--empty_replay_buffer', action='store_true', default=False)
 parser.add_argument('--her_at_test_time', action='store_true', default=False)
 args = parser.parse_args()
 
