@@ -347,6 +347,7 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
     trajectories = []
     per_episode_scores = []
     last_10_scores = deque(maxlen=10)
+    per_episode_durations = []
     last_10_durations = deque(maxlen=10)
 
     for episode in range(episodes):
@@ -395,10 +396,11 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         duration = len(trajectory)
         per_episode_scores.append(score)
         last_10_scores.append(score)
+        per_episode_durations.append(duration)
         last_10_durations.append(duration)
         print(f"[Goal={goal_state}] Episode: {episode} \t Score: {score} \t Average Score: {np.mean(last_10_scores)} \t Duration: {duration} \t Average Duration: {np.mean(last_10_durations)}")
 
-    return per_episode_scores, trajectories
+    return per_episode_scores, per_episode_durations, trajectories
 
 
 if __name__ == "__main__":
@@ -459,7 +461,7 @@ if __name__ == "__main__":
     agent_name = overall_mdp.env_name + "_global_ddpg_agent"
     ddpg_agent = DDPGAgent(state_dim, action_dim, args.seed, torch.device(args.device), tensor_log=args.log,
                            name=agent_name, exploration="none")
-    episodic_scores, trajs = her_train(ddpg_agent, overall_mdp, args.episodes, args.steps, goal_state=None,
+    episodic_scores, episodic_durations, trajs = her_train(ddpg_agent, overall_mdp, args.episodes, args.steps, goal_state=None,
                                        sampling_strategy=args.sampling_strategy)
 
     save_model(ddpg_agent, episode_number=args.episodes, best=False)

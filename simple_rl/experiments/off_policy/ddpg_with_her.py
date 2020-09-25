@@ -121,7 +121,7 @@ if __name__ == '__main__':
                 )
         
         if args.num_pretrain_episodes > 0:
-            pes_i, _ = her_train(
+            pes_i, ped_i, _ = her_train(
                 solver,
                 mdp, 
                 args.num_pretrain_episodes, 
@@ -133,6 +133,7 @@ if __name__ == '__main__':
         
             plot_learning_curve(directory, 'pretrain with her', pes_i)
             pickle.dump(pes_i, open(directory / 'pretraining_scores.pkl', 'wb'))
+            pickle.dump(ped_i, open(directory / 'pretraining_durations.pkl', 'wb'))
             make_chunked_goal_conditioned_value_function_plot(directory, solver,goal_state, args.num_pretrain_episodes, args.seed, args.experiment_name)
 
             pickle_solver(directory, solver)
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, 0, args.seed, args.experiment_name, replay_buffer=solver.replay_buffer)  
     
     # (ii) Test on a fixed-goal domain, maybe pretrained
-    pes_ii, _ = her_train(
+    pes_ii, ped_ii, _ = her_train(
         test_solver,
         mdp,
         args.num_episodes,
@@ -171,6 +172,7 @@ if __name__ == '__main__':
         )
     
     pickle.dump(pes_ii, open(directory / 'test_time_scores.pkl', 'wb'))
+    pickle.dump(ped_ii, open(directory / 'test_time_durations.pkl', 'wb'))
     plot_learning_curve(directory, 'test time', pes_ii)
     make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, args.num_episodes, args.seed, args.experiment_name)
 
