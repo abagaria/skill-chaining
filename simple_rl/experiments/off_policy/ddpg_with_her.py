@@ -148,7 +148,7 @@ if __name__ == '__main__':
     
     make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, -1, args.seed, args.experiment_name)
     test_solver.actor.load_state_dict(solver.actor.state_dict())
-    test_solver.critic.load_state_dict(solver.critc.state_dict())
+    test_solver.critic.load_state_dict(solver.critic.state_dict())
     test_solver.target_actor.load_state_dict(solver.target_actor.state_dict())
     test_solver.target_critic.load_state_dict(solver.target_critic.state_dict())  
     make_chunked_goal_conditioned_value_function_plot(directory, test_solver, goal_state, 0, args.seed, args.experiment_name)  
