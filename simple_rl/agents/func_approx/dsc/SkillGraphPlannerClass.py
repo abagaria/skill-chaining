@@ -257,7 +257,7 @@ class SkillGraphPlanner(object):
         def modify(node, success):
             """ When successful, the cost of the edge is halved. When unsuccessful, the cost is doubled. """
             edge_weight = self.plan_graph.plan_graph[executed_option][node]["weight"]
-            new_weight = 2 ** (-int(success)) * edge_weight
+            new_weight = (0.95 ** success) * edge_weight
             self.plan_graph.set_edge_weight(executed_option, node, new_weight)
 
         outgoing_edges = [edge for edge in self.plan_graph.plan_graph.edges if edge[0] == executed_option]
@@ -266,10 +266,10 @@ class SkillGraphPlanner(object):
         failed_reaching_vertices = [vertex for vertex in neighboring_vertices if not vertex.is_init_true(final_state)]
 
         for vertex in successfully_reached_vertices:
-            modify(vertex, True)
+            modify(vertex, +1)
 
         for vertex in failed_reaching_vertices:
-            modify(vertex, False)
+            modify(vertex, -1)
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option, episode):
 
