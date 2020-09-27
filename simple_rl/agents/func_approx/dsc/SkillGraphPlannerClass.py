@@ -398,6 +398,14 @@ class SkillGraphPlanner(object):
         # State is in the effect set of the option
         return vertex.is_term_true(state)
 
+    def is_state_inside_any_vertex(self, state):
+        assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
+
+        if any([event(state) for event in self.plan_graph.salient_nodes]):
+            return True
+
+        return any([option.is_in_effect_set(state) for option in self.plan_graph.option_nodes])
+
     def does_exist_chain_for_event(self, event):
         assert isinstance(event, SalientEvent)
 
