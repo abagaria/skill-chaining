@@ -450,6 +450,18 @@ class Option(object):
 		assert self.target_salient_event is not None, self.target_salient_event
 		return self.target_salient_event(ground_state)
 
+	def is_in_effect_set(self, state):
+		assert isinstance(state, (State, np.ndarray)), state
+
+		if self.name == "global_option" or self.get_training_phase() != "initiation_done":
+			ipdb.set_trace()
+
+		if not self.is_term_true(state):
+			return False
+
+		is_close = lambda x, y: self.overall_mdp.dense_gc_reward_function(x, y, {})[1]
+		return any([is_close(state, effect_state) for effect_state in self.effect_set])
+
 	def should_target_with_bonus(self):
 		"""
 		Used by policy over options and the global DDPG agent to decide if the
