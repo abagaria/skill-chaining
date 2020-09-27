@@ -198,7 +198,7 @@ class SkillGraphPlanner(object):
             print("running mpc")
             if not goal_salient_event == planner_goal_vertex:
                 state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
-            state, step, rejected = self.mpc_revise_salient_event(mpc, state, goal_salient_event, step, episode, 100) # TODO hardcode 100?
+            state, step, rejected = self.mpc_revise_salient_event(mpc, state, goal_salient_event, step, episode, 200) # TODO change back for ant-maze
             return self.chainer.max_steps, not rejected, rejected
         else:
             state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)

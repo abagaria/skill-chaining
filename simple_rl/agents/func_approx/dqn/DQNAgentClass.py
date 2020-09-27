@@ -375,7 +375,7 @@ class DQNAgent(Agent):
         Args:
             experiences (tuple<torch.Tensor>): tuple of (s, a, r, s', done, tau) tuples
             gamma (float): discount factor
-        """
+        """        
         states, actions, rewards, next_states, dones, steps = experiences
 
         if self.exploration_strategy == "counts":
