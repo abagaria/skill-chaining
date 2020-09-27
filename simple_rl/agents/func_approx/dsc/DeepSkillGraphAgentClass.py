@@ -337,6 +337,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_her_locally", action="store_true", help="HER for local options", default=False)
     parser.add_argument("--off_policy_update_type", type=str, default="none")
     parser.add_argument("--plot_gc_value_functions", action="store_true", default=False)
+    parser.add_argument("--allow_her_initialization", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -413,7 +414,8 @@ if __name__ == "__main__":
                             experiment_name=args.experiment_name,
                             use_her=args.use_her,
                             use_her_locally=args.use_her_locally,
-                            off_policy_update_type=args.off_policy_update_type)
+                            off_policy_update_type=args.off_policy_update_type,
+                            allow_her_initialization=args.allow_her_initialization)
 
     assert any([args.use_start_state_salience, args.use_option_intersection_salience, args.use_event_intersection_salience])
 
