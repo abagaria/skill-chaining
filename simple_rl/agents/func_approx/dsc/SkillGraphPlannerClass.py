@@ -190,6 +190,9 @@ class SkillGraphPlanner(object):
         # Don't (off-policy) trigger the termination condition of options targeting the event we are currently leaving
         self.chainer.disable_triggering_options_targeting_init_event(state=state_before_rollout)
 
+        # TODO: Always running ant with some exploration
+        modified_eval_mode = eval_mode if "point" in self.mdp.env_name else False
+
         # Execute the option: if the option is the global-option, it doesn't have a default
         # goal in the task-agnostic setting. As a result, we ask it to target the same goal
         # as the policy-over-options.
@@ -197,7 +200,7 @@ class SkillGraphPlanner(object):
         option_transitions, option_reward = option.execute_option_in_mdp(self.mdp,
                                                                          episode=episode,
                                                                          step_number=step,
-                                                                         eval_mode=eval_mode,
+                                                                         eval_mode=modified_eval_mode,
                                                                          poo_goal=option_goal)
 
         new_options = self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,

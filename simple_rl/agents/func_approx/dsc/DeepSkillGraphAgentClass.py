@@ -415,5 +415,6 @@ if __name__ == "__main__":
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
-                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer)
+                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer,
+                                    rejection_criteria=args.rejection_criteria)
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

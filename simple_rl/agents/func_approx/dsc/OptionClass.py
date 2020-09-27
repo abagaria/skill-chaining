@@ -183,7 +183,7 @@ class Option(object):
 	def act(self, state_features, eval_mode, warmup_phase):
 		""" Epsilon greedy action selection when in training mode. """
 
-		if warmup_phase and self.use_warmup_phase:
+		if warmup_phase and self.use_warmup_phase and not self.initialize_with_her:
 			return self.overall_mdp.sample_random_action()
 
 		if random.random() < self._get_epsilon_greedy_epsilon() and not eval_mode:
