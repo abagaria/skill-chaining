@@ -13,7 +13,7 @@ from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq,
-                 experiment_name, seed, threshold, use_smdp_replay_buffer):
+                 experiment_name, seed, threshold, use_smdp_replay_buffer, rejection_criteria):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -24,6 +24,7 @@ class DeepSkillGraphAgent(object):
             salient_event_freq (int)
             experiment_name (str)
             seed (int)
+            rejection_criteria (str)
         """
         self.mdp = mdp
         self.dsc_agent = dsc_agent
@@ -35,6 +36,9 @@ class DeepSkillGraphAgent(object):
         self.salient_event_freq = salient_event_freq
         self.event_after_reject_freq = event_after_reject_freq
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
+        self.rejection_criteria = rejection_criteria
+
+        assert rejection_criteria in ("use_effect_sets", "use_init_sets"), rejection_criteria
 
         self.num_covering_options_generated = 0
         self.generated_salient_events = []
@@ -60,40 +64,12 @@ class DeepSkillGraphAgent(object):
         return target_event
 
     def _select_closest_unconnected_salient_event(self, state, events):
-        graph = self.planning_agent.plan_graph
-        candidate_salient_events = self.generate_candidate_salient_events(state)
-
         current_events = [event for event in events if event(state)]
-        descendant_events = self.planning_agent.plan_graph.get_reachable_nodes_from_source_state(state)
-        descendant_events += current_events
-
-        if not all([isinstance(e, (SalientEvent, Option)) for e in descendant_events]):
-            ipdb.set_trace()
-
-        # Grab all the ancestor Salient Events of each candidate salient event
-        ancestor_events = []
-        for salient_event in candidate_salient_events:
-            ancestors = graph.get_nodes_that_reach_target_node(salient_event)
-            if any([ancestor in descendant_events for ancestor in ancestors]):
-                ipdb.set_trace()
-            filtered_ancestors = [e for e in ancestors if isinstance(e, SalientEvent)]
-            if len(filtered_ancestors) > 0:
-                ancestor_events += filtered_ancestors
-        ancestor_events += candidate_salient_events
-
-        if not all([isinstance(e, SalientEvent) for e in ancestor_events]):
-            ipdb.set_trace()
-
-        # Compute the pair-wise distances between the descendants and ancestors
-        closest_event_pair = self.planning_agent.get_closest_pair_of_vertices(descendant_events, ancestor_events)
-
-        # Finally, return the ancestor event closest to one of the descendants
-        if closest_event_pair is not None:
-            assert len(closest_event_pair) == 2, closest_event_pair
-            closest_event = closest_event_pair[1]
-            assert isinstance(closest_event, SalientEvent), f"{type(closest_event)}"
-            if not closest_event(state):
-                return closest_event
+        candidate_salient_events = self.generate_candidate_salient_events(state)
+        closest_pair = self.planning_agent.get_closest_pair_of_vertices(current_events, candidate_salient_events)
+        if closest_pair is not None:
+            assert len(closest_pair) == 2, closest_pair
+            return closest_pair[1]
 
     def select_goal_salient_event(self, state, selection_criteria="closest"):
         """
@@ -221,6 +197,7 @@ class DeepSkillGraphAgent(object):
 
         Args:
             salient_event (SalientEvent)
+            rejection_criteria (str)
 
         Returns:
             should_reject (bool)
@@ -229,7 +206,10 @@ class DeepSkillGraphAgent(object):
         if any([event(salient_event.target_state) for event in existing_target_events]):
             return True
 
-        if self.dsc_agent.state_in_any_completed_option(salient_event.target_state):
+        rejection_function = self.planning_agent.is_state_inside_vertex if self.rejection_criteria == "use_effect_sets"\
+                             else self.dsc_agent.state_in_any_completed_option
+
+        if rejection_function(salient_event.target_state):
             return True
 
         return False
@@ -338,6 +318,7 @@ if __name__ == "__main__":
     parser.add_argument("--off_policy_update_type", type=str, default="none")
     parser.add_argument("--plot_gc_value_functions", action="store_true", default=False)
     parser.add_argument("--allow_her_initialization", action="store_true", default=False)
+    parser.add_argument("--rejection_criteria", type=str, help="Reject events in known init/effect sets", default="use_init_sets")
     args = parser.parse_args()
 
     if args.env == "point-reacher":
