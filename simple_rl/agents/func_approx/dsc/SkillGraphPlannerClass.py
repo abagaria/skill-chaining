@@ -198,7 +198,7 @@ class SkillGraphPlanner(object):
             print("running mpc")
             if not goal_salient_event == planner_goal_vertex:
                 state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
-            state, step, rejected = self.mpc_revise_salient_event(mpc, state, goal_salient_event, step, episode, 200) # TODO change back for ant-maze
+            state, step, rejected = self.mpc_revise_salient_event(mpc, state, goal_salient_event, step, episode, 100) # TODO change back for ant-maze
             return self.chainer.max_steps, not rejected, rejected
         else:
             state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
@@ -309,7 +309,7 @@ class SkillGraphPlanner(object):
         def modify(node, success):
             """ When successful, the cost of the edge is halved. When unsuccessful, the cost is doubled. """
             edge_weight = self.plan_graph.plan_graph[executed_option][node]["weight"]
-            new_weight = 2 ** (-int(success)) * edge_weight
+            new_weight = (0.95 ** success) * edge_weight
             self.plan_graph.set_edge_weight(executed_option, node, new_weight)
 
         outgoing_edges = [edge for edge in self.plan_graph.plan_graph.edges if edge[0] == executed_option]
@@ -318,10 +318,10 @@ class SkillGraphPlanner(object):
         failed_reaching_vertices = [vertex for vertex in neighboring_vertices if not vertex.is_init_true(final_state)]
 
         for vertex in successfully_reached_vertices:
-            modify(vertex, True)
+            modify(vertex, +1)
 
         for vertex in failed_reaching_vertices:
-            modify(vertex, False)
+            modify(vertex, -1)
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option, episode):
 
@@ -468,6 +468,14 @@ class SkillGraphPlanner(object):
 
         # State is in the effect set of the option
         return vertex.is_term_true(state)
+
+    def is_state_inside_any_vertex(self, state):
+        assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
+
+        if any([event(state) for event in self.plan_graph.salient_nodes]):
+            return True
+
+        return any([option.is_in_effect_set(state) for option in self.plan_graph.option_nodes])
 
     def does_exist_chain_for_event(self, event):
         assert isinstance(event, SalientEvent)

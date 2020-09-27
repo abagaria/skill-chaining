@@ -378,30 +378,6 @@ class DQNAgent(Agent):
         """        
         states, actions, rewards, next_states, dones, steps = experiences
 
-        if self.exploration_strategy == "counts":
-            np_states = states.cpu().numpy()
-            np_actions = actions.cpu().numpy()
-            bonuses = self.density_model.batched_get_exploration_bonus(np_states, np_actions)
-            for action in np_actions:
-                self.sampled_bonus_for_action[action[0]].append(bonuses.mean())
-            rewards += torch.from_numpy(bonuses).unsqueeze(1).float().to(self.device)
-
-        elif self.exploration_strategy == "shaping":
-            np_next_states = states.cpu().numpy()
-            np_actions = actions.cpu().numpy()
-
-            # 1. Shaped exploration bonus for getting to states from which certain options can be executed
-            for option in self.trained_options:
-                if option.should_target_with_bonus():
-                    shaped_bonus = 1. * option.batched_is_init_true(np_next_states)
-                    rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
-
-            # 2. Shaped exploration bonus for simply executing certain options
-            options = [self.trained_options[int(a)] for a in np_actions]
-            encouraged_options = [option.should_target_with_bonus() for option in options]
-            shaped_bonus = 1. * np.array(encouraged_options)
-            rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
-
         assert self.exploration_strategy not in ("shaping", "counts"), self.exploration_strategy
 
         # Get max predicted Q values (for next states) from target model
