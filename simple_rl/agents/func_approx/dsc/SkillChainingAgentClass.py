@@ -195,18 +195,20 @@ class SkillChaining(object):
 		self.option_qvalues = defaultdict(lambda : [])
 		self.num_options_history = []
 
-	def create_chain_targeting_new_salient_event(self, salient_event, init_salient_event=None):
+	def create_chain_targeting_new_salient_event(self, salient_event, init_salient_event=None, eval_mode=False):
 		"""
 		Given a new `salient_event`, create an option and the corresponding skill chain targeting it.
 
 		Args:
 			salient_event (SalientEvent)
 			init_salient_event (SalientEvent)
+			eval_mode (bool)
 
 		Returns:
 			skill_chain (SkillChain)
 		"""
 		chain_id = len(self.chains) + 1
+		allow_her_initialization = True if eval_mode else self.allow_her_initialization
 		init_salient_event = self.mdp.get_start_state_salient_event() if init_salient_event is None else init_salient_event
 		goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}',
 							 global_solver=self.global_option.solver,
@@ -228,7 +230,7 @@ class SkillChaining(object):
 							 init_salient_event=init_salient_event,
 							 target_salient_event=salient_event,
 							 use_her=self.use_her_locally,
-							 allow_her_initialization=self.allow_her_initialization)
+							 allow_her_initialization=allow_her_initialization)
 		self.untrained_options.append(goal_option)
 
 		new_chain = SkillChain(options=[], chain_id=chain_id,
@@ -241,7 +243,8 @@ class SkillChaining(object):
 		self.add_skill_chain(new_chain)
 
 		if goal_option.initialize_everywhere:
-			self.augment_agent_with_new_option(goal_option, 0.)
+			init_q = +10. if eval_mode else 0.
+			self.augment_agent_with_new_option(goal_option, init_q)
 
 		# Plot the option's VF if we did some fancy initialization
 		if goal_option.initialize_with_her and goal_option.target_salient_event.get_target_position() is not None:
