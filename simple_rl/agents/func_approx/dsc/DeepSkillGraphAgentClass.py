@@ -240,24 +240,7 @@ class DeepSkillGraphAgent(object):
         elif episode == 5:
             return True
 
-        def _all_events_chained(low_event, high_event):
-            chains = self.dsc_agent.chains
-            chains_targeting_low_event =  [chain for chain in chains if chain.target_salient_event == low_event and
-                                           chain.is_chain_completed()]
-            chains_targeting_high_event = [chain for chain in chains if chain.target_salient_event == high_event and
-                                           chain.is_chain_completed()]
-            return (
-                not (low_event is None and high_event is None) and              # most_recent_events were not both rejected AND
-                (len(chains_targeting_low_event) > 0 or low_event is None) and  # low_event is chained to or was rejected AND
-                (len(chains_targeting_high_event) > 0 or high_event is None)    # high_event is chained to or was rejected
-            )
-
-        most_recent_events = self.most_recent_generated_salient_events
-
-        return (
-            _all_events_chained(*most_recent_events) or
-            episode - self.last_event_creation_episode >= self.salient_event_freq
-        )
+        return episode - self.last_event_creation_episode >= self.salient_event_freq
 
     def generate_candidate_salient_events(self, state):
         """ Return the events that we are currently NOT in and to whom there is no path on the graph. """
