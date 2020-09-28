@@ -4,7 +4,7 @@ from collections import namedtuple, deque
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
-import pdb
+import ipdb
 from copy import deepcopy
 import shutil
 import os
@@ -170,7 +170,7 @@ class DQNAgent(Agent):
         self.gradient_clip = gradient_clip
         self.exploration_strategy = exploration_strategy
         self.evaluation_epsilon = evaluation_epsilon
-        self.seed = random.seed(seed)
+        self.seed = seed
         self.tensor_log = tensor_log
         self.device = device
 
@@ -332,13 +332,10 @@ class DQNAgent(Agent):
             action_values = action_values.cpu().data.numpy()
 
             for idx, option in enumerate(self.trained_options): # type: Option
-                try:
-                    inits = option.batched_is_init_true(states)
-                    # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
-                    terms = option.batched_is_term_true(states)
-                    action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
-                except:
-                    pdb.set_trace()
+                inits = option.batched_is_init_true(states)
+                # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
+                terms = option.batched_is_term_true(states)
+                action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
 
             # Move the q-values back the GPU
             action_values = torch.from_numpy(action_values).float().to(self.device)
@@ -496,10 +493,10 @@ class DQNAgent(Agent):
             if key not in excluded_keys:
                 self.__dict__[key] = state_dictionary[key]
         
-        self.policy_network = QNetwork(state_size, action_size, seed).to(self.device)
-        self.target_network = QNetwork(state_size, action_size, seed).to(self.device)
+        self.policy_network = QNetwork(self.state_size, self.action_size, self.seed).to(self.device)
+        self.target_network = QNetwork(self.state_size, self.action_size, self.seed).to(self.device)
 
-        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=self.learning_rate)
 
         self.policy_network.load_state_dict(state_dictionary["policy_state"])
         self.target_network.load_state_dict(state_dictionary["target_state"])
@@ -529,6 +526,26 @@ class ReplayBuffer:
         self.name = ''
 
         self.positive_transitions = []
+
+    def __getstate__(self):
+        excluded_keys = ("experience", "memory")
+        state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+
+        # need to convert to tuples because can't pickle NamedTuple
+        memory = [tuple(exp) for exp in self.memory]
+        state_dictionary["memory"] = memory
+        return state_dictionary
+
+    def __setstate__(self, state_dictionary):
+        excluded_keys = ("memory")
+        for key in state_dictionary:
+            if key not in excluded_keys:
+                self.__dict__[key] = state_dictionary[key]
+
+        # need to convert tuple -> NamedTuple (undo what was done in __getstate__)
+        self.__dict__["experience"] = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
+        self.__dict__["memory"] = memory = [self.experience(*exp) for exp in state_dictionary["memory"]]
+
 
     def add(self, state, action, reward, next_state, done, num_steps):
         """

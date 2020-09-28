@@ -185,9 +185,9 @@ class SkillChaining(object):
 
 		# Debug variables
 		self.global_execution_states = []
-		self.num_option_executions = defaultdict(lambda : [])
-		self.option_rewards = defaultdict(lambda : [])
-		self.option_qvalues = defaultdict(lambda : [])
+		self.num_option_executions = defaultdict(list)
+		self.option_rewards = defaultdict(list)
+		self.option_qvalues = defaultdict(list)
 		self.num_options_history = []
 
 	def create_chain_targeting_new_salient_event(self, salient_event, init_salient_event=None):

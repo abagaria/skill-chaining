@@ -4,6 +4,7 @@ import numpy as np
 import itertools
 import glob
 import os
+import ipdb
 
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
@@ -30,7 +31,6 @@ def create_test_event(dsg_agent, goal_state):
 
 
 def success_curve(dsg_agent, goal_state, num_episodes, num_steps, start_state=None):
-
     print("*" * 80)
     print(f"Generating success curve from {start_state} -> {goal_state}")
     print("*" * 80)
