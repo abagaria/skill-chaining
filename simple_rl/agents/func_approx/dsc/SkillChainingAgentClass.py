@@ -208,7 +208,7 @@ class SkillChaining(object):
 			skill_chain (SkillChain)
 		"""
 		chain_id = len(self.chains) + 1
-		allow_her_initialization = True if eval_mode else self.allow_her_initialization
+		allow_her_initialization = eval_mode or self.allow_her_initialization
 		init_salient_event = self.mdp.get_start_state_salient_event() if init_salient_event is None else init_salient_event
 		goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}',
 							 global_solver=self.global_option.solver,
