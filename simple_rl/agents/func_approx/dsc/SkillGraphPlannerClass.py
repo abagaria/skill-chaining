@@ -190,6 +190,9 @@ class SkillGraphPlanner(object):
         # Don't (off-policy) trigger the termination condition of options targeting the event we are currently leaving
         self.chainer.disable_triggering_options_targeting_init_event(state=state_before_rollout)
 
+        # TODO: Always running ant with some exploration
+        modified_eval_mode = eval_mode if "point" in self.mdp.env_name else False
+
         # Execute the option: if the option is the global-option, it doesn't have a default
         # goal in the task-agnostic setting. As a result, we ask it to target the same goal
         # as the policy-over-options.
@@ -197,7 +200,7 @@ class SkillGraphPlanner(object):
         option_transitions, option_reward = option.execute_option_in_mdp(self.mdp,
                                                                          episode=episode,
                                                                          step_number=step,
-                                                                         eval_mode=eval_mode,
+                                                                         eval_mode=modified_eval_mode,
                                                                          poo_goal=option_goal)
 
         new_options = self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
@@ -257,7 +260,7 @@ class SkillGraphPlanner(object):
         def modify(node, success):
             """ When successful, the cost of the edge is halved. When unsuccessful, the cost is doubled. """
             edge_weight = self.plan_graph.plan_graph[executed_option][node]["weight"]
-            new_weight = 2 ** (-int(success)) * edge_weight
+            new_weight = (0.95 ** success) * edge_weight
             self.plan_graph.set_edge_weight(executed_option, node, new_weight)
 
         outgoing_edges = [edge for edge in self.plan_graph.plan_graph.edges if edge[0] == executed_option]
@@ -266,10 +269,10 @@ class SkillGraphPlanner(object):
         failed_reaching_vertices = [vertex for vertex in neighboring_vertices if not vertex.is_init_true(final_state)]
 
         for vertex in successfully_reached_vertices:
-            modify(vertex, True)
+            modify(vertex, +1)
 
         for vertex in failed_reaching_vertices:
-            modify(vertex, False)
+            modify(vertex, -1)
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option, episode):
 
@@ -397,6 +400,14 @@ class SkillGraphPlanner(object):
 
         # State is in the effect set of the option
         return vertex.is_term_true(state)
+
+    def is_state_inside_any_vertex(self, state):
+        assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
+
+        if any([event(state) for event in self.plan_graph.salient_nodes]):
+            return True
+
+        return any([option.is_in_effect_set(state) for option in self.plan_graph.option_nodes])
 
     def does_exist_chain_for_event(self, event):
         assert isinstance(event, SalientEvent)

@@ -27,7 +27,7 @@ class Option(object):
 				 chain_id=None, initialize_everywhere=True, max_num_children=3,
 				 init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
 				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg", use_her=True,
-				 generate_plots=False, device=torch.device("cpu"), writer=None):
+				 allow_her_initialization=False, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
 			overall_mdp (GoalDirectedMDP)
@@ -53,6 +53,7 @@ class Option(object):
 			gestation_init_predicates (list)
 			is_backward_option (bool)
 			use_her (bool)
+			allow_her_initialization (bool)
 			generate_plots (bool)
 			device (torch.device)
 			writer (SummaryWriter)
@@ -82,12 +83,13 @@ class Option(object):
 		self.ddpg_batch_size = ddpg_batch_size
 		self.solver_type = solver_type
 		self.use_her = use_her
+		self.initialize_with_her = self.name != "global_option" and self.parent is None and allow_her_initialization
 
 		if self.name not in ("global_option", "exploration_option"):
 			assert self.init_salient_event is not None
 			assert self.target_salient_event is not None
 
-		self.state_size = self.overall_mdp.state_space_size() + 2 if use_her else self.overall_mdp.state_space_size()
+		self.state_size = self.overall_mdp.state_space_size() + 2 if use_her or self.initialize_with_her else self.overall_mdp.state_space_size()
 		self.action_size = self.overall_mdp.action_space_size()
 
 		self.timeout = np.inf
@@ -183,7 +185,7 @@ class Option(object):
 	def act(self, state_features, eval_mode, warmup_phase):
 		""" Epsilon greedy action selection when in training mode. """
 
-		if warmup_phase and self.use_warmup_phase:
+		if warmup_phase and self.use_warmup_phase and not self.initialize_with_her:
 			return self.overall_mdp.sample_random_action()
 
 		if random.random() < self._get_epsilon_greedy_epsilon() and not eval_mode:
@@ -213,6 +215,10 @@ class Option(object):
 			solver_name = "{}_ddpg_agent".format(self.name)
 			self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
 									tensor_log=(writer is not None), writer=writer, name=solver_name)
+
+			if self.initialize_with_her:
+				self.initialize_option_with_global_her_policy()
+
 		elif self.solver_type == "td3":
 			exploration_method = "shaping" if self.name == "global_option" else ""
 			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
@@ -339,14 +345,14 @@ class Option(object):
 
 	def initialize_option_with_global_her_policy(self):
 		""" Work in progress: initialize option policy with the global option's goal-conditioned policy. """
+		print("*" * 80)
+		print(f"Initializing {self}'s option policy with that of the Global Options DDPG")
+		print("*" * 80)
 
-		for target_param, param in zip(self.global_solver.target_actor.parameters(), self.solver.actor.parameters()):
-			target_param.data.copy_(param.data)
-
-		for target_param, param in zip(self.global_solver.target_critic.parameters(), self.solver.critic.parameters()):
-			target_param.data.copy_(param.data)
-
-		self.use_her = True
+		self.solver.actor.load_state_dict(self.global_solver.actor.state_dict())
+		self.solver.critic.load_state_dict(self.global_solver.critic.state_dict())
+		self.solver.target_actor.load_state_dict(self.global_solver.target_actor.state_dict())
+		self.solver.target_critic.load_state_dict(self.global_solver.target_critic.state_dict())
 
 	def initialize_option_solver_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
 
@@ -395,13 +401,21 @@ class Option(object):
 			return self.parent.batched_is_init_true(state_matrix)
 
 		# Extract the relevant dimensions from the state matrix (x, y)
-		state_matrix = state_matrix[:, :2]
+		position_matrix = state_matrix[:, :2]
 
-		if self.name == "global_option" or self.name == "exploration_option":
+		if self.name == "global_option" and self.use_her:
+			assert state_matrix.shape[1] == self.state_size, state_matrix.shape
+
+			goal_matrix = state_matrix[:, -2:]
+			terms = np.linalg.norm(position_matrix - goal_matrix, axis=1) <= 0.6
+			assert terms.shape == (state_matrix.shape[0],), terms.shape
+			return terms
+
+		elif self.name == "global_option":
 			return np.zeros((state_matrix.shape[0]))  # TODO: Create and use a batched version of MDP::is-goal-state()
 
 		assert self.target_salient_event is not None
-		return self.target_salient_event(state_matrix)
+		return self.target_salient_event(position_matrix)
 
 	def is_init_true(self, ground_state):
 
@@ -437,6 +451,18 @@ class Option(object):
 
 		assert self.target_salient_event is not None, self.target_salient_event
 		return self.target_salient_event(ground_state)
+
+	def is_in_effect_set(self, state):
+		assert isinstance(state, (State, np.ndarray)), state
+
+		if self.name == "global_option" or self.get_training_phase() != "initiation_done":
+			ipdb.set_trace()
+
+		if not self.is_term_true(state):
+			return False
+
+		is_close = lambda x, y: self.overall_mdp.dense_gc_reward_function(x, y, {})[1]
+		return any([is_close(state, effect_state) for effect_state in self.effect_set])
 
 	def should_target_with_bonus(self):
 		"""
@@ -678,15 +704,23 @@ class Option(object):
 			print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
 			return
 
+		if self.initialize_with_her:
+			assert self.parent is None and self.target_salient_event.get_target_position() is not None, str(self)
+			state = self.get_augmented_state(s, self.target_salient_event.get_target_position())
+			next_state = self.get_augmented_state(s_prime, self.target_salient_event.get_target_position())
+		else:
+			state = s.features()
+			next_state = s_prime.features()
+
 		if self.is_term_true(s_prime):
 			print("{} execution successful".format(self.name))
-			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
+			self.solver.step(state, a, self.subgoal_reward, next_state, True)
 		elif s_prime.is_terminal():
 			print("[{}]: {} is_terminal() but not term_true()".format(self.name, s))
-			self.solver.step(s.features(), a, self.subgoal_reward, s_prime.features(), True)
+			self.solver.step(state, a, self.subgoal_reward, next_state, True)
 		else:
 			subgoal_reward = self.get_subgoal_reward(s_prime) if self.name != "global_option" else r
-			self.solver.step(s.features(), a, subgoal_reward, s_prime.features(), False)
+			self.solver.step(state, a, subgoal_reward, next_state, False)
 
 	def relabel_transitions_with_option_reward_function(self, transitions):
 		assert not self.use_her, "Not implemented for HER transitions yet b/c that requires picking a goal-state"
@@ -738,7 +772,8 @@ class Option(object):
 		return self.overall_mdp.get_position(self.overall_mdp.goal_state)
 
 	def get_augmented_state(self, state, goal):
-		if goal is not None and self.use_her:
+		needs_augmenting = self.use_her or self.initialize_with_her
+		if goal is not None and needs_augmenting:
 			return np.concatenate((state.features(), goal))
 		return state.features()
 
@@ -776,7 +811,7 @@ class Option(object):
 			visited_states = []
 
 			# Pick goal for a goal-conditioned option rollout
-			if self.use_her:
+			if self.use_her or self.initialize_with_her:
 				goal = self.get_goal_for_current_rollout(goal_for_policy_over_options=poo_goal)
 				self.pursued_goals.append(goal)
 
@@ -835,10 +870,18 @@ class Option(object):
 
 	def is_at_local_goal(self, state, goal_state):
 		assert isinstance(state, State)
-		global_done = self.is_term_true(state) or state.is_terminal() or self.name == "global_option"
+
 		local_done = self.overall_mdp.sparse_gc_reward_function(state, goal_state, {})[1] if self.use_her else True
-		done = global_done and local_done
-		return done
+
+		if self.name == "global_option":
+			return local_done
+
+		global_done = self.is_term_true(state) or state.is_terminal()
+
+		if self.use_her:
+			return global_done and local_done
+
+		return global_done
 
 	def local_option_experience_replay(self, trajectory, goal_state):
 		for state, action, reward, next_state in trajectory:

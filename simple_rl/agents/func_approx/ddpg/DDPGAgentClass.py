@@ -181,11 +181,11 @@ class DDPGAgent(Agent):
             self.target_actor.eval(); self.target_critic.eval(); self.critic.eval()
 
             try:
-                states = torch.FloatTensor(states).to(self.device)
-                actions = torch.FloatTensor(actions).to(self.device)
-                next_states = torch.FloatTensor(next_states).to(self.device)
-                rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
-                dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
+                states = torch.as_tensor(states).float().to(self.device)
+                actions = torch.as_tensor(actions).float().to(self.device)
+                next_states = torch.as_tensor(next_states).float().to(self.device)
+                rewards = torch.as_tensor(rewards).float().unsqueeze(1).to(self.device)
+                dones = torch.as_tensor(np.float32(dones)).float().unsqueeze(1).to(self.device)
             except:
                 ipdb.set_trace()
 
@@ -211,11 +211,11 @@ class DDPGAgent(Agent):
         np_actions = np.copy(actions)
         np_next_states = np.copy(next_states)
 
-        states = torch.FloatTensor(states).to(self.device)
-        actions = torch.FloatTensor(actions).to(self.device)
-        rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
-        next_states = torch.FloatTensor(next_states).to(self.device)
-        dones = torch.FloatTensor(np.float32(dones)).unsqueeze(1).to(self.device)
+        states = torch.as_tensor(states).float().to(self.device)
+        actions = torch.as_tensor(actions).float().to(self.device)
+        rewards = torch.as_tensor(rewards).float().unsqueeze(1).to(self.device)
+        next_states = torch.as_tensor(next_states).float().to(self.device)
+        dones = torch.as_tensor(np.float32(dones)).float().unsqueeze(1).to(self.device)
 
         # Before pushing to the GPU, augment the reward with exploration bonus
         if self.exploration_method == "counts":

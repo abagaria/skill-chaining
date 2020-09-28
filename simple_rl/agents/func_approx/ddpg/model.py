@@ -42,8 +42,8 @@ class Critic(nn.Module):
         Returns:
             q_value (float)
         """
-        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-        action = torch.FloatTensor(action).unsqueeze(0).to(self.device)
+        state = torch.as_tensor(state).float().unsqueeze(0).to(self.device)
+        action = torch.as_tensor(action).float().unsqueeze(0).to(self.device)
         self.eval()
         with torch.no_grad():
             q_value = self.forward(state, action).item()
@@ -83,7 +83,7 @@ class Actor(nn.Module):
         return x
 
     def get_action(self, state):
-        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        state = torch.as_tensor(state).float().unsqueeze(0).to(self.device)
         self.eval()
         action = self.forward(state)
         self.train()
