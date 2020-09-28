@@ -913,15 +913,13 @@ class SkillChaining(object):
 		return overall_reward, option_trajectories
 
 	def __getstate__(self):
-		excluded_keys = ("mdp", "writer", "plotter")
-		state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+		excluded_keys = ("writer", "plotter")
+		state_dictionary = {x: self.__dict__[x] if x not in excluded_keys else None for x in self.__dict__}
 		return state_dictionary
 
 	def __setstate__(self, state_dictionary):
-		excluded_keys = ("mdp", "writer", "plotter")
 		for key in state_dictionary:
-			if key not in excluded_keys:
-				self.__dict__[key] = state_dictionary[key]
+			self.__dict__[key] = state_dictionary[key]
 
 
 def create_log_dir(experiment_name):
