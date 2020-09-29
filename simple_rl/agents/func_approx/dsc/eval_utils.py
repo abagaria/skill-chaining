@@ -4,9 +4,11 @@ import numpy as np
 import itertools
 import glob
 import os
+import ipdb
 
 from simple_rl.mdp.StateClass import State
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 
 # ---------––––––––---------––––––––---------––––––––
 # Eval utils
@@ -25,6 +27,15 @@ def create_test_event(dsg_agent, goal_state):
     if len(known_events) > 0:
         sorted_known_events = sorted(known_events, key=lambda e: len(e.trigger_points), reverse=True)
         return sorted_known_events[0]
+
+    # Is there an option that is a subset of the test event?
+    known_options = [option for option in dsg_agent.planning_agent.plan_graph.option_nodes if
+                     SkillChain.should_exist_edge_from_option_to_event(option, test_event)]
+
+    if len(known_options) > 0:
+        ipdb.set_trace()
+        sorted_known_options = sorted(known_options, key=lambda o: len(o.effect_set), reverse=True)
+        return sorted_known_options[0]
 
     return test_event
 
@@ -61,6 +72,22 @@ def generate_learning_curve(dsg_agent, num_episodes, num_steps, num_goals, rando
     print("*" * 80); print(f"Saving DSG scores to {dsg_agent.experiment_name}/{file_name}"); print("*" * 80)
     with open(f"{dsg_agent.experiment_name}/{file_name}", "wb+") as f:
         pickle.dump(scores, f)
+
+    # Save the goals states
+    goals_file_name = f"dsg_{num_goals}_random_starts_{randomize_start_states}_goals_{dsg_agent.seed}.pkl"
+    print("*" * 80)
+    print(f"Saving DSG goals to {dsg_agent.experiment_name}/{goals_file_name}")
+    print("*" * 80)
+    with open(f"{dsg_agent.experiment_name}/{goals_file_name}", "wb+") as f:
+        pickle.dump(goal_states, f)
+
+    if randomize_start_states:
+        starts_file_name = f"dsg_{num_goals}_random_starts_{randomize_start_states}_start_states_{dsg_agent.seed}.pkl"
+        print("*" * 80)
+        print(f"Saving DSG start states to {dsg_agent.experiment_name}/{starts_file_name}")
+        print("*" * 80)
+        with open(f"{dsg_agent.experiment_name}/{starts_file_name}", "wb+") as f:
+            pickle.dump(start_states, f)
 
     return scores
 

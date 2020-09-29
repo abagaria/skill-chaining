@@ -104,7 +104,8 @@ class SkillGraphPlanner(object):
                                                                           episode=episode_number,
                                                                           step=step_number,
                                                                           eval_mode=eval_mode,
-                                                                          policy_over_options_goal=poo_goal)
+                                                                          policy_over_options_goal=poo_goal,
+                                                                          goal_salient_event=goal_salient_event)
 
             # Book keeping
             state = deepcopy(self.mdp.cur_state)
@@ -154,6 +155,64 @@ class SkillGraphPlanner(object):
 
         return step, goal_salient_event(state)
 
+    def test_loop(self, *, state, goal_salient_event, test_option, episode, step, eval_mode):
+        assert isinstance(state, State)
+        assert isinstance(goal_salient_event, SalientEvent)
+        assert isinstance(test_option, Option)
+        assert isinstance(episode, int)
+        assert isinstance(step, int)
+        assert isinstance(eval_mode, bool)
+
+        def find_closest_node_in_graph(s):
+            point = self.mdp.get_position(s)
+            min_distance, best_node = np.inf, None
+            for node in self.plan_graph.plan_graph.nodes:
+                assert isinstance(node, (SalientEvent, Option))
+                states = node.trigger_points if isinstance(node, SalientEvent) else node.effect_set
+                points = [self.mdp.get_position(_state) for _state in states]
+                distance = SalientEvent.point_to_set_distance(point, points)
+                if distance < min_distance:
+                    min_distance = distance
+                    best_node = node
+            return best_node, min_distance
+
+        def find_closest_point_in_graph(s):
+            point = self.mdp.get_position(s)
+            closest_node, _ = find_closest_node_in_graph(s)
+            if closest_node is None: ipdb.set_trace()
+            states = closest_node.trigger_points if isinstance(closest_node, SalientEvent) else closest_node.effect_set
+            positions = np.array([self.mdp.get_position(_state) for _state in states])
+            closest_idx = np.argmin(np.sum((point - positions) ** 2, axis=1))
+            closest_point = positions[closest_idx]
+            return closest_point
+
+        # Set the training-phase of the goal option to be gestation always
+        test_option.num_goal_hits = 0
+
+        nearest_point_in_graph = find_closest_point_in_graph(state)
+        print(f"Targeting {nearest_point_in_graph} with the global-option")
+
+        while len(self.plan_graph.get_reachable_nodes_from_source_state(state)) == 0 \
+            and not goal_salient_event(state) and not step < self.chainer.max_steps:
+            step, transitions = self.perform_option_rollout(self.chainer.global_option,
+                                                            episode, step, eval_mode,
+                                                            nearest_point_in_graph, goal_salient_event)
+            state = deepcopy(self.mdp.cur_state)
+        print(f"Reachable nodes from {self.mdp.get_position(state)}: {self.plan_graph.get_reachable_nodes_from_source_state(state)}")
+
+        planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
+        print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
+        state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
+
+        print(f"Targeting {goal_salient_event} with {test_option}")
+        while not goal_salient_event(state) and step < self.chainer.max_steps and not test_option.is_term_true(state):
+            step, transitions = self.perform_option_rollout(test_option, episode, step, eval_mode,
+                                                            goal_salient_event.get_target_position(),
+                                                            goal_salient_event)
+            state = deepcopy(self.mdp.cur_state)
+
+        return step, goal_salient_event(state)
+
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
     # -----------------------------–––––––--------------
@@ -183,7 +242,7 @@ class SkillGraphPlanner(object):
 
         return deepcopy(self.mdp.cur_state), step_number
 
-    def perform_option_rollout(self, option, episode, step, eval_mode, policy_over_options_goal):
+    def perform_option_rollout(self, option, episode, step, eval_mode, policy_over_options_goal, goal_salient_event):
 
         state_before_rollout = deepcopy(self.mdp.cur_state)
 
@@ -201,7 +260,8 @@ class SkillGraphPlanner(object):
                                                                          episode=episode,
                                                                          step_number=step,
                                                                          eval_mode=modified_eval_mode,
-                                                                         poo_goal=option_goal)
+                                                                         poo_goal=option_goal,
+                                                                         goal_salient_event=goal_salient_event)
 
         new_options = self.chainer.manage_skill_chain_after_option_rollout(state_before_rollout=state_before_rollout,
                                                                            executed_option=option,

@@ -784,7 +784,8 @@ class SkillChaining(object):
 			option_transitions, reward = selected_option.execute_option_in_mdp(self.mdp,
 																			   episode_number,
 																			   step_number,
-																			   poo_goal=goal)
+																			   poo_goal=goal,
+																			   goal_salient_event=interrupt_handle)
 
 			# Logging
 			score += reward
