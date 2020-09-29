@@ -308,18 +308,31 @@ def train(agent, mdp, episodes, steps):
     return per_episode_scores, per_episode_durations
 
 
-def her_rollout(agent, goal, mdp, steps, dense_reward):
+def her_rollout(agent, start, goal, mdp, steps, dense_reward):
     score = 0.
-    mdp.reset()
     trajectory = []
+
+    mdp.reset()
+    if start is not None:
+        mdp.set_xy(start)
 
     mdp.set_current_goal(goal)
 
-    for step in range(steps):
+    print(f"Testing rollout from {start} --> {goal}")
+
+    done = False
+    for _ in range(steps):
         state = deepcopy(mdp.cur_state)
         aug_state = np.concatenate((state.features(), goal), axis=0)
 
-        if np.random.uniform() < 0.25:
+        if "point" in mdp.env_name:
+            greedy_epsilon =  0.1
+        elif "ant" in mdp.env_name:
+            greedy_epsilon =  0.25
+        else:
+            raise NotImplementedError("Invalid mdp for HER rollout")
+
+        if np.random.uniform() < greedy_epsilon:
             action = mdp.sample_random_action()
         else:
             action = agent.act(aug_state)
@@ -336,10 +349,10 @@ def her_rollout(agent, goal, mdp, steps, dense_reward):
         if done:
             break
 
-    return score, trajectory
+    return score, trajectory, done
 
 # I totally butchered this function on this branch, def don't merge this back in to main -Kiran
-def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="fixed", dense_reward=False, use_her=True):
+def her_train(agent, mdp, episodes, steps, start_state = None, goal_state=None, sampling_strategy="fixed", dense_reward=False, use_her=True):
 
     assert sampling_strategy in ("fixed", "diverse", "test"), sampling_strategy
     if sampling_strategy == "test": assert goal_state is not None, goal_state
@@ -349,17 +362,19 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
     last_10_scores = deque(maxlen=10)
     per_episode_durations = []
     last_10_durations = deque(maxlen=10)
+    per_episode_successes = []
 
     for episode in range(episodes):
+        reached_goal = False
 
         # Set the goal to a feasible random state
         if sampling_strategy == "fixed":
             goal_state = np.array([0., 8.])
-        if sampling_strategy == "diverse":
-            goal_state = np.random.uniform([-4,-4], [4,4])
+        if sampling_strategy == "diverse" and (episode % 50) == 0:
+            goal_state = mdp.sample_random_state()[:2]
 
         # Roll-out current policy for one episode
-        score, trajectory = her_rollout(agent, goal_state, mdp, steps, dense_reward)
+        score, trajectory, succeeded = her_rollout(agent, start_state, goal_state, mdp, steps, dense_reward)
 
         # Debug log the trajectories
         trajectories.append(trajectory)
@@ -398,9 +413,10 @@ def her_train(agent, mdp, episodes, steps, goal_state=None, sampling_strategy="f
         last_10_scores.append(score)
         per_episode_durations.append(duration)
         last_10_durations.append(duration)
+        per_episode_successes.append(succeeded)
         print(f"[Goal={goal_state}] Episode: {episode} \t Score: {score} \t Average Score: {np.mean(last_10_scores)} \t Duration: {duration} \t Average Duration: {np.mean(last_10_durations)}")
 
-    return per_episode_scores, per_episode_durations, trajectories
+    return per_episode_scores, per_episode_durations, per_episode_successes, trajectories
 
 
 if __name__ == "__main__":
