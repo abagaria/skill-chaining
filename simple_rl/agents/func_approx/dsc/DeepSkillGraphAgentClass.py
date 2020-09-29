@@ -115,7 +115,7 @@ class DeepSkillGraphAgent(object):
                     success = False
                     random_episodic_trajectory.append(random_transition)
                 else:
-                    self.create_skill_chains_if_needed(state, goal_salient_event)
+                    self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode)
 
                     step_number, success = self.planning_agent.run_loop(state=state,
                                                                         goal_salient_event=goal_salient_event,
@@ -137,7 +137,9 @@ class DeepSkillGraphAgent(object):
                 goal_state = self.mdp.get_position(self.mdp.sample_random_state())
                 self.dsc_agent.global_option_experience_replay(random_episodic_trajectory, goal_state=goal_state)
 
-            if episode > 0 and episode % 50 == 0 and args.plot_gc_value_functions:
+            # TODO: commented out because doesn't work with pickling
+            # if episode > 0 and episode % 50 == 0 and args.plot_gc_value_functions:
+            if episode > 0 and episode % 50 == 0:
                 assert goal_salient_event is not None
                 make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,
                                                                   goal_salient_event.get_target_position(),
@@ -242,7 +244,7 @@ class DeepSkillGraphAgent(object):
 
         return state, action, reward, next_state
 
-    def create_skill_chains_if_needed(self, state, goal_salient_event):
+    def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode):
         current_salient_event = self._get_current_salient_event(state)
 
         if current_salient_event is not None:
@@ -250,7 +252,8 @@ class DeepSkillGraphAgent(object):
                     not self.is_path_under_construction(current_salient_event, goal_salient_event):
                 print(f"[DeepSkillGraphsAgent] Creating chain from {current_salient_event} -> {goal_salient_event}")
                 self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
-                                                                        init_salient_event=current_salient_event)
+                                                                        init_salient_event=current_salient_event,
+                                                                        eval_mode=eval_mode)
 
     def _get_current_salient_event(self, state):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
