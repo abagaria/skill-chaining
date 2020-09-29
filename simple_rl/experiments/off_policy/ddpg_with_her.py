@@ -133,7 +133,7 @@ if __name__ == '__main__':
             goal_state = goal_state,
             sampling_strategy="test",
             dense_reward=args.dense_reward,
-            use_her=args.use_her
+            use_her=args.her_at_test_time
             )
 
         pickle.dump(pes_ii, open(directory / f'test_time_scores_{n}.pkl', 'wb'))
