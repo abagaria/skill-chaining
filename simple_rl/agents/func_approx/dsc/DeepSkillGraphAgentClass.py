@@ -83,7 +83,7 @@ class DeepSkillGraphAgent(object):
         Returns:
             target_event (SalientEvent)
         """
-        assert selection_criteria in ("closest", "random"), selection_criteria
+        selection_criteria = "closest" if random.random() > 0.1 else "random"
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
         if len(self.mdp.get_all_target_events_ever()) > 0:
             if selection_criteria == "closest":
@@ -365,7 +365,7 @@ if __name__ == "__main__":
         action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
-        overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
+        overall_mdp = D4RLAntMazeMDP(maze_size="umaze", seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-medium-ant-maze":
@@ -442,6 +442,6 @@ if __name__ == "__main__":
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     threshold=args.threshold,
-                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer, 
+                                    use_smdp_replay_buffer=args.use_smdp_replay_buffer,
                                     rejection_criteria=args.rejection_criteria)
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

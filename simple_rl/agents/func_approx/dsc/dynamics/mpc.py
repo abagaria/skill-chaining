@@ -60,6 +60,29 @@ class MPC:
 
         return deepcopy(mdp.cur_state), steps_taken
 
+    def _rollout_debug(self, mdp, num_rollouts, num_steps, goal, max_steps):
+        steps_taken = 0
+        s = deepcopy(mdp.cur_state)
+
+        trajectory = [s]
+
+        while not mdp.sparse_gc_reward_function(s, goal, {})[1]:
+            action = self.act(mdp, num_rollouts, num_steps, goal)
+        
+            # execute action in mdp
+            mdp.execute_agent_action(action)
+
+            steps_taken += 1
+            if steps_taken == max_steps:
+                break
+
+            # retrieve current state
+            s = deepcopy(mdp.cur_state)
+
+            trajectory.append(s)
+
+        return deepcopy(mdp.cur_state), steps_taken, trajectory
+
     def act(self, mdp, num_rollouts, num_steps, goal, gamma=0.95):
         # sample actions for all steps
         s = deepcopy(mdp.cur_state)
@@ -93,7 +116,7 @@ class MPC:
         gammas = np.power(gamma * np.ones(num_steps), np.arange(0, num_steps))
         summed_results = np.sum(results * gammas, axis=1)
         index = np.argmin(summed_results) # retrieve action with least trajectory distance to goal
-        action = np_actions[index,0,:] # grab action corresponding to least distance    
+        action = np_actions[index,0,:] # grab action corresponding to least distance
         return action
 
     def _preprocess_data(self, states, actions, states_p):
