@@ -72,13 +72,13 @@ if __name__ == '__main__':
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
-                                       use_hard_coded_events=args.use_hard_coded_events,
+                                       use_hard_coded_events=False,
                                        difficulty="medium")
     elif args.env == "d4rl-hard-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
-                                       use_hard_coded_events=args.use_hard_coded_events,
+                                       use_hard_coded_events=False,
                                        difficulty="hard")
     else:
         raise NotImplementedError(args.env)
