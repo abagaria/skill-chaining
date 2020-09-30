@@ -198,7 +198,6 @@ class SkillGraphPlanner(object):
                                                             episode, step, eval_mode,
                                                             nearest_point_in_graph, goal_salient_event)
             state = deepcopy(self.mdp.cur_state)
-        print(f"Reachable nodes from {self.mdp.get_position(state)}: {self.plan_graph.get_reachable_nodes_from_source_state(state)}")
 
         planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")

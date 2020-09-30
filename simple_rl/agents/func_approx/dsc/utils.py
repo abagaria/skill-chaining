@@ -520,7 +520,8 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
-def visualize_graph(planner, episode, experiment_name, seed, use_target_states=True):
+def visualize_graph(planner, episode, experiment_name, seed,
+                    use_target_states=True, background_img_fname="ant_maze_big_domain"):
     def _get_representative_point(event):
         assert isinstance(event, SalientEvent)
         if event.get_target_position() is not None:
@@ -533,7 +534,7 @@ def visualize_graph(planner, episode, experiment_name, seed, use_target_states=T
         x1, y1 = _get_representative_point(e1)
         x2, y2 = _get_representative_point(e2)
         x = [x1, x2]; y = [y1, y2]
-        plt.plot(x, y, marker, c=edge_color, alpha=0.1)
+        plt.plot(x, y, marker, c=edge_color, alpha=0.075)
         plt.scatter(x, y, c="black")
 
     def is_connected(n1, n2):
@@ -549,13 +550,18 @@ def visualize_graph(planner, episode, experiment_name, seed, use_target_states=T
                 if is_connected(event1, event2) and is_connected(event2, event1):
                     _plot_event_pair(event1, event2, "o-", edge_color="black")
                 elif is_connected(event1, event2) or is_connected(event2, event1):
-                    _plot_event_pair(event1, event2, "o--", edge_color="red")
+                    _plot_event_pair(event1, event2, "o--", edge_color="tab:gray")
 
     plt.xticks([])
     plt.yticks([])
 
     x_low_lim, y_low_lim = planner.mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = planner.mdp.get_x_y_high_lims()
+
+    filename = os.path.join(os.getcwd(), f"{background_img_fname}.png")
+    if os.path.isfile(filename):
+        background_image = imageio.imread(filename)
+        plt.imshow(background_image, zorder=0, alpha=0.5, extent=[x_low_lim, x_high_lim, y_low_lim, y_high_lim])
 
     plt.xlim((x_low_lim, x_high_lim))
     plt.ylim((y_low_lim, y_high_lim))
