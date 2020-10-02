@@ -3,13 +3,14 @@ import random
 import torch
 import numpy as np
 from torch.utils.data import Dataset
-from simple_rl.agents.func_approx.dqn.DQNAgentClass import ReplayBuffer
+from simple_rl.agents.func_approx.dqn.DQNAgentClass import ReplayBuffer as DQNReplayBuffer
+from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer as DDPGReplayBuffer
 
 
 class DCODataset(Dataset):
 
     def __init__(self, replay_buffer, use_xy=True, sub_sample=False):
-        assert isinstance(replay_buffer, ReplayBuffer)
+        assert isinstance(replay_buffer, (DDPGReplayBuffer, DQNReplayBuffer))
 
         if sub_sample:
             self.transitions = random.sample(replay_buffer.memory, k=1000)

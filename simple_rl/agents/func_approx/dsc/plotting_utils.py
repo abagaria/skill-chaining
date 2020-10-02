@@ -46,5 +46,5 @@ def generate_plot(score_array, label, smoothen=False):
     if smoothen:
         score_array = smoothen_data(score_array)
     median, mean, top, bottom = get_plot_params(score_array)
-    plt.plot(mean, linewidth=2, label=label, alpha=0.9)
-    plt.fill_between( range(len(top)), top, bottom, alpha=0.2 )
+    plt.plot(mean, linewidth=3, label=label)
+    plt.fill_between( range(len(top)), top, bottom, alpha=0.3 )

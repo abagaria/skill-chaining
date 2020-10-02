@@ -86,7 +86,7 @@ class Option(object):
 		self.initialize_with_her = self.name != "global_option" and self.parent is None and allow_her_initialization
 
 		if self.name not in ("global_option", "exploration_option"):
-			assert self.init_salient_event is not None
+			# assert self.init_salient_event is not None
 			assert self.target_salient_event is not None
 
 		self.state_size = self.overall_mdp.state_space_size() + 2 if use_her or self.initialize_with_her else self.overall_mdp.state_space_size()

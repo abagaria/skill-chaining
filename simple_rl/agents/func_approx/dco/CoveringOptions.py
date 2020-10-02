@@ -12,7 +12,8 @@ from simple_rl.agents.func_approx.dco.utils import *
 from simple_rl.agents.func_approx.dco.model import SpectrumNetwork, LinearNetwork, PositionNetwork
 from simple_rl.agents.func_approx.dco.dataset import DCODataset
 from simple_rl.agents.func_approx.dco.losses import get_loss_fn
-from simple_rl.agents.func_approx.dqn.DQNAgentClass import ReplayBuffer
+from simple_rl.agents.func_approx.dqn.DQNAgentClass import ReplayBuffer as DQNReplayBuffer
+from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer as DDPGReplayBuffer
 from simple_rl.agents.func_approx.dsc.SalientEventClass import DCOSalientEvent
 from simple_rl.agents.func_approx.dsc.utils import plot_dco_salient_event_comparison
 
@@ -56,7 +57,7 @@ class CoveringOptions(object):
         self.name = "Ant-reacher-full-state"
 
     def train(self, replay_buffer, n_epochs=1):
-        assert isinstance(replay_buffer, ReplayBuffer)
+        assert isinstance(replay_buffer, (DQNReplayBuffer, DDPGReplayBuffer))
 
         losses = []
         dataset = DCODataset(replay_buffer, use_xy=self.use_xy, sub_sample=self.sub_sample)
@@ -118,7 +119,10 @@ class CoveringOptions(object):
         return f_values
 
     def _determine_max_and_min_states(self, replay_buffer):
-        states = np.array([trans.state for trans in replay_buffer.memory])
+        if isinstance(replay_buffer, DQNReplayBuffer):
+            states = np.array([trans.state for trans in replay_buffer.memory])
+        else:
+            states = np.array([trans[0] for trans in replay_buffer.memory])
         f_values = self.evaluate(states)
 
         self.max_f_value_state = states[np.argmax(f_values)]
