@@ -47,6 +47,15 @@ class DeepSkillGraphAgent(object):
         self.most_recent_generated_salient_events = (None, None)
         self.last_event_creation_episode = -1
 
+    def __getstate__(self):
+        excluded_keys = ("mdp")
+        state_dictionary = {x: self.__dict__[x] if x not in excluded_keys for x in self.__dict__}
+        return state_dictionary
+
+    def __setstate__(self, state_dictionary):
+        for key in state_dictionary:
+            self.__dict__[key] = state_dictionary[key]
+
     @staticmethod
     def _randomly_select_salient_event(state, candidate_salient_events):
         num_tries = 0
