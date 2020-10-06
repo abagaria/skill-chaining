@@ -14,6 +14,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 import torch
 import itertools
+import pickle
 from tqdm import tqdm
 
 # Other imports.
@@ -936,8 +937,8 @@ class SkillChaining(object):
 		return overall_reward, option_trajectories
 
 	def __getstate__(self):
-		excluded_keys = ("writer", "plotter")
-		state_dictionary = {x: self.__dict__[x] if x not in excluded_keys else None for x in self.__dict__}
+		excluded_keys = ("writer", "plotter", "mdp")
+		state_dictionary = {x: self.__dict__[x] if x not in excluded_keys for x in self.__dict__}
 		return state_dictionary
 
 	def __setstate__(self, state_dictionary):
