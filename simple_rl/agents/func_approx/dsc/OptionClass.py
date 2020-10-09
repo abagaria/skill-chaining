@@ -127,7 +127,7 @@ class Option(object):
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
 		self.last_episode_term_triggered = -1
-		self.nu = 0.01
+		self.nu = 0.1
 		self.pretrained_option_policy = False
 		self.started_at_target_salient_event = False
 		self.salient_event_for_initiation = None
@@ -141,6 +141,9 @@ class Option(object):
 		self.num_test_executions = 0
 		self.num_successful_test_executions = 0
 		self.pursued_goals = []
+		self.successful_start_states = []
+		self.unsuccessful_start_states = []
+		self.on_policy_success_curve = []
 
 	def __str__(self):
 		return self.name
@@ -503,12 +506,20 @@ class Option(object):
 	def expand_initiation_classifier(self, salient_event):
 		self.salient_event_for_initiation = salient_event
 
+	def filter_initiation_experience(self, positions):
+		goal_position = positions[-1]
+		distances = [np.linalg.norm(goal_position - position) for position in positions]
+		filtered = [pos for pos, dist in zip(positions, distances) if dist < 2]
+		return filtered
+
 	def add_initiation_experience(self, states):
 		assert type(states) == list, "Expected initiation experience sample to be a queue"
 		segmented_states = deepcopy(states)
 		if len(states) >= self.buffer_length:
 			segmented_states = segmented_states[-self.buffer_length:]
 		segmented_positions = [segmented_state.position for segmented_state in segmented_states]
+		if len(segmented_positions) > 0:
+			segmented_positions = self.filter_initiation_experience(segmented_positions)
 		self.positive_examples.append(segmented_positions)
 
 	def add_experience_buffer(self, experience_queue):
@@ -684,7 +695,6 @@ class Option(object):
 
 		# Don't make updates while walking around the termination set of an option
 		if self.is_term_true(state):
-			print("[off_policy_update] Warning: called updater on {} term states: {}".format(self.name, state))
 			return
 
 		# Off-policy updates for states outside tne initiation set were discarded
@@ -699,7 +709,6 @@ class Option(object):
 		assert not s.is_terminal(), "Terminal state did not terminate at some point"
 
 		if self.is_term_true(s):
-			print("[update_option_solver] Warning: called updater on {} term states: {}".format(self.name, s))
 			return
 
 		if self.initialize_with_her:
@@ -850,6 +859,12 @@ class Option(object):
 				self.num_goal_hits += 1
 				self.last_episode_term_triggered = episode
 				self.effect_set.append(state)
+
+			if self.is_term_true(state):
+				self.successful_start_states.append(start_state)
+			else:
+				self.unsuccessful_start_states.append(start_state)
+			self.on_policy_success_curve.append(self.is_term_true(state))
 
 			if self.parent is None and self.is_term_true(state):
 				print(f"[{self}] Adding {state.position} to {self.target_salient_event}'s trigger points")
