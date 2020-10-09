@@ -66,12 +66,40 @@ class DeepSkillGraphAgent(object):
         return target_event
 
     def _select_closest_unconnected_salient_event(self, state, events):
-        current_events = [event for event in events if event(state)]
+        graph = self.planning_agent.plan_graph
         candidate_salient_events = self.generate_candidate_salient_events(state)
-        closest_pair = self.planning_agent.get_closest_pair_of_vertices(current_events, candidate_salient_events)
-        if closest_pair is not None:
-            assert len(closest_pair) == 2, closest_pair
-            return closest_pair[1]
+
+        current_events = [event for event in events if event(state)]
+        descendant_events = self.planning_agent.plan_graph.get_reachable_nodes_from_source_state(state)
+        descendant_events += current_events
+
+        if not all([isinstance(e, (SalientEvent, Option)) for e in descendant_events]):
+            ipdb.set_trace()
+
+        # Grab all the ancestor Salient Events of each candidate salient event
+        ancestor_events = []
+        for salient_event in candidate_salient_events:
+            ancestors = graph.get_nodes_that_reach_target_node(salient_event)
+            if any([ancestor in descendant_events for ancestor in ancestors]):
+                ipdb.set_trace()
+            filtered_ancestors = [e for e in ancestors if isinstance(e, SalientEvent)]
+            if len(filtered_ancestors) > 0:
+                ancestor_events += filtered_ancestors
+        ancestor_events += candidate_salient_events
+
+        if not all([isinstance(e, SalientEvent) for e in ancestor_events]):
+            ipdb.set_trace()
+
+        # Compute the pair-wise distances between the descendants and ancestors
+        closest_event_pair = self.planning_agent.get_closest_pair_of_vertices(descendant_events, ancestor_events)
+
+        # Finally, return the ancestor event closest to one of the descendants
+        if closest_event_pair is not None:
+            assert len(closest_event_pair) == 2, closest_event_pair
+            closest_event = closest_event_pair[1]
+            assert isinstance(closest_event, SalientEvent), f"{type(closest_event)}"
+            if not closest_event(state):
+                return closest_event
 
     def select_goal_salient_event(self, state, selection_criteria="closest"):
         """
@@ -128,7 +156,7 @@ class DeepSkillGraphAgent(object):
                     success = False
                     random_episodic_trajectory.append(random_transition)
                 else:
-                    self.create_skill_chains_if_needed(state, goal_salient_event)
+                    self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode)
 
                     step_number, success, mpc_failed = self.planning_agent.run_loop(mpc=self.mpc,
                                                                                   state=state,
@@ -189,7 +217,7 @@ class DeepSkillGraphAgent(object):
         salient_event = SalientEvent(target_state, event_idx)
         reject = self.add_salient_event(salient_event)
 
-        print(f"Generated {salient_event}")
+        print(f"Generated {salient_event}, rejected: {reject}")
         self.last_event_creation_episode = episode if not reject else self.last_event_creation_episode
         if not reject and mpc_revised:
             self.mpc_resample -= 1
@@ -230,7 +258,7 @@ class DeepSkillGraphAgent(object):
         if any([event(salient_event.target_state) for event in existing_target_events]):
             return True
 
-        rejection_function = self.planning_agent.is_state_inside_vertex if self.rejection_criteria == "use_effect_sets"\
+        rejection_function = self.planning_agent.is_state_inside_any_vertex if self.rejection_criteria == "use_effect_sets"\
                              else self.dsc_agent.state_in_any_completed_option
 
         if rejection_function(salient_event.target_state):
@@ -267,7 +295,7 @@ class DeepSkillGraphAgent(object):
 
         return state, action, reward, next_state
 
-    def create_skill_chains_if_needed(self, state, goal_salient_event):
+    def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode):
         current_salient_event = self._get_current_salient_event(state)
         if goal_salient_event.revised_by_mpc:
             if current_salient_event is not None:

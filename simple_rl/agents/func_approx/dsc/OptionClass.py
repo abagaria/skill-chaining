@@ -127,7 +127,7 @@ class Option(object):
 		self.num_subgoal_hits_required = num_subgoal_hits_required
 		self.buffer_length = buffer_length
 		self.last_episode_term_triggered = -1
-		self.nu = 0.01
+		self.nu = 0.1
 		self.pretrained_option_policy = False
 		self.started_at_target_salient_event = False
 		self.salient_event_for_initiation = None
@@ -780,7 +780,8 @@ class Option(object):
 			return goal_for_policy_over_options
 		return self.get_goal_for_option_rollout(method="use_effect_set")
 
-	def execute_option_in_mdp(self, mdp, episode, step_number, poo_goal=None, eval_mode=False):
+	def execute_option_in_mdp(self, mdp, episode, step_number, poo_goal=None,
+							  eval_mode=False, goal_salient_event=lambda s: False):
 		"""
 		Option main control loop.
 
@@ -792,6 +793,7 @@ class Option(object):
 			eval_mode (bool): Added for the SkillGraphPlanning agent so that we can perform
 							  option policy rollouts with eval_epsilon but still keep training
 							  option policies based on new experiences seen during test time.
+			goal_salient_event (SalientEvent)
 
 		Returns:
 			option_transitions (list): list of (s, a, r, s') tuples
@@ -818,7 +820,8 @@ class Option(object):
 
 			warmup_phase = self.get_training_phase() == "gestation"
 
-			while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
+			while not self.is_at_local_goal(state, goal) and step_number < self.max_steps \
+					and num_steps < self.timeout and not goal_salient_event(state):
 
 				# Goal-conditioned option acting
 				augmented_state = self.get_augmented_state(state, goal)
@@ -854,6 +857,9 @@ class Option(object):
 
 			if self.name != "global_option" and self.get_training_phase() != "initiation_done":
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
+
+			if goal_salient_event(state):
+				print(f"[DSG] Triggered global {goal_salient_event} while executing {self}")
 
 			# Experience Replay
 			if self.name != "global_option" and not warmup_phase:

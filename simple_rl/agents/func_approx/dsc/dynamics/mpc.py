@@ -1,3 +1,5 @@
+import pickle
+
 import torch
 import numpy as np
 import torch.nn as nn
@@ -19,7 +21,7 @@ class MPC:
 
     def load_data(self, states, actions, states_p):
         self.dataset = self._preprocess_data(states, actions, states_p)
-        self.model = DynamicsModel(self.state_size, self.action_size, *self._get_standardization_vars(), self.device)
+        self.model = DynamicsModel(self.state_size, self.action_size, self.device, *self._get_standardization_vars())
         self.model.to(self.device)
 
     def train(self, epochs=100, batch_size=512):
@@ -146,6 +148,20 @@ class MPC:
 
     def _get_standardization_vars(self):
         return self.mean_x, self.mean_y, self.mean_z, self.std_x, self.std_y, self.std_z
+
+    def save_model(self, path):
+        if hasattr(self, 'model'):
+            state_dictionary = self.model.__getstate__()
+            with open(path, 'wb') as f:
+                pickle.dump(state_dictionary, f)
+        else:
+            print("no model has been trained yet!")
+
+    def load_model(self, path):
+        with open(path, 'rb') as f:
+            state_dictionary = pickle.load(f)
+        self.model = DynamicsModel(self.state_size, self.action_size, self.device)
+        self.model.__setstate__(state_dictionary)
 
 class RolloutDataset(Dataset):
     def __init__(self, states, actions, states_p):
