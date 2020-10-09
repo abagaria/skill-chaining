@@ -539,7 +539,7 @@ class SkillChaining(object):
 		elif self.off_policy_update_type == "batched":
 			self.make_batched_off_policy_option_updates(executed_option, pre_rollout_state, option_transitions, k=k)
 
-	def make_batched_off_policy_option_updates(self, executed_option, pre_rollout_state, option_transitions, k=3):
+	def make_batched_off_policy_option_updates(self, executed_option, pre_rollout_state, option_transitions, k=5):
 		assert isinstance(executed_option, Option), f"{type(executed_option)}"
 		assert not self.use_her_locally, "Not implemented off-policy option updates for HER yet"
 
