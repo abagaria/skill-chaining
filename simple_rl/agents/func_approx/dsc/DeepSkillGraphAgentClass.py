@@ -1,6 +1,7 @@
 import ipdb
 import argparse
 import random
+import pickle
 from copy import deepcopy
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
@@ -12,8 +13,8 @@ from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 
 
 class DeepSkillGraphAgent(object):
-    def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq,
-                 experiment_name, seed, threshold, use_smdp_replay_buffer, rejection_criteria):
+    def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq, experiment_name,
+                 seed, threshold, use_smdp_replay_buffer, rejection_criteria, plot_gc_value_functions):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -37,6 +38,7 @@ class DeepSkillGraphAgent(object):
         self.event_after_reject_freq = event_after_reject_freq
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
         self.rejection_criteria = rejection_criteria
+        self.plot_gc_value_functions = plot_gc_value_functions
 
         assert rejection_criteria in ("use_effect_sets", "use_init_sets"), rejection_criteria
 
@@ -44,6 +46,15 @@ class DeepSkillGraphAgent(object):
         self.generated_salient_events = []
         self.most_recent_generated_salient_events = (None, None)
         self.last_event_creation_episode = -1
+
+    def __getstate__(self):
+        excluded_keys = ("mdp")
+        state_dictionary = {x: self.__dict__[x] if x not in excluded_keys for x in self.__dict__}
+        return state_dictionary
+
+    def __setstate__(self, state_dictionary):
+        for key in state_dictionary:
+            self.__dict__[key] = state_dictionary[key]
 
     @staticmethod
     def _randomly_select_salient_event(state, candidate_salient_events):
@@ -164,7 +175,7 @@ class DeepSkillGraphAgent(object):
                 goal_state = self.mdp.get_position(self.mdp.sample_random_state())
                 self.dsc_agent.global_option_experience_replay(random_episodic_trajectory, goal_state=goal_state)
 
-            if episode > 0 and episode % 50 == 0 and args.plot_gc_value_functions:
+            if episode > 0 and episode % 50 == 0 and self.plot_gc_value_functions:
                 assert goal_salient_event is not None
                 make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,
                                                                   goal_salient_event.get_target_position(),
@@ -434,5 +445,6 @@ if __name__ == "__main__":
                                     seed=args.seed,
                                     threshold=args.threshold,
                                     use_smdp_replay_buffer=args.use_smdp_replay_buffer,
-                                    rejection_criteria=args.rejection_criteria)
+                                    rejection_criteria=args.rejection_criteria,
+                                    plot_gc_value_functions=args.plot_gc_value_functions)
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

@@ -41,7 +41,6 @@ def create_test_event(dsg_agent, goal_state):
 
 
 def success_curve(dsg_agent, goal_state, num_episodes, num_steps, start_state=None):
-
     print("*" * 80)
     print(f"Generating success curve from {start_state} -> {goal_state}")
     print("*" * 80)

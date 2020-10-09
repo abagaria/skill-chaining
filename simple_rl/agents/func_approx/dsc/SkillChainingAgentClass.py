@@ -14,6 +14,7 @@ import numpy as np
 from tensorboardX import SummaryWriter
 import torch
 import itertools
+import pickle
 from tqdm import tqdm
 
 # Other imports.
@@ -190,9 +191,9 @@ class SkillChaining(object):
 
 		# Debug variables
 		self.global_execution_states = []
-		self.num_option_executions = defaultdict(lambda : [])
-		self.option_rewards = defaultdict(lambda : [])
-		self.option_qvalues = defaultdict(lambda : [])
+		self.num_option_executions = defaultdict(list)
+		self.option_rewards = defaultdict(list)
+		self.option_qvalues = defaultdict(list)
 		self.num_options_history = []
 
 	def create_chain_targeting_new_salient_event(self, salient_event, init_salient_event=None, eval_mode=False):
@@ -208,7 +209,7 @@ class SkillChaining(object):
 			skill_chain (SkillChain)
 		"""
 		chain_id = len(self.chains) + 1
-		allow_her_initialization = True if eval_mode else self.allow_her_initialization
+		allow_her_initialization = eval_mode or self.allow_her_initialization
 		init_salient_event = self.mdp.get_start_state_salient_event() if init_salient_event is None else init_salient_event
 		goal_option = Option(overall_mdp=self.mdp, name=f'goal_option_{chain_id}',
 							 global_solver=self.global_option.solver,
@@ -937,15 +938,13 @@ class SkillChaining(object):
 		return overall_reward, option_trajectories
 
 	def __getstate__(self):
-		excluded_keys = ("mdp", "writer", "plotter")
-		state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
+		excluded_keys = ("writer", "plotter", "mdp")
+		state_dictionary = {x: self.__dict__[x] if x not in excluded_keys for x in self.__dict__}
 		return state_dictionary
 
 	def __setstate__(self, state_dictionary):
-		excluded_keys = ("mdp", "writer", "plotter")
 		for key in state_dictionary:
-			if key not in excluded_keys:
-				self.__dict__[key] = state_dictionary[key]
+			self.__dict__[key] = state_dictionary[key]
 
 
 def create_log_dir(experiment_name):
