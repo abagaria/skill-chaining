@@ -18,6 +18,8 @@ class MPC:
         self.action_size = action_size
         self.device = device
         self.is_trained = False
+        self.trained_options = []
+        self.gamma = 0.99
 
     def load_data(self, states, actions, states_p):
         self.dataset = self._preprocess_data(states, actions, states_p)
@@ -85,17 +87,15 @@ class MPC:
 
         return deepcopy(mdp.cur_state), steps_taken, trajectory
 
+    # TODO abide by same API as other solvers (ddpg, etc)
     def act(self, mdp, num_rollouts, num_steps, goal, gamma=0.95):
         # sample actions for all steps
         s = deepcopy(mdp.cur_state)
         goal_x = goal[0]
         goal_y = goal[1]
-        np_actions = np.zeros((num_rollouts, num_steps, self.action_size))
+        np_actions = np.random.uniform(-1., 1., size=(num_rollouts, num_steps, self.action_size)) # TODO hardcoded
         np_states = np.repeat(np.array([s]), num_rollouts, axis=0)
         results = np.zeros((num_rollouts, num_steps))
-        for i in range(num_rollouts):
-            for j in range(num_steps):
-                np_actions[i,j,:] = mdp.sample_random_action()
         
         with torch.no_grad():
             # compute next states for each step

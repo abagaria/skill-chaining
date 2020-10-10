@@ -34,8 +34,8 @@ class SkillChaining(object):
 				 start_state_salience=False, option_intersection_salience=False, event_intersection_salience=False,
 				 pretrain_option_policies=False, create_backward_options=False, learn_backward_options_offline=False,
 				 update_global_solver=False, use_warmup_phase=False, dense_reward=False, use_her=False,
-				 use_her_locally=False, off_policy_update_type="single", allow_her_initialization=False,
-				 log_dir="", seed=0, tensor_log=False, experiment_name=""):
+				 use_her_locally=False, off_policy_update_type="none", allow_her_initialization=False,
+				 log_dir="", seed=0, tensor_log=False, experiment_name="", use_hardcoded_init_sets=False, use_hardcoded_goal_regions=False):
 		"""
 		Args:
 			mdp (MDP): Underlying domain we have to solve
@@ -100,6 +100,8 @@ class SkillChaining(object):
 		self.update_global_solver = update_global_solver
 		self.use_warmup_phase = use_warmup_phase
 		self.experiment_name = experiment_name
+		self.use_hardcoded_init_sets = use_hardcoded_init_sets
+		self.use_hardcoded_goal_regions = use_hardcoded_goal_regions
 
 		assert off_policy_update_type in ("none", "single", "batched"), off_policy_update_type
 
@@ -114,11 +116,11 @@ class SkillChaining(object):
 		self.validation_scores = []
 
 		# This option has an initiation set that is true everywhere and is allowed to operate on atomic timescale only
-		if not self.mdp.task_agnostic:
-			raise NotImplementedError("Need target_salient_event for the global-option")
+		# if not self.mdp.task_agnostic:
+		# 	raise NotImplementedError("Need target_salient_event for the global-option")
 
 		self.global_option = Option(overall_mdp=self.mdp, name="global_option",
-									global_solver=None, target_salient_event=None,
+									global_solver=None, target_salient_event=self.mdp.get_original_target_events()[0],
 									lr_actor=lr_actor, lr_critic=lr_critic, buffer_length=buffer_length,
 									ddpg_batch_size=ddpg_batch_size, num_subgoal_hits_required=num_subgoal_hits_required,
 									subgoal_reward=self.subgoal_reward, seed=self.seed, max_steps=self.max_steps,
@@ -129,7 +131,9 @@ class SkillChaining(object):
 									use_her=self.use_her,
 									dense_reward=self.dense_reward,
 									chain_id=None, option_idx=0,
-									allow_her_initialization=self.allow_her_initialization)
+									allow_her_initialization=self.allow_her_initialization, 
+									use_hardcoded_init_sets=self.use_hardcoded_init_sets, 
+									use_hardcoded_goal_regions=self.use_hardcoded_goal_regions)
 
 		self.trained_options = [self.global_option]
 
@@ -153,8 +157,13 @@ class SkillChaining(object):
 								 dense_reward=self.dense_reward, chain_id=i+1, max_num_children=1,
 								 use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
 								 target_salient_event=salient_event, option_idx=i+1, use_her=use_her_locally,
-								 allow_her_initialization=self.allow_her_initialization)
+								 allow_her_initialization=self.allow_her_initialization, use_hardcoded_init_sets=self.use_hardcoded_init_sets, 
+								 use_hardcoded_goal_regions=self.use_hardcoded_goal_regions, init_salient_event=self.mdp.get_start_state_salient_event())
+
 			self.untrained_options.append(goal_option)
+
+		self.current_option_idx = 1	
+
 
 		# This is our policy over options
 		# We use (double-deep) (intra-option) Q-learning to learn the Q-values of *options* at any queried state Q(s, o)
@@ -177,10 +186,15 @@ class SkillChaining(object):
 								  mdp_init_salient_event=self.mdp.get_start_state_salient_event())
 					   for i, salient_event in enumerate(self.mdp.get_original_target_events())]
 
+		if self.use_hardcoded_init_sets:
+			goal_option = self.untrained_options[0]
+			option_1_0 = self.create_child_option(goal_option)
+			option_1_0_0 = self.create_child_option(option_1_0)
+			self.add_new_options_to_skill_chains([option_1_0, option_1_0_0])
+
 		# List of init states seen while running this algorithm
 		self.init_states = []
 
-		self.current_option_idx = 1
 		self.current_intersecting_chains = []
 
 		# If initialize_everywhere is True, also add to trained_options
@@ -345,9 +359,9 @@ class SkillChaining(object):
 		chain = self.chains[parent_option.chain_id - 1]
 		old_untrained_option_id = id(parent_option)
 		new_untrained_option = Option(self.mdp, name=name, global_solver=self.global_option.solver,
-									  lr_actor=parent_option.solver.actor_learning_rate,
-									  lr_critic=parent_option.solver.critic_learning_rate,
-									  ddpg_batch_size=parent_option.solver.batch_size,
+									  lr_actor=parent_option.lr_actor,
+									  lr_critic=parent_option.lr_critic,
+									  ddpg_batch_size=parent_option.ddpg_batch_size,
 									  subgoal_reward=self.subgoal_reward,
 									  buffer_length=self.buffer_length,
 									  classifier_type=self.classifier_type,
@@ -363,7 +377,9 @@ class SkillChaining(object):
 									  update_global_solver=self.update_global_solver,
 									  initiation_period=parent_option.initiation_period,
 									  use_her=self.use_her_locally,
-									  allow_her_initialization=self.allow_her_initialization)
+									  allow_her_initialization=self.allow_her_initialization,
+									  use_hardcoded_init_sets=self.use_hardcoded_init_sets, 
+									  use_hardcoded_goal_regions=self.use_hardcoded_goal_regions)
 
 		new_untrained_option_id = id(new_untrained_option)
 		assert new_untrained_option_id != old_untrained_option_id, "Checking python references"
@@ -835,6 +851,8 @@ class SkillChaining(object):
 		return per_episode_scores, per_episode_durations
 
 	def global_option_experience_replay(self, trajectory, goal_state):
+		if self.global_option.solver_type == "mpc":
+			return
 		for state, action, _, next_state in trajectory:
 			augmented_state = self.get_augmented_state(state, goal=goal_state)
 			augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
@@ -991,6 +1009,8 @@ if __name__ == '__main__':
 	parser.add_argument("--create_backward_options", action="store_true", default=False)
 	parser.add_argument("--use_her", action="store_true", help="Hindsight Experience Replay", default=False)
 	parser.add_argument("--use_her_locally", action="store_true", help="HER for local options", default=False)
+	parser.add_argument("--use_warmup_phase", action="store_true", default=False)
+
 	args = parser.parse_args()
 
 	if args.env == "point-reacher":
@@ -1010,7 +1030,7 @@ if __name__ == '__main__':
 		action_dim = 2
 	elif args.env == "d4rl-ant-maze":
 		from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
-		overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, task_agnostic=False,
+		overall_mdp = D4RLAntMazeMDP(maze_size="umaze", seed=args.seed,
 									 render=args.render, goal_state=np.array((0., 8.)))
 		state_dim = overall_mdp.state_space_size()
 		action_dim = overall_mdp.action_space_size()
@@ -1063,7 +1083,10 @@ if __name__ == '__main__':
 							dense_reward=args.dense_reward,
 							use_her=args.use_her,
 							use_her_locally=args.use_her_locally,
-							experiment_name=args.experiment_name)
+							experiment_name=args.experiment_name, 
+							use_warmup_phase=args.use_warmup_phase,
+							use_hardcoded_init_sets=True, 
+							use_hardcoded_goal_regions=True)
 	episodic_scores, episodic_durations = chainer.skill_chaining_run_loop(num_episodes=args.episodes, num_steps=args.steps, to_reset=True)
 
 	# Log performance metrics

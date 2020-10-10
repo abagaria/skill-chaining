@@ -17,6 +17,8 @@ from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
+
 
 
 class Option(object):
@@ -26,8 +28,9 @@ class Option(object):
 				 dense_reward=False, enable_timeout=True, timeout=200, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, max_num_children=3,
 				 init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
-				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg", use_her=True,
-				 allow_her_initialization=False, generate_plots=False, device=torch.device("cpu"), writer=None):
+				 gestation_init_predicates=[], is_backward_option=False, solver_type="mpc", use_her=True,
+				 allow_her_initialization=False, generate_plots=False, device=torch.device("cpu"), writer=None, 
+				 use_hardcoded_init_sets=False, use_hardcoded_goal_regions=False):
 		'''
 		Args:
 			overall_mdp (GoalDirectedMDP)
@@ -84,6 +87,8 @@ class Option(object):
 		self.solver_type = solver_type
 		self.use_her = use_her
 		self.initialize_with_her = self.name != "global_option" and self.parent is None and allow_her_initialization
+		self.use_hardcoded_init_sets = use_hardcoded_init_sets
+		self.use_hardcoded_goal_regions = use_hardcoded_goal_regions
 
 		if self.name not in ("global_option", "exploration_option"):
 			assert self.init_salient_event is not None
@@ -189,6 +194,10 @@ class Option(object):
 		if random.random() < self._get_epsilon_greedy_epsilon() and not eval_mode:
 			return self.overall_mdp.sample_random_action()
 
+		if self.solver_type == "mpc":
+			goal = state_features[-2:]
+			return self.solver.act(self.overall_mdp, 14000, 7, goal)
+
 		return self.solver.act(state_features, evaluation_mode=eval_mode)
 
 	def reset_global_solver(self):
@@ -198,6 +207,10 @@ class Option(object):
 		elif self.solver_type == "td3":
 			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
 									 max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
+		
+		elif self.solver_type == "mpc":
+			self.solver = MPC(self.overall_mdp.state_space_size(), self.overall_mdp.action_space_size(), self.device)
+			self.solver.load_model("mpc-ant-umaze-model.pkl")
 
 		else:
 			raise NotImplementedError(self.solver_type)
@@ -222,7 +235,9 @@ class Option(object):
 			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
 							  max_action=self.overall_mdp.env.action_space.high[0],
 							  device=self.device, exploration_method=exploration_method)
-
+		elif self.solver_type == "mpc":
+			self.solver = MPC(self.overall_mdp.state_space_size(), self.overall_mdp.action_space_size(), self.device)
+			self.solver.load_model("mpc-ant-umaze-model.pkl")
 		else:
 			raise NotImplementedError(self.solver_type)
 
@@ -373,7 +388,9 @@ class Option(object):
 				self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
-
+		if self.use_hardcoded_init_sets:
+			return self.pre_defined_batched_is_init_true(state_matrix)
+		
 		if self.name == "global_option":
 			return np.ones((state_matrix.shape[0]))
 
@@ -408,14 +425,16 @@ class Option(object):
 			terms = np.linalg.norm(position_matrix - goal_matrix, axis=1) <= 0.6
 			assert terms.shape == (state_matrix.shape[0],), terms.shape
 			return terms
-
-		elif self.name == "global_option":
+		
+		elif self.name == "global_option" and self.solver_type != "mpc":
 			return np.zeros((state_matrix.shape[0]))  # TODO: Create and use a batched version of MDP::is-goal-state()
 
 		assert self.target_salient_event is not None
 		return self.target_salient_event(position_matrix)
 
 	def is_init_true(self, ground_state):
+		if self.use_hardcoded_init_sets:
+			return self.pre_defined_is_init_true(ground_state)
 
 		if self.name == "global_option":
 			return True
@@ -439,6 +458,28 @@ class Option(object):
 		event_decision = self.salient_event_for_initiation(features) if self.salient_event_for_initiation is not None else False
 
 		return self.initiation_classifier.predict([features])[0] == 1 or event_decision
+
+	def pre_defined_is_init_true(self, ground_state):
+		features = self.overall_mdp.get_position(ground_state)
+		if self.name == "global_option":
+			return True
+		if self.name == "goal_option_1":
+			return features[1] >= 6
+		if self.name == "option_1_0":
+			return features[0] > 6
+		if self.name == "option_1_0_0":
+			return features[1] <= 2
+	
+	def pre_defined_batched_is_init_true(self, state_matrix):
+		if self.name == "global_option":
+			return np.ones((state_matrix.shape[0]))
+		position_matrix = state_matrix[:, :2]
+		if self.name == "goal_option_1":
+			return position_matrix[:, 1] >= 6
+		if self.name == "option_1_0":
+			return position_matrix[:, 0] > 6
+		if self.name == "option_1_0_0":
+			return position_matrix[:, 1] <= 2
 
 	def is_term_true(self, ground_state):
 		if self.parent is not None:
@@ -738,6 +779,14 @@ class Option(object):
 	def get_goal_for_option_rollout(self, method="use_effect_set"):
 		assert method in ("use_effect_set", "use_term_set"), method
 
+		if self.use_hardcoded_goal_regions:
+			if self.name == "option_1_0":
+				return np.array([8, 8])
+			elif self.name == "option_1_0_0":
+				return np.array([8, 0])
+			
+			raise Exception(f"Shouldn't be here! Option name {self.name}")
+
 		def _sample_from_parent_initiation_set():
 			if self.parent is not None:
 				parent_positive = self.sample_parent_positive()
@@ -770,13 +819,13 @@ class Option(object):
 		return self.overall_mdp.get_position(self.overall_mdp.goal_state)
 
 	def get_augmented_state(self, state, goal):
-		needs_augmenting = self.use_her or self.initialize_with_her
+		needs_augmenting = self.use_her or self.initialize_with_her or self.solver_type == "mpc"
 		if goal is not None and needs_augmenting:
 			return np.concatenate((state.features(), goal))
 		return state.features()
 
 	def get_goal_for_current_rollout(self, goal_for_policy_over_options):
-		if goal_for_policy_over_options is not None and self.name == "global_option":
+		if goal_for_policy_over_options is not None and self.parent is None: # TODO doesn't work for dsg
 			return goal_for_policy_over_options
 		return self.get_goal_for_option_rollout(method="use_effect_set")
 
@@ -811,7 +860,7 @@ class Option(object):
 			visited_states = []
 
 			# Pick goal for a goal-conditioned option rollout
-			if self.use_her or self.initialize_with_her:
+			if self.use_her or self.initialize_with_her or self.solver_type == "mpc":
 				goal = self.get_goal_for_current_rollout(goal_for_policy_over_options=poo_goal)
 				self.pursued_goals.append(goal)
 
@@ -855,14 +904,14 @@ class Option(object):
 				print(f"[{self}] Adding {state.position} to {self.target_salient_event}'s trigger points")
 				self.target_salient_event.trigger_points.append(state)
 
-			if self.name != "global_option" and self.get_training_phase() != "initiation_done":
+			if self.name != "global_option" and self.get_training_phase() != "initiation_done" and not self.use_hardcoded_init_sets:
 				self.refine_initiation_set_classifier(visited_states, start_state, state, num_steps, step_number)
 
 			if goal_salient_event(state):
 				print(f"[DSG] Triggered global {goal_salient_event} while executing {self}")
 
 			# Experience Replay
-			if self.name != "global_option" and not warmup_phase:
+			if self.name != "global_option" and not warmup_phase and self.solver_type != "mpc":
 				self.local_option_experience_replay(option_transitions, goal_state=goal)
 
 				if self.use_her:
@@ -875,14 +924,14 @@ class Option(object):
 	def is_at_local_goal(self, state, goal_state):
 		assert isinstance(state, State)
 
-		local_done = self.overall_mdp.sparse_gc_reward_function(state, goal_state, {})[1] if self.use_her else True
+		local_done = self.overall_mdp.sparse_gc_reward_function(state, goal_state, {})[1] if self.use_her or self.solver_type == "mpc" else True
 
 		if self.name == "global_option":
 			return local_done
 
 		global_done = self.is_term_true(state) or state.is_terminal()
 
-		if self.use_her:
+		if self.use_her or self.solver_type == "mpc":
 			return global_done and local_done
 
 		return global_done

@@ -39,7 +39,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
                                  self._transition_func,
                                  self._reward_func, self.init_state,
-                                 salient_positions, task_agnostic=True,
+                                 salient_positions, task_agnostic=goal_state is None,
                                  goal_state=goal_state, goal_tolerance=0.6)
 
     def _reward_func(self, state, action):
@@ -52,7 +52,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
             reward = 0.
             is_terminal = False
         else:
-            reward, is_terminal = self.sparse_gc_reward_function(next_state, self.get_current_goal(), info)
+            reward, is_terminal = self.sparse_gc_reward_function(next_state, self.get_current_goal(), {}) # TODO info
 
         if self.render:
             self.env.render()
@@ -125,3 +125,4 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     def sample_random_action(self):
         size = (self.action_space_size(),)
         return np.random.uniform(-1., 1., size=size)
+    
