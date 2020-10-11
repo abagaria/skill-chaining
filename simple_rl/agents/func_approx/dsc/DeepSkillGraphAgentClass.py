@@ -1,7 +1,10 @@
 import ipdb
 import argparse
 import random
+import networkx as nx
 from copy import deepcopy
+from collections import defaultdict
+import networkx.algorithms.shortest_paths as shortest_paths
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.SkillGraphPlannerClass import SkillGraphPlanner
@@ -13,7 +16,8 @@ from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 
 class DeepSkillGraphAgent(object):
     def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq, event_after_reject_freq,
-                 experiment_name, seed, threshold, use_smdp_replay_buffer, rejection_criteria):
+                 experiment_name, seed, threshold, use_smdp_replay_buffer,
+                 rejection_criteria, pick_targets_stochastically):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
         the `dsc_agent`.
@@ -25,6 +29,7 @@ class DeepSkillGraphAgent(object):
             experiment_name (str)
             seed (int)
             rejection_criteria (str)
+            pick_targets_stochastically (bool)
         """
         self.mdp = mdp
         self.dsc_agent = dsc_agent
@@ -37,13 +42,13 @@ class DeepSkillGraphAgent(object):
         self.event_after_reject_freq = event_after_reject_freq
         self.use_smdp_replay_buffer = use_smdp_replay_buffer
         self.rejection_criteria = rejection_criteria
+        self.pick_targets_stochastically = pick_targets_stochastically
 
         assert rejection_criteria in ("use_effect_sets", "use_init_sets"), rejection_criteria
 
-        self.num_covering_options_generated = 0
         self.generated_salient_events = []
-        self.most_recent_generated_salient_events = (None, None)
         self.last_event_creation_episode = -1
+        self.pursued_source_target_map = defaultdict(lambda: defaultdict(int))
 
     @staticmethod
     def _randomly_select_salient_event(state, candidate_salient_events):
@@ -85,11 +90,18 @@ class DeepSkillGraphAgent(object):
                 ancestor_events += filtered_ancestors
         ancestor_events += candidate_salient_events
 
+        # -- Compress to delete repeating events
+        # -- Note that we are using the __hash__ function of SalientEvents here
+        ancestor_events = list(set(ancestor_events))
+
         if not all([isinstance(e, SalientEvent) for e in ancestor_events]):
             ipdb.set_trace()
 
-        # Compute the pair-wise distances between the descendants and ancestors
-        closest_event_pair = self.planning_agent.get_closest_pair_of_vertices(descendant_events, ancestor_events)
+        if self.pick_targets_stochastically:
+            event_pairs = [(e1, e2) for e1 in descendant_events for e2 in ancestor_events]
+            closest_event_pair = self._choose_node_pair(node_pairs=event_pairs) if len(event_pairs) > 0 else None
+        else:
+            closest_event_pair = self.planning_agent.get_closest_pair_of_vertices(descendant_events, ancestor_events)
 
         # Finally, return the ancestor event closest to one of the descendants
         if closest_event_pair is not None:
@@ -99,21 +111,33 @@ class DeepSkillGraphAgent(object):
             if not closest_event(state):
                 return closest_event
 
-    def select_goal_salient_event(self, state, selection_criteria="closest"):
+    @staticmethod
+    def _choose_node_pair(node_pairs):
+        """ Given a list of descendant-ancestor pairs, compute their distances and pick one to target. """
+        node_pair_distances = [1. / SkillGraphPlanner.distance_between_vertices(d, a) for d, a in node_pairs]
+        sum_of_distances = sum(node_pair_distances)
+        probabilities = [distance / sum_of_distances for distance in node_pair_distances]
+        np.testing.assert_almost_equal(np.sum(probabilities), 1.)
+        idx = np.random.choice(range(len(node_pairs)), size=1, p=probabilities)
+        if len(idx) > 0:
+            return node_pairs[idx[0]]
+
+    def select_goal_salient_event(self, state):
         """
 
         Args:
             state (State)
-            selection_criteria (str)
 
         Returns:
             target_event (SalientEvent)
         """
-        assert selection_criteria in ("closest", "random"), selection_criteria
+        stochastic = self.pick_targets_stochastically
+        epsilon = 0.2 if stochastic else 0.
+        selection_criteria = "closest" if random.random() > epsilon else "random"
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
         if len(self.mdp.get_all_target_events_ever()) > 0:
             if selection_criteria == "closest":
-                selected_event = self._select_closest_unconnected_salient_event(state, events)
+                selected_event = self._select_closest_unconnected_salient_event(state, events, stochastic)
                 if selected_event is not None:
                     print(f"[Closest] Deep skill graphs target event: {selected_event}")
                     return selected_event
@@ -143,6 +167,8 @@ class DeepSkillGraphAgent(object):
                     random_episodic_trajectory.append(random_transition)
                 else:
                     self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode)
+
+                    self.pursued_source_target_map[self._get_current_salient_event(state)][goal_salient_event] += 1
 
                     step_number, success = self.planning_agent.run_loop(state=state,
                                                                         goal_salient_event=goal_salient_event,
@@ -198,15 +224,32 @@ class DeepSkillGraphAgent(object):
 
         return reject
 
-    def is_path_under_construction(self, init_salient_event, target_salient_event):
+    def is_path_under_construction(self, state, init_salient_event, target_salient_event):
+        assert isinstance(state, (State, np.ndarray)), f"{type(State)}"
         assert isinstance(init_salient_event, SalientEvent), f"{type(init_salient_event)}"
         assert isinstance(target_salient_event, SalientEvent), f"{type(target_salient_event)}"
 
-        chains = self.dsc_agent.chains
-        unfinished_chains = [chain for chain in chains if not chain.is_chain_completed()]
+        current_salient_event = self._get_current_salient_event(state)
+        under_construction = self.does_path_exist_in_optimistic_graph(current_salient_event, target_salient_event)
+        return under_construction
 
-        match = lambda c: c.init_salient_event == init_salient_event and c.target_salient_event == target_salient_event
-        return any([match(chain) for chain in unfinished_chains])
+    def does_path_exist_in_optimistic_graph(self, vertex1, vertex2):
+
+        # Create a lightweight copy of the plan-graph
+        graph = nx.DiGraph()
+        for edge in self.planning_agent.plan_graph.plan_graph.edges:
+            graph.add_edge(str(edge[0]), str(edge[1]))
+
+        # Pretend as if all unfinished chains have been learned and add them to the new graph
+        unfinished_chains = [chain for chain in self.dsc_agent.chains if not chain.is_chain_completed()]
+        for chain in unfinished_chains:
+            graph.add_edge(str(chain.init_salient_event), str(chain.target_salient_event))
+
+        # Return if there is a path in this "optimistic" graph
+        if str(vertex1) not in graph or str(vertex2) not in graph:
+            return False
+
+        return shortest_paths.has_path(graph, str(vertex1), str(vertex2))
 
     def should_reject_discovered_salient_event(self, salient_event):
         """
@@ -214,7 +257,6 @@ class DeepSkillGraphAgent(object):
 
         Args:
             salient_event (SalientEvent)
-            rejection_criteria (str)
 
         Returns:
             should_reject (bool)
@@ -263,10 +305,21 @@ class DeepSkillGraphAgent(object):
 
         if current_salient_event is not None:
             if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event) and \
-                    not self.is_path_under_construction(current_salient_event, goal_salient_event):
-                print(f"[DeepSkillGraphsAgent] Creating chain from {current_salient_event} -> {goal_salient_event}")
-                self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
-                                                                        init_salient_event=current_salient_event,
+                    not self.is_path_under_construction(state, current_salient_event, goal_salient_event):
+
+                closest_event_pair = self.planning_agent.choose_closest_source_target_vertex_pair(state,
+                                                                                                  goal_salient_event,
+                                                                                                  choose_among_events=True)
+
+
+                init, target = current_salient_event, goal_salient_event
+                if closest_event_pair is not None:
+                    init, target = closest_event_pair[0], closest_event_pair[1]
+
+                print(f"[DeepSkillGraphsAgent] Creating chain from {init} -> {target}")
+
+                self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=target,
+                                                                        init_salient_event=init,
                                                                         eval_mode=eval_mode)
 
     def _get_current_salient_event(self, state):
@@ -337,6 +390,7 @@ if __name__ == "__main__":
     parser.add_argument("--plot_gc_value_functions", action="store_true", default=False)
     parser.add_argument("--allow_her_initialization", action="store_true", default=False)
     parser.add_argument("--rejection_criteria", type=str, help="Reject events in known init/effect sets", default="use_init_sets")
+    parser.add_argument("--pick_targets_stochastically", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
