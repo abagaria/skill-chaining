@@ -40,7 +40,7 @@ class SkillGraphPlanner(object):
     # Control loop methods
     # -----------------------------–––––––--------------
 
-    def choose_closest_source_target_vertex_pair(self, state, goal_salient_event):
+    def choose_closest_source_target_vertex_pair(self, state, goal_salient_event, choose_among_events):
         """
         Given a salient event outside the graph, find its nearest neighbor in the graph. We will
         use our planning based control loop to reach that nearest neighbor and then use deep
@@ -49,6 +49,7 @@ class SkillGraphPlanner(object):
         Args:
             state (State)
             goal_salient_event (SalientEvent)
+            choose_among_events (bool)
 
         Returns:
             closest_source (SalientEvent or Option)
@@ -57,6 +58,10 @@ class SkillGraphPlanner(object):
         candidate_vertices_to_fall_from = self.plan_graph.get_reachable_nodes_from_source_state(state)
         candidate_vertices_to_jump_to = self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event)
         candidate_vertices_to_jump_to = list(candidate_vertices_to_jump_to) + [goal_salient_event]
+
+        if choose_among_events:
+            candidate_vertices_to_fall_from = [v for v in candidate_vertices_to_fall_from if isinstance(v, SalientEvent)]
+            candidate_vertices_to_jump_to = [v for v in candidate_vertices_to_jump_to if isinstance(v, SalientEvent)]
 
         return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from, candidate_vertices_to_jump_to)
 
@@ -290,7 +295,7 @@ class SkillGraphPlanner(object):
 
         # Revise the goal_salient_event if it cannot be reached from the current state
         if not self.plan_graph.does_path_exist(state, goal_salient_event):
-            closest_vertex_pair = self.choose_closest_source_target_vertex_pair(state, goal_salient_event)
+            closest_vertex_pair = self.choose_closest_source_target_vertex_pair(state, goal_salient_event, False)
             if closest_vertex_pair is not None:
                 planner_goal_vertex, dsc_goal_vertex = closest_vertex_pair
                 print(f"Revised planner goal vertex to {planner_goal_vertex} and dsc goal vertex to {dsc_goal_vertex}")
