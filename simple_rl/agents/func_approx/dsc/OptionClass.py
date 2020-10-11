@@ -856,7 +856,8 @@ class Option(object):
 
 			if self.is_term_true(state) and self.last_episode_term_triggered != episode:
 				print(f"{self} successful (Reached Goal State: {self.is_at_local_goal(state, goal)})")
-				self.num_goal_hits += 1
+				if self.is_valid_init_data(visited_states):
+					self.num_goal_hits += 1
 				self.last_episode_term_triggered = episode
 				self.effect_set.append(state)
 
@@ -962,9 +963,9 @@ class Option(object):
 			else:
 				positive_states = [start_state] + visited_states[-self.buffer_length:]
 
-			# if self.is_valid_init_data(positive_states):
-			positive_examples = [state.position for state in positive_states]
-			self.positive_examples.append(positive_examples)
+			if self.is_valid_init_data(positive_states):
+				positive_examples = [state.position for state in positive_states]
+				self.positive_examples.append(positive_examples)
 
 		elif num_steps == self.timeout and self.get_training_phase() == "initiation":
 			negative_examples = [start_state.position]
