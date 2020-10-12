@@ -137,7 +137,7 @@ class DeepSkillGraphAgent(object):
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
         if len(self.mdp.get_all_target_events_ever()) > 0:
             if selection_criteria == "closest":
-                selected_event = self._select_closest_unconnected_salient_event(state, events, stochastic)
+                selected_event = self._select_closest_unconnected_salient_event(state, events)
                 if selected_event is not None:
                     print(f"[Closest] Deep skill graphs target event: {selected_event}")
                     return selected_event
@@ -488,5 +488,6 @@ if __name__ == "__main__":
                                     seed=args.seed,
                                     threshold=args.threshold,
                                     use_smdp_replay_buffer=args.use_smdp_replay_buffer,
-                                    rejection_criteria=args.rejection_criteria)
+                                    rejection_criteria=args.rejection_criteria,
+                                    pick_targets_stochastically=args.pick_targets_stochastically)
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

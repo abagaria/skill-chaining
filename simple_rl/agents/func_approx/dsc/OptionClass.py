@@ -299,7 +299,7 @@ class Option(object):
 
 		# Use the data if it could complete the chain
 		if self.init_salient_event is not None:
-			if any([self.is_init_true(s) for s in self.init_salient_event.trigger_points]):
+			if any([self.init_salient_event(s) for s in state_buffer]):
 				return True
 
 		length_condition = len(state_buffer) >= self.buffer_length // 10
