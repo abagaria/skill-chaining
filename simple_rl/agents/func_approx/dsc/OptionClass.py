@@ -163,7 +163,7 @@ class Option(object):
 		return not self == other
 
 	def __getstate__(self):
-		excluded_keys = ("parent", "global_solver", "children", "overall_mdp")
+		excluded_keys = ("overall_mdp")
 		parent_option_idx = self.parent.option_idx if self.parent is not None else None
 		children_option_idx = [child.option_idx for child in self.children if child is not None]
 		state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
@@ -172,7 +172,7 @@ class Option(object):
 		return state_dictionary
 
 	def __setstate__(self, state_dictionary):
-		excluded_keys = ("parent", "global_solver", "children", "overall_mdp")
+		excluded_keys = ("overall_mdp")
 		for key in state_dictionary:
 			if key not in excluded_keys:
 				self.__dict__[key] = state_dictionary[key]
