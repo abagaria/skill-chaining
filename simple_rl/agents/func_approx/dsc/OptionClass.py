@@ -686,7 +686,7 @@ class Option(object):
 		dist = self.parent.initiation_classifier.decision_function(position_vector.reshape(1, -1))[0]
 
 		# Decision_function returns a negative distance for points not inside the classifier
-		subgoal_reward = 0. if dist >= 0 else dist
+		subgoal_reward = 0. if dist >= 0 else -np.log(1 - dist)
 		return subgoal_reward
 
 	def off_policy_update(self, state, action, reward, next_state):
