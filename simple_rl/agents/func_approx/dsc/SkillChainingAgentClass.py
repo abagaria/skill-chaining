@@ -939,7 +939,7 @@ class SkillChaining(object):
 
 	def __getstate__(self):
 		excluded_keys = ("writer", "plotter", "mdp")
-		state_dictionary = {x: self.__dict__[x] if x not in excluded_keys for x in self.__dict__}
+		state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
 		return state_dictionary
 
 	def __setstate__(self, state_dictionary):
