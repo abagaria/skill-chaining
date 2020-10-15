@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from simple_rl.agents.func_approx.dsc.dynamics.dynamics_model import DynamicsModel
 
 from tqdm import tqdm
+import ipdb
 
 class MPC:
     def __init__(self, state_size, action_size, device):
@@ -88,9 +89,8 @@ class MPC:
         return deepcopy(mdp.cur_state), steps_taken, trajectory
 
     # TODO abide by same API as other solvers (ddpg, etc)
-    def act(self, mdp, num_rollouts, num_steps, goal, gamma=0.95):
+    def act(self, s, goal, num_rollouts=14000, num_steps=7, gamma=0.95):
         # sample actions for all steps
-        s = deepcopy(mdp.cur_state)
         goal_x = goal[0]
         goal_y = goal[1]
         np_actions = np.random.uniform(-1., 1., size=(num_rollouts, num_steps, self.action_size)) # TODO hardcoded
