@@ -52,10 +52,13 @@ class LearnInitClassifierForMBOption(object):
                                   initiation_period=self.initiation_period,
                                   timeout=100, max_steps=1000, device=self.device,
                                   target_salient_event=self.target_salient_event,
+                                  name="model-based-option",
                                   path_to_model="mpc-ant-umaze-model.pkl")
         return option
 
     def reset(self):
+        """ Special reset function -- start the episode inside the option's initiation region. """
+
         start_state = None
         while start_state is None:
             s = self.mdp.sample_random_state()

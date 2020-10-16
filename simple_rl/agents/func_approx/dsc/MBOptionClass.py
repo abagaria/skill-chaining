@@ -4,14 +4,14 @@ import itertools
 import numpy as np
 from copy import deepcopy
 from sklearn import svm
-from sklearn.neighbors import KernelDensity
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
 
 class ModelBasedOption(object):
-    def __init__(self, parent, mdp, buffer_length, global_init, gestation_period, initiation_period,
+    def __init__(self, name, parent, mdp, buffer_length, global_init, gestation_period, initiation_period,
                  timeout, max_steps, device, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
+        self.name = name
         self.parent = parent
         self.device = device
         self.timeout = timeout
@@ -22,7 +22,6 @@ class ModelBasedOption(object):
 
         # TODO
         self.overall_mdp = mdp
-        self.name = "model-based-option"
         self.seed = 0
         self.option_idx = 1
 
@@ -34,7 +33,6 @@ class ModelBasedOption(object):
         self.negative_examples = []
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
-        self.effect_distribution = None
 
         self.solver = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.device)
 
@@ -65,7 +63,6 @@ class ModelBasedOption(object):
         if self.parent is None:
             return self.target_salient_event(state)
 
-        ipdb.set_trace()
         features = self.mdp.get_position(state)
         return self.parent.pessimistic_classifier.predict([features])[0] == 1
 
@@ -94,9 +91,12 @@ class ModelBasedOption(object):
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
 
-        if self.parent is None:
+        if self.parent is None and self.target_salient_event is not None:
             return self.target_salient_event.get_target_position()
-        raise NotImplementedError("Yet to implement for child options")
+
+        sampled_goal = self.parent.sample_from_initiation_region()
+        assert sampled_goal is not None
+        return sampled_goal.squeeze()
 
     def rollout(self, step_number):
         """ Main option control loop. """
@@ -111,6 +111,8 @@ class ModelBasedOption(object):
 
         state = deepcopy(self.mdp.cur_state)
         goal = self.get_goal_for_rollout()
+
+        print(f"Rolling out {self.name}, from {state.position} targeting {goal}")
 
         while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
 
@@ -150,9 +152,8 @@ class ModelBasedOption(object):
         training_predictions = self.pessimistic_classifier.predict(positive_feature_matrix)
         positive_training_examples = positive_feature_matrix[training_predictions == 1]
         if positive_training_examples.shape[0] > 0:
-            self.effect_distribution = KernelDensity()
-            self.effect_distribution.fit(positive_training_examples)
-            return self.effect_distribution.sample()
+            idx = random.sample(range(positive_training_examples.shape[0]), k=1)
+            return positive_training_examples[idx]
 
     def derive_positive_and_negative_examples(self, visited_states):
         start_state = visited_states[0]

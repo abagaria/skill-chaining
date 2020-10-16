@@ -1,5 +1,6 @@
 import scipy
 import numpy as np
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 
@@ -77,4 +78,28 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.title("{} Initiation Set".format(option.name))
     plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
+    plt.close()
+
+
+def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_size=10000):
+    assert option.initiation_distribution is not None
+    data = mdp.dataset[:, :2]
+
+    num_chunks = int(np.ceil(data.shape[0] / chunk_size))
+    if num_chunks == 0:
+        return 0.
+
+    state_chunks = np.array_split(data, num_chunks, axis=0)
+    pvalues = np.zeros((data.shape[0],))
+    current_idx = 0
+
+    for chunk_number, state_chunk in tqdm(enumerate(state_chunks)):
+        probabilities = np.exp(option.initiation_distribution.score_samples(state_chunk))
+        pvalues[current_idx:current_idx + len(state_chunk)] = probabilities
+        current_idx += len(state_chunk)
+
+    plt.scatter(data[:, 0], data[:, 1], c=pvalues)
+    plt.colorbar()
+    plt.title("Density Estimator Fitted on Pessimistic Classifier")
+    plt.savefig(f"initiation_set_plots/{experiment_name}/{option.name}_initiation_distribution_{episode}.png")
     plt.close()
