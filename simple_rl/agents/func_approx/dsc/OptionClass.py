@@ -162,6 +162,9 @@ class Option(object):
 	def __ne__(self, other):
 		return not self == other
 
+	def __call__(self, state):
+		return self.is_init_true(state)
+
 	def __getstate__(self):
 		excluded_keys = ("overall_mdp")
 		parent_option_idx = self.parent.option_idx if self.parent is not None else None

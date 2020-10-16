@@ -239,8 +239,15 @@ class DeepSkillGraphAgent(object):
         assert isinstance(init_salient_event, SalientEvent), f"{type(init_salient_event)}"
         assert isinstance(target_salient_event, SalientEvent), f"{type(target_salient_event)}"
 
-        current_salient_event = self._get_current_salient_event(state)
-        under_construction = self.does_path_exist_in_optimistic_graph(current_salient_event, target_salient_event)
+        unfinished_chains = [chain for chain in self.dsc_agent.chains if not chain.is_chain_completed()]
+        match = lambda c: c.init_salient_event == init_salient_event and c.target_salient_event == target_salient_event
+        if any([match(c) for c in unfinished_chains]):
+            return True
+
+        events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        current_salient_events = [event for event in events if event(state)]
+        under_construction = any([self.does_path_exist_in_optimistic_graph(current_salient_event, target_salient_event)
+                                  for current_salient_event in current_salient_events])
         return under_construction
 
     def does_path_exist_in_optimistic_graph(self, vertex1, vertex2):

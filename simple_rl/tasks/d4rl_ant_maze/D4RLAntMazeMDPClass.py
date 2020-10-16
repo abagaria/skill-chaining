@@ -118,9 +118,21 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # ---------------------------------
 
     def sample_random_state(self):
-        data = self.dataset
-        idx = np.random.choice(data.shape[0])
-        return data[idx, :]
+        events = self.get_all_target_events_ever()
+        salient_positions = [np.array((2, 0)),
+                             np.array((4, 0)),
+                             np.array((6, 0)),
+                             np.array((8, 0)),
+                             np.array((8, 2)),
+                             np.array((8, 4)),
+                             np.array((8, 6)),
+                             np.array((8, 8)),
+                             np.array((6, 8)),
+                             np.array((4, 8)),
+                             np.array((2, 8)),
+                             np.array((0, 8)),
+                             ]
+        return salient_positions[len(events) % len(salient_positions)]
 
     def sample_random_action(self):
         size = (self.action_space_size(),)
