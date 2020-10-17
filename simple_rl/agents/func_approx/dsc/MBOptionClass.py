@@ -63,8 +63,14 @@ class ModelBasedOption(object):
         if self.parent is None:
             return self.target_salient_event(state)
 
+        return self.parent.pessimistic_is_init_true(state)
+
+    def pessimistic_is_init_true(self, state):
+        if self.global_init or self.get_training_phase() == "gestation":
+            return True
+
         features = self.mdp.get_position(state)
-        return self.parent.pessimistic_classifier.predict([features])[0] == 1
+        return self.pessimistic_classifier.predict([features])[0] == 1
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
