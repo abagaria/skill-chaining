@@ -118,7 +118,7 @@ class ModelBasedOption(object):
         state = deepcopy(self.mdp.cur_state)
         goal = self.get_goal_for_rollout()
 
-        print(f"Rolling out {self.name}, from {state.position} targeting {goal}")
+        print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
 
         while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
 
@@ -189,6 +189,9 @@ class ModelBasedOption(object):
         self.pessimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
         self.pessimistic_classifier.fit(positive_feature_matrix)
 
+        self.optimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu/10., gamma="scale")
+        self.optimistic_classifier.fit(positive_feature_matrix)
+
     def train_two_class_classifier(self, nu=0.1):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
         negative_feature_matrix = self.construct_feature_matrix(self.negative_examples)
@@ -212,3 +215,13 @@ class ModelBasedOption(object):
         if positive_training_examples.shape[0] > 0:
             self.pessimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
             self.pessimistic_classifier.fit(positive_training_examples)
+
+    # ------------------------------------------------------------
+    # Convenience functions
+    # ------------------------------------------------------------
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return str(self)

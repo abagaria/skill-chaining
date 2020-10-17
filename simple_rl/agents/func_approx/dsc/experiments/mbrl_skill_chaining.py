@@ -18,19 +18,19 @@ class ModelBasedSkillChaining(object):
         self.initiation_period = np.inf
         self.gestation_period = gestation_period
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 0)))
+        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 8)))
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
         self.goal_option = self.create_model_based_option(name="goal-option", parent=None)
 
-        self.chain = []
-        self.new_options = []
+        self.chain = [self.goal_option]
+        self.new_options = [self.goal_option]
         self.mature_options = []
 
     def act(self, state):
         for option in self.chain:
-            if option.is_init_true(state):
+            if option.is_init_true(state) and not option.is_term_true(state):
                 return option
         return self.global_option
 
@@ -39,23 +39,27 @@ class ModelBasedSkillChaining(object):
         last_10_durations = deque(maxlen=10)
 
         for episode in range(num_episodes):
+            step_number = 0
             self.reset()
 
-            for step in range(num_steps):
+            while step_number < num_steps and not self.mdp.cur_state.is_terminal():
                 state = deepcopy(self.mdp.cur_state)
                 selected_option = self.act(state)
-                transitions, reward = selected_option.rollout(step_number=step)
+                transitions, reward = selected_option.rollout(step_number=step_number)
 
                 self.manage_chain_after_rollout(selected_option, self.mdp.cur_state)
 
-                duration = len(transitions)
-                last_10_durations.append(duration)
-                per_episode_durations.append(duration)
+                step_number += len(transitions)
 
-                if self.mdp.cur_state.is_terminal():
-                    break
-
+            last_10_durations.append(step_number)
+            per_episode_durations.append(step_number)
             self.log_status(episode, last_10_durations)
+
+    def should_create_new_option(self):  # TODO
+        if len(self.mature_options) > 0 and len(self.new_options) == 0:
+            return self.mature_options[-1].num_goal_hits > 2 * self.gestation_period and \
+                not self.mature_options[-1].pessimistic_is_init_true(self.mdp.init_state)
+        return False
 
     def manage_chain_after_rollout(self, executed_option, state_after_rollout):
 
@@ -63,17 +67,17 @@ class ModelBasedSkillChaining(object):
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
 
-        if self.mature_options[-1].num_goal_hits > 2 * self.gestation_period and \
-                not self.mature_options[-1].pessimistic_is_init_true(state_after_rollout):
+        if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
             print(f"Creating {name}, new_options = {self.new_options}, mature_options = {self.mature_options}")
             new_option = self.create_model_based_option(name, parent=executed_option)
             self.new_options.append(new_option)
+            self.chain.append(new_option)
 
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
 
-        for option in self.chain:
+        for option in self.mature_options:
             plot_two_class_classifier(option, episode, self.experiment_name, plot_examples=True)
 
     def create_model_based_option(self, name, parent=None):
@@ -98,11 +102,13 @@ class ModelBasedSkillChaining(object):
                                   path_to_model="mpc-ant-umaze-model.pkl")
         return option
 
-    def reset(self):
-        random_state = self.mdp.sample_random_state()
-        random_position = self.mdp.get_position(random_state)
+    def reset(self, diverse=False):
         self.mdp.reset()
-        self.mdp.set_xy(random_position)
+
+        if diverse:
+            random_state = self.mdp.sample_random_state()
+            random_position = self.mdp.get_position(random_state)
+            self.mdp.set_xy(random_position)
 
 
 def create_log_dir(experiment_name):
