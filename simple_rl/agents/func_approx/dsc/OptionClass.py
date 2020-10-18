@@ -163,7 +163,7 @@ class Option(object):
 		return not self == other
 
 	def __call__(self, state):
-		return self.is_init_true(state)
+		return self.is_in_effect_set(state)
 
 	def __getstate__(self):
 		excluded_keys = ("overall_mdp")

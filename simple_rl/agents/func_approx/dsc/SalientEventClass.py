@@ -243,7 +243,7 @@ class DSCOptionSalientEvent(SalientEvent):
         self._initialize_trigger_points()
 
         SalientEvent.__init__(self,
-                              target_state=None,
+                              target_state=self.get_target_position(),
                               event_idx=event_idx,
                               tolerance=tolerance,
                               intersection_event=False)
@@ -252,10 +252,10 @@ class DSCOptionSalientEvent(SalientEvent):
         self.trigger_points = self.option.effect_set
 
     def is_init_true(self, state):
-        return self.option.is_init_true(state)
+        return self.option.is_in_effect_set(state)
 
     def batched_is_init_true(self, position_matrix):
-        self.option.batched_is_init_true(position_matrix)
+        raise NotImplementedError(self.option)
 
     def __eq__(self, other):
         return self is other
@@ -267,11 +267,13 @@ class DSCOptionSalientEvent(SalientEvent):
         return f"SalientEvent corresponding to {self.option}"
 
     def get_target_position(self):
-        return None
+        trigger_positions = [self._get_position(s) for s in self.trigger_points]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
 
     @staticmethod
     def _get_position(state):
-        return None
+        return SalientEvent._get_position(state)
 
     def distance_to_effect_set(self, effect_set):
         return self.set_to_set_distance(self.trigger_points, effect_set)

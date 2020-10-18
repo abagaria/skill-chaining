@@ -5,7 +5,7 @@ import networkx as nx
 from copy import deepcopy
 from collections import defaultdict
 import networkx.algorithms.shortest_paths as shortest_paths
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
 from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaining
 from simple_rl.agents.func_approx.dsc.SkillGraphPlannerClass import SkillGraphPlanner
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
@@ -77,6 +77,62 @@ class DeepSkillGraphAgent(object):
             print(f"[Random] Deep skill graphs target event: {target_event}")
 
         return target_event
+
+    def get_weakest_link_in_graph(self, state):
+        graph_edges = self.planning_agent.plan_graph.plan_graph.edges
+        costs = [(self.planning_agent.plan_graph.plan_graph[v1][v2]["weight"], [v1, v2]) for v1, v2 in graph_edges]
+        costs = [cost for cost in costs if not cost[1][1](state)]
+        most_costly_triple = sorted(costs, reverse=True, key=lambda x: x[0])[0]
+        target_vertex_tuple = most_costly_triple[1]
+        return target_vertex_tuple
+
+    def _select_weakest_link_salient_event(self, state):
+
+        def get_target_event(vertex):
+            if isinstance(vertex, SalientEvent):
+                return vertex
+            assert isinstance(vertex, Option)
+            corresponding_event = self.get_corresponding_salient_event(vertex)
+            return corresponding_event
+
+        weakest_link = self.get_weakest_link_in_graph(state)
+        assert len(weakest_link) == 2, weakest_link
+
+        should_use_vertex1 = not weakest_link[0](state)
+        if isinstance(weakest_link[0], Option):
+            should_use_vertex1 = weakest_link[0].parent is not None
+
+        if should_use_vertex1:
+            return get_target_event(weakest_link[0])
+        return get_target_event(weakest_link[1])
+
+    def get_corresponding_salient_event(self, option_vertex):
+        assert isinstance(option_vertex, Option), option_vertex
+
+        def add_option_salient_event_to_graph(original_option, corresponding_event):
+            neighbors = self.planning_agent.plan_graph.get_outgoing_nodes(original_option)
+            weights = [self.planning_agent.plan_graph.plan_graph[original_option][n]["weight"] for n in neighbors]
+            new_edge_weight = max(weights)
+
+            self.add_salient_event(corresponding_event)
+            self.planning_agent.plan_graph.add_node(corresponding_event)
+            self.planning_agent.plan_graph.add_edge(original_option, corresponding_event, new_edge_weight)
+
+        def get_corresponding_salient_event(option):
+            for event in self.planning_agent.plan_graph.salient_nodes:
+                if isinstance(event, DSCOptionSalientEvent):
+                    if event.option == option:
+                        return event
+            return None
+
+        salient_event = get_corresponding_salient_event(option_vertex)
+
+        if salient_event is None:
+            event_idx = len(self.mdp.all_salient_events_ever) + 1
+            salient_event = DSCOptionSalientEvent(option_vertex, event_idx)
+            add_option_salient_event_to_graph(option_vertex, salient_event)
+
+        return salient_event
 
     def _select_closest_unconnected_salient_event(self, state, events):
         graph = self.planning_agent.plan_graph
@@ -151,6 +207,11 @@ class DeepSkillGraphAgent(object):
                 if selected_event is not None:
                     print(f"[Closest] Deep skill graphs target event: {selected_event}")
                     return selected_event
+                else:
+                    selected_event = self._select_weakest_link_salient_event(state)
+                    if selected_event is not None:
+                        print(f"[Weakest] Deep skill graphs target event: {selected_event}")
+                        return selected_event
             return self._randomly_select_salient_event(state, events)
 
     def dsg_run_loop(self, episodes, num_steps, start_state=None, test_event=None, eval_mode=False):
@@ -239,9 +300,8 @@ class DeepSkillGraphAgent(object):
         assert isinstance(init_salient_event, SalientEvent), f"{type(init_salient_event)}"
         assert isinstance(target_salient_event, SalientEvent), f"{type(target_salient_event)}"
 
-        unfinished_chains = [chain for chain in self.dsc_agent.chains if not chain.is_chain_completed()]
         match = lambda c: c.init_salient_event == init_salient_event and c.target_salient_event == target_salient_event
-        if any([match(c) for c in unfinished_chains]):
+        if any([match(c) for c in self.dsc_agent.chains]):
             return True
 
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
