@@ -79,32 +79,19 @@ class DeepSkillGraphAgent(object):
         return target_event
 
     def get_weakest_link_in_graph(self, state):
-        graph_edges = self.planning_agent.plan_graph.plan_graph.edges
-        costs = [(self.planning_agent.plan_graph.plan_graph[v1][v2]["weight"], [v1, v2]) for v1, v2 in graph_edges]
-        costs = [cost for cost in costs if not cost[1][1](state)]
-        most_costly_triple = sorted(costs, reverse=True, key=lambda x: x[0])[0]
-        target_vertex_tuple = most_costly_triple[1]
-        return target_vertex_tuple
+        options = [o for o in self.planning_agent.plan_graph.option_nodes if not o.is_close_to_effect_set(state)]
+        if len(options) > 0:
+            success_rates = [np.mean(o.on_policy_success_curve) for o in options]
+            rates_and_options = [(rate, option) for rate, option in zip(success_rates, options)]
+            sorted_rates_and_options = sorted(rates_and_options, key=lambda x: x[0])
+            return sorted_rates_and_options[0][1]
+        return None
 
     def _select_weakest_link_salient_event(self, state):
+        weakest_option = self.get_weakest_link_in_graph(state)
 
-        def get_target_event(vertex):
-            if isinstance(vertex, SalientEvent):
-                return vertex
-            assert isinstance(vertex, Option)
-            corresponding_event = self.get_corresponding_salient_event(vertex)
-            return corresponding_event
-
-        weakest_link = self.get_weakest_link_in_graph(state)
-        assert len(weakest_link) == 2, weakest_link
-
-        should_use_vertex1 = not weakest_link[0](state)
-        if isinstance(weakest_link[0], Option):
-            should_use_vertex1 = weakest_link[0].parent is not None
-
-        if should_use_vertex1:
-            return get_target_event(weakest_link[0])
-        return get_target_event(weakest_link[1])
+        if weakest_option is not None:
+            return self.get_corresponding_salient_event(weakest_option)
 
     def get_corresponding_salient_event(self, option_vertex):
         assert isinstance(option_vertex, Option), option_vertex

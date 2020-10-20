@@ -465,6 +465,9 @@ class Option(object):
 		if not self.is_term_true(state):
 			return False
 
+		return self.is_close_to_effect_set(state)
+
+	def is_close_to_effect_set(self, state):
 		is_close = lambda x, y: self.overall_mdp.dense_gc_reward_function(x, y, {})[1]
 		return any([is_close(state, effect_state) for effect_state in self.effect_set])
 

@@ -252,7 +252,13 @@ class DSCOptionSalientEvent(SalientEvent):
         self.trigger_points = self.option.effect_set
 
     def is_init_true(self, state):
-        return self.option.is_in_effect_set(state)
+        return self.is_in_effect_set(state)
+
+    def is_in_effect_set(self, state):
+        if not self.option.is_term_true(state):
+            return False
+        is_close = lambda x, y: np.linalg.norm(x - y) <= self.tolerance
+        return any([is_close(self._get_position(state), self._get_position(effect_state)) for effect_state in self.option.effect_set])
 
     def batched_is_init_true(self, position_matrix):
         raise NotImplementedError(self.option)
