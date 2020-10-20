@@ -1,6 +1,7 @@
 import os
 import ipdb
 import torch
+import pickle
 import argparse
 import numpy as np
 from copy import deepcopy
@@ -110,6 +111,13 @@ class ModelBasedSkillChaining(object):
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
 
+    def save_option_dynamics_data(self):
+        for option in self.mature_options:
+            states = np.array([pair[0] for pair in option.in_out_pairs])
+            next_states = np.array([pair[1] for pair in option.in_out_pairs])
+            with open(f"{self.experiment_name}/{option.name}-dynamics-data.pkl", "wb+") as f:
+                pickle.dump((states, next_states), f)
+
 
 def create_log_dir(experiment_name):
     path = os.path.join(os.getcwd(), experiment_name)
@@ -130,6 +138,7 @@ if __name__ == "__main__":
     parser.add_argument("--initiation_period", type=float, default=np.inf)
     parser.add_argument("--episodes", type=int, default=150)
     parser.add_argument("--steps", type=int, default=1000)
+    parser.add_argument("--save_option_data", action="store_true", default=False)
     args = parser.parse_args()
 
     exp = ModelBasedSkillChaining(gestation_period=args.gestation_period,
@@ -139,3 +148,6 @@ if __name__ == "__main__":
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
     exp.run_loop(args.episodes, args.steps)
+
+    if args.save_option_data:
+        exp.save_option_dynamics_data()

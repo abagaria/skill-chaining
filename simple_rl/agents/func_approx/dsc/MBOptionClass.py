@@ -35,6 +35,7 @@ class ModelBasedOption(object):
         self.pessimistic_classifier = None
 
         self.solver = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.device)
+        self.in_out_pairs = []
 
         if path_to_model:
             self.solver.load_model(path_to_model)
@@ -136,6 +137,8 @@ class ModelBasedOption(object):
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
+
+        self.in_out_pairs.append((start_state.features(), state.features()))
 
         if self.is_term_true(state):
             self.num_goal_hits += 1
