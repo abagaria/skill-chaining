@@ -260,11 +260,26 @@ class DSCOptionSalientEvent(SalientEvent):
         is_close = lambda x, y: np.linalg.norm(x - y) <= self.tolerance
         return any([is_close(self._get_position(state), self._get_position(effect_state)) for effect_state in self.option.effect_set])
 
-    def batched_is_init_true(self, position_matrix):
-        raise NotImplementedError(self.option)
+    def batched_is_in_effect_set(self, position_matrix):
+        is_close = lambda x, y: np.linalg.norm(x - y) <= self.tolerance
+        nearby = np.zeros((position_matrix.shape[0],))
+        effect_positions = np.array([self._get_position(s) for s in self.option.effect_set])
+        for i, position in enumerate(position_matrix):
+            if any([is_close(self._get_position(position), effect_position) for effect_position in effect_positions]):
+                nearby[i] = 1
+        return nearby
+
+    def batched_is_init_true(self, state_matrix):
+        ipdb.set_trace()
+        position_matrix = state_matrix[:, :2]
+        terms = self.option.batched_is_term_true(position_matrix)
+        effects = self.batched_is_in_effect_set(position_matrix)
+        return np.logical_and(terms, effects)
 
     def __eq__(self, other):
-        return self is other
+        if isinstance(other, DSCOptionSalientEvent):
+            return self.event_idx == other.event_idx
+        return False
 
     def __hash__(self):
         return self.event_idx

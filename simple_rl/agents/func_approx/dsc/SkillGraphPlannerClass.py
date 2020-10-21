@@ -290,18 +290,14 @@ class SkillGraphPlanner(object):
             self.add_newly_created_option_to_plan_graph(newly_created_option, episode)
 
     def _get_goal_vertices_for_rollout(self, state, goal_salient_event):
-        dsc_goal_vertex = deepcopy(goal_salient_event)
-        planner_goal_vertex = deepcopy(goal_salient_event)
-
         # Revise the goal_salient_event if it cannot be reached from the current state
         if not self.plan_graph.does_path_exist(state, goal_salient_event):
             closest_vertex_pair = self.choose_closest_source_target_vertex_pair(state, goal_salient_event, False)
             if closest_vertex_pair is not None:
                 planner_goal_vertex, dsc_goal_vertex = closest_vertex_pair
                 print(f"Revised planner goal vertex to {planner_goal_vertex} and dsc goal vertex to {dsc_goal_vertex}")
-
-        return planner_goal_vertex, dsc_goal_vertex
-
+                return planner_goal_vertex, dsc_goal_vertex
+        return goal_salient_event, goal_salient_event
 
     # -----------------------------–––––––--------------
     # Maintaining the graph
