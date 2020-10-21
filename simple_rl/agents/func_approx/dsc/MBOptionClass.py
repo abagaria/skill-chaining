@@ -91,9 +91,11 @@ class ModelBasedOption(object):
             return self.mdp.sample_random_action()
         return self.solver.act(state, goal)
 
+    # TODO: Will be cleaner to have a pointer to global-solver
     def update(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
-        pass
+        if self.global_init:  # Only updating the global option's dynamics model
+            self.solver.step(state.features(), action, reward, next_state.features(), self.is_term_true(next_state))
 
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
@@ -228,3 +230,8 @@ class ModelBasedOption(object):
 
     def __repr__(self):
         return str(self)
+
+    def __eq__(self, other):
+        if isinstance(other, ModelBasedOption):
+            return self.name == other.name
+        return False

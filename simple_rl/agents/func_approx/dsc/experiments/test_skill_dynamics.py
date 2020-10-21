@@ -91,8 +91,8 @@ class TestSkillDynamicsModel(object):
 
 
 if __name__ == "__main__":
-    option_name = "goal-option"
-    exp_name = "mbrl-dsc-collecting-option-data-3"
+    option_name = "option-2"
+    exp_name = "online-dsc-toy-2"
     pkl_file = f"{exp_name}/{option_name}-dynamics-data.pkl"
     device = torch.device("cuda:0")
     exp = TestSkillDynamicsModel(experiment_name=exp_name, path_to_option_data=pkl_file,

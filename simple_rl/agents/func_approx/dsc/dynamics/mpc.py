@@ -9,6 +9,7 @@ from torch.optim import Adam
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from simple_rl.agents.func_approx.dsc.dynamics.dynamics_model import DynamicsModel
+from simple_rl.agents.func_approx.dsc.dynamics.replay_buffer import ReplayBuffer
 
 from tqdm import tqdm
 import ipdb
@@ -22,8 +23,11 @@ class MPC:
         self.trained_options = []
         self.gamma = 0.99
 
-    def load_data(self, states, actions, states_p):
-        self.dataset = self._preprocess_data(states, actions, states_p)
+        self.model = None
+        self.replay_buffer = ReplayBuffer(obs_dim=state_size, act_dim=action_size, size=int(3e5))
+
+    def load_data(self):
+        self.dataset = self._preprocess_data()
         self.model = DynamicsModel(self.state_size, self.action_size, self.device, *self._get_standardization_vars())
         self.model.to(self.device)
 
@@ -34,7 +38,7 @@ class MPC:
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
         
-        for epoch in tqdm(range(epochs), desc='Training MPC model'):
+        for epoch in tqdm(range(epochs), desc=f'Training MPC model on {self.replay_buffer.size} points'):
             for states, actions, states_p in training_gen:
                 states = states.to(self.device).float()
                 actions = actions.to(self.device).float()
@@ -121,7 +125,14 @@ class MPC:
         action = np_actions[index,0,:] # grab action corresponding to least distance
         return action
 
-    def _preprocess_data(self, states, actions, states_p):
+    def step(self, state, action, reward, next_state, done):
+        self.replay_buffer.store(state, action, reward, next_state, done)
+
+    def _preprocess_data(self):
+        states = self.replay_buffer.obs_buf[:self.replay_buffer.size, :]
+        actions = self.replay_buffer.act_buf[:self.replay_buffer.size, :]
+        states_p = self.replay_buffer.obs2_buf[:self.replay_buffer.size, :]
+
         states_delta = np.array(states_p) - np.array(states)
         
         self.mean_x = np.mean(states, axis=0)
@@ -150,7 +161,7 @@ class MPC:
         return self.mean_x, self.mean_y, self.mean_z, self.std_x, self.std_y, self.std_z
 
     def save_model(self, path):
-        if hasattr(self, 'model'):
+        if self.model is not None:
             state_dictionary = self.model.__getstate__()
             with open(path, 'wb') as f:
                 pickle.dump(state_dictionary, f)
