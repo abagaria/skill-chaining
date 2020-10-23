@@ -12,13 +12,13 @@ from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, gestation_period, experiment_name, device):
+    def __init__(self, warmup_episodes, gestation_period, initiation_period, experiment_name, device):
         self.device = device
         self.experiment_name = experiment_name
         self.warmup_episodes = warmup_episodes
 
-        self.initiation_period = np.inf
         self.gestation_period = gestation_period
+        self.initiation_period = initiation_period
 
         self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 8)))
         self.target_salient_event = self.mdp.get_original_target_events()[0]
@@ -51,11 +51,9 @@ class OnlineModelBasedSkillChaining(object):
         while step_number < num_steps and not self.mdp.cur_state.is_terminal():
             state = deepcopy(self.mdp.cur_state)
             selected_option = self.act(state)
-            transitions, reward = selected_option.rollout(step_number=step_number)
 
-            self.add_transitions_to_global_buffer(executed_option=selected_option,
-                                                  option_transitions=transitions)
-            self.manage_chain_after_rollout(selected_option, self.mdp.cur_state)
+            transitions, reward = selected_option.rollout(step_number=step_number)
+            self.manage_chain_after_rollout(selected_option)
 
             step_number += len(transitions)
         return step_number
@@ -78,11 +76,6 @@ class OnlineModelBasedSkillChaining(object):
 
         return per_episode_durations
 
-    def add_transitions_to_global_buffer(self, executed_option, option_transitions):
-        if executed_option != self.global_option:
-            for transition in option_transitions:
-                self.global_option.update(*transition)
-
     def learn_dynamics_model(self):
         self.global_option.solver.load_data()
         self.global_option.solver.train(epochs=100, batch_size=1024)
@@ -91,11 +84,11 @@ class OnlineModelBasedSkillChaining(object):
 
     def should_create_new_option(self):  # TODO: Cleanup
         if len(self.mature_options) > 0 and len(self.new_options) == 0:
-            return self.mature_options[-1].num_goal_hits > 2 * self.gestation_period and \
+            return self.mature_options[-1].get_training_phase() == "initiation_done" and \
                 not self.mature_options[-1].pessimistic_is_init_true(self.mdp.init_state)
         return False
 
-    def manage_chain_after_rollout(self, executed_option, state_after_rollout):
+    def manage_chain_after_rollout(self, executed_option):
 
         if executed_option in self.new_options and executed_option.get_training_phase() != "gestation":
             self.new_options.remove(executed_option)
@@ -122,7 +115,8 @@ class OnlineModelBasedSkillChaining(object):
                                   timeout=100, max_steps=1000, device=self.device,
                                   target_salient_event=self.target_salient_event,
                                   name=name,
-                                  path_to_model="")
+                                  path_to_model="",
+                                  global_solver=self.global_option.solver)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -133,7 +127,8 @@ class OnlineModelBasedSkillChaining(object):
                                   timeout=100, max_steps=1000, device=self.device,
                                   target_salient_event=self.target_salient_event,
                                   name="global-option",
-                                  path_to_model="")
+                                  path_to_model="",
+                                  global_solver=None)
         return option
 
     def reset(self, diverse=False):
@@ -145,6 +140,7 @@ class OnlineModelBasedSkillChaining(object):
             self.mdp.set_xy(random_position)
 
     def save_option_dynamics_data(self):
+        """ Save data that can be used to learn a model of the option dynamics. """
         for option in self.mature_options:
             states = np.array([pair[0] for pair in option.in_out_pairs])
             next_states = np.array([pair[1] for pair in option.in_out_pairs])
@@ -168,7 +164,7 @@ if __name__ == "__main__":
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--gestation_period", type=int, default=3)
-    parser.add_argument("--initiation_period", type=float, default=np.inf)
+    parser.add_argument("--initiation_period", type=float, default=3)
     parser.add_argument("--episodes", type=int, default=150)
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--save_option_data", action="store_true", default=False)
@@ -176,6 +172,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
+                                        initiation_period=args.initiation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
                                         warmup_episodes=args.warmup_episodes)

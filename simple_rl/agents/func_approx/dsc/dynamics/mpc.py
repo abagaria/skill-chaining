@@ -92,7 +92,6 @@ class MPC:
 
         return deepcopy(mdp.cur_state), steps_taken, trajectory
 
-    # TODO abide by same API as other solvers (ddpg, etc)
     def act(self, s, goal, num_rollouts=14000, num_steps=7, gamma=0.95):
         # sample actions for all steps
         goal_x = goal[0]
@@ -132,6 +131,9 @@ class MPC:
         states = self.replay_buffer.obs_buf[:self.replay_buffer.size, :]
         actions = self.replay_buffer.act_buf[:self.replay_buffer.size, :]
         states_p = self.replay_buffer.obs2_buf[:self.replay_buffer.size, :]
+
+        assert states.shape[1] == states_p.shape[1] == self.state_size, f"{states.shape, states_p.shape}"
+        assert actions.shape[1] == self.action_size, f"{actions.shape}"
 
         states_delta = np.array(states_p) - np.array(states)
         

@@ -8,8 +8,8 @@ from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
 
 class ModelBasedOption(object):
-    def __init__(self, name, parent, mdp, buffer_length, global_init, gestation_period, initiation_period,
-                 timeout, max_steps, device, target_salient_event=None, path_to_model=""):
+    def __init__(self, *, name, parent, mdp, global_solver, buffer_length, global_init, gestation_period,
+                 initiation_period, timeout, max_steps, device, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
         self.parent = parent
@@ -17,6 +17,7 @@ class ModelBasedOption(object):
         self.timeout = timeout
         self.max_steps = max_steps
         self.global_init = global_init
+        self.global_solver = global_solver
         self.buffer_length = buffer_length
         self.target_salient_event = target_salient_event
 
@@ -91,11 +92,11 @@ class ModelBasedOption(object):
             return self.mdp.sample_random_action()
         return self.solver.act(state, goal)
 
-    # TODO: Will be cleaner to have a pointer to global-solver
     def update(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
-        if self.global_init:  # Only updating the global option's dynamics model
-            self.solver.step(state.features(), action, reward, next_state.features(), self.is_term_true(next_state))
+
+        solver = self.solver if self.global_init else self.global_solver
+        solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
 
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
@@ -147,7 +148,8 @@ class ModelBasedOption(object):
 
         self.derive_positive_and_negative_examples(visited_states)
 
-        if not self.global_init and self.get_training_phase() == "initiation":
+        # Always be refining your initiation classifier
+        if not self.global_init:
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
