@@ -15,7 +15,7 @@
 
 """Adapted from rllab maze_env.py."""
 
-import os
+import os, ipdb
 import tempfile
 import xml.etree.ElementTree as ET
 import math

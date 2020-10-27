@@ -905,6 +905,8 @@ class Option(object):
 			eligible_phase = self.get_training_phase() == "gestation"
 		elif "ant" in self.overall_mdp.env_name:
 			eligible_phase = self.get_training_phase() != "initiation_done"
+		elif "swimmer" in self.overall_mdp.env_name:
+			eligible_phase = self.get_training_phase() == "gestation"
 		else:
 			raise NotImplementedError(self.overall_mdp)
 
