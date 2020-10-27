@@ -5,7 +5,11 @@ import numpy as np
 from simple_rl.mdp.StateClass import State
 
 
-class SwimmerMDPState(State):
+class D4RLSwimmerMazeState(State):
+    """
+    Page 117 of: https://tel.archives-ouvertes.fr/tel-00003985/document
+    explains what the different state components are.
+    """
     def __init__(self, position, others, is_terminal):
         """
         Args:

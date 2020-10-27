@@ -346,40 +346,40 @@ if __name__ == "__main__":
                                       dense_reward=args.dense_reward,
                                       render=args.render,
                                       use_hard_coded_events=args.use_hard_coded_events)
-        state_dim = 6
-        action_dim = 2
     elif args.env == "ant-reacher":
         from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
         overall_mdp = AntReacherMDP(seed=args.seed,
                                     render=args.render)
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
         overall_mdp = D4RLAntMazeMDP(maze_size="umaze", seed=args.seed, render=args.render)
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-medium-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-medium-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
                                        difficulty="medium",
                                        goal_directed=False)
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
     elif args.env == "d4rl-hard-point-maze":
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,
                                        difficulty="hard",
                                        goal_directed=False)
-        state_dim = overall_mdp.state_space_size()
-        action_dim = overall_mdp.action_space_size()
+    elif args.env == "d4rl-medium-swimmer-maze":
+        from simple_rl.tasks.d4rl_swimmer_maze.D4RLSwimmerMazeMDPClass import D4RLSwimmerMDP
+        overall_mdp = D4RLSwimmerMDP(seed=args.seed,
+                                     render=args.render,
+                                     difficulty="medium",
+                                     goal_directed=False)
+    elif args.env == "d4rl-easy-swimmer-maze":
+        from simple_rl.tasks.d4rl_swimmer_maze.D4RLSwimmerMazeMDPClass import D4RLSwimmerMDP
+        overall_mdp = D4RLSwimmerMDP(seed=args.seed,
+                                     render=args.render,
+                                     difficulty="easy",
+                                     goal_directed=False)
     else:
         raise NotImplementedError(args.env)
 
