@@ -270,7 +270,6 @@ class DSCOptionSalientEvent(SalientEvent):
         return nearby
 
     def batched_is_init_true(self, state_matrix):
-        ipdb.set_trace()
         position_matrix = state_matrix[:, :2]
         terms = self.option.batched_is_term_true(position_matrix)
         effects = self.batched_is_in_effect_set(position_matrix)

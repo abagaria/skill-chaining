@@ -19,7 +19,6 @@ from simple_rl.agents.func_approx.ddpg.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.ddpg.hyperparameters import *
 from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.dsc.utils import *
-from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
 
 
 class DDPGAgent(Agent):
@@ -64,11 +63,6 @@ class DDPGAgent(Agent):
 
         self.replay_buffer = ReplayBuffer(buffer_size=BUFFER_SIZE, name_buffer="{}_replay_buffer".format(name))
         self.epsilon = 1.0
-
-        if exploration == "counts":
-            self.density_model = CountBasedDensityModel(state_rounding_decimals=2,
-                                                        action_rounding_decimals=2,
-                                                        use_position_only=True)
 
         # Tensorboard logging
         self.writer = None
@@ -216,18 +210,6 @@ class DDPGAgent(Agent):
         rewards = torch.as_tensor(rewards).float().unsqueeze(1).to(self.device)
         next_states = torch.as_tensor(next_states).float().to(self.device)
         dones = torch.as_tensor(np.float32(dones)).float().unsqueeze(1).to(self.device)
-
-        # Before pushing to the GPU, augment the reward with exploration bonus
-        if self.exploration_method == "counts":
-            bonuses = self.density_model.batched_get_exploration_bonus(np_states, np_actions)
-            rewards += torch.FloatTensor(bonuses).unsqueeze(1).to(self.device)
-        elif self.exploration_method == "shaping":
-            if len(self.trained_options) > 0 and self.name == "global_option_ddpg_agent":
-                for option in self.trained_options:
-                    if option.should_target_with_bonus():
-                        phi = option.batched_is_init_true
-                        shaped_bonus = 1. * phi(np_next_states)
-                        rewards = rewards + torch.FloatTensor(shaped_bonus).unsqueeze(1).to(self.device)
 
         assert self.exploration_method == "", self.exploration_method
 

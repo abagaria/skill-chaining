@@ -100,10 +100,20 @@ class SkillGraphPlanner(object):
         option_trajectory = []
 
         poo_goal = self.sample_from_vertex(goal_vertex) if self.use_her else None
-        should_terminate = lambda s, inside, outside, step: inside(s) or outside(s) or step >= self.chainer.max_steps
-        inside_predicate = goal_vertex if isinstance(goal_vertex, SalientEvent) else goal_vertex.is_term_true
+        should_terminate = lambda s, o, inside, outside, step: inside(s, o) or outside(s, o) or step >= self.chainer.max_steps
+        inside_predicate = lambda s, o: goal_vertex(s) if isinstance(goal_vertex, SalientEvent) else goal_vertex.is_term_true(s)
+        outside_predicate = lambda s, o: goal_salient_event(s)
 
-        while not should_terminate(state, inside_predicate, goal_salient_event, step_number):
+        # We target DSCOptionSalientEvents because we want to improve specific options.
+        # So we don't terminate unless it was executing that option that took us to its effect set.
+        if isinstance(goal_vertex, DSCOptionSalientEvent):
+            inside_predicate = lambda s, o: goal_vertex(s) and o == goal_vertex.option
+        if isinstance(goal_salient_event, DSCOptionSalientEvent):
+            outside_predicate = lambda s, o: goal_salient_event(s) and o == goal_salient_event.option
+
+        option = None
+
+        while not should_terminate(state, option, inside_predicate, outside_predicate, step_number):
             option = self.act(state, goal_vertex, sampled_goal=poo_goal)
             step_number, option_transitions = self.perform_option_rollout(option=option,
                                                                           episode=episode_number,
@@ -116,6 +126,10 @@ class SkillGraphPlanner(object):
             state = deepcopy(self.mdp.cur_state)
             episodic_trajectory.append(option_transitions)
             option_trajectory.append((option, option_transitions))
+
+            # TODO: Hack - Breaking is not enough -- you have to sample a new goal too
+            if option.name == "global_option" and self.mdp.dense_gc_reward_function(state, poo_goal, {})[1]:
+                break
 
         if self.use_her:
             self.chainer.perform_experience_replay(state, episodic_trajectory, option_trajectory, overall_goal=poo_goal)
@@ -153,6 +167,12 @@ class SkillGraphPlanner(object):
 
         planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
+
+        if isinstance(planner_goal_vertex, DSCOptionSalientEvent) and planner_goal_vertex == dsc_goal_vertex == goal_salient_event:
+            print(f"First targeting {planner_goal_vertex.option.init_salient_event} and then {planner_goal_vertex}")
+            state, step = self.run_sub_loop(state, planner_goal_vertex.option.init_salient_event, step, goal_salient_event, episode, eval_mode)
+            state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
+            return step, goal_salient_event(state)
 
         state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
         state, step = self.run_sub_loop(state, dsc_goal_vertex, step, goal_salient_event, episode, eval_mode)

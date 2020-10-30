@@ -79,7 +79,9 @@ class DeepSkillGraphAgent(object):
         return target_event
 
     def get_weakest_link_in_graph(self, state):
-        options = [o for o in self.planning_agent.plan_graph.option_nodes if not o.is_close_to_effect_set(state)]
+        """ From the set of options that we can get to, pick the weakest. """
+        cond = lambda s, o: not o.is_close_to_effect_set(s) and self.planning_agent.plan_graph.does_path_exist(s, o)
+        options = [o for o in self.planning_agent.plan_graph.option_nodes if cond(state, o)]
         if len(options) > 0:
             success_rates = [np.mean(o.on_policy_success_curve) for o in options]
             rates_and_options = [(rate, option) for rate, option in zip(success_rates, options)]
@@ -115,7 +117,7 @@ class DeepSkillGraphAgent(object):
         salient_event = get_corresponding_salient_event(option_vertex)
 
         if salient_event is None:
-            event_idx = len(self.mdp.all_salient_events_ever) + 1
+            event_idx = len(self.planning_agent.plan_graph.salient_nodes) + 1
             salient_event = DSCOptionSalientEvent(option_vertex, event_idx)
             add_option_salient_event_to_graph(option_vertex, salient_event)
 
@@ -224,7 +226,9 @@ class DeepSkillGraphAgent(object):
                     success = False
                     random_episodic_trajectory.append(random_transition)
                 else:
-                    self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode)
+
+                    if not isinstance(goal_salient_event, DSCOptionSalientEvent):
+                        self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode)
 
                     self.pursued_source_target_map[self._get_current_salient_event(state)][goal_salient_event] += 1
 

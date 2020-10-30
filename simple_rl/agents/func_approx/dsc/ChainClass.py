@@ -165,21 +165,6 @@ class SkillChain(object):
             self.completing_vertex = self.init_salient_event, "init_event"
             return True
 
-        # If you intersect with a vertex which is further way from the target than the init-salient-event,
-        # then also the chain building can be considered complete
-        init_distance = self.init_salient_event.distance_to_other_event(self.target_salient_event)
-        for ancestor in self._init_ancestors:
-            if isinstance(ancestor, SalientEvent):
-                if self.should_exist_edge_from_event_to_option(ancestor, option) and \
-                        ancestor.distance_to_other_event(self.target_salient_event) > init_distance:
-                    self.completing_vertex = ancestor, "ancestor"
-                    return True
-            if isinstance(ancestor, Option):
-                if self.should_exist_edge_between_options(ancestor, option) and \
-                        SalientEvent.set_to_set_distance(option.effect_set, ancestor.effect_set) > init_distance:
-                    self.completing_vertex = ancestor, "ancestor"
-                    return True
-
         # TODO: Can't check for intersection with start event for backward chains - can we cap by num_skills?
         trained_options = [option for option in self.options if option.get_training_phase() == 'initiation_done']
         return len(trained_options) > 5

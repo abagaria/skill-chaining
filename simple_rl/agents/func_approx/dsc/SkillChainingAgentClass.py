@@ -772,6 +772,7 @@ class SkillChaining(object):
 		option_trajectory = []
 
 		goal = self.mdp.get_position(self.mdp.goal_state) if overall_goal is None else overall_goal
+		global_condition = lambda o, g: o.name == "global_option" and self.mdp.dense_gc_reward_function(state, g, {})[1]
 
 		while step_number < self.max_steps:
 
@@ -804,6 +805,10 @@ class SkillChaining(object):
 
 			if state.is_terminal() or interrupt_handle(state):
 				break
+
+			if goal is not None:
+				if global_condition(selected_option, goal):
+					break
 
 		self.perform_experience_replay(state, episodic_trajectory, option_trajectory, overall_goal=overall_goal)
 

@@ -79,11 +79,6 @@ class TD3(object):
         # Sample replay buffer - result is tensors
         state, action, next_state, reward, done = replay_buffer.sample(batch_size)
 
-        if len(self.trained_options) > 0 and self.exploration_method == "shaping":
-            shaping_bonus = self.get_exploration_bonus(next_state)
-            assert shaping_bonus.shape == reward.shape
-            reward += shaping_bonus
-
         with torch.no_grad():
             # Select action according to policy and add clipped noise
             noise = (
@@ -138,20 +133,3 @@ class TD3(object):
             q_values = self.critic.Q1(states, actions)
         self.critic.train()
         return q_values
-
-    def get_exploration_bonus(self, next_states):
-        """
-        Optional exploration bonus for reaching certain regions of the state-space.
-
-        Args:
-            next_states (torch.tensor)
-
-        Returns:
-            bonuses (torch.tensor)
-        """
-        np_next_states = next_states.clone().detach().cpu().numpy()
-        shaping_rewards = np.zeros((np_next_states.shape[0],))
-        for option in self.trained_options:
-            if option.should_target_with_bonus():
-                shaping_rewards += option.batched_is_init_true(np_next_states)
-        return torch.FloatTensor(shaping_rewards).to(self.device).unsqueeze(1)

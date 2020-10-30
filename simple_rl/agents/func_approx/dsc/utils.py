@@ -291,33 +291,6 @@ def replay_trajectory(trajectory, dir_name):
         img.save("{}/frame{}.png".format(dir_name, i))
 
 
-def visualize_dqn_shaped_rewards(dqn_agent, option, episode, seed, experiment_name):
-    next_states = np.array([exp.next_state for exp in dqn_agent.replay_buffer.memory])
-    if option.should_target_with_bonus():
-        shaped_rewards = 1.0 * option.batched_is_init_true(next_states)
-    else:
-        shaped_rewards = np.zeros_like(next_states[:, 0])
-    plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
-    plt.colorbar()
-    file_name = f"{option.name}_high_level_shaped_rewards_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
-
-
-def visualize_ddpg_shaped_rewards(global_option, other_option, episode, seed, experiment_name):
-    ddpg_agent = global_option.solver
-    next_states = np.array([exp[-2] for exp in ddpg_agent.replay_buffer])
-    if other_option.should_target_with_bonus():
-        shaped_rewards = 1. * other_option.batched_is_init_true(next_states)
-    else:
-        shaped_rewards = np.zeros_like(next_states[:, 0])
-    plt.scatter(next_states[:, 0], next_states[:, 1], c=shaped_rewards)
-    plt.colorbar()
-    file_name = f"{other_option.name}_low_level_shaped_rewards_seed_{seed}_episode_{episode}"
-    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
-    plt.close()
-
-
 def visualize_ddpg_replay_buffer(solver, episode, seed, experiment_name):
     states = np.array([exp[0] for exp in solver.replay_buffer.memory])
     actions = np.array([exp[1] for exp in solver.replay_buffer.memory])

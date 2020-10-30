@@ -16,7 +16,7 @@ from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.ddpg.DDPGAgentClass import DDPGAgent
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 from simple_rl.agents.func_approx.dsc.utils import Experience
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
 
 
 class Option(object):
@@ -471,30 +471,6 @@ class Option(object):
 		is_close = lambda x, y: self.overall_mdp.dense_gc_reward_function(x, y, {})[1]
 		return any([is_close(state, effect_state) for effect_state in self.effect_set])
 
-	def should_target_with_bonus(self):
-		"""
-		Used by policy over options and the global DDPG agent to decide if the
-		skill chaining agent should target the initiation set of the current
-		option by means of exploration bonuses.
-		"""
-		if self.name == "global_option":
-			return False
-
-		# During the gestation period, the initiation set of options in the backward chain
-		# are set to be the union of the salient events in the MDP. As a result, we want to
-		# encourage the policy over options to execute skills that trigger those salient
-		# events. From there, we hope to execute the new backward option so that it can
-		# trigger the intersection salient event. However, if the backward option has progressed
-		# to the initiation_done phase, we no longer need to give exploration bonuses to target it
-		if self.backward_option and self.get_training_phase() != "initiation_done":
-			return True
-
-		# If the current option is not in the backward chain, then we give exploration bonus
-		# only when it is in the initiation phase. When it is in the gestation phase,
-		# it can initiate anywhere (consequence of initialize_everywhere). When it is in
-		# initiation phase, this term will yield exploration bonuses
-		return self.get_training_phase() == "initiation"
-
 	def get_init_predicates_during_gestation(self):
 		assert self.backward_option
 		assert len(self.gestation_init_predicates) > 0, self.gestation_init_predicates
@@ -834,9 +810,10 @@ class Option(object):
 				print(f"Executing {self.name} targeting {goal}")
 
 			warmup_phase = self.get_training_phase() == "gestation"
+			global_interrupt = lambda s: goal_salient_event(s) and eval_mode
 
 			while not self.is_at_local_goal(state, goal) and step_number < self.max_steps \
-					and num_steps < self.timeout and not goal_salient_event(state):
+					and num_steps < self.timeout and not global_interrupt(state):
 
 				# Goal-conditioned option acting
 				augmented_state = self.get_augmented_state(state, goal)
@@ -882,6 +859,14 @@ class Option(object):
 
 			if goal_salient_event(state):
 				print(f"[DSG] Triggered global {goal_salient_event} while executing {self}")
+
+				# TODO: Should we be doing off-policy update here? The other option is not actually getting better..
+				if isinstance(goal_salient_event, DSCOptionSalientEvent):
+					if goal_salient_event.option != self and self.chain_id == goal_salient_event.option.chain_id:
+						print(f"[DSG] Performing off-policy experience replay for {goal_salient_event.option}")
+						goal_salient_event.option.local_option_experience_replay(option_transitions, goal_state=goal)
+						print(f"[DSG] Incrementing {goal_salient_event.option}'s success rate")
+						goal_salient_event.option.on_policy_success_curve.append(True)
 
 			# Experience Replay
 			if self.name != "global_option" and not warmup_phase:
@@ -986,18 +971,27 @@ class Option(object):
 		elif len(self.positive_examples) > 0:
 			self.train_one_class_svm()
 
-	def trained_option_execution(self, mdp, outer_step_counter):
+	def trained_option_execution(self, mdp, outer_step_counter, goal=None, timeout=None):
+		timeout = self.timeout if timeout is None else timeout
+
 		state = mdp.cur_state
 		score, step_number = 0., deepcopy(outer_step_counter)
 		num_steps = 0
 		state_option_trajectory = []
+		state_action_trajectory = []
 		self.num_test_executions += 1
 
-		while not self.is_term_true(state) and not state.is_terminal()\
-				and step_number < self.max_steps and num_steps < self.timeout:
+		while not self.is_at_local_goal(state, goal) and not state.is_terminal()\
+				and step_number < self.max_steps and num_steps < timeout:
+
+			state = deepcopy(mdp.cur_state)
+			augmented_state = self.get_augmented_state(state, goal)
 			state_option_trajectory.append((self.option_idx, deepcopy(state)))
-			action = self.solver.act(state.features(), evaluation_mode=True)
+
+			action = self.act(augmented_state, eval_mode=False, warmup_phase=False)
 			reward, state = mdp.execute_agent_action(action, option_idx=self.option_idx)
+
+			state_action_trajectory.append((state, action))
 
 			score += reward
 			step_number += 1
@@ -1006,7 +1000,7 @@ class Option(object):
 		if self.is_term_true(state):
 			self.num_successful_test_executions += 1
 
-		return score, state, step_number, state_option_trajectory
+		return score, state, step_number, state_option_trajectory, state_action_trajectory
 
 	def get_option_success_rate(self):
 		if self.num_test_executions > 0:
