@@ -153,7 +153,8 @@ class SkillChaining(object):
 								 dense_reward=self.dense_reward, chain_id=i+1, max_num_children=1,
 								 use_warmup_phase=self.use_warmup_phase, update_global_solver=self.update_global_solver,
 								 target_salient_event=salient_event, option_idx=i+1, use_her=use_her_locally,
-								 allow_her_initialization=self.allow_her_initialization)
+								 allow_her_initialization=self.allow_her_initialization,
+								 init_salient_event=self.mdp.get_start_state_salient_event())
 			self.untrained_options.append(goal_option)
 
 		# This is our policy over options

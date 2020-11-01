@@ -18,8 +18,7 @@ class GoalDirectedMDP(MDP):
         if not task_agnostic:
             assert self.goal_state is not None, self.goal_state
 
-        self._initialize_salient_events()
-
+        self._initialize_salient_events(init_state)
         MDP.__init__(self, actions, transition_func, reward_func, init_state)
 
     def sparse_gc_reward_function(self, state, goal, info):
@@ -42,7 +41,7 @@ class GoalDirectedMDP(MDP):
         reward = +0. if is_terminal else -distance_to_goal
         return reward, is_terminal
 
-    def _initialize_salient_events(self):
+    def _initialize_salient_events(self, init_state):
         # Set the current target events in the MDP
         self.current_salient_events = [SalientEvent(pos, event_idx=i + 1) for i, pos in
                                        enumerate(self.salient_positions)]
@@ -51,7 +50,7 @@ class GoalDirectedMDP(MDP):
         self.original_salient_events = [event for event in self.current_salient_events]
 
         # In some MDPs, we use a predicate to determine if we are at the start state of the MDP
-        self.start_state_salient_event = SalientEvent(target_state=self.init_state.position, event_idx=0, is_init_event=True)
+        self.start_state_salient_event = SalientEvent(target_state=init_state.position, event_idx=0, is_init_event=True)
 
         # Keep track of all the salient events ever created in this MDP
         self.all_salient_events_ever = [event for event in self.current_salient_events]

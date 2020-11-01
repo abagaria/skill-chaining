@@ -179,6 +179,8 @@ class Option(object):
 			return 0.1
 		elif "ant" in self.overall_mdp.env_name:
 			return 0.25
+		elif "swimmer" in self.overall_mdp.env_name:
+			return 0.3
 
 	def act(self, state_features, eval_mode, warmup_phase):
 		""" Epsilon greedy action selection when in training mode. """

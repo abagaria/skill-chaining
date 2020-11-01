@@ -236,7 +236,6 @@ class DeepSkillGraphAgent(object):
             return False
         elif episode == 5:
             return True
-
         return episode - self.last_event_creation_episode >= self.salient_event_freq
 
     def generate_candidate_salient_events(self, state):
@@ -373,6 +372,12 @@ if __name__ == "__main__":
         overall_mdp = D4RLSwimmerMDP(seed=args.seed,
                                      render=args.render,
                                      difficulty="medium",
+                                     goal_directed=False)
+    elif args.env == "d4rl-easy-swimmer-maze":
+        from simple_rl.tasks.d4rl_swimmer_maze.D4RLSwimmerMazeMDPClass import D4RLSwimmerMDP
+        overall_mdp = D4RLSwimmerMDP(seed=args.seed,
+                                     render=args.render,
+                                     difficulty="easy",
                                      goal_directed=False)
     else:
         raise NotImplementedError(args.env)

@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import ipdb
 
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.point_maze.environments.swimmer_maze_env import SwimmerMazeEnv
@@ -41,10 +42,11 @@ class D4RLSwimmerMDP(GoalDirectedMDP):
         self.current_goal = self.env.goal_xy if self.goal_directed else None
 
         salient_positions = []
-
+        use_hard_coded_events = False
+        if use_hard_coded_events:
+            salient_positions = self._determine_salient_positions()
         self._determine_x_y_lims()
         self.hard_coded_salient_positions = np.copy(salient_positions)
-
         GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
                                  self._transition_func,
                                  self._reward_func, self.init_state,
@@ -159,20 +161,35 @@ class D4RLSwimmerMDP(GoalDirectedMDP):
 
     def sample_random_state(self):
         """ Rejection sampling from the set of feasible states in the maze. """
-        default_choices = self._determine_salient_positions()
-        num_tries = 0
-        rejected = True
-        while rejected and num_tries < 200:
-            low = np.array((self.xlims[0], self.ylims[0]))
-            high = np.array((self.xlims[1], self.ylims[1]))
-            sampled_point = np.random.uniform(low=low, high=high)
-            rejected = self.env._is_in_collision(sampled_point)
-            num_tries += 1
-
-            if not rejected:
-                return sampled_point
-
-        return random.choice(default_choices)
+        # default_choices = self._determine_salient_positions()
+        # num_tries = 0
+        # rejected = True
+        # while rejected and num_tries < 200:
+        #     low = np.array((self.xlims[0], self.ylims[0]))
+        #     high = np.array((self.xlims[1], self.ylims[1]))
+        #     sampled_point = np.random.uniform(low=low, high=high)
+        #     rejected = self.env._is_in_collision(sampled_point)
+        #     num_tries += 1
+        #
+        #     if not rejected:
+        #         return sampled_point
+        #
+        # return random.choice(default_choices)
+        events = self.get_all_target_events_ever()
+        salient_positions = [np.array((2, 0)),
+                             np.array((4, 0)),
+                             np.array((6, 0)),
+                             np.array((8, 0)),
+                             np.array((8, 2)),
+                             np.array((8, 4)),
+                             np.array((8, 6)),
+                             np.array((8, 8)),
+                             np.array((6, 8)),
+                             np.array((4, 8)),
+                             np.array((2, 8)),
+                             np.array((0, 8)),
+                             ]
+        return salient_positions[len(events) % len(salient_positions)]
 
     def sample_random_action(self):
         size = (self.action_space_size(),)
