@@ -811,13 +811,14 @@ class Option(object):
 
 			warmup_phase = self.get_training_phase() == "gestation"
 			global_interrupt = lambda s: goal_salient_event(s) and eval_mode
+			use_action_noise = eval_mode if "point" in self.overall_mdp.env_name else True
 
 			while not self.is_at_local_goal(state, goal) and step_number < self.max_steps \
 					and num_steps < self.timeout and not global_interrupt(state):
 
 				# Goal-conditioned option acting
 				augmented_state = self.get_augmented_state(state, goal)
-				action = self.act(augmented_state, eval_mode=eval_mode, warmup_phase=warmup_phase)
+				action = self.act(augmented_state, eval_mode=not use_action_noise, warmup_phase=warmup_phase)
 				reward, next_state = mdp.execute_agent_action(action, option_idx=self.option_idx)
 
 				option_transitions.append((state, action, reward, next_state))

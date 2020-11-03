@@ -25,7 +25,7 @@ from simple_rl.agents.func_approx.ddpg.utils import *
 from simple_rl.agents.func_approx.exploration.utils import *
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, LearnedSalientEvent
+from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
 
 
 class SkillChaining(object):
@@ -584,11 +584,25 @@ class SkillChaining(object):
 			return np.concatenate((state.features(), goal))
 		return state.features()
 
-	def act(self, state, goal=None, train_mode=True):
+	def act(self, state, goal=None, goal_vertex=None, train_mode=True, manual_mode=True):
+
+		if manual_mode and isinstance(goal_vertex, SalientEvent) and not isinstance(goal_vertex, DSCOptionSalientEvent):
+			options = [option for option in self.trained_options if option.target_salient_event == goal_vertex]
+			options = [option for option in options if option.is_init_true(state) and not option.is_term_true(state)]
+			if len(options) > 0:
+				selected_option = random.choice(options)  # type: Option
+				return selected_option
 
 		# Query the global Q-function to determine which option to take in the current state
 		augmented_state = self.get_augmented_state(state, goal)
 		option_idx = self.agent_over_options.act(augmented_state, train_mode=train_mode)
+
+		if option_idx == 0 and manual_mode and goal is not None:
+			if self.mdp.sparse_gc_reward_function(state, goal, {})[1]:
+				available_options = [o for o in self.trained_options if o.is_init_true(state) and not o.is_term_true(state)]
+				if len(available_options) > 1:
+					option_idx = random.choice(available_options[1:]).option_idx
+					print(f"[DSC] Changed option selection from global-option to {self.trained_options[option_idx]}")
 
 		if train_mode:
 			self.agent_over_options.update_epsilon()
@@ -761,7 +775,8 @@ class SkillChaining(object):
 			if len(option_trajectory) > 1:
 				self.make_goal_conditioned_smdp_update(goal=overall_goal, final_state=state, option_trajectories=option_trajectory)
 
-	def dsc_rollout(self, *, episode_number, step_number, interrupt_handle=lambda x: False, overall_goal=None):
+	def dsc_rollout(self, *, episode_number, step_number,
+					interrupt_handle=lambda x: False, overall_goal=None, goal_vertex=None):
 		""" Single episode rollout of deep skill chaining from the current state in the MDP. """
 
 		score = 0.
@@ -777,7 +792,7 @@ class SkillChaining(object):
 		while step_number < self.max_steps:
 
 			# Pick an option
-			selected_option = self.act(state=state, goal=goal, train_mode=True)
+			selected_option = self.act(state=state, goal=goal, train_mode=True, goal_vertex=goal_vertex)
 
 			# Disable options whose termination sets we are already in
 			self.disable_triggering_options_targeting_init_event(state)

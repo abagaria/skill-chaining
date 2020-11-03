@@ -17,7 +17,7 @@ from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 def create_test_event(dsg_agent, goal_state):
     assert isinstance(goal_state, (State, np.ndarray))
 
-    events = dsg_agent.mdp.get_all_target_events_ever() + [dsg_agent.mdp.get_start_state_salient_event()]
+    events = dsg_agent.planning_agent.plan_graph.salient_nodes
     event_indices = [event.event_idx for event in events]
     event_idx = max(event_indices) + 1
     test_event = SalientEvent(target_state=goal_state, event_idx=event_idx)
@@ -46,7 +46,7 @@ def success_curve(dsg_agent, goal_state, num_episodes, num_steps, start_state=No
     print("*" * 80)
 
     test_event = create_test_event(dsg_agent, goal_state)
-    successes = dsg_agent.dsg_run_loop(num_episodes, num_steps, start_state, test_event, eval_mode=True)
+    successes = dsg_agent.dsg_run_loop(num_episodes, num_steps, start_state, test_event, eval_mode=False)
     return successes
 
 

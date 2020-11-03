@@ -203,22 +203,22 @@ class DeepSkillGraphAgent(object):
                         return selected_event
             return self._randomly_select_salient_event(state, events)
 
-    def dsg_run_loop(self, episodes, num_steps, start_state=None, test_event=None, eval_mode=False):
+    def dsg_run_loop(self, episodes, num_steps):
         successes = []
 
         for episode in range(episodes):
 
-            if self.should_generate_new_salient_events(episode) and not eval_mode:
+            if self.should_generate_new_salient_events(episode):
                 self.generate_new_salient_events(episode)
 
             step_number = 0
             random_episodic_trajectory = []
-            self.reset(episode, start_state)
+            self.reset(episode, start_state=None)
 
             state = deepcopy(self.mdp.cur_state)
 
             while step_number < num_steps:
-                goal_salient_event = self.select_goal_salient_event(state) if test_event is None else test_event
+                goal_salient_event = self.select_goal_salient_event(state)
 
                 if goal_salient_event is None:
                     random_transition = self.take_random_action()
@@ -228,7 +228,7 @@ class DeepSkillGraphAgent(object):
                 else:
 
                     if not isinstance(goal_salient_event, DSCOptionSalientEvent):
-                        self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode)
+                        self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode=False)
 
                     self.pursued_source_target_map[self._get_current_salient_event(state)][goal_salient_event] += 1
 
@@ -236,7 +236,7 @@ class DeepSkillGraphAgent(object):
                                                                         goal_salient_event=goal_salient_event,
                                                                         episode=episode,
                                                                         step=step_number,
-                                                                        eval_mode=eval_mode)
+                                                                        eval_mode=False)
 
                 state = deepcopy(self.mdp.cur_state)
 
@@ -244,9 +244,6 @@ class DeepSkillGraphAgent(object):
                     print(f"[DeepSkillGraphAgentClass] successfully reached {goal_salient_event}")
 
                 successes.append(success)
-
-                if eval_mode:
-                    break
 
             if episode < 5:
                 goal_state = self.mdp.get_position(self.mdp.sample_random_state())
@@ -264,6 +261,44 @@ class DeepSkillGraphAgent(object):
                                               episode, self.seed, self.experiment_name)
 
         return successes
+
+    def dsg_test_loop(self, episodes, test_event, start_state=None):
+        assert isinstance(episodes, int), f"{type(episodes)}"
+        assert isinstance(test_event, SalientEvent), test_event
+
+        successes = []
+        final_states = []
+
+        self.reset(0, start_state)
+        state = deepcopy(self.mdp.cur_state)
+        start_state_event = self._get_current_salient_event(state)
+        num_descendants = len(self.planning_agent.plan_graph.get_reachable_nodes_from_source_state(state))
+
+        if start_state_event is None:
+            mdp_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+            graph_events = self.planning_agent.plan_graph.salient_nodes
+            event_idx = [event.event_idx for event in mdp_events + graph_events]
+            start_state_event = SalientEvent(target_state=state.position, event_idx=max(event_idx)+1)
+
+        if num_descendants == 0:
+            self.create_skill_chains_from_outside_graph(state, start_state_event, test_event)
+        else:
+            self.create_skill_chains_if_needed(state, test_event, eval_mode=True, current_event=start_state_event)
+
+        for episode in range(episodes):
+            self.reset(episode, start_state)
+            state = deepcopy(self.mdp.cur_state)
+
+            step_number, state = self.planning_agent.test_loop(state=state,
+                                                               start_state_event=start_state_event,
+                                                               goal_salient_event=test_event,
+                                                               episode=episode,
+                                                               step=0)
+            success = test_event(state)
+            successes.append(success)
+            final_states.append(deepcopy(state))
+
+        return successes, final_states
 
     def generate_new_salient_events(self, episode):
 
@@ -368,8 +403,8 @@ class DeepSkillGraphAgent(object):
 
         return state, action, reward, next_state
 
-    def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode):
-        current_salient_event = self._get_current_salient_event(state)
+    def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode, current_event=None):
+        current_salient_event = self._get_current_salient_event(state) if current_event is None else current_event
 
         if current_salient_event is not None:
             if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event) and \
@@ -389,6 +424,24 @@ class DeepSkillGraphAgent(object):
                 self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=target,
                                                                         init_salient_event=init,
                                                                         eval_mode=eval_mode)
+
+    def create_skill_chains_from_outside_graph(self, state, start_state_event, goal_salient_event):
+
+        beta1, beta2 = self.planning_agent.get_test_time_subgoals(start_state_event, goal_salient_event)
+        creation_condition = lambda s, b0, bg: not self.planning_agent.plan_graph.does_path_exist(s, bg) and \
+                                               not self.is_path_under_construction(s, b0, bg)
+
+        if not self.planning_agent.plan_graph.does_path_exist(state, goal_salient_event):
+            if creation_condition(state, start_state_event, beta1):
+                print(f"[DSG-Test-Time] Creating chain from {start_state_event} -> {beta1}")
+                self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=beta1,
+                                                                        init_salient_event=start_state_event,
+                                                                        eval_mode=True)
+            if creation_condition(state, beta2, goal_salient_event):
+                print(f"[DSG-Test-Time] Creating chain from {beta2} -> {goal_salient_event}")
+                self.dsc_agent.create_chain_targeting_new_salient_event(salient_event=goal_salient_event,
+                                                                        init_salient_event=beta2,
+                                                                        eval_mode=True)
 
     def _get_current_salient_event(self, state):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
@@ -411,6 +464,7 @@ class DeepSkillGraphAgent(object):
         else:
             start_position = start_state.position if isinstance(start_state, State) else start_state[:2]
             print(f"[DeepSkillGraphAgentClass] Episode {episode}: Resetting MDP to manual state {start_position}")
+            self.mdp.reset()
             self.mdp.set_xy(start_position)
         print("*" * 80)
 

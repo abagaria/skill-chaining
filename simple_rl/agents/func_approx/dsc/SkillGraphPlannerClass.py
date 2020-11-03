@@ -84,7 +84,7 @@ class SkillGraphPlanner(object):
                     return selected_option
 
         print(f"Reverting to the DSC policy over options targeting {sampled_goal}")
-        return self.chainer.act(state, goal=sampled_goal, train_mode=True)
+        return self.chainer.act(state, goal=sampled_goal, train_mode=True, goal_vertex=goal_vertex)
 
     def planner_rollout_inside_graph(self, *, state, goal_vertex, goal_salient_event,
                                      episode_number, step_number, eval_mode):
@@ -180,62 +180,55 @@ class SkillGraphPlanner(object):
 
         return step, goal_salient_event(state)
 
-    def test_loop(self, *, state, goal_salient_event, test_option, episode, step, eval_mode):
-        assert isinstance(state, State)
-        assert isinstance(goal_salient_event, SalientEvent)
-        assert isinstance(test_option, Option)
-        assert isinstance(episode, int)
-        assert isinstance(step, int)
-        assert isinstance(eval_mode, bool)
+    def get_test_time_subgoals(self, start_state_event, goal_salient_event):
+        """
+        When the start event has no descendants, we can do better than relying on the policy over options
+        targeting the goal-salient-event. More specifically, we first find the best vertex that will take
+        us to the goal-salient-event, and *then* find the best vertex in the graph that we can achieve from
+        the start-state-salient-event.
 
-        def find_closest_node_in_graph(s):
-            point = self.mdp.get_position(s)
-            min_distance, best_node = np.inf, None
-            for node in self.plan_graph.plan_graph.nodes:
-                assert isinstance(node, (SalientEvent, Option))
-                states = node.trigger_points if isinstance(node, SalientEvent) else node.effect_set
-                points = [self.mdp.get_position(_state) for _state in states]
-                distance = SalientEvent.point_to_set_distance(point, points)
-                if distance < min_distance:
-                    min_distance = distance
-                    best_node = node
-            return best_node, min_distance
+        Args:
+            start_state_event (SalientEvent)
+            goal_salient_event (SalientEvent)
 
-        def find_closest_point_in_graph(s):
-            point = self.mdp.get_position(s)
-            closest_node, _ = find_closest_node_in_graph(s)
-            if closest_node is None: ipdb.set_trace()
-            states = closest_node.trigger_points if isinstance(closest_node, SalientEvent) else closest_node.effect_set
-            positions = np.array([self.mdp.get_position(_state) for _state in states])
-            closest_idx = np.argmin(np.sum((point - positions) ** 2, axis=1))
-            closest_point = positions[closest_idx]
-            return closest_point
+        Returns:
+            beta1 (SalientEvent)
+            beta2 (Salient Event)
+        """
+        # Choose sub-goals from among salient events because Skill-Chains from arbitrary vertices not supported yet
+        filtering_condition = lambda v: isinstance(v, SalientEvent) and not isinstance(v, DSCOptionSalientEvent)
 
-        # Set the training-phase of the goal option to be gestation always
-        test_option.num_goal_hits = 0
+        # Pick the target node that is closest to the goal-salient-event
+        num_ancestors = len(self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event))
+        src_vertices = self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event) if num_ancestors > 0 \
+                         else self.plan_graph.plan_graph.nodes
+        src_vertices = [v for v in src_vertices if filtering_condition(v)]
+        pair2 = self.get_closest_pair_of_vertices(src_vertices, [goal_salient_event])
+        beta2 = pair2[0] if pair2 is not None else goal_salient_event
 
-        nearest_point_in_graph = find_closest_point_in_graph(state)
-        print(f"Targeting {nearest_point_in_graph} with the global-option")
+        # Pick an ancestor of beta2 that is closest to the start-state-salient-event
+        dest_vertices = self.plan_graph.get_nodes_that_reach_target_node(beta2)
+        dest_vertices = [v for v in dest_vertices if filtering_condition(v) and v != start_state_event]
+        pair1 = self.get_closest_pair_of_vertices([start_state_event], dest_vertices)
+        beta1 = pair1[1] if pair1 is not None else start_state_event
 
-        while len(self.plan_graph.get_reachable_nodes_from_source_state(state)) == 0 \
-            and not goal_salient_event(state) and not step < self.chainer.max_steps:
-            step, transitions = self.perform_option_rollout(self.chainer.global_option,
-                                                            episode, step, eval_mode,
-                                                            nearest_point_in_graph, goal_salient_event)
-            state = deepcopy(self.mdp.cur_state)
+        return beta1, beta2
 
-        planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
-        print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
-        state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
+    def test_loop(self, *, state, start_state_event, goal_salient_event, episode, step):
+        num_descendants = len(self.plan_graph.get_reachable_nodes_from_source_state(state))
 
-        print(f"Targeting {goal_salient_event} with {test_option}")
-        while not goal_salient_event(state) and step < self.chainer.max_steps and not test_option.is_term_true(state):
-            step, transitions = self.perform_option_rollout(test_option, episode, step, eval_mode,
-                                                            goal_salient_event.get_target_position(),
-                                                            goal_salient_event)
-            state = deepcopy(self.mdp.cur_state)
+        if num_descendants == 0:
+            beta1, beta2 = self.get_test_time_subgoals(start_state_event, goal_salient_event)
+            state, step = self.run_sub_loop(state, beta1, step, goal_salient_event, episode, eval_mode=True)
+            state, step = self.run_sub_loop(state, beta2, step, goal_salient_event, episode, eval_mode=True)
+            state, step = self.run_sub_loop(state, goal_salient_event, step, goal_salient_event, episode, eval_mode=True)
+            return step, state
 
-        return step, goal_salient_event(state)
+        step, success = self.run_loop(state=state,
+                                      goal_salient_event=goal_salient_event,
+                                      episode=episode, step=step, eval_mode=True)
+
+        return step, self.mdp.cur_state
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
@@ -258,7 +251,8 @@ class SkillGraphPlanner(object):
         score, step_number, newly_created_options = self.chainer.dsc_rollout(episode_number=episode,
                                                                              step_number=num_steps,
                                                                              interrupt_handle=dsc_interrupt_handle,
-                                                                             overall_goal=dsc_goal_state)
+                                                                             overall_goal=dsc_goal_state,
+                                                                             goal_vertex=dsc_goal_vertex)
 
         print(f"Returned from DSC runloop having learned {newly_created_options}")
 
@@ -273,9 +267,6 @@ class SkillGraphPlanner(object):
         # Don't (off-policy) trigger the termination condition of options targeting the event we are currently leaving
         self.chainer.disable_triggering_options_targeting_init_event(state=state_before_rollout)
 
-        # TODO: Always running ant with some exploration
-        modified_eval_mode = eval_mode if "point" in self.mdp.env_name else False
-
         # Execute the option: if the option is the global-option, it doesn't have a default
         # goal in the task-agnostic setting. As a result, we ask it to target the same goal
         # as the policy-over-options.
@@ -283,7 +274,7 @@ class SkillGraphPlanner(object):
         option_transitions, option_reward = option.execute_option_in_mdp(self.mdp,
                                                                          episode=episode,
                                                                          step_number=step,
-                                                                         eval_mode=modified_eval_mode,
+                                                                         eval_mode=eval_mode,
                                                                          poo_goal=option_goal,
                                                                          goal_salient_event=goal_salient_event)
 

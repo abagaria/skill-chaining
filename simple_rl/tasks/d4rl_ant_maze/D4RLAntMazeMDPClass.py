@@ -98,6 +98,49 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # Used for visualizations only
     # --------------------------------
 
+    def get_waypoints(self):
+        if "medium" in self.env_name:
+            return [np.array((2, 2)),
+                    np.array((4, 4)),
+                    np.array((4, 6)),
+                    np.array((4, 8)),
+                    np.array((4, 10)),
+                    np.array((4, 12)),
+                    np.array((6, 8)),
+                    np.array((8, 8)),
+                    np.array((10, 8)),
+                    np.array((12, 8)),
+                    np.array((12, 6)),
+                    np.array((12, 4)),
+                    np.array((14, 4)),
+                    np.array((16, 4)),
+                    np.array((18, 4)),
+                    np.array((12, 10)),
+                    np.array((12, 12)),
+                    np.array((14, 12)),
+                    np.array((16, 12)),
+                    np.array((18, 12)),
+                    np.array((20, 12)),
+                    np.array((20, 14)),
+                    np.array((20, 16)),
+                    np.array((20, 18)),
+                    np.array((20, 20))
+                    ]
+        elif "umaze" in self.env_name:
+            return  [np.array((2, 0)),
+                             np.array((4, 0)),
+                             np.array((6, 0)),
+                             np.array((8, 0)),
+                             np.array((8, 2)),
+                             np.array((8, 4)),
+                             np.array((8, 6)),
+                             np.array((8, 8)),
+                             np.array((6, 8)),
+                             np.array((4, 8)),
+                             np.array((2, 8)),
+                             np.array((0, 8)),
+                             ]
+
     def _determine_x_y_lims(self):
         observations = self.dataset
         x = [obs[0] for obs in observations]
@@ -119,19 +162,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
 
     def sample_random_state(self):
         events = self.get_all_target_events_ever()
-        salient_positions = [np.array((2, 0)),
-                             np.array((4, 0)),
-                             np.array((6, 0)),
-                             np.array((8, 0)),
-                             np.array((8, 2)),
-                             np.array((8, 4)),
-                             np.array((8, 6)),
-                             np.array((8, 8)),
-                             np.array((6, 8)),
-                             np.array((4, 8)),
-                             np.array((2, 8)),
-                             np.array((0, 8)),
-                             ]
+        salient_positions = self.get_waypoints()
         return salient_positions[len(events) % len(salient_positions)]
 
     def sample_random_action(self):
