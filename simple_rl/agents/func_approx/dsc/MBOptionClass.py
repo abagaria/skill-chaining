@@ -17,7 +17,6 @@ class ModelBasedOption(object):
         self.timeout = timeout
         self.max_steps = max_steps
         self.global_init = global_init
-        self.global_solver = global_solver
         self.buffer_length = buffer_length
         self.target_salient_event = target_salient_event
 
@@ -35,7 +34,11 @@ class ModelBasedOption(object):
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
 
-        self.solver = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.device)
+        if global_solver is not None:
+            self.solver = global_solver
+        else:
+            self.solver = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.device)
+
         self.in_out_pairs = []
 
         if path_to_model:
@@ -95,8 +98,7 @@ class ModelBasedOption(object):
     def update(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
 
-        solver = self.solver if self.global_init else self.global_solver
-        solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+        self.solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
 
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
