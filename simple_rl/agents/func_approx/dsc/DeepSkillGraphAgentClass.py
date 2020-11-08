@@ -84,7 +84,10 @@ class DeepSkillGraphAgent(object):
         options = [o for o in self.planning_agent.plan_graph.option_nodes if cond(state, o)]
         if len(options) > 0:
             success_rates = [np.mean(o.on_policy_success_curve) for o in options]
-            rates_and_options = [(rate, option) for rate, option in zip(success_rates, options)]
+            num_executions = [o.num_executions for o in options]
+            normalized_num_executions = [n / max(num_executions) for n in num_executions]
+            scores = [success_rate + n for success_rate, n in zip(success_rates, normalized_num_executions)]
+            rates_and_options = [(rate, option) for rate, option in zip(scores, options)]
             sorted_rates_and_options = sorted(rates_and_options, key=lambda x: x[0])
             return sorted_rates_and_options[0][1]
         return None
