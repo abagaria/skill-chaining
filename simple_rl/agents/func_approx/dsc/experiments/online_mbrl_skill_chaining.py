@@ -20,7 +20,7 @@ class OnlineModelBasedSkillChaining(object):
         self.gestation_period = gestation_period
         self.initiation_period = initiation_period
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 8)))
+        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 0)))
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -96,8 +96,8 @@ class OnlineModelBasedSkillChaining(object):
 
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
-            print(f"Creating {name}, new_options = {self.new_options}, mature_options = {self.mature_options}")
-            new_option = self.create_model_based_option(name, parent=executed_option)
+            new_option = self.create_model_based_option(name, parent=self.mature_options[-1])
+            print(f"Creating {name}, parent {new_option.parent}, new_options = {self.new_options}, mature_options = {self.mature_options}")
             self.new_options.append(new_option)
             self.chain.append(new_option)
 
@@ -106,13 +106,15 @@ class OnlineModelBasedSkillChaining(object):
 
         for option in self.mature_options:
             plot_two_class_classifier(option, episode, self.experiment_name, plot_examples=True)
+            should_change = option.should_change_negative_examples()
+            print(f"{option.name} should-change: {sum(should_change)}/{len(should_change)}")
 
     def create_model_based_option(self, name, parent=None):
         option = ModelBasedOption(parent=parent, mdp=self.mdp,
                                   buffer_length=50, global_init=False,
                                   gestation_period=self.gestation_period,
                                   initiation_period=self.initiation_period,
-                                  timeout=100, max_steps=1000, device=self.device,
+                                  timeout=200, max_steps=1000, device=self.device,
                                   target_salient_event=self.target_salient_event,
                                   name=name,
                                   path_to_model="",

@@ -92,18 +92,18 @@ class MPC:
 
         return deepcopy(mdp.cur_state), steps_taken, trajectory
 
-    def act(self, s, goal, num_rollouts=14000, num_steps=7, gamma=0.95):
-        # sample actions for all steps
+    def simulate(self, s, goal, num_rollouts=14000, num_steps=7):
+        """ Perform N simulations of length H. """
         goal_x = goal[0]
         goal_y = goal[1]
-        np_actions = np.random.uniform(-1., 1., size=(num_rollouts, num_steps, self.action_size)) # TODO hardcoded
+        np_actions = np.random.uniform(-1., 1., size=(num_rollouts, num_steps, self.action_size))  # TODO hardcoded
         np_states = np.repeat(np.array([s]), num_rollouts, axis=0)
-        results = np.zeros((num_rollouts, num_steps))
-        
+        costs = np.zeros((num_rollouts, num_steps))
+
         with torch.no_grad():
             # compute next states for each step
             for j in range(num_steps):
-                actions = np_actions[:,j,:]
+                actions = np_actions[:, j, :]
                 states_t = torch.from_numpy(np_states)
                 actions_t = torch.from_numpy(actions)
 
@@ -115,13 +115,19 @@ class MPC:
                 np_states = pred.cpu().numpy()
 
                 # update results with (any) distance metric
-                results[:,j] = (goal_x - np_states[:,0]) ** 2 + (goal_y - np_states[:,1]) ** 2
-        
+                costs[:, j] = (goal_x - np_states[:, 0]) ** 2 + (goal_y - np_states[:, 1]) ** 2
+
+        return np_states, np_actions, costs
+
+    def act(self, s, goal, num_rollouts=14000, num_steps=7, gamma=0.95):
+        # sample actions for all steps
+        final_states, actions, costs = self.simulate(s, goal, num_rollouts, num_steps)
+
         # choose next action to execute
         gammas = np.power(gamma * np.ones(num_steps), np.arange(0, num_steps))
-        summed_results = np.sum(results * gammas, axis=1)
-        index = np.argmin(summed_results) # retrieve action with least trajectory distance to goal
-        action = np_actions[index,0,:] # grab action corresponding to least distance
+        cumulative_costs = np.sum(costs * gammas, axis=1)
+        index = np.argmin(cumulative_costs) # retrieve action with least trajectory distance to goal
+        action = actions[index, 0, :] # grab action corresponding to least distance
         return action
 
     def step(self, state, action, reward, next_state, done):

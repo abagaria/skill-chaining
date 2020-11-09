@@ -112,7 +112,7 @@ class OnlineModelBasedSkillChaining(object):
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
         options = [o for o in self.mature_options + self.new_options if o.get_training_phase() != "gestation"]
-        for option in self.mature_options:
+        for option in options:
             plot_two_class_classifier(option, episode, self.experiment_name, plot_examples=True)
 
     def create_model_based_option(self, name, parent=None):

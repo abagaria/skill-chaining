@@ -40,6 +40,7 @@ class ModelBasedOption(object):
             self.solver = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.device)
 
         self.in_out_pairs = []
+        self.success_curve = []
 
         if path_to_model:
             self.solver.load_model(path_to_model)
@@ -142,7 +143,7 @@ class ModelBasedOption(object):
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
-
+        self.success_curve.append(self.is_term_true(state))
         self.in_out_pairs.append((start_state.features(), state.features()))
 
         if self.is_term_true(state):
@@ -176,11 +177,22 @@ class ModelBasedOption(object):
 
         if self.is_term_true(final_state):
             positive_states = [start_state] + visited_states[-self.buffer_length:]
-            positive_examples = [self.mdp.get_position(s) for s in positive_states]
-            self.positive_examples.append(positive_examples)
+            self.positive_examples.append(positive_states)
         else:
-            negative_examples = [self.mdp.get_position(start_state)]
+            negative_examples = [start_state]
             self.negative_examples.append(negative_examples)
+
+    def should_change_negative_examples(self):
+        should_change = []
+        for negative_example in self.negative_examples:
+            should_change += [self.does_model_rollout_reach_goal(negative_example[0])]
+        return should_change
+
+    def does_model_rollout_reach_goal(self, state):
+        sampled_goal = self.get_goal_for_rollout()
+        final_states, actions, costs = self.solver.simulate(state, sampled_goal, num_rollouts=14000, num_steps=self.timeout)
+        farthest_position = final_states[:, :2].max(axis=0)
+        return self.is_term_true(farthest_position)
 
     def fit_initiation_classifier(self):
         if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
@@ -188,10 +200,10 @@ class ModelBasedOption(object):
         elif len(self.positive_examples) > 0:
             self.train_one_class_svm()
 
-    @staticmethod
-    def construct_feature_matrix(examples):
+    def construct_feature_matrix(self, examples):
         states = list(itertools.chain.from_iterable(examples))
-        return np.array(states)
+        positions = [self.mdp.get_position(state) for state in states]
+        return np.array(positions)
 
     def train_one_class_svm(self, nu=0.1):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
@@ -228,6 +240,11 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
     # Convenience functions
     # ------------------------------------------------------------
+
+    def get_success_rate(self):
+        if len(self.success_curve) == 0:
+            return 0.
+        return np.mean(self.success_curve)
 
     def __str__(self):
         return self.name
