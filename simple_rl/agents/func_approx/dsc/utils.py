@@ -142,17 +142,17 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
 
     colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
 
-    plt.figure(figsize=(8.0, 5.0))
+    # plt.figure(figsize=(8.0, 5.0))
     X = option.construct_feature_matrix(option.positive_examples)
     X0, X1 = X[:, 0], X[:, 1]
     xx, yy = make_meshgrid(X0, X1)
-    Z1 = option.initiation_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
+    Z1 = option.pessimistic_classifier.decision_function(np.c_[xx.ravel(), yy.ravel()])
     Z1 = Z1.reshape(xx.shape)
 
     color = colors[option.option_idx % len(colors)]
     plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
 
-    plot_all_trajectories_in_initiation_data(option.positive_examples)
+    # plot_all_trajectories_in_initiation_data(option.positive_examples)
 
     # background_image = imageio.imread("emaze_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 18.])
@@ -160,13 +160,13 @@ def plot_one_class_initiation_classifier(option, episode=None, experiment_name="
     # plt.xticks([])
     # plt.yticks([])
 
-    plt.xlim((-10, 10))
-    plt.ylim((-10, 10))
+    # plt.xlim((-10, 10))
+    # plt.ylim((-10, 10))
 
-    plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
-    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-    plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
-    plt.close()
+    # plt.title("Name: {}\tParent: {}".format(option.name, option.parent))
+    # name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
+    # plt.savefig("initiation_set_plots/{}/{}_{}_one_class_svm.png".format(experiment_name, name, option.seed))
+    # plt.close()
 
 
 def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True):
@@ -192,12 +192,15 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     if negative_examples.shape[0] > 0 and plot_examples:
         plt.scatter(negative_examples[:, 0], negative_examples[:, 1], label="negative", c="magenta", alpha=0.3, s=10)
 
+    if option.pessimistic_classifier is not None:
+        plot_one_class_initiation_classifier(option, episode, experiment_name)
+
     # background_image = imageio.imread("four_room_domain.png")
     # plt.imshow(background_image, zorder=0, alpha=0.5, extent=[-2.5, 10., -2.5, 10.])
 
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.title("{} Initiation Set".format(option.name))
-    plt.legend()
+    # plt.legend()
     plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
     plt.close()
 
