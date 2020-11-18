@@ -25,21 +25,19 @@ class TD3(object):
             policy_freq=2,
             batch_size=256,
             exploration_noise=0.1,
-            exploration_method="",
-            device=torch.device("cuda")
+            device=torch.device("cuda"),
+            name="Global-TD3-Agent"
     ):
 
-        assert exploration_method in ("", "shaping"), exploration_method
-
         self.actor = Actor(state_dim, action_dim, max_action).to(device)
-        self.actor_target = copy.deepcopy(self.actor)
+        self.target_actor = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
 
         self.critic = Critic(state_dim, action_dim).to(device)
-        self.critic_target = copy.deepcopy(self.critic)
+        self.target_critic = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=3e-4)
 
-        self.replay_buffer = ReplayBuffer(state_dim, action_dim)
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device=device)
 
         self.max_action = max_action
         self.action_dim = action_dim
@@ -50,8 +48,8 @@ class TD3(object):
         self.policy_freq = policy_freq
         self.batch_size = batch_size
         self.epsilon = exploration_noise
-        self.exploration_method = exploration_method
         self.device = device
+        self.name = name
 
         self.trained_options = []
         self.critic_learning_rate = 3e-4
@@ -86,11 +84,11 @@ class TD3(object):
             ).clamp(-self.noise_clip, self.noise_clip)
 
             next_action = (
-                    self.actor_target(next_state) + noise
+                    self.target_actor(next_state) + noise
             ).clamp(-self.max_action, self.max_action)
 
             # Compute the target Q value
-            target_Q1, target_Q2 = self.critic_target(next_state, next_action)
+            target_Q1, target_Q2 = self.target_critic(next_state, next_action)
             target_Q = torch.min(target_Q1, target_Q2)
             target_Q = reward + (1. - done) * self.gamma * target_Q
 
@@ -108,7 +106,7 @@ class TD3(object):
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
 
-            # Compute actor losse
+            # Compute actor loss
             actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 
             # Optimize the actor
@@ -117,10 +115,10 @@ class TD3(object):
             self.actor_optimizer.step()
 
             # Update the frozen target models
-            for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+            for param, target_param in zip(self.critic.parameters(), self.target_critic.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-            for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
+            for param, target_param in zip(self.actor.parameters(), self.target_actor.parameters()):
                 target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
     def update_epsilon(self):

@@ -263,6 +263,26 @@ class DeepSkillGraphAgent(object):
                 visualize_best_option_to_take(self.dsc_agent.agent_over_options,
                                               episode, self.seed, self.experiment_name)
 
+            if episode > 0 and episode % 100 == 0:
+                for option in self.planning_agent.plan_graph.option_nodes:  # type: Option
+                    max_value = make_chunked_value_function_plot(option.solver, episode, self.seed, self.experiment_name)
+                    if option.num_executions > 500 and max_value > 500:
+                        print(f"************************* Resetting {option} solver **********************************")
+                        print(f"[{option}] Num-Executions: {option.num_executions} \t Success Rate: {np.mean(option.on_policy_success_curve)}")
+                        print(f"[{option}] Max-Value = {max_value}")
+                        option.num_executions = option.num_subgoal_hits_required + option.initiation_period + 1
+                        option.on_policy_success_curve = []
+                        option.reset_option_solver()
+                        print(f"**************************************************************************************")
+
+            if episode > 0 and episode % 500 == 0:
+                option_num_executions = [o.num_executions for o in self.planning_agent.plan_graph.option_nodes]
+                option_success_rates = [np.mean(o.on_policy_success_curve) for o in planner.plan_graph.option_nodes]
+                plt.scatter(option_num_executions, option_success_rates)
+                plt.title(f"Episode: {episode}")
+                plt.savefig(f"{self.experiment_name}/option-success-rates-episode-{episode}.png")
+                plt.close()
+
         return successes
 
     def dsg_test_loop(self, episodes, test_event, start_state=None):
@@ -543,7 +563,7 @@ if __name__ == "__main__":
         overall_mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
         state_dim = overall_mdp.state_space_size()
         action_dim = overall_mdp.action_space_size()
-    elif args.env == "d4rl-medium-point-maze":
+    elif args.env == "d4rl-medium-point-maze":  
         from simple_rl.tasks.d4rl_point_maze.D4RLPointMazeMDPClass import D4RLPointMazeMDP
         overall_mdp = D4RLPointMazeMDP(seed=args.seed,
                                        render=args.render,

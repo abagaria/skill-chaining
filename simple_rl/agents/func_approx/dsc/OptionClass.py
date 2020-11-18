@@ -26,7 +26,7 @@ class Option(object):
 				 dense_reward=False, enable_timeout=True, timeout=200, initiation_period=5, option_idx=None,
 				 chain_id=None, initialize_everywhere=True, max_num_children=3,
 				 init_salient_event=None, target_salient_event=None, update_global_solver=False, use_warmup_phase=True,
-				 gestation_init_predicates=[], is_backward_option=False, solver_type="ddpg", use_her=True,
+				 gestation_init_predicates=[], is_backward_option=False, solver_type="td3", use_her=True,
 				 allow_her_initialization=False, generate_plots=False, device=torch.device("cpu"), writer=None):
 		'''
 		Args:
@@ -203,7 +203,8 @@ class Option(object):
 										   self.lr_actor, self.lr_critic, self.ddpg_batch_size, name="global_option")
 		elif self.solver_type == "td3":
 			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
-									 max_action=self.overall_mdp.env.action_space.high[0], device=self.device)
+							  max_action=self.overall_mdp.env.action_space.high[0], device=self.device,
+							  name="global-option-td3")
 
 		else:
 			raise NotImplementedError(self.solver_type)
@@ -220,17 +221,17 @@ class Option(object):
 			self.solver = DDPGAgent(self.state_size, self.action_size, seed, device, lr_actor, lr_critic, ddpg_batch_size,
 									tensor_log=(writer is not None), writer=writer, name=solver_name)
 
-			if self.initialize_with_her:
-				self.initialize_option_with_global_her_policy()
-
 		elif self.solver_type == "td3":
-			exploration_method = "shaping" if self.name == "global_option" else ""
+			solver_name = "{}_td3_agent".format(self.name)
 			self.solver = TD3(state_dim=self.state_size, action_dim=self.action_size,
 							  max_action=self.overall_mdp.env.action_space.high[0],
-							  device=self.device, exploration_method=exploration_method)
+							  device=self.device, name=solver_name)
 
 		else:
 			raise NotImplementedError(self.solver_type)
+
+		if self.initialize_with_her:
+			self.initialize_option_with_global_her_policy()
 
 	@staticmethod
 	def is_between(x1, x2, x3):
@@ -241,40 +242,6 @@ class Option(object):
 		d1 = x3 - x1
 		r = v.dot(d1)
 		return 0 <= r <= d0m
-
-	def sample_state(self):
-		""" Return a state from the option's initiation set. """
-
-		def _get_state_from_experience(experience):
-			if isinstance(experience, list):
-				experience = experience[0]
-			if isinstance(experience, Experience):
-				return experience.state
-			return experience[0]
-
-		if self.get_training_phase() != "initiation_done":
-			return None
-
-		sampled_state = None
-		num_tries = 0
-
-		while sampled_state is None and num_tries < 50:
-			if isinstance(self.solver, DDPGAgent):
-				if len(self.solver.replay_buffer) > 0:
-					sampled_experience = random.choice(self.solver.replay_buffer.memory)
-				elif len(self.experience_buffer) > 0:
-					sampled_experience = random.choice(self.experience_buffer)
-				else:
-					continue
-				# ipdb.set_trace()
-				sampled_state = _get_state_from_experience(sampled_experience)
-				sampled_state = sampled_state if self.is_init_true(sampled_state) else None
-			elif isinstance(self.solver, TD3):
-				sampled_idx = random.randint(0, len(self.solver.replay_buffer) - 1)
-				sampled_experience = self.solver.replay_buffer[sampled_idx]
-				sampled_state = sampled_experience[0] if self.is_init_true(sampled_experience[0]) else None
-			num_tries += 1
-		return sampled_state
 
 	def sample_parent_positive(self):
 		num_tries = 0
@@ -326,57 +293,16 @@ class Option(object):
 			return "initiation_done"
 		return "trained"
 
-	def initialize_with_global_solver(self, reset_option_buffer=True):
-		"""" Initialize option policy - unrestricted support because not checking if I_o(s) is true. """
-		# Not using off_policy_update() because we have numpy arrays not state objects here
-		if not self.pretrained_option_policy:  # Make sure that we only do this once
-			for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer,
-																desc=f"Initializing {self.name} policy"):
-				if self.is_term_true(state):
-					continue
-				if self.is_term_true(next_state):
-					self.solver.step(state, action, self.subgoal_reward, next_state, True)
-				else:
-					subgoal_reward = self.get_subgoal_reward(next_state)
-					self.solver.step(state, action, subgoal_reward, next_state, done)
-
-			# To keep the support of the option policy restricted to the initiation region
-			# of the option, we can clear the option's replay buffer after we have pre-trained its policy
-			if reset_option_buffer:
-				self.solver.replay_buffer.clear()
-
-			self.pretrained_option_policy = True
-
 	def initialize_option_with_global_her_policy(self):
 		""" Work in progress: initialize option policy with the global option's goal-conditioned policy. """
 		print("*" * 80)
-		print(f"Initializing {self}'s option policy with that of the Global Options DDPG")
+		print(f"Initializing {self}'s option policy with that of the Global Option's policy")
 		print("*" * 80)
 
 		self.solver.actor.load_state_dict(self.global_solver.actor.state_dict())
 		self.solver.critic.load_state_dict(self.global_solver.critic.state_dict())
 		self.solver.target_actor.load_state_dict(self.global_solver.target_actor.state_dict())
 		self.solver.target_critic.load_state_dict(self.global_solver.target_critic.state_dict())
-
-	def initialize_option_solver_with_restricted_support(self):  # TODO: THIS DOESN"T WORK
-
-		assert self.initiation_classifier is not None, f"{self.name} in phase {self.get_training_phase()}"
-
-		for state, action, reward, next_state, done in tqdm(self.global_solver.replay_buffer,
-															desc=f"Initializing {self.name} policy with {self.global_solver.name}"):
-
-			# Adding terminal self transitions causes the option value function to explode
-			if self.is_term_true(state):
-				continue
-
-			# Give sub-goal reward for triggering your own subgoal
-			if self.is_term_true(next_state):
-				self.solver.step(state, action, self.subgoal_reward, next_state, True)
-
-			# Restricted support - only add transitions that begin from the initiation set of the option
-			elif self.is_init_true(state):
-				subgoal_reward = self.get_subgoal_reward(next_state)
-				self.solver.step(state, action, subgoal_reward, next_state, done)
 
 	def batched_is_init_true(self, state_matrix):
 
@@ -470,20 +396,6 @@ class Option(object):
 	def is_close_to_effect_set(self, state):
 		is_close = lambda x, y: self.overall_mdp.dense_gc_reward_function(x, y, {})[1]
 		return any([is_close(state, effect_state) for effect_state in self.effect_set])
-
-	def get_init_predicates_during_gestation(self):
-		assert self.backward_option
-		assert len(self.gestation_init_predicates) > 0, self.gestation_init_predicates
-
-		my_original_init_predicates = self.gestation_init_predicates
-		overall_current_init_predicates = self.overall_mdp.get_current_salient_events()
-		my_current_init_predicates = [pred for pred in my_original_init_predicates if pred in overall_current_init_predicates]
-		return my_current_init_predicates
-
-	def get_batched_init_predicates_during_gestation(self):
-		assert self.backward_option
-		assert len(self.gestation_init_predicates) > 0, self.gestation_init_predicates
-		pass
 
 	def expand_initiation_classifier(self, salient_event):
 		self.salient_event_for_initiation = salient_event
@@ -671,26 +583,11 @@ class Option(object):
 		subgoal_reward = 0. if dist >= 0 else -np.log(1 - dist)
 		return subgoal_reward
 
-	def off_policy_update(self, state, action, reward, next_state):
-		""" Make off-policy updates to the current option's low level DDPG solver. """
-		assert not state.is_terminal(), "Terminal state did not terminate at some point"
-
-		# Don't make updates while walking around the termination set of an option
-		if self.is_term_true(state):
-			return
-
-		# Off-policy updates for states outside tne initiation set were discarded
-		if self.is_init_true(state) and self.is_term_true(next_state):
-			self.solver.step(state.features(), action, self.subgoal_reward, next_state.features(), True)
-		elif self.is_init_true(state):
-			subgoal_reward = self.get_subgoal_reward(next_state) if self.name != "global_option" else reward
-			self.solver.step(state.features(), action, subgoal_reward, next_state.features(), next_state.is_terminal())
-
 	def update_option_solver(self, s, a, r, s_prime):
 		""" Make on-policy updates to the current option's low-level DDPG solver. """
 		assert not s.is_terminal(), "Terminal state did not terminate at some point"
 
-		if self.is_term_true(s):
+		if self.is_term_true(s) or self.target_salient_event(s):
 			return
 
 		if self.initialize_with_her:
@@ -704,8 +601,8 @@ class Option(object):
 		if self.is_term_true(s_prime):
 			print("{} execution successful".format(self.name))
 			self.solver.step(state, a, self.subgoal_reward, next_state, True)
-		elif s_prime.is_terminal():
-			print("[{}]: {} is_terminal() but not term_true()".format(self.name, s))
+		elif s_prime.is_terminal() or self.target_salient_event(s_prime):
+			print(f"{self.name} {s_prime[:2]} terminal: {s_prime.is_terminal()} target: {self.target_salient_event(s_prime)}")
 			self.solver.step(state, a, self.subgoal_reward, next_state, True)
 		else:
 			subgoal_reward = self.get_subgoal_reward(s_prime) if self.name != "global_option" else r
@@ -721,6 +618,8 @@ class Option(object):
 		return relabeled_transitions
 
 	def get_mean_td_error(self, transitions):
+		assert self.solver_type == "ddpg", "auto off-policy update not implemented for TD3"
+
 		relabeled_transitions = self.relabel_transitions_with_option_reward_function(transitions)
 		batched_transitions = DDPGAgent.batchify_transitions(relabeled_transitions)
 		td_errors = self.solver.get_td_error(*batched_transitions)

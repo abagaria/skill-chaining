@@ -183,16 +183,16 @@ class SkillChain(object):
         completed_options = [option for option in self.options if option.get_training_phase() == "initiation_done"]
 
         for option in completed_options:
-            if self.should_complete_chain(option):
-                self._is_deemed_completed = True
-                return True
-
-        for option in completed_options:
             if self.should_expand_initiation_classifier(option):
                 option.expand_initiation_classifier(self.init_salient_event)
                 if self.should_complete_chain(option):
                     self._is_deemed_completed = True
                     return True
+
+        for option in completed_options:
+            if self.should_complete_chain(option):
+                self._is_deemed_completed = True
+                return True
 
         return False
 

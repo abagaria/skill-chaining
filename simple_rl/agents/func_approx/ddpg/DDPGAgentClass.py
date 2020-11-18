@@ -201,10 +201,6 @@ class DDPGAgent(Agent):
     def _learn(self, experiences, gamma):
         states, actions, rewards, next_states, dones = experiences
 
-        np_states = np.copy(states)
-        np_actions = np.copy(actions)
-        np_next_states = np.copy(next_states)
-
         states = torch.as_tensor(states).float().to(self.device)
         actions = torch.as_tensor(actions).float().to(self.device)
         rewards = torch.as_tensor(rewards).float().unsqueeze(1).to(self.device)
