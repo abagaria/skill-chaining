@@ -42,7 +42,7 @@ class OnlineModelBasedSkillChaining(object):
             state = deepcopy(self.mdp.cur_state)
             action = self.mdp.sample_random_action()
             reward, next_state = self.mdp.execute_agent_action(action)
-            self.global_option.update(state, action, reward, next_state)
+            self.global_option.update_model(state, action, reward, next_state)
             step_number += 1
         return step_number
 
@@ -78,7 +78,7 @@ class OnlineModelBasedSkillChaining(object):
 
     def learn_dynamics_model(self):
         self.global_option.solver.load_data()
-        self.global_option.solver.train(epochs=100, batch_size=1024)
+        self.global_option.solver.train(epochs=50, batch_size=1024)
         for option in self.chain:
             option.solver.model = self.global_option.solver.model
 
@@ -106,8 +106,12 @@ class OnlineModelBasedSkillChaining(object):
 
         for option in self.mature_options:
             plot_two_class_classifier(option, episode, self.experiment_name, plot_examples=True)
-            should_change = option.should_change_negative_examples()
-            print(f"{option.name} should-change: {sum(should_change)}/{len(should_change)}")
+            make_chunked_goal_conditioned_value_function_plot(option.value_learner,
+                                                              goal=option.get_goal_for_rollout(),
+                                                              episode=episode, seed=0,
+                                                              experiment_name=self.experiment_name)
+            # should_change = option.should_change_negative_examples()
+            # print(f"{option.name} should-change: {sum(should_change)}/{len(should_change)}")
 
     def create_model_based_option(self, name, parent=None):
         option = ModelBasedOption(parent=parent, mdp=self.mdp,
@@ -181,6 +185,8 @@ if __name__ == "__main__":
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
+    create_log_dir(f"value_function_plots/{args.experiment_name}")
+
     durations = exp.run_loop(args.episodes, args.steps)
 
     if args.save_option_data:

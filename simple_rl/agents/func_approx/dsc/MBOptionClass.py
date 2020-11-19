@@ -5,6 +5,7 @@ import numpy as np
 from copy import deepcopy
 from sklearn import svm
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
+from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 
 class ModelBasedOption(object):
@@ -24,6 +25,7 @@ class ModelBasedOption(object):
         self.overall_mdp = mdp
         self.seed = 0
         self.option_idx = 1
+        self.dense_reward = True
 
         self.num_goal_hits = 0
         self.gestation_period = gestation_period
@@ -38,6 +40,12 @@ class ModelBasedOption(object):
             self.solver = global_solver
         else:
             self.solver = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.device)
+
+        self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
+                                 action_dim=self.mdp.action_space_size(),
+								 max_action=self.overall_mdp.env.action_space.high[0],
+                                 name=f"{name}-td3-agent",
+                                 device=self.device)
 
         self.in_out_pairs = []
         self.success_curve = []
@@ -96,7 +104,7 @@ class ModelBasedOption(object):
             return self.mdp.sample_random_action()
         return self.solver.act(state, goal)
 
-    def update(self, state, action, reward, next_state):
+    def update_model(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
 
         self.solver.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
@@ -132,7 +140,7 @@ class ModelBasedOption(object):
             # Control
             action = self.act(state, goal)
             reward, next_state = self.mdp.execute_agent_action(action)
-            self.update(state, action, reward, next_state)
+            self.update_model(state, action, reward, next_state)
 
             # Logging
             num_steps += 1
@@ -149,6 +157,11 @@ class ModelBasedOption(object):
         if self.is_term_true(state):
             self.num_goal_hits += 1
 
+        if self.should_update_value_function():
+            self.update_value_function(option_transitions,
+                                       pursued_goal=goal,
+                                       reached_goal=self.extract_goal_dimensions(state))
+
         self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
@@ -156,6 +169,44 @@ class ModelBasedOption(object):
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
+
+    # ------------------------------------------------------------
+    # Hindsight Experience Replay
+    # ------------------------------------------------------------
+
+    def should_update_value_function(self):
+        """ Enumerate the rules for when we are allowed to update the option VF. """
+
+        return self.get_training_phase() != "gestation"
+
+    def update_value_function(self, option_transitions, reached_goal, pursued_goal):
+        """ Update the goal-conditioned option value function. """
+
+        self.experience_replay(option_transitions, pursued_goal)
+        self.experience_replay(option_transitions, reached_goal)
+
+    def extract_goal_dimensions(self, goal):
+        goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
+        if "ant" in self.mdp.env_name:
+            return goal_features[:2]
+        raise NotImplementedError(f"{self.mdp.env_name}")
+
+    def get_augmented_state(self, state, goal):
+        assert goal is not None and isinstance(goal, np.ndarray)
+
+        goal_position = self.extract_goal_dimensions(goal)
+        return np.concatenate((state.features(), goal_position))
+
+    def experience_replay(self, trajectory, goal_state):
+        for state, action, reward, next_state in trajectory:
+            augmented_state = self.get_augmented_state(state, goal=goal_state)
+            augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
+            done = self.is_at_local_goal(next_state, goal_state)
+
+            reward_func = self.overall_mdp.dense_gc_reward_function if self.dense_reward \
+                else self.overall_mdp.sparse_gc_reward_function
+            reward, _ = reward_func(next_state, goal_state, info={})
+            self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
 
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
