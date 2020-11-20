@@ -126,6 +126,8 @@ class TD3(object):
         pass
 
     def get_qvalues(self, states, actions):
+        """ Get the values associated with the input state-action pairs. """
+
         self.critic.eval()
         with torch.no_grad():
             q1, q2 = self.critic(states, actions)
@@ -133,8 +135,12 @@ class TD3(object):
         return torch.min(q1, q2)
 
     def get_values(self, states):
+        """ Get the values associated with the input states. """
+
+        if isinstance(states, np.ndarray):
+            states = torch.as_tensor(states).float().to(self.device)
+
         with torch.no_grad():
             actions = self.actor(states)
-            q1, q2 = self.critic(states, actions)
-            q_values = torch.min(q1, q2)
+            q_values = self.get_qvalues(states, actions)
         return q_values.cpu().numpy()

@@ -1,4 +1,5 @@
 import ipdb
+import torch
 import random
 import itertools
 import numpy as np
@@ -207,6 +208,22 @@ class ModelBasedOption(object):
                 else self.overall_mdp.sparse_gc_reward_function
             reward, _ = reward_func(next_state, goal_state, info={})
             self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
+
+    def value_function(self, states, goals):
+        assert isinstance(states, np.ndarray)
+        assert isinstance(goals, np.ndarray)
+
+        if len(states.shape) == 1:
+            states = states[None, ...]
+        if len(goals.shape) == 1:
+            goals = goals[None, ...]
+
+        goal_positions = goals[:, :2]
+        augmented_states = np.concatenate((states, goal_positions), axis=1)
+        augmented_states = torch.as_tensor(augmented_states).float().to(self.device)
+        values = self.value_learner.get_values(augmented_states)
+
+        return values
 
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
