@@ -176,18 +176,12 @@ class D4RLSwimmerMDP(GoalDirectedMDP):
         #
         # return random.choice(default_choices)
         events = self.get_all_target_events_ever()
-        salient_positions = [np.array((2, 0)),
-                             np.array((4, 0)),
-                             np.array((6, 0)),
-                             np.array((8, 0)),
-                             np.array((8, 2)),
-                             np.array((8, 4)),
-                             np.array((8, 6)),
-                             np.array((8, 8)),
-                             np.array((6, 8)),
-                             np.array((4, 8)),
-                             np.array((2, 8)),
-                             np.array((0, 8)),
+        salient_positions = [np.array((1.4, 0)),
+                             np.array((2.8, 0)),
+                             np.array((4.2, 0)),
+                             np.array((5.8, 0)),
+                             np.array((7, 0)),
+                             np.array((8, 1))
                              ]
         return salient_positions[len(events) % len(salient_positions)]
 
