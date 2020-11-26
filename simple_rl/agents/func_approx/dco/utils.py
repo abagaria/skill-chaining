@@ -14,6 +14,8 @@ def get_saved_transition_data(env_name, device):
     elif env_name == "ant-reacher":
         with open("ant_reacher_transitions.pkl", "rb") as f:
             transitions = pickle.load(f)
+    else:
+        raise ValueError(f"Unrecognized environment '{env_name}'")
 
     r_buffer = ReplayBuffer(10, int(1e6), 64, 0, device)
 
