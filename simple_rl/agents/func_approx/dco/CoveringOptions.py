@@ -18,14 +18,14 @@ from simple_rl.agents.func_approx.dsc.utils import plot_dco_salient_event_compar
 
 
 class CoveringOptions(object):
-    def __init__(self, state_dim, device, use_xy=False, sub_sample=False,
+    def __init__(self, state_dim, device, use_xy=False, subsample=False,
                  lr=1e-3, beta=2.0, delta=1.0, seed=0, loss_type="var"):
         self.beta = beta
         self.delta = delta
         self.device = device
         self.use_xy = use_xy
         self.loss_type = loss_type
-        self.sub_sample = sub_sample
+        self.subsample = subsample
 
         if self.use_xy:
             self.model = LinearNetwork(state_dim, device=self.device)
@@ -59,7 +59,7 @@ class CoveringOptions(object):
         assert isinstance(replay_buffer, ReplayBuffer)
 
         losses = []
-        dataset = DCODataset(replay_buffer, use_xy=self.use_xy, sub_sample=self.sub_sample)
+        dataset = DCODataset(replay_buffer, use_xy=self.use_xy, subsample=self.subsample)
         loader = DataLoader(dataset, batch_size=64, shuffle=True)
 
         for epoch in range(n_epochs):
@@ -152,8 +152,8 @@ if __name__ == "__main__":
     parser.add_argument("--loss", type=str, default="var")
     parser.add_argument("--use_xy", action="store_true", default=False)
     parser.add_argument("--collect_new_data", action="store_true", default=False)
-    parser.add_argument("--subsample", action="store_true", default=False)
-    parser.add_argument("--n_epochs", type=float, default=1)
+    parser.add_argument("--subsample", type=int, default=None)
+    parser.add_argument("--n_epochs", type=int, default=1)
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -169,7 +169,7 @@ if __name__ == "__main__":
                                beta=args.beta,
                                delta=args.delta,
                                loss_type=args.loss,
-                               sub_sample=args.subsample,
+                               subsample=args.subsample,
                                use_xy=args.use_xy,
                                )
     l = c_option.train(r_buffer, n_epochs=args.n_epochs)

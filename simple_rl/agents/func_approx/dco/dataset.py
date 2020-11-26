@@ -8,11 +8,11 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import ReplayBuffer
 
 class DCODataset(Dataset):
 
-    def __init__(self, replay_buffer, use_xy=True, sub_sample=False):
+    def __init__(self, replay_buffer, use_xy=True, subsample=None):
         assert isinstance(replay_buffer, ReplayBuffer)
 
-        if sub_sample:
-            self.transitions = random.sample(replay_buffer.memory, k=1000)
+        if subsample:
+            self.transitions = random.sample(replay_buffer.memory, k=subsample)
         else:
             self.transitions = replay_buffer.memory
 
