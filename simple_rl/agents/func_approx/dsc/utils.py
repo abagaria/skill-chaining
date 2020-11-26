@@ -541,6 +541,20 @@ def visualize_graph(chains, experiment_name, plot_completed_events):
 
     kGraphIterationNumber += 1
 
+def plot_embeddings(states, values, experiment_name=""):
+    min_state, max_state = states[np.argmin(values)], states[np.argmax(values)]
+    plt.scatter(states[:, 0], states[:, 1], c=values, cmap="Blues")
+    plt.colorbar()
+    plt.scatter([min_state[0]], [min_state[1]], c="black", s=[300])
+    plt.scatter([max_state[0]], [max_state[1]], c="red", s=[300])
+
+    if not os.path.isdir("initiation_set_plots/{}".format(experiment_name)):
+        os.makedirs("initiation_set_plots/{}".format(experiment_name))
+
+    plt.suptitle("Embeddings of {} subsampled ant-maze transitions".format(len(states)))
+    plt.savefig("initiation_set_plots/{}/spectral_embeddings_plot.png".format(experiment_name))
+    plt.close()
+
 def plot_dco_salient_event(ax, salient_event, states):
     option = salient_event.covering_option
     is_low = salient_event.is_low
