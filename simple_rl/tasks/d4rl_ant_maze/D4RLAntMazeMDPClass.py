@@ -166,10 +166,15 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # Used during testing only
     # ---------------------------------
 
-    def sample_random_state(self):
-        events = self.get_all_target_events_ever()
-        salient_positions = self.get_waypoints()
-        return salient_positions[len(events) % len(salient_positions)]
+    def sample_random_state(self, debug_mode=False):
+        if debug_mode:
+            events = self.get_all_target_events_ever()
+            salient_positions = self.get_waypoints()
+            return salient_positions[len(events) % len(salient_positions)]
+        else:
+            data = self.dataset
+            idx = np.random.choice(data.shape[0])
+            return data[idx, :]
 
     def sample_random_action(self):
         size = (self.action_space_size(),)

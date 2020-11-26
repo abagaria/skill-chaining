@@ -232,6 +232,11 @@ class SkillChaining(object):
 							 target_salient_event=salient_event,
 							 use_her=self.use_her_locally,
 							 allow_her_initialization=allow_her_initialization)
+
+		# TODO: Note that we are setting the initiation period of test options to be 0
+		if eval_mode:
+			goal_option.initiation_period = 0
+
 		self.untrained_options.append(goal_option)
 
 		new_chain = SkillChain(options=[], chain_id=chain_id,

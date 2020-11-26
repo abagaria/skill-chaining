@@ -8,8 +8,9 @@ from simple_rl.agents.func_approx.dsc.SkillChainingAgentClass import SkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.OptionClass import Option
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent, DSCOptionSalientEvent
-from simple_rl.agents.func_approx.dsc.utils import make_chunked_value_function_plot, visualize_graph
+from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
+from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
 
 class SkillGraphPlanner(object):
@@ -33,6 +34,8 @@ class SkillGraphPlanner(object):
         self.pretrain_option_policies = pretrain_option_policies
         self.experiment_name = experiment_name
         self.seed = seed
+
+        self.mpc = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.chainer.device)
 
         self.plan_graph = PlanGraph()
 
@@ -229,6 +232,82 @@ class SkillGraphPlanner(object):
                                       episode=episode, step=step, eval_mode=True)
 
         return step, self.mdp.cur_state
+
+    def salient_event_discovery_run_loop(self, goal_salient_event, episode):
+        assert not goal_salient_event.revised_by_mpc
+        assert isinstance(goal_salient_event, SalientEvent)
+        assert isinstance(episode, int)
+        assert not goal_salient_event.revised_by_mpc
+
+        step = 0
+        state = deepcopy(self.mdp.cur_state)
+        planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
+        print(f"[Salient-Event-Discovery] Planner goal: {planner_goal_vertex}; Goal: {goal_salient_event}")
+
+        if planner_goal_vertex != goal_salient_event:
+            state, step = self.run_sub_loop(state, planner_goal_vertex, 0, goal_salient_event, episode, eval_mode=False)
+
+        if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
+            state, steps_taken, accepted = self.model_based_extrapolation(goal_salient_event, episode)
+            return state, step + steps_taken, accepted
+
+        return state, step, False
+
+    def model_based_extrapolation(self, goal_salient_event, episode):
+        """
+        Use a learned dynamics model + MPC to move in the direction of the randomly sampled goal state.
+
+        Args:
+            goal_salient_event (SalientEvent)
+            episode (int): current episode
+
+        Returns:
+            state (State): state at the end of the MPC rollout
+            steps_taken (int): how many steps the MPC took in the environment
+            accepted (bool): whether the revised salient event was rejected or not
+        """
+        assert not goal_salient_event.revised_by_mpc
+
+        state_before_rollout = deepcopy(self.mdp.cur_state)
+        print(f"Performing model-based extrapolation from {state_before_rollout.position} to {goal_salient_event}")
+
+        mpc_steps = 75 if episode < 100 else 50
+        state, steps_taken = self.mpc.rollout(mdp=self.mdp,
+                                              num_rollouts=14000, num_steps=7,
+                                              goal=goal_salient_event.get_target_position(),
+                                              max_steps=mpc_steps)
+
+        reject = self.should_reject_mpc_revision(state, goal_salient_event)
+
+        visualize_mpc_rollout_and_graph_result(self, goal_salient_event.get_target_position(),
+                                               state_before_rollout, state, steps_taken, episode,
+                                               reject, self.experiment_name, True)
+
+        if reject:
+            if goal_salient_event in self.mdp.all_salient_events_ever:
+                self.mdp.all_salient_events_ever.remove(goal_salient_event)
+            return state, steps_taken, False
+
+        goal_salient_event.target_state = state.position
+        goal_salient_event._initialize_trigger_points()
+        goal_salient_event.revised_by_mpc = True
+
+        return state, steps_taken, True
+
+    def should_reject_mpc_revision(self, state, goal_salient_event):
+        def satisfies_existing_event(s):
+            events = self.mdp.get_all_target_events_ever()
+            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
+            return any([event(s) for event in events])
+
+        def satisfies_start_event(s):
+            return self.mdp.get_start_state_salient_event()(s)
+
+        def inside_completed_option(s):
+            completed_options = [o for o in self.chainer.trained_options if o.get_training_phase() == "initiation_done"]
+            return any([o.is_init_true(s) for o in completed_options])
+
+        return satisfies_start_event(state) or satisfies_existing_event(state) or inside_completed_option(state)
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops

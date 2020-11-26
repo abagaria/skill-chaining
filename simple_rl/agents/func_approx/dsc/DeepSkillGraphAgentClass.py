@@ -45,10 +45,11 @@ class DeepSkillGraphAgent(object):
         self.pick_targets_stochastically = pick_targets_stochastically
         self.plot_gc_value_functions = plot_gc_value_functions
 
+        self.num_warmup_episodes = 20
+
         assert rejection_criteria in ("use_effect_sets", "use_init_sets"), rejection_criteria
 
         self.generated_salient_events = []
-        self.last_event_creation_episode = -1
         self.pursued_source_target_map = defaultdict(lambda: defaultdict(int))
 
     def __getstate__(self):
@@ -203,6 +204,10 @@ class DeepSkillGraphAgent(object):
                     selected_event = self._select_weakest_link_salient_event(state)
                     if selected_event is not None:
                         print(f"[Weakest] Deep skill graphs target event: {selected_event}")
+                        if isinstance(selected_event, DSCOptionSalientEvent):
+                            n_executions = selected_event.option.num_executions
+                            s_rate = np.mean(selected_event.option.on_policy_success_curve)
+                            print(f"[Weakest] {selected_event.option}: n={n_executions}, sr: {s_rate}")
                         return selected_event
             return self._randomly_select_salient_event(state, events)
 
@@ -212,7 +217,9 @@ class DeepSkillGraphAgent(object):
         for episode in range(episodes):
 
             if self.should_generate_new_salient_events(episode):
-                self.generate_new_salient_events(episode)
+                accepted, num_tries = self.dsg_event_discovery_loop(episode, num_tries_allowed=10, num_steps=num_steps)
+                print(f"[Salient-Event-Discovery] Event discovery accepted={accepted} after {num_tries} tries")
+                continue
 
             step_number = 0
             random_episodic_trajectory = []
@@ -248,7 +255,7 @@ class DeepSkillGraphAgent(object):
 
                 successes.append(success)
 
-            if episode < 5:
+            if episode < self.num_warmup_episodes:
                 goal_state = self.mdp.get_position(self.mdp.sample_random_state())
                 self.dsc_agent.global_option_experience_replay(random_episodic_trajectory, goal_state=goal_state)
 
@@ -323,26 +330,77 @@ class DeepSkillGraphAgent(object):
 
         return successes, final_states
 
-    def generate_new_salient_events(self, episode):
+    def dsg_event_discovery_loop(self, current_episode, num_tries_allowed, num_steps):
+        assert isinstance(current_episode, int)
+        assert isinstance(num_tries_allowed, int)
+        assert isinstance(num_steps, int)
 
-        event_idx = len(self.mdp.all_salient_events_ever) + 1
-        target_state = self.mdp.sample_random_state()[:2]
-        low_salient_event = SalientEvent(target_state, event_idx)
-        reject_low = self.add_salient_event(low_salient_event)
+        num_tries = 0
+        accepted = False
 
-        print(f"Generated {low_salient_event}; Rejected: {reject_low}")
-        self.last_event_creation_episode = episode
+        self.train_dynamics_model(current_episode)
+
+        while not accepted and num_tries < num_tries_allowed:
+            num_tries += 1
+            self.reset(current_episode)
+            goal_salient_event, reject = self.generate_new_salient_event()
+
+            if goal_salient_event is not None and not reject:
+                state, step, accepted = self.planning_agent.salient_event_discovery_run_loop(goal_salient_event,
+                                                                                             current_episode)
+                print(f"[Salient-Event-Discovery] Try # {num_tries}, final-state: {state.position}, step #{step}, accepted={accepted}")
+
+        if accepted:
+            self.add_salient_event(goal_salient_event)
+
+        return accepted, num_tries
+
+    def train_dynamics_model(self, episode):
+        if (episode % 100 == 0 and episode > 0) or episode == self.num_warmup_episodes:
+            num_epochs = 50 if episode < 1000 else 10
+            states, actions, states_p = self._prepare_dataset()
+            print(f"[MPC Training] Size of dataset: {len(states)}")
+            self.planning_agent.mpc.load_data(states, actions, states_p)
+            self.planning_agent.mpc.train(epochs=num_epochs, batch_size=1024)
+
+    def _prepare_dataset(self):
+        data = self.dsc_agent.global_option.solver.replay_buffer
+        states = []
+        actions = []
+        states_p = []
+        for state, action, reward, next_state, terminal in tqdm(data, desc='Preparing dataset for MPC'):
+            if not self.planning_agent.use_her:
+                states.append(state.astype('float64'))
+                actions.append(action.astype('float64'))
+                states_p.append(next_state.astype('float64'))
+            else:
+                states.append(state[:-2].astype('float64'))
+                actions.append(action.astype('float64'))
+                states_p.append(next_state[:-2].astype('float64'))
+        return states, actions, states_p
+
+    def generate_new_salient_event(self):
+        num_tries = 0
+        reject = True
+        salient_event = None
+
+        while reject and num_tries < 50:
+            num_tries += 1
+            event_idx = len(self.mdp.all_salient_events_ever) + 1
+            target_state = self.mdp.sample_random_state()[:2]
+            salient_event = SalientEvent(target_state, event_idx)
+
+            reject = self.should_reject_discovered_salient_event(salient_event)
+
+            print(f"Generated {salient_event}; Rejected: {reject}")
+
+        return salient_event, reject
 
     def add_salient_event(self, salient_event):
-        reject = self.should_reject_discovered_salient_event(salient_event)
-
-        if not reject:
-            print(f"[DSG Agent] Accepted {salient_event}")
-
-            self.generated_salient_events.append(salient_event)
-            self.mdp.add_new_target_event(salient_event)
-
-        return reject
+        assert salient_event.revised_by_mpc or isinstance(salient_event, DSCOptionSalientEvent)
+        print(f"[DSG Agent] Accepted {salient_event} (revised = {salient_event.revised_by_mpc})")
+        self.generated_salient_events.append(salient_event)
+        self.mdp.add_new_target_event(salient_event)
 
     def is_path_under_construction(self, state, init_salient_event, target_salient_event):
         assert isinstance(state, (State, np.ndarray)), f"{type(State)}"
@@ -400,12 +458,12 @@ class DeepSkillGraphAgent(object):
         return False
 
     def should_generate_new_salient_events(self, episode):
-        if episode < 5:
+        if episode < self.num_warmup_episodes:
             return False
-        elif episode == 5:
+        elif episode == self.num_warmup_episodes:
             return True
 
-        return episode - self.last_event_creation_episode >= self.salient_event_freq
+        return episode > 0 and episode % self.salient_event_freq == 0
 
     def generate_candidate_salient_events(self, state):
         """ Return the events that we are currently NOT in and to whom there is no path on the graph. """

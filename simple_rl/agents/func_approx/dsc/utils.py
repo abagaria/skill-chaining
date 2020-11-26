@@ -737,3 +737,52 @@ def visualize_bi_graph(planner, mdp):
             if event1 != event2:
                 if planner.plan_graph.does_path_exist(event1.target_state, event2):
                     make_arrow(event1.target_state, event2.target_state)
+
+
+def visualize_mpc_rollout_and_graph_result(planner, goal_state, start_state, result_state, steps_taken,
+                                           episode, rejected, experiment_name, use_target_states=True):
+    def _get_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.get_target_position()
+        trigger_positions = [event._get_position(s) for s in event.trigger_points]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
+
+    def _plot_event_pair(e1, e2, marker="o-", edge_color="black"):
+        x1, y1 = _get_representative_point(e1)
+        x2, y2 = _get_representative_point(e2)
+        x = [x1, x2]; y = [y1, y2]
+        plt.plot(x, y, marker, c=edge_color, alpha=0.1)
+        plt.scatter(x, y, c="black")
+
+    def is_connected(n1, n2):
+        if use_target_states:
+            return planner.plan_graph.does_path_exist(_get_representative_point(n1), n2)
+        return planner.plan_graph.does_path_exist_between_nodes(n1, n2)
+
+    events = planner.mdp.all_salient_events_ever + [planner.mdp.get_start_state_salient_event()]
+
+    for event1 in events:
+        for event2 in events:
+            if event1 != event2:
+                if is_connected(event1, event2) and is_connected(event2, event1):
+                    _plot_event_pair(event1, event2, "o-", edge_color="black")
+                elif is_connected(event1, event2) or is_connected(event2, event1):
+                    _plot_event_pair(event1, event2, "o--", edge_color="red")
+
+    x_low_lim, y_low_lim = planner.mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = planner.mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    # plot mpc points
+    plt.scatter(goal_state[0], goal_state[1], color='purple', label='goal state')
+    plt.scatter(start_state[0], start_state[1], color='green', label='start state')
+    plt.scatter(result_state[0], result_state[1], color='pink', label='MPC rollout')
+
+    plt.title(f"Steps Taken {steps_taken}, Rejected: {rejected}")
+
+    plt.savefig(f"value_function_plots/{experiment_name}/mpc_episode_{episode}_{rejected}.png")
+    plt.close()

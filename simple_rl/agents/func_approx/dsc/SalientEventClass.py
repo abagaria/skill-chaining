@@ -12,6 +12,7 @@ class SalientEvent(object):
         self.tolerance = tolerance
         self.intersection_event = intersection_event
         self.is_init_event = is_init_event
+        self.revised_by_mpc = False
 
         # This is the union of the effect set of all the options targeting this salient event
         self.trigger_points = []
