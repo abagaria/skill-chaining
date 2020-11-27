@@ -12,10 +12,13 @@ from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, gestation_period, initiation_period, experiment_name, device):
+    def __init__(self, warmup_episodes, gestation_period, initiation_period, use_vf,
+                 use_diverse_starts, experiment_name, device):
         self.device = device
+        self.use_vf = use_vf
         self.experiment_name = experiment_name
         self.warmup_episodes = warmup_episodes
+        self.use_diverse_starts = use_diverse_starts
 
         self.gestation_period = gestation_period
         self.initiation_period = initiation_period
@@ -122,7 +125,8 @@ class OnlineModelBasedSkillChaining(object):
                                   target_salient_event=self.target_salient_event,
                                   name=name,
                                   path_to_model="",
-                                  global_solver=self.global_option.solver)
+                                  global_solver=self.global_option.solver,
+                                  use_vf=self.use_vf)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -134,13 +138,14 @@ class OnlineModelBasedSkillChaining(object):
                                   target_salient_event=self.target_salient_event,
                                   name="global-option",
                                   path_to_model="",
-                                  global_solver=None)
+                                  global_solver=None,
+                                  use_vf=self.use_vf)
         return option
 
-    def reset(self, diverse=False):
+    def reset(self):
         self.mdp.reset()
 
-        if diverse:
+        if self.use_diverse_starts:
             random_state = self.mdp.sample_random_state()
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
@@ -175,13 +180,17 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--save_option_data", action="store_true", default=False)
     parser.add_argument("--warmup_episodes", type=int, default=5)
+    parser.add_argument("--use_value_function", action="store_true", default=False)
+    parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     args = parser.parse_args()
 
     exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
                                         initiation_period=args.initiation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
-                                        warmup_episodes=args.warmup_episodes)
+                                        warmup_episodes=args.warmup_episodes,
+                                        use_vf=args.use_value_function,
+                                        use_diverse_starts=args.use_diverse_starts)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")

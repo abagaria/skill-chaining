@@ -21,7 +21,7 @@ class MPC:
         self.device = device
         self.is_trained = False
         self.trained_options = []
-        self.gamma = 0.99
+        self.gamma = 0.95
 
         self.model = None
         self.replay_buffer = ReplayBuffer(obs_dim=state_size, act_dim=action_size, size=int(3e5))
@@ -92,6 +92,24 @@ class MPC:
 
         return deepcopy(mdp.cur_state), steps_taken, trajectory
 
+    def get_terminal_rewards(self, final_states, goal, horizon, vf=None):
+        if vf is None:
+            return np.zeros((final_states.shape[0], ))
+
+        assert isinstance(goal, np.ndarray), f"{type(goal)}"
+        assert goal.shape == (2,), f"Expected shape (2,), got {goal.shape}"
+
+        # Repeat the same goal `num_rollouts` number of times
+        num_rollouts = final_states.shape[0]
+        goals = np.repeat([goal], num_rollouts, axis=0)
+
+        assert goals.shape == (num_rollouts, 2), f"{goals.shape}"
+        assert final_states.shape[0] == goals.shape[0], "Need a goal for each state"
+
+        # Query the option value function and discount it appropriately
+        values = vf(final_states, goals)
+        return (self.gamma ** horizon) * values
+
     def simulate(self, s, goal, num_rollouts=14000, num_steps=7):
         """ Perform N simulations of length H. """
         goal_x = goal[0]
@@ -119,16 +137,30 @@ class MPC:
 
         return np_states, np_actions, costs
 
-    def act(self, s, goal, num_rollouts=14000, num_steps=7, gamma=0.95):
+    def act(self, s, goal, vf=None, num_rollouts=14000, num_steps=7):
         # sample actions for all steps
         final_states, actions, costs = self.simulate(s, goal, num_rollouts, num_steps)
 
         # choose next action to execute
-        gammas = np.power(gamma * np.ones(num_steps), np.arange(0, num_steps))
+        gammas = np.power(self.gamma * np.ones(num_steps), np.arange(0, num_steps))
         cumulative_costs = np.sum(costs * gammas, axis=1)
+
+        if vf is not None:
+            cumulative_costs += self._add_terminal_costs(cumulative_costs, final_states, goal, num_steps, vf)
+
         index = np.argmin(cumulative_costs) # retrieve action with least trajectory distance to goal
         action = actions[index, 0, :] # grab action corresponding to least distance
         return action
+
+    def _add_terminal_costs(self, n_step_costs, final_states, goal, num_steps, vf):
+        terminal_rewards = self.get_terminal_rewards(final_states, goal, horizon=num_steps, vf=vf)
+        terminal_costs = -1 * terminal_rewards.squeeze()
+        augmented_costs = n_step_costs + terminal_costs
+
+        assert terminal_costs.shape == n_step_costs.shape, f"{terminal_costs.shape, n_step_costs.shape}"
+        assert augmented_costs.shape == n_step_costs.shape, f"{augmented_costs.shape, n_step_costs.shape}"
+
+        return augmented_costs
 
     def step(self, state, action, reward, next_state, done):
         self.replay_buffer.store(state, action, reward, next_state, done)

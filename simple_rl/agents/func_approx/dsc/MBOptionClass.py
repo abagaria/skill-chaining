@@ -11,11 +11,12 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, buffer_length, global_init, gestation_period,
-                 initiation_period, timeout, max_steps, device, target_salient_event=None, path_to_model=""):
+                 initiation_period, timeout, max_steps, device, use_vf, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
         self.parent = parent
         self.device = device
+        self.use_vf = use_vf
         self.timeout = timeout
         self.max_steps = max_steps
         self.global_init = global_init
@@ -103,7 +104,9 @@ class ModelBasedOption(object):
 
         if random.random() < 0.2:
             return self.mdp.sample_random_action()
-        return self.solver.act(state, goal)
+
+        vf = self.value_function if self.use_vf else None
+        return self.solver.act(state, goal, vf=vf)
 
     def update_model(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
