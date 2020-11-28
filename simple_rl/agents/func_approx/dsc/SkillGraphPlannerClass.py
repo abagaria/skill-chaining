@@ -271,7 +271,7 @@ class SkillGraphPlanner(object):
         state_before_rollout = deepcopy(self.mdp.cur_state)
         print(f"Performing model-based extrapolation from {state_before_rollout.position} to {goal_salient_event}")
 
-        mpc_steps = 75 if episode < 100 else 50
+        mpc_steps = 100
         state, steps_taken = self.mpc.rollout(mdp=self.mdp,
                                               num_rollouts=14000, num_steps=7,
                                               goal=goal_salient_event.get_target_position(),
@@ -300,14 +300,24 @@ class SkillGraphPlanner(object):
             events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
             return any([event(s) for event in events])
 
+        def close_to_existing_event(s):
+            events = self.mdp.get_all_target_events_ever()
+            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
+            distances = [event.distance_to_effect_set([s]) for event in events]
+            distance_threshold = 2.5 * goal_salient_event.tolerance
+            return any([distance < distance_threshold for distance in distances])
+
         def satisfies_start_event(s):
             return self.mdp.get_start_state_salient_event()(s)
 
         def inside_completed_option(s):
             completed_options = [o for o in self.chainer.trained_options if o.get_training_phase() == "initiation_done"]
-            return any([o.is_init_true(s) for o in completed_options])
+            return any([o.is_init_true(s) or o.is_in_effect_set(s) for o in completed_options])
 
-        return satisfies_start_event(state) or satisfies_existing_event(state) or inside_completed_option(state)
+        return satisfies_start_event(state) or \
+               satisfies_existing_event(state) or \
+               inside_completed_option(state) or \
+               close_to_existing_event(state)
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops

@@ -445,17 +445,8 @@ class DeepSkillGraphAgent(object):
         Returns:
             should_reject (bool)
         """
-        existing_target_events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
-        if any([event(salient_event.target_state) for event in existing_target_events]):
-            return True
-
-        rejection_function = self.planning_agent.is_state_inside_any_vertex if self.rejection_criteria == "use_effect_sets"\
-                             else self.dsc_agent.state_in_any_completed_option
-
-        if rejection_function(salient_event.target_state):
-            return True
-
-        return False
+        return self.planning_agent.should_reject_mpc_revision(state=salient_event.target_state,
+                                                              goal_salient_event=salient_event)
 
     def should_generate_new_salient_events(self, episode):
         if episode < self.num_warmup_episodes:
