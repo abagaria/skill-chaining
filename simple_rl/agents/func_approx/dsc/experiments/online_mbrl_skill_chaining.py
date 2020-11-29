@@ -76,13 +76,14 @@ class OnlineModelBasedSkillChaining(object):
             self.log_status(episode, last_10_durations)
 
             if episode >= self.warmup_episodes:
-                self.learn_dynamics_model()
+                self.learn_dynamics_model(episode)
 
         return per_episode_durations
 
-    def learn_dynamics_model(self):
+    def learn_dynamics_model(self, episode):
+        num_epochs = 50 if episode < 100 else 10
         self.global_option.solver.load_data()
-        self.global_option.solver.train(epochs=50, batch_size=1024)
+        self.global_option.solver.train(epochs=num_epochs, batch_size=1024)
         for option in self.chain:
             option.solver.model = self.global_option.solver.model
 
