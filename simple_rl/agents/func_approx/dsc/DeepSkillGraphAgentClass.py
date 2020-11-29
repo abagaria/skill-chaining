@@ -107,7 +107,7 @@ class DeepSkillGraphAgent(object):
             weights = [self.planning_agent.plan_graph.plan_graph[original_option][n]["weight"] for n in neighbors]
             new_edge_weight = max(weights)
 
-            self.add_salient_event(corresponding_event)
+            # self.add_salient_event(corresponding_event)
             self.planning_agent.plan_graph.add_node(corresponding_event)
             self.planning_agent.plan_graph.add_edge(original_option, corresponding_event, new_edge_weight)
 

@@ -271,7 +271,7 @@ class SkillGraphPlanner(object):
         state_before_rollout = deepcopy(self.mdp.cur_state)
         print(f"Performing model-based extrapolation from {state_before_rollout.position} to {goal_salient_event}")
 
-        mpc_steps = 100
+        mpc_steps = 75
         state, steps_taken = self.mpc.rollout(mdp=self.mdp,
                                               num_rollouts=14000, num_steps=7,
                                               goal=goal_salient_event.get_target_position(),
