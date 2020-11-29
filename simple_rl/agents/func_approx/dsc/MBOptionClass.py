@@ -4,7 +4,7 @@ import itertools
 import numpy as np
 from copy import deepcopy
 from sklearn import svm
-from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
+from simple_rl.agents.func_approx.dsc.dynamics.mpc_v2 import MPC
 
 
 class ModelBasedOption(object):
@@ -26,6 +26,7 @@ class ModelBasedOption(object):
         self.option_idx = 1
 
         self.num_goal_hits = 0
+        self.num_executions = 0
         self.gestation_period = gestation_period
         self.initiation_period = initiation_period
 
@@ -43,7 +44,7 @@ class ModelBasedOption(object):
 
         if path_to_model:
             self.solver.load_model(path_to_model)
-
+		
     # ------------------------------------------------------------
     # Learning Phase Methods
     # ------------------------------------------------------------
@@ -90,9 +91,9 @@ class ModelBasedOption(object):
 
     def act(self, state, goal):
         """ Epsilon-greedy action selection. """
-
-        if random.random() < 0.2:
-            return self.mdp.sample_random_action()
+        # TODO is randomization necessary?
+        # if random.random() < 0.2:
+        #     return self.mdp.sample_random_action()
         return self.solver.act(state, goal)
 
     def update(self, state, action, reward, next_state):
@@ -125,6 +126,8 @@ class ModelBasedOption(object):
         goal = self.get_goal_for_rollout()
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
+        
+        self.num_executions += 1
 
         while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
 
@@ -224,6 +227,14 @@ class ModelBasedOption(object):
         if positive_training_examples.shape[0] > 0:
             self.pessimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
             self.pessimistic_classifier.fit(positive_training_examples)
+
+    def get_option_success_rate(self):
+        """
+        TODO: implement success rate at test time as well
+        """
+        if self.num_executions > 0:
+            return self.num_goal_hits / self.num_executions
+        return 1.
 
     # ------------------------------------------------------------
     # Convenience functions

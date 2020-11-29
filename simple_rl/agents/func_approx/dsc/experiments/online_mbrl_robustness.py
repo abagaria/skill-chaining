@@ -12,7 +12,7 @@ from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 
 
-class OnlineModelBasedSkillChaining(object):
+class OnlineModelBasedSkillChainingRobustness(object):
     def __init__(self, warmup_episodes, max_steps, gestation_period, initiation_period, experiment_name, device):
         self.device = device
         self.experiment_name = experiment_name
@@ -22,7 +22,7 @@ class OnlineModelBasedSkillChaining(object):
         self.gestation_period = gestation_period
         self.initiation_period = initiation_period
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)))
+        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 0)))
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -67,7 +67,7 @@ class OnlineModelBasedSkillChaining(object):
         last_10_durations = deque(maxlen=10)
 
         for episode in range(start_episode, start_episode + num_episodes):
-            self.reset(diverse=True)
+            self.reset()
 
             step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
 
@@ -75,18 +75,22 @@ class OnlineModelBasedSkillChaining(object):
             per_episode_durations.append(step)
             self.log_status(episode, last_10_durations)
 
-            if episode >= self.warmup_episodes:
-                self.learn_dynamics_model()
             
+            if episode == self.warmup_episodes:
+                self.learn_dynamics_model(epochs=50)
+            elif episode > self.warmup_episodes:
+                self.learn_dynamics_model(epochs=5)
+            
+            # if episode >= self.warmup_episodes and self.is_chain_complete():
             individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
             overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
-            self.log[episode] = {"individual_option_data": individual_option_data, "overall_sucess": overall_success}
+            self.log[episode] = {"individual_option_data": individual_option_data, "success": overall_success}
 
         return per_episode_durations
 
-    def learn_dynamics_model(self):
+    def learn_dynamics_model(self, epochs=50):
         self.global_option.solver.load_data()
-        self.global_option.solver.train(epochs=50, batch_size=1024)
+        self.global_option.solver.train(epochs=epochs, batch_size=1024)
         for option in self.chain:
             option.solver.model = self.global_option.solver.model
 
@@ -144,6 +148,7 @@ class OnlineModelBasedSkillChaining(object):
 
     def reset(self, diverse=False):
         self.mdp.reset()
+        self.mdp.set_xy((0,0))
 
         if diverse:
             random_state = self.mdp.sample_random_state()
@@ -169,27 +174,20 @@ def create_log_dir(experiment_name):
         print("Successfully created the directory %s " % path)
     return path
 
-def test_agent(exp, num_experiments, num_steps):
-    def rollout():
-        step_number = 0
-        while step_number < num_steps and not exp.mdp.cur_state.is_terminal():
-            state = deepcopy(exp.mdp.cur_state)
-            selected_option = exp.act(state)
+def plot_success_curve(agent, filepath):
+    last_epoch = max(list(exp.log.keys()))
+    num_options = len(exp.log[last_epoch]["individual_option_data"])
+    x = []
+    y = []
+    for i in range(0, last_epoch + 1):
+        if len(exp.log[i]["individual_option_data"]) == num_options:
+            x.append(i)
+            y.append(exp.log[i]["success"])
 
-            transitions, reward = selected_option.rollout(step_number=step_number)
-
-            step_number += len(transitions)
-        return step_number
-        
-    success = 0
-    step_counts = []
-    for _ in tqdm(range(num_experiments)):
-        exp.mdp.reset()
-        steps_taken = rollout()
-        if steps_taken != num_steps:
-            success += 1
-        step_counts.append(steps_taken)
-    return success / num_experiments, step_counts
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(x,y)
+    plt.savefig(filepath)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -203,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--warmup_episodes", type=int, default=5)
     args = parser.parse_args()
 
-    exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
+    exp = OnlineModelBasedSkillChainingRobustness(gestation_period=args.gestation_period,
                                         initiation_period=args.initiation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),

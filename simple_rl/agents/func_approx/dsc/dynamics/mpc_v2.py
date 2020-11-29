@@ -23,13 +23,14 @@ class MPC:
         self.trained_options = []
         self.gamma = 0.99
 
-        self.model = None
+        self.model = DynamicsModel(self.state_size, self.action_size, self.device)
+        self.model.to(self.device)
+        
         self.replay_buffer = ReplayBuffer(obs_dim=state_size, act_dim=action_size, size=int(3e5))
 
     def load_data(self):
         self.dataset = self._preprocess_data()
-        self.model = DynamicsModel(self.state_size, self.action_size, self.device, *self._get_standardization_vars())
-        self.model.to(self.device)
+        self.model.set_standardization_vars(*self._get_standardization_vars())
 
     def train(self, epochs=100, batch_size=512):
         self.is_trained = True
