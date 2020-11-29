@@ -117,10 +117,15 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # Used during testing only
     # ---------------------------------
 
-    def sample_random_state(self):
+    def sample_random_state(self, cond=lambda x: True):
         data = self.dataset
-        idx = np.random.choice(data.shape[0])
-        return data[idx, :]
+        state = None
+        while state is None:
+            idx = np.random.choice(data.shape[0])
+            state = data[idx, :]
+            if not cond(state):
+                state = None
+        return state
 
     def sample_random_action(self):
         size = (self.action_space_size(),)

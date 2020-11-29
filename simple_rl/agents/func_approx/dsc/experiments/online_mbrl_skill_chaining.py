@@ -13,12 +13,13 @@ from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, warmup_episodes, gestation_period, initiation_period, use_vf,
-                 use_diverse_starts, experiment_name, device):
+                 use_diverse_starts, use_dense_rewards, experiment_name, device):
         self.device = device
         self.use_vf = use_vf
         self.experiment_name = experiment_name
         self.warmup_episodes = warmup_episodes
         self.use_diverse_starts = use_diverse_starts
+        self.use_dense_rewards = use_dense_rewards
 
         self.gestation_period = gestation_period
         self.initiation_period = initiation_period
@@ -66,7 +67,7 @@ class OnlineModelBasedSkillChaining(object):
         last_10_durations = deque(maxlen=10)
 
         for episode in range(num_episodes):
-            self.reset()
+            self.reset(episode)
 
             step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
 
@@ -106,15 +107,16 @@ class OnlineModelBasedSkillChaining(object):
 
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
+        options = self.mature_options + self.new_options
 
         for option in self.mature_options:
             plot_two_class_classifier(option, episode, self.experiment_name, plot_examples=True)
+
+        for option in options:
             make_chunked_goal_conditioned_value_function_plot(option.value_learner,
                                                               goal=option.get_goal_for_rollout(),
                                                               episode=episode, seed=0,
                                                               experiment_name=self.experiment_name)
-            # should_change = option.should_change_negative_examples()
-            # print(f"{option.name} should-change: {sum(should_change)}/{len(should_change)}")
 
     def create_model_based_option(self, name, parent=None):
         option = ModelBasedOption(parent=parent, mdp=self.mdp,
@@ -126,7 +128,8 @@ class OnlineModelBasedSkillChaining(object):
                                   name=name,
                                   path_to_model="",
                                   global_solver=self.global_option.solver,
-                                  use_vf=self.use_vf)
+                                  use_vf=self.use_vf,
+                                  dense_reward=self.use_dense_rewards)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -139,14 +142,16 @@ class OnlineModelBasedSkillChaining(object):
                                   name="global-option",
                                   path_to_model="",
                                   global_solver=None,
-                                  use_vf=self.use_vf)
+                                  use_vf=self.use_vf,
+                                  dense_reward=self.use_dense_rewards)
         return option
 
-    def reset(self):
+    def reset(self, episode):
         self.mdp.reset()
 
-        if self.use_diverse_starts:
-            random_state = self.mdp.sample_random_state()
+        if self.use_diverse_starts and episode > self.warmup_episodes:
+            cond = lambda s: s[0] < 7.4 and s[1] < 2  # TODO: Hardcoded for bottom corridor
+            random_state = self.mdp.sample_random_state(cond=cond)
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
 
@@ -182,6 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("--warmup_episodes", type=int, default=5)
     parser.add_argument("--use_value_function", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
+    parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     args = parser.parse_args()
 
     exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
@@ -190,7 +196,8 @@ if __name__ == "__main__":
                                         device=torch.device(args.device),
                                         warmup_episodes=args.warmup_episodes,
                                         use_vf=args.use_value_function,
-                                        use_diverse_starts=args.use_diverse_starts)
+                                        use_diverse_starts=args.use_diverse_starts,
+                                        use_dense_rewards=args.use_dense_rewards)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")

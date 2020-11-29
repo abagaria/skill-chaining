@@ -11,7 +11,8 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, buffer_length, global_init, gestation_period,
-                 initiation_period, timeout, max_steps, device, use_vf, target_salient_event=None, path_to_model=""):
+                 initiation_period, timeout, max_steps, device, use_vf, dense_reward,
+                 target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
         self.parent = parent
@@ -20,6 +21,7 @@ class ModelBasedOption(object):
         self.timeout = timeout
         self.max_steps = max_steps
         self.global_init = global_init
+        self.dense_reward = dense_reward
         self.buffer_length = buffer_length
         self.target_salient_event = target_salient_event
 
@@ -27,7 +29,6 @@ class ModelBasedOption(object):
         self.overall_mdp = mdp
         self.seed = 0
         self.option_idx = 1
-        self.dense_reward = True
 
         self.num_goal_hits = 0
         self.gestation_period = gestation_period
@@ -41,7 +42,10 @@ class ModelBasedOption(object):
         if global_solver is not None:
             self.solver = global_solver
         else:
-            self.solver = MPC(self.mdp.state_space_size(), self.mdp.action_space_size(), self.device)
+            self.solver = MPC(state_size=self.mdp.state_space_size(),
+                              action_size=self.mdp.action_space_size(),
+                              dense_reward=self.dense_reward,
+                              device=self.device)
 
         self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
                                  action_dim=self.mdp.action_space_size(),

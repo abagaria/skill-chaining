@@ -15,10 +15,12 @@ from tqdm import tqdm
 import ipdb
 
 class MPC:
-    def __init__(self, state_size, action_size, device):
+    def __init__(self, state_size, action_size, dense_reward, device):
+        self.device = device
         self.state_size = state_size
         self.action_size = action_size
-        self.device = device
+        self.dense_reward = dense_reward
+
         self.is_trained = False
         self.trained_options = []
         self.gamma = 0.95
@@ -110,12 +112,23 @@ class MPC:
         values = vf(final_states, goals)
         return (self.gamma ** horizon) * values
 
+    def _get_costs(self, goals, states, tolerance=0.6):
+        assert goals.shape == states.shape, f"{goals.shape, states.shape}"
+        distances = np.linalg.norm(goals - states, axis=1)
+
+        if self.dense_reward:
+            return np.square(distances)
+
+        # Sparse cost function -- +1 if you didn't reach the goal, 0 if you did
+        did_not_reach_goals = distances > tolerance
+        costs = 1. * did_not_reach_goals
+        return costs
+
     def simulate(self, s, goal, num_rollouts=14000, num_steps=7):
         """ Perform N simulations of length H. """
-        goal_x = goal[0]
-        goal_y = goal[1]
         np_actions = np.random.uniform(-1., 1., size=(num_rollouts, num_steps, self.action_size))  # TODO hardcoded
         np_states = np.repeat(np.array([s]), num_rollouts, axis=0)
+        goals = np.repeat([goal], num_rollouts, axis=0)
         costs = np.zeros((num_rollouts, num_steps))
 
         with torch.no_grad():
@@ -133,7 +146,7 @@ class MPC:
                 np_states = pred.cpu().numpy()
 
                 # update results with (any) distance metric
-                costs[:, j] = (goal_x - np_states[:, 0]) ** 2 + (goal_y - np_states[:, 1]) ** 2
+                costs[:, j] = self._get_costs(goals, np_states[:, :2])
 
         return np_states, np_actions, costs
 
