@@ -34,14 +34,16 @@ class GoalDirectedMDP(MDP):
         reward = +0. if is_terminal else -1.
         return reward, is_terminal
 
-    def dense_gc_reward_function(self, state, goal, info):
+    def dense_gc_reward_function(self, state, goal, info={}):
         time_limit_truncated = info.get('TimeLimit.truncated', False)
+        init_pos = self.get_position(self.init_state)
         curr_pos = self.get_position(state)
         goal_pos = self.get_position(goal)
         distance_to_goal = np.linalg.norm(curr_pos - goal_pos)
+        normalization_factor = np.linalg.norm(init_pos - goal_pos)
         done = distance_to_goal <= self.goal_tolerance
         is_terminal = done and not time_limit_truncated
-        reward = +0. if is_terminal else -distance_to_goal
+        reward = +0. if is_terminal else -distance_to_goal/normalization_factor
         return reward, is_terminal
 
     def _initialize_salient_events(self):

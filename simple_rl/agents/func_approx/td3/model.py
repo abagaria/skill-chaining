@@ -19,6 +19,21 @@ class Actor(nn.Module):
         return self.max_action * torch.tanh(self.l3(a))
 
 
+class NormActor(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(NormActor, self).__init__()
+
+        self.l1 = nn.Linear(state_dim, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(256, action_dim)
+
+    def forward(self, x):
+        a = F.relu(self.l1(x))
+        a = F.relu(self.l2(a))
+        a = self.l3(a)
+        return a
+
+
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Critic, self).__init__()

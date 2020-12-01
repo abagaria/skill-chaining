@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 
 from simple_rl.agents.func_approx.td3.replay_buffer import ReplayBuffer
-from simple_rl.agents.func_approx.td3.model import Actor, Critic
+from simple_rl.agents.func_approx.td3.model import Actor, Critic, NormActor
 from simple_rl.agents.func_approx.td3.utils import *
 
 
@@ -18,6 +18,7 @@ class TD3(object):
             state_dim,
             action_dim,
             max_action,
+            use_output_normalization=True,
             discount=0.99,
             tau=0.005,
             policy_noise=0.2,
@@ -29,13 +30,21 @@ class TD3(object):
             name="Global-TD3-Agent"
     ):
 
-        self.actor = Actor(state_dim, action_dim, max_action).to(device)
+        self.critic_learning_rate = 3e-4
+        self.actor_learning_rate = 3e-4
+
+        if use_output_normalization:
+            assert max_action == 1., "Haven't fixed max-action for output-norm yet"
+            self.actor = NormActor(state_dim, action_dim).to(device)
+        else:
+            self.actor = Actor(state_dim, action_dim, max_action).to(device)
+
         self.target_actor = copy.deepcopy(self.actor)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.actor_learning_rate)
 
         self.critic = Critic(state_dim, action_dim).to(device)
         self.target_critic = copy.deepcopy(self.critic)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=3e-4)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.critic_learning_rate)
 
         self.replay_buffer = ReplayBuffer(state_dim, action_dim, device=device)
 
@@ -50,20 +59,40 @@ class TD3(object):
         self.epsilon = exploration_noise
         self.device = device
         self.name = name
+        self.use_output_normalization = use_output_normalization
 
         self.trained_options = []
-        self.critic_learning_rate = 3e-4
-        self.actor_learning_rate = 3e-4
 
         self.total_it = 0
 
     def act(self, state, evaluation_mode=False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-        selected_action = self.actor(state).cpu().data.numpy().flatten()
+        selected_action = self.actor(state)
+
+        if self.use_output_normalization:
+            selected_action = self.normalize_actions(selected_action)
+
+        selected_action = selected_action.cpu().data.numpy().flatten()
         noise = np.random.normal(0, self.max_action * self.epsilon, size=self.action_dim)
         if not evaluation_mode:
             selected_action += noise
         return selected_action.clip(-self.max_action, self.max_action)
+
+    def normalize_actions(self, actions):
+
+        if len(actions.shape) == 1:
+            actions = actions.unsqueeze(0)
+
+        K = torch.tensor(self.action_dim).to(self.device)
+        G = torch.sum(torch.abs(actions), dim=1).view(-1, 1)
+        G = G / K
+
+        ones = torch.ones(G.size()).to(self.device)
+        G_mod = torch.where(G >= 1, G, ones)
+
+        normalized_actions = actions / G_mod
+
+        return normalized_actions
 
     def step(self, state, action, reward, next_state, is_terminal):
         self.replay_buffer.add(state, action, reward, next_state, is_terminal)
@@ -83,8 +112,13 @@ class TD3(object):
                     torch.randn_like(action) * self.policy_noise
             ).clamp(-self.noise_clip, self.noise_clip)
 
+            target_actions = self.target_actor(next_state)
+
+            if self.use_output_normalization:
+                target_actions = self.normalize_actions(target_actions)
+
             next_action = (
-                    self.target_actor(next_state) + noise
+                    target_actions + noise
             ).clamp(-self.max_action, self.max_action)
 
             # Compute the target Q value
@@ -142,5 +176,8 @@ class TD3(object):
 
         with torch.no_grad():
             actions = self.actor(states)
+            if self.use_output_normalization:
+                actions = self.normalize_actions(actions)
+                actions = actions.clamp(-self.max_action, self.max_action)
             q_values = self.get_qvalues(states, actions)
         return q_values.cpu().numpy()

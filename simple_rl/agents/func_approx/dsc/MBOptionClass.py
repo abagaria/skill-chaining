@@ -165,10 +165,9 @@ class ModelBasedOption(object):
         if self.is_term_true(state):
             self.num_goal_hits += 1
 
-        if self.should_update_value_function():
-            self.update_value_function(option_transitions,
-                                       pursued_goal=goal,
-                                       reached_goal=self.extract_goal_dimensions(state))
+        self.update_value_function(option_transitions,
+                                   pursued_goal=goal,
+                                   reached_goal=self.extract_goal_dimensions(state))
 
         self.derive_positive_and_negative_examples(visited_states)
 
@@ -181,11 +180,6 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
     # Hindsight Experience Replay
     # ------------------------------------------------------------
-
-    def should_update_value_function(self):
-        """ Enumerate the rules for when we are allowed to update the option VF. """
-
-        return self.get_training_phase() != "gestation"
 
     def update_value_function(self, option_transitions, reached_goal, pursued_goal):
         """ Update the goal-conditioned option value function. """

@@ -114,7 +114,7 @@ class MPC:
 
     def _get_costs(self, goals, states, tolerance=0.6):
         assert goals.shape == states.shape, f"{goals.shape, states.shape}"
-        distances = np.linalg.norm(goals - states, axis=1)
+        distances = np.linalg.norm(goals - states, axis=1) / 8.  # TODO: We need batched reward functions
 
         if self.dense_reward:
             return np.square(distances)
@@ -159,7 +159,7 @@ class MPC:
         cumulative_costs = np.sum(costs * gammas, axis=1)
 
         if vf is not None:
-            cumulative_costs += self._add_terminal_costs(cumulative_costs, final_states, goal, num_steps, vf)
+            cumulative_costs = self._add_terminal_costs(cumulative_costs, final_states, goal, num_steps, vf)
 
         index = np.argmin(cumulative_costs) # retrieve action with least trajectory distance to goal
         action = actions[index, 0, :] # grab action corresponding to least distance
