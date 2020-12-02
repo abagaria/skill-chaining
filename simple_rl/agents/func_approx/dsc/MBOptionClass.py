@@ -10,9 +10,9 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 
 class ModelBasedOption(object):
-    def __init__(self, *, name, parent, mdp, global_solver, buffer_length, global_init, gestation_period,
-                 initiation_period, timeout, max_steps, device, use_vf, dense_reward,
-                 target_salient_event=None, path_to_model=""):
+    def __init__(self, *, name, parent, mdp, global_solver, global_value_learner,buffer_length, global_init,
+                 gestation_period, initiation_period, timeout, max_steps, device, use_vf, dense_reward,
+                 option_idx, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
         self.parent = parent
@@ -28,7 +28,7 @@ class ModelBasedOption(object):
         # TODO
         self.overall_mdp = mdp
         self.seed = 0
-        self.option_idx = 1
+        self.option_idx = option_idx
 
         self.num_goal_hits = 0
         self.gestation_period = gestation_period
@@ -53,11 +53,18 @@ class ModelBasedOption(object):
                                  name=f"{name}-td3-agent",
                                  device=self.device)
 
+        self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
+
         self.in_out_pairs = []
         self.success_curve = []
 
         if path_to_model:
             self.solver.load_model(path_to_model)
+
+        if self.use_vf and self.parent is not None:
+            self.initialize_value_function_with_global_value_function()
+
+        print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -187,6 +194,12 @@ class ModelBasedOption(object):
         self.experience_replay(option_transitions, pursued_goal)
         self.experience_replay(option_transitions, reached_goal)
 
+    def initialize_value_function_with_global_value_function(self):
+        self.value_learner.actor.load_state_dict(self.global_value_learner.actor.state_dict())
+        self.value_learner.critic.load_state_dict(self.global_value_learner.critic.state_dict())
+        self.value_learner.target_actor.load_state_dict(self.global_value_learner.target_actor.state_dict())
+        self.value_learner.target_critic.load_state_dict(self.global_value_learner.target_critic.state_dict())
+
     def extract_goal_dimensions(self, goal):
         goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
         if "ant" in self.mdp.env_name:
@@ -207,8 +220,13 @@ class ModelBasedOption(object):
 
             reward_func = self.overall_mdp.dense_gc_reward_function if self.dense_reward \
                 else self.overall_mdp.sparse_gc_reward_function
-            reward, _ = reward_func(next_state, goal_state, info={})
+            reward, global_done = reward_func(next_state, goal_state, info={})
             self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
+
+            # Off-policy updates to the global option value function
+            if not self.global_init:
+                assert self.global_value_learner is not None
+                self.global_value_learner.step(augmented_state, action, reward, augmented_next_state, global_done)
 
     def value_function(self, states, goals):
         assert isinstance(states, np.ndarray)

@@ -46,6 +46,34 @@ class GoalDirectedMDP(MDP):
         reward = +0. if is_terminal else -distance_to_goal/normalization_factor
         return reward, is_terminal
 
+    def batched_sparse_gc_reward_function(self, states, goals):
+        assert isinstance(states, np.ndarray)
+        assert isinstance(goals, np.ndarray)
+
+        current_positions = states[:, :2]
+        goal_positions = goals[:, :2]
+        distances = distance.cdist(current_positions, goal_positions)
+        dones = distances <= self.goal_tolerance
+
+        rewards = np.zeros_like(dones)
+        rewards[dones==1] = +0.
+        rewards[dones==0] = -1.
+
+        return rewards, dones
+
+    def batched_dense_gc_reward_function(self, states, goals):
+        init_pos = self.get_position(self.init_state)
+        goal_pos = self.get_position(self.goal_state)
+        normalization_factor = np.linalg.norm(init_pos - goal_pos)
+
+        current_positions = states[:, :2]
+        goal_positions = goals[:, :2]
+        distances = distance.cdist(current_positions, goal_positions)
+        dones = distances <= self.goal_tolerance
+        rewards = -distances / normalization_factor
+
+        return rewards, dones
+
     def _initialize_salient_events(self):
         # Set the current target events in the MDP
         self.current_salient_events = [SalientEvent(pos, event_idx=i + 1) for i, pos in

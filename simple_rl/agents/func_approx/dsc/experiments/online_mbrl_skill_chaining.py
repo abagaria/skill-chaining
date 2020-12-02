@@ -120,6 +120,7 @@ class OnlineModelBasedSkillChaining(object):
                                                               experiment_name=self.experiment_name)
 
     def create_model_based_option(self, name, parent=None):
+        option_idx = len(self.chain) + 1 if parent is not None else 1
         option = ModelBasedOption(parent=parent, mdp=self.mdp,
                                   buffer_length=50, global_init=False,
                                   gestation_period=self.gestation_period,
@@ -130,7 +131,9 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=self.global_option.solver,
                                   use_vf=self.use_vf,
-                                  dense_reward=self.use_dense_rewards)
+                                  dense_reward=self.use_dense_rewards,
+                                  global_value_learner=self.global_option.value_learner,
+                                  option_idx=option_idx)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -144,7 +147,9 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=None,
                                   use_vf=self.use_vf,
-                                  dense_reward=self.use_dense_rewards)
+                                  dense_reward=self.use_dense_rewards,
+                                  global_value_learner=None,
+                                  option_idx=0)
         return option
 
     def reset(self, episode):
