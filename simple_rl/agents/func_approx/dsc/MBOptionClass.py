@@ -42,7 +42,8 @@ class ModelBasedOption(object):
         if global_solver is not None:
             self.solver = global_solver
         else:
-            self.solver = MPC(state_size=self.mdp.state_space_size(),
+            self.solver = MPC(mdp=self.mdp,
+                              state_size=self.mdp.state_space_size(),
                               action_size=self.mdp.action_space_size(),
                               dense_reward=self.dense_reward,
                               device=self.device)

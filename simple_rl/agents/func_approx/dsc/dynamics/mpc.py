@@ -10,12 +10,16 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from simple_rl.agents.func_approx.dsc.dynamics.dynamics_model import DynamicsModel
 from simple_rl.agents.func_approx.dsc.dynamics.replay_buffer import ReplayBuffer
+from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 
 from tqdm import tqdm
 import ipdb
 
 class MPC:
-    def __init__(self, state_size, action_size, dense_reward, device):
+    def __init__(self, mdp, state_size, action_size, dense_reward, device):
+        assert isinstance(mdp, GoalDirectedMDP)
+
+        self.mdp = mdp
         self.device = device
         self.state_size = state_size
         self.action_size = action_size
@@ -112,16 +116,14 @@ class MPC:
         values = vf(final_states, goals)
         return (self.gamma ** horizon) * values
 
-    def _get_costs(self, goals, states, tolerance=0.6):
+    def _get_costs(self, goals, states):
         assert goals.shape == states.shape, f"{goals.shape, states.shape}"
-        distances = np.linalg.norm(goals - states, axis=1) / 8.  # TODO: We need batched reward functions
 
-        if self.dense_reward:
-            return np.square(distances)
+        reward_function = self.mdp.batched_dense_gc_reward_function if self.dense_reward\
+                            else self.mdp.batched_sparse_gc_reward_function
 
-        # Sparse cost function -- +1 if you didn't reach the goal, 0 if you did
-        did_not_reach_goals = distances > tolerance
-        costs = 1. * did_not_reach_goals
+        rewards, dones = reward_function(states, goals)
+        costs = -1. * rewards
         return costs
 
     def simulate(self, s, goal, num_rollouts=14000, num_steps=7):

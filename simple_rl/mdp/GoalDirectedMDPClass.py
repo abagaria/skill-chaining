@@ -52,10 +52,10 @@ class GoalDirectedMDP(MDP):
 
         current_positions = states[:, :2]
         goal_positions = goals[:, :2]
-        distances = distance.cdist(current_positions, goal_positions)
+        distances = np.linalg.norm(current_positions-goal_positions, axis=1)
         dones = distances <= self.goal_tolerance
 
-        rewards = np.zeros_like(dones)
+        rewards = np.zeros_like(distances)
         rewards[dones==1] = +0.
         rewards[dones==0] = -1.
 
@@ -68,7 +68,7 @@ class GoalDirectedMDP(MDP):
 
         current_positions = states[:, :2]
         goal_positions = goals[:, :2]
-        distances = distance.cdist(current_positions, goal_positions)
+        distances = np.linalg.norm(current_positions-goal_positions, axis=1)
         dones = distances <= self.goal_tolerance
         rewards = -distances / normalization_factor
 
