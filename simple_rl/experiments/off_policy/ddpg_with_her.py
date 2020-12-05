@@ -3,6 +3,7 @@ import numpy as np
 import gym
 import torch
 import ipdb
+import random
 
 # I/O imports
 import os
@@ -65,6 +66,11 @@ if __name__ == '__main__':
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+
+    pickle.dump(args, open(directory / 'args.pkl', 'wb'))
+
     if args.env == "d4rl-ant-maze":
         from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
         mdp = D4RLAntMazeMDP(maze_size="medium", seed=args.seed, render=args.render)
@@ -82,6 +88,10 @@ if __name__ == '__main__':
                                        use_hard_coded_events=False,
                                        difficulty="hard",
                                        goal_directed=True)
+    elif args.env == "ant-reacher":
+        from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
+        mdp = AntReacherMDP(seed=args.seed,
+                            goal_reward=args.goal_reward)
     else:
         raise NotImplementedError(args.env)
 
