@@ -119,8 +119,6 @@ if __name__ == '__main__':
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
-    #ipdb.set_trace()
-
     random.seed(args.seed)
     np.random.seed(args.seed)
 
@@ -192,8 +190,6 @@ if __name__ == '__main__':
         test_time_goal_states = pickle.load(open(args.test_time_goal_states_pickle, 'rb'))
     else:
         test_time_goal_states = [np.array([2,2])]
-
-    #ipdb.set_trace()
 
     for n, (start_state, goal_state) in enumerate(zip(test_time_start_states, test_time_goal_states)):    
         # Each time we do a unique intervention, so have to copy
@@ -285,7 +281,6 @@ if __name__ == '__main__':
 
             else:
                 raise NotImplementedError(f"{args.intervention} is not a valid intervention")
-        ipdb.set_trace()
         # TODO: Change this to not use HER if our intervention
         # was train subnetwork -- in that case, we now have a 
         # fixed-goal policy
