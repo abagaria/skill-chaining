@@ -120,7 +120,7 @@ if __name__ == '__main__':
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
-    ipdb.set_trace()
+    #ipdb.set_trace()
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     else:
         test_time_goal_states = [np.array([1.5,1.5])]
 
-    ipdb.set_trace()
+    #ipdb.set_trace()
 
     for n, (start_state, goal_state) in enumerate(zip(test_time_start_states, test_time_goal_states)):    
         # Each time we do a unique intervention, so have to copy
@@ -222,7 +222,7 @@ if __name__ == '__main__':
                     if np.linalg.norm(gc_state - goal_state) <= FILTER_THRESHOLD:
                         test_time_solver.replay_buffer.add(state, action, reward, next_state, terminal)
                     
-                    print(f"Filtered {test_time_solver.replay_buffer.num_exp} experiences out of {old_buffer.num_exp} with a threshold of {FILTER_THRESHOLD}")
+                print(f"Filtered {test_time_solver.replay_buffer.num_exp} experiences out of {old_buffer.num_exp} with a threshold of {FILTER_THRESHOLD}")
 
             elif args.intervention == "train_subnetwork":
                 # Here, we train a non-gc network on the fixed goal
@@ -236,11 +236,11 @@ if __name__ == '__main__':
                 
                 def condition_on_goal(state):
                     gc_state = state
-                    gc_state[-2] = goal_state[0]
-                    gc_state[-1] = goal_state[1]
+                    gc_state[-2:] = goal_state
 
                     return gc_state
                 
+                ipdb.set_trace()
                 old_buffer = solver.replay_buffer
                 # Even though we will strip the goal off this state,
                 # We need it to get the goal-conditioned predicted rewards
@@ -278,6 +278,10 @@ if __name__ == '__main__':
 
             else:
                 raise NotImplementedError(f"{args.intervention} is not a valid intervention")
+
+        # TODO: Change this to not use HER if our intervention
+        # was train subnetwork -- in that case, we now have a 
+        # fixed-goal policy
 
         # (ii) Test on a fixed-goal domain, maybe pretrained
         pes_ii, ped_ii, pesuccesses_ii, _ = her_train(
