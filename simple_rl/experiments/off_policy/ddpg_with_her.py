@@ -43,8 +43,8 @@ parser.add_argument('--dense_reward', action='store_true', default=False)
 parser.add_argument('--goal_reward', type=float, default=0.)
 parser.add_argument('--preload_solver_path', type=str, default=None)
 parser.add_argument('--her_at_test_time', action='store_true', default=False)
-parser.add_argument('--test_time_start_states_pickle', type=str)
-parser.add_argument('--test_time_goal_states_pickle', type=str)
+parser.add_argument('--test_time_start_states_pickle', type=str, default=None)
+parser.add_argument('--test_time_goal_states_pickle', type=str, default=None)
 parser.add_argument('--intervention', type=str, default=None)
 
 args = parser.parse_args()
@@ -184,8 +184,17 @@ if __name__ == '__main__':
     else:
         solver = pickle.load(open(args.preload_solver_path, 'rb'))
 
-    test_time_start_states = pickle.load(open(args.test_time_start_states_pickle, 'rb'))
-    test_time_goal_states = pickle.load(open(args.test_time_goal_states_pickle, 'rb'))
+    if test_time_start_states is not None:
+        test_time_start_states = pickle.load(open(args.test_time_start_states_pickle, 'rb'))
+    else:
+        test_time_start_states = [np.array([0,0])]
+    
+    if test_time_goal_states is not None:
+        test_time_goal_states = pickle.load(open(args.test_time_goal_states_pickle, 'rb'))
+    else:
+        test_time_goal_states = [np.array([1.5,1.5])]
+
+    ipdb.set_trace()
 
     for n, (start_state, goal_state) in enumerate(zip(test_time_start_states, test_time_goal_states)):    
         # Each time we do a unique intervention, so have to copy
