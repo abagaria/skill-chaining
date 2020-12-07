@@ -184,12 +184,12 @@ if __name__ == '__main__':
     else:
         solver = pickle.load(open(args.preload_solver_path, 'rb'))
 
-    if test_time_start_states is not None:
+    if args.test_time_start_states_pickle is not None:
         test_time_start_states = pickle.load(open(args.test_time_start_states_pickle, 'rb'))
     else:
         test_time_start_states = [np.array([0,0])]
     
-    if test_time_goal_states is not None:
+    if args.test_time_goal_states_pickle is not None:
         test_time_goal_states = pickle.load(open(args.test_time_goal_states_pickle, 'rb'))
     else:
         test_time_goal_states = [np.array([1.5,1.5])]
