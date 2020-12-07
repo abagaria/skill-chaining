@@ -191,7 +191,7 @@ if __name__ == '__main__':
     if args.test_time_goal_states_pickle is not None:
         test_time_goal_states = pickle.load(open(args.test_time_goal_states_pickle, 'rb'))
     else:
-        test_time_goal_states = [np.array([1.5,1.5])]
+        test_time_goal_states = [np.array([2,2])]
 
     #ipdb.set_trace()
 
