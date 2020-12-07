@@ -272,6 +272,7 @@ if __name__ == '__main__':
                     state = state[:-2]
                     next_state = next_state[:-2]
 
+                    ipdb.set_trace()
                     test_time_solver.step(state, action, reward, next_state, terminal)
 
 
