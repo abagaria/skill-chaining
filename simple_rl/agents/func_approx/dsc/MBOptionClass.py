@@ -11,8 +11,8 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner,buffer_length, global_init,
-                 gestation_period, initiation_period, timeout, max_steps, device, use_vf, dense_reward,
-                 option_idx, target_salient_event=None, path_to_model=""):
+                 gestation_period, timeout, max_steps, device, use_vf, dense_reward,
+                 option_idx, max_num_children=2, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
         self.parent = parent
@@ -23,6 +23,7 @@ class ModelBasedOption(object):
         self.global_init = global_init
         self.dense_reward = dense_reward
         self.buffer_length = buffer_length
+        self.max_num_children = max_num_children
         self.target_salient_event = target_salient_event
 
         # TODO
@@ -32,7 +33,6 @@ class ModelBasedOption(object):
 
         self.num_goal_hits = 0
         self.gestation_period = gestation_period
-        self.initiation_period = initiation_period
 
         self.positive_examples = []
         self.negative_examples = []
@@ -56,6 +56,8 @@ class ModelBasedOption(object):
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
+
+        self.children = []
         self.in_out_pairs = []
         self.success_curve = []
 
@@ -74,11 +76,7 @@ class ModelBasedOption(object):
     def get_training_phase(self):
         if self.num_goal_hits < self.gestation_period:
             return "gestation"
-        if self.num_goal_hits < (self.gestation_period + self.initiation_period):
-            return "initiation"
-        if self.num_goal_hits >= (self.gestation_period + self.initiation_period):
-            return "initiation_done"
-        return "trained"
+        return "initiation_done"
 
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
@@ -133,7 +131,11 @@ class ModelBasedOption(object):
 
         sampled_goal = self.parent.sample_from_initiation_region()
         assert sampled_goal is not None
-        return sampled_goal.squeeze()
+
+        if isinstance(sampled_goal, np.ndarray):
+            return sampled_goal.squeeze()
+
+        return self.extract_goal_dimensions(sampled_goal)
 
     def rollout(self, step_number):
         """ Main option control loop. """
@@ -252,12 +254,16 @@ class ModelBasedOption(object):
     def sample_from_initiation_region(self):
         """ Sample from the pessimistic initiation classifier. """
 
-        positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        training_predictions = self.pessimistic_classifier.predict(positive_feature_matrix)
-        positive_training_examples = positive_feature_matrix[training_predictions == 1]
-        if positive_training_examples.shape[0] > 0:
-            idx = random.sample(range(positive_training_examples.shape[0]), k=1)
-            return positive_training_examples[idx]
+        def get_first_state_in_classifier(trajectory):
+            for state in trajectory:
+                if self.pessimistic_is_init_true(state):
+                    return state
+            return None
+
+        starting_positive_examples = [get_first_state_in_classifier(traj) for traj in self.positive_examples]
+        starting_positive_examples = [state for state in starting_positive_examples if state is not None]
+        if len(starting_positive_examples) > 0:
+            return random.choice(starting_positive_examples)
 
     def derive_positive_and_negative_examples(self, visited_states):
         start_state = visited_states[0]
