@@ -252,7 +252,6 @@ if __name__ == '__main__':
                 qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
 
                 # Now, do the thing for next_state,next_action pairs
-                ipdb.set_trace()
                 next_states = np.array([condition_on_goal(exp[3]) for exp in old_buffer.memory])
                 next_actions = np.array([solver.act(next_state) for next_state in next_states])
                 next_states_tensor = torch.from_numpy(next_states).float().to(args.device)
@@ -273,12 +272,12 @@ if __name__ == '__main__':
                     state = state[:-2]
                     next_state = next_state[:-2]
 
-                    #step(self, state, action, reward, next_state, done)
+                    test_time_solver.step(self, state, action, reward, next_state, done)
 
 
             else:
                 raise NotImplementedError(f"{args.intervention} is not a valid intervention")
-
+        ipdb.set_trace()
         # TODO: Change this to not use HER if our intervention
         # was train subnetwork -- in that case, we now have a 
         # fixed-goal policy
