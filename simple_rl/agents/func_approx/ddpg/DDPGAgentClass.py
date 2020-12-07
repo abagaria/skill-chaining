@@ -308,7 +308,7 @@ def train(agent, mdp, episodes, steps):
     return per_episode_scores, per_episode_durations
 
 
-def her_rollout(agent, start, goal, mdp, steps, dense_reward):
+def her_rollout(agent, start, goal, mdp, steps, dense_reward, use_her=True):
     score = 0.
     trajectory = []
 
@@ -323,7 +323,11 @@ def her_rollout(agent, start, goal, mdp, steps, dense_reward):
     done = False
     for _ in range(steps):
         state = deepcopy(mdp.cur_state)
-        aug_state = np.concatenate((state.features(), goal), axis=0)
+
+        if use_her:
+            aug_state = np.concatenate((state.features(), goal), axis=0)
+        else:
+            aug_state = state
 
         if "point" in mdp.env_name:
             greedy_epsilon =  0.1
@@ -374,7 +378,7 @@ def her_train(agent, mdp, episodes, steps, start_state = None, goal_state=None, 
             goal_state = mdp.sample_random_state()[:2]
 
         # Roll-out current policy for one episode
-        score, trajectory, succeeded = her_rollout(agent, start_state, goal_state, mdp, steps, dense_reward)
+        score, trajectory, succeeded = her_rollout(agent, start_state, goal_state, mdp, steps, dense_reward, use_her=use_her)
 
         # Debug log the trajectories
         trajectories.append(trajectory)
@@ -385,8 +389,12 @@ def her_train(agent, mdp, episodes, steps, start_state = None, goal_state=None, 
             reward_func = mdp.dense_gc_reward_function if dense_reward else mdp.sparse_gc_reward_function
             reward, done = reward_func(next_state, goal_state, {})
 
-            augmented_state = np.concatenate((state.features(), goal_state), axis=0)
-            augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
+            if use_her:
+                augmented_state = np.concatenate((state.features(), goal_state), axis=0)
+                augmented_next_state = np.concatenate((next_state.features(), goal_state), axis=0)
+            else:
+                augmented_state = state.features()
+                augmented_next_state = state.features()
             agent.step(augmented_state, action, reward, augmented_next_state, done)
 
         if use_her:

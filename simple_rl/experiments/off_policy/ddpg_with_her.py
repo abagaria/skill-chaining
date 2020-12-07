@@ -42,7 +42,6 @@ parser.add_argument('--goal_state', type=float, nargs='+')
 parser.add_argument('--dense_reward', action='store_true', default=False)
 parser.add_argument('--goal_reward', type=float, default=0.)
 parser.add_argument('--preload_solver_path', type=str, default=None)
-parser.add_argument('--her_at_test_time', action='store_true', default=False)
 parser.add_argument('--test_time_start_states_pickle', type=str, default=None)
 parser.add_argument('--test_time_goal_states_pickle', type=str, default=None)
 parser.add_argument('--intervention', type=str, default=None)
@@ -201,6 +200,9 @@ if __name__ == '__main__':
         test_time_solver = deepcopy(solver)
         test_time_solver.name = "test_time"
 
+        # Just bad code right heeer
+        use_her = True
+
         # Run our intervention here
         if args.intervention is not None:
             if args.intervention == "empty_buffer":
@@ -225,6 +227,9 @@ if __name__ == '__main__':
                 print(f"Filtered {test_time_solver.replay_buffer.num_exp} experiences out of {old_buffer.num_exp} with a threshold of {FILTER_THRESHOLD}")
 
             elif args.intervention == "train_subnetwork":
+                # Only time we do this
+                use_her = False
+
                 # Here, we train a non-gc network on the fixed goal
                 test_time_solver = DDPGAgent(
                     mdp.state_space_size(),
@@ -275,7 +280,6 @@ if __name__ == '__main__':
                     reward = float(reward)
                     terminal = bool(terminal)
 
-                    ipdb.set_trace()
                     test_time_solver.step(state, action, reward, next_state, terminal)
 
 
@@ -296,7 +300,7 @@ if __name__ == '__main__':
             goal_state = goal_state,
             sampling_strategy="test",
             dense_reward=args.dense_reward,
-            use_her=args.her_at_test_time
+            use_her=use_her
             )
 
         pickle.dump(pes_ii, open(directory / f'test_time_scores_{n}.pkl', 'wb'))
