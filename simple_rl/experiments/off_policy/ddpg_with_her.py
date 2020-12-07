@@ -239,8 +239,7 @@ if __name__ == '__main__':
                     gc_state[-2:] = goal_state
 
                     return gc_state
-                
-                ipdb.set_trace()
+
                 old_buffer = solver.replay_buffer
                 # Even though we will strip the goal off this state,
                 # We need it to get the goal-conditioned predicted rewards
@@ -253,7 +252,8 @@ if __name__ == '__main__':
                 qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
 
                 # Now, do the thing for next_state,next_action pairs
-                next_states = np.array([condition_on_goal(exp[2]) for exp in old_buffer.memory])
+                ipdb.set_trace()
+                next_states = np.array([condition_on_goal(exp[3]) for exp in old_buffer.memory])
                 next_actions = np.array([solver.act(next_state) for next_state in next_states])
                 next_states_tensor = torch.from_numpy(next_states).float().to(args.device)
                 next_actions_tensor = torch.from_numpy(next_actions).float().to(args.device)
