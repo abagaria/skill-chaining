@@ -211,8 +211,7 @@ if __name__ == '__main__':
             elif args.intervention == "filter_buffer":
                 old_buffer = solver.replay_buffer
                 test_time_solver.replay_buffer.clear()
-                for i in range(old_buffer.num_exp):
-                    state, action, reward, next_state, terminal = old_buffer[i]
+                for state, action, reward, next_state, terminal in old_buffer:
                     FILTER_THRESHOLD = 1
 
                     # We are going to filter the replay buffer for states where
