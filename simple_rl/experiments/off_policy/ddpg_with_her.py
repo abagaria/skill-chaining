@@ -181,6 +181,8 @@ if __name__ == '__main__':
     else:
         solver = pickle.load(open(args.preload_solver_path, 'rb'))
 
+    ipdb.set_trace()
+
     if args.test_time_start_states_pickle is not None:
         test_time_start_states = pickle.load(open(args.test_time_start_states_pickle, 'rb'))
     else:
@@ -189,7 +191,7 @@ if __name__ == '__main__':
     if args.test_time_goal_states_pickle is not None:
         test_time_goal_states = pickle.load(open(args.test_time_goal_states_pickle, 'rb'))
     else:
-        test_time_goal_states = [np.array([2,2])]
+        test_time_goal_states = [np.array([3,3])]
 
     for n, (start_state, goal_state) in enumerate(zip(test_time_start_states, test_time_goal_states)):    
         # Each time we do a unique intervention, so have to copy
