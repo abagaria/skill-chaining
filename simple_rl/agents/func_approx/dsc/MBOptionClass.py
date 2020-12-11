@@ -91,10 +91,10 @@ class ModelBasedOption(object):
 
     def act(self, state, goal):
         """ Epsilon-greedy action selection. """
-        # TODO is randomization necessary?
+        # TODO is randomization necessary? (Jason)
         # if random.random() < 0.2:
         #     return self.mdp.sample_random_action()
-        return self.solver.act(state, goal)
+        return self.solver.act(state, goal, num_rollouts=5000, num_steps=20)
 
     def update(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
@@ -230,7 +230,7 @@ class ModelBasedOption(object):
 
     def get_option_success_rate(self):
         """
-        TODO: implement success rate at test time as well
+        TODO: implement success rate at test time as well (Jason)
         """
         if self.num_executions > 0:
             return self.num_goal_hits / self.num_executions

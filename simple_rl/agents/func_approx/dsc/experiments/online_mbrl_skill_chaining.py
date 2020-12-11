@@ -67,7 +67,10 @@ class OnlineModelBasedSkillChaining(object):
         last_10_durations = deque(maxlen=10)
 
         for episode in range(start_episode, start_episode + num_episodes):
-            self.reset(diverse=True)
+            if episode < self.warmup_episodes:
+                self.reset(diverse=False)
+            else:
+                self.reset(diverse=True)
 
             step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
 
@@ -75,18 +78,23 @@ class OnlineModelBasedSkillChaining(object):
             per_episode_durations.append(step)
             self.log_status(episode, last_10_durations)
 
-            if episode >= self.warmup_episodes:
-                self.learn_dynamics_model()
+            if episode == self.warmup_episodes - 1:
+                self.learn_dynamics_model(epochs=50)
+            elif episode >= self.warmup_episodes:
+                self.learn_dynamics_model(epochs=5)
             
-            individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
-            overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
-            self.log[episode] = {"individual_option_data": individual_option_data, "overall_sucess": overall_success}
+            self.log_success_metrics(episode)
 
         return per_episode_durations
 
-    def learn_dynamics_model(self):
+    def log_success_metrics(self, episode):
+        individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
+        overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
+        self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
+
+    def learn_dynamics_model(self, epochs=50, batch_size=1024):
         self.global_option.solver.load_data()
-        self.global_option.solver.train(epochs=50, batch_size=1024)
+        self.global_option.solver.train(epochs=epochs, batch_size=batch_size)
         for option in self.chain:
             option.solver.model = self.global_option.solver.model
 
@@ -200,7 +208,7 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, default=150)
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--save_option_data", action="store_true", default=False)
-    parser.add_argument("--warmup_episodes", type=int, default=5)
+    parser.add_argument("--warmup_episodes", type=int, default=50)
     args = parser.parse_args()
 
     exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,

@@ -70,14 +70,14 @@ class MPC:
 
         return deepcopy(mdp.cur_state), steps_taken
 
-    def _rollout_debug(self, mdp, num_rollouts, num_steps, goal, max_steps):
+    def _rollout_debug(self, mdp, num_rollouts, num_steps, goal, max_steps, gamma=0.95):
         steps_taken = 0
         s = deepcopy(mdp.cur_state)
 
         trajectory = [s]
 
         while not mdp.sparse_gc_reward_function(s, goal, {})[1]:
-            action = self.act(s, goal, num_rollouts, num_steps)
+            action = self.act(s, goal, num_rollouts, num_steps, gamma=gamma)
         
             # execute action in mdp
             mdp.execute_agent_action(action)

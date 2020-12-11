@@ -28,7 +28,10 @@ def get_initiation_set_values(option):
     for x in np.arange(x_low_lim, x_high_lim+1, 1):
         for y in np.arange(y_low_lim, y_high_lim+1, 1):
             pos = np.array((x, y))
-            init = option.is_init_true(pos) and not option.overall_mdp.env.env._is_in_collision(pos)
+            if "swimmer" in option.overall_mdp.env_name:
+                init = option.is_init_true(pos) and not option.overall_mdp.env._is_in_collision(pos)
+            else:
+                init = option.is_init_true(pos) and not option.overall_mdp.env.env._is_in_collision(pos)
             values.append(init)
 
     return values
