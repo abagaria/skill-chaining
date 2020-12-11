@@ -60,8 +60,9 @@ class OnlineModelBasedCurriculumSkillChaining(object):
             transitions, reward = selected_option.rollout(step_number=step_number)
 
             # TODO how to deal with infinite loop?
+            # TODO debug this
             if len(transitions) == 0:
-                break
+               ipdb.set_trace()
 
             self.manage_chain_after_rollout(selected_option)
 
