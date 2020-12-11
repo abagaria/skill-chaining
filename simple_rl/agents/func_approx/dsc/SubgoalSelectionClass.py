@@ -22,8 +22,10 @@ class SubgoalOption(object):
         """ Extract input, output states from the DSC Options. """
 
         features = lambda s: s if isinstance(s, np.ndarray) else s.features()
+        extract = lambda s: self.dsc_option.get_first_state_in_classifier(s, "optimistic")
 
-        input_states = [traj[0] for traj in self.dsc_option.positive_examples]
+        input_states = [extract(traj) for traj in self.dsc_option.positive_examples]
+        input_states = [input_state for input_state in input_states if input_state is not None]
         input_states = [s for s in input_states if self.dsc_option.is_init_true(s)]
         input_states = [features(s) for s in input_states]
 
@@ -71,6 +73,9 @@ class OptimalSubgoalSelector(object):
         # query the option-value function rather than using the cached values in
         # the reward table constructed in the beginning
         self.vf_queries = []
+
+        # Construct the value table that we will be using to pick subgoals
+        self.construct_table(self.options)
 
     # ---------------------------------------------------------
     # Q-Table Construction
@@ -159,24 +164,43 @@ class OptimalSubgoalSelector(object):
                     value = self.R(input_state, output_state, option)
                 else:
                     parent_output_states = self.get_output_states(option.parent)
-                    Q_next = max([self.get_value(output_state, sg_prime) for sg_prime in parent_output_states])
+                    Q_next = max([self.get_value(output_state, sg_prime, option.parent) for sg_prime in parent_output_states])
                     value = self.R(input_state, output_state, option) + (self.gamma * Q_next)
 
                 self.set_value(input_state, output_state, value)
 
     def construct_table(self, options):
+        t0 = time.time()
         for option in options:
             self.construct_table_for_option(option)
+        print(f"Took {time.time() - t0}s to construct the value table ({len(self.vf_queries)} vf queries)")
 
     # ---------------------------------------------------------
     # Subgoal interface
     # ---------------------------------------------------------
 
     def pick_subgoal(self, state, option):
+
+        subgoal_option = self._get_corresponding_subgoal_option(option) if not isinstance(option, SubgoalOption) else None
+
+        if not isinstance(state, np.ndarray):
+            state = state.features()
+
+        if subgoal_option is not None:
+            return self._pick_subgoal_for_option_in_table(state, subgoal_option)
+
+        return self._pick_subgoal_for_option_not_in_table(state, option)
+
+    def _pick_subgoal_for_option_in_table(self, state, option):
+        assert option is not None
         output_states = self.get_output_states(option)
-        values = [(goal, self.get_value(state, goal)) for goal in output_states]
+        values = [(goal, self.get_value(state, goal, option)) for goal in output_states]
         subgoal = sorted(values, key=lambda x: x[1], reverse=True)[0][0]
         return subgoal
+
+    def _pick_subgoal_for_option_not_in_table(self, state, dsc_option):
+        """ This will force the option to sample a subgoal randomly, which might be preferable during gestation."""
+        return None
 
     def get_all_subgoals(self, current_state, current_option):
         selected_subgoals = []
@@ -192,7 +216,7 @@ class OptimalSubgoalSelector(object):
     # Q-Table Management
     # ---------------------------------------------------------
 
-    def get_value(self, state, goal):
+    def get_value(self, state, goal, option):
 
         if self.is_equal(state, goal):
             return 0.
@@ -205,8 +229,7 @@ class OptimalSubgoalSelector(object):
 
         # It is possible that (s, g) is not in the parent option's
         # Q-table. If so, use the parent option's reward function as a stand in
-        option = self.get_option(state, goal)
-        assert option is not None, f"{state, goal}"
+        option = self.get_option(state, goal) if option is None else option
 
         return self.R(state, goal, option)
 
@@ -246,6 +269,8 @@ class OptimalSubgoalSelector(object):
 
     def parse_dsc_options(self, options):
 
+        print(f"Parsing {options} into subgoal options..")
+
         subgoal_options = []
         options = options if options[0].parent is None else list(reversed(options))
         parent = None
@@ -271,13 +296,19 @@ class OptimalSubgoalSelector(object):
     # Options Management
     # ---------------------------------------------------------
 
+    def _get_corresponding_subgoal_option(self, dsc_option):
+        for option in self.options:  # type: SubgoalOption
+            if option.dsc_option == dsc_option:
+                return option
+        return None
+
     def visualize_values(self, options):
         xx, yy, cc = [], [], []
 
         for option in options:
             pairs = []
             for s_in in option.input_states:
-                values = [self.get_value(s_in, s_out) for s_out in option.output_states]
+                values = [self.get_value(s_in, s_out, option) for s_out in option.output_states]
                 pairs.append((s_in, max(values)))
             x = [pair[0][0] for pair in pairs]
             y = [pair[0][1] for pair in pairs]

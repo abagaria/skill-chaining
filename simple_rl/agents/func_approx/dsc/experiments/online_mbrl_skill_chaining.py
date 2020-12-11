@@ -9,20 +9,21 @@ from collections import deque
 from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoalSelector
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, gestation_period, initiation_period, use_vf,
-                 use_diverse_starts, use_dense_rewards, experiment_name, device):
+    def __init__(self, warmup_episodes, gestation_period, use_vf,
+                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, experiment_name, device):
         self.device = device
         self.use_vf = use_vf
         self.experiment_name = experiment_name
         self.warmup_episodes = warmup_episodes
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
+        self.use_optimal_sampler = use_optimal_sampler
 
         self.gestation_period = gestation_period
-        self.initiation_period = initiation_period
 
         self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 0)))
         self.target_salient_event = self.mdp.get_original_target_events()[0]
@@ -34,11 +35,25 @@ class OnlineModelBasedSkillChaining(object):
         self.new_options = [self.goal_option]
         self.mature_options = []
 
-    def act(self, state):
-        for option in self.chain:
+        self.optimal_subgoal_selector = None
+
+    @staticmethod
+    def _pick_earliest_option(state, options):
+        for option in options:
             if option.is_init_true(state) and not option.is_term_true(state):
                 return option
-        return self.global_option
+
+    def act(self, state):
+        current_option = self._pick_earliest_option(state, self.chain)
+        return current_option if current_option is not None else self.global_option
+
+    def pick_optimal_subgoal(self, state):
+        current_option = self._pick_earliest_option(state, self.mature_options)
+
+        if current_option is not None and self.optimal_subgoal_selector is not None:
+            sg = self.optimal_subgoal_selector.pick_subgoal(state, current_option)
+            if sg is None: print(f"Did not find a subgoal for option {current_option}")
+            return sg
 
     def random_rollout(self, num_steps):
         step_number = 0
@@ -54,9 +69,9 @@ class OnlineModelBasedSkillChaining(object):
         step_number = 0
         while step_number < num_steps and not self.mdp.cur_state.is_terminal():
             state = deepcopy(self.mdp.cur_state)
+            subgoal = self.pick_optimal_subgoal(state) if self.use_optimal_sampler else None
             selected_option = self.act(state)
-
-            transitions, reward = selected_option.rollout(step_number=step_number)
+            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
             self.manage_chain_after_rollout(selected_option)
 
             step_number += len(transitions)
@@ -78,19 +93,30 @@ class OnlineModelBasedSkillChaining(object):
             if episode >= self.warmup_episodes:
                 self.learn_dynamics_model(episode)
 
+            if len(self.mature_options) > 0 and self.use_optimal_sampler:
+                self.optimal_subgoal_selector = OptimalSubgoalSelector(self.mature_options,
+                                                                       self.mdp.goal_state,
+                                                                       self.mdp.state_space_size())
+
         return per_episode_durations
 
     def learn_dynamics_model(self, episode):
-        num_epochs = 50 if episode < 100 else 10
+        num_epochs = 50 if episode < 100 else 10  # TODO
         self.global_option.solver.load_data()
-        self.global_option.solver.train(epochs=num_epochs, batch_size=1024)
+        self.global_option.solver.train(epochs=10, batch_size=1024)
         for option in self.chain:
             option.solver.model = self.global_option.solver.model
 
     def should_create_new_option(self):  # TODO: Cleanup
         if len(self.mature_options) > 0 and len(self.new_options) == 0:
             return self.mature_options[-1].get_training_phase() == "initiation_done" and \
-                not self.mature_options[-1].pessimistic_is_init_true(self.mdp.init_state)
+                not self.contains_init_state()
+        return False
+
+    def contains_init_state(self):
+        for option in self.mature_options:
+            if option.is_init_true(self.mdp.init_state):
+                return True
         return False
 
     def manage_chain_after_rollout(self, executed_option):
@@ -124,7 +150,6 @@ class OnlineModelBasedSkillChaining(object):
         option = ModelBasedOption(parent=parent, mdp=self.mdp,
                                   buffer_length=50, global_init=False,
                                   gestation_period=self.gestation_period,
-                                  initiation_period=self.initiation_period,
                                   timeout=200, max_steps=1000, device=self.device,
                                   target_salient_event=self.target_salient_event,
                                   name=name,
@@ -140,7 +165,6 @@ class OnlineModelBasedSkillChaining(object):
         option = ModelBasedOption(parent=None, mdp=self.mdp,
                                   buffer_length=50, global_init=True,
                                   gestation_period=self.gestation_period,
-                                  initiation_period=self.initiation_period,
                                   timeout=100, max_steps=1000, device=self.device,
                                   target_salient_event=self.target_salient_event,
                                   name="global-option",
@@ -161,14 +185,6 @@ class OnlineModelBasedSkillChaining(object):
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
 
-    def save_option_dynamics_data(self):
-        """ Save data that can be used to learn a model of the option dynamics. """
-        for option in self.mature_options:
-            states = np.array([pair[0] for pair in option.in_out_pairs])
-            next_states = np.array([pair[1] for pair in option.in_out_pairs])
-            with open(f"{self.experiment_name}/{option.name}-dynamics-data.pkl", "wb+") as f:
-                pickle.dump((states, next_states), f)
-
 
 def create_log_dir(experiment_name):
     path = os.path.join(os.getcwd(), experiment_name)
@@ -186,24 +202,23 @@ if __name__ == "__main__":
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--gestation_period", type=int, default=3)
-    parser.add_argument("--initiation_period", type=float, default=3)
     parser.add_argument("--episodes", type=int, default=150)
     parser.add_argument("--steps", type=int, default=1000)
-    parser.add_argument("--save_option_data", action="store_true", default=False)
     parser.add_argument("--warmup_episodes", type=int, default=5)
     parser.add_argument("--use_value_function", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
+    parser.add_argument("--use_optimal_sampler", action="store_true", default=False)
     args = parser.parse_args()
 
     exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
-                                        initiation_period=args.initiation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
                                         warmup_episodes=args.warmup_episodes,
                                         use_vf=args.use_value_function,
                                         use_diverse_starts=args.use_diverse_starts,
-                                        use_dense_rewards=args.use_dense_rewards)
+                                        use_dense_rewards=args.use_dense_rewards,
+                                        use_optimal_sampler=args.use_optimal_sampler)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
@@ -211,5 +226,5 @@ if __name__ == "__main__":
 
     durations = exp.run_loop(args.episodes, args.steps)
 
-    if args.save_option_data:
-        exp.save_option_dynamics_data()
+    with open(f"{args.experiment_name}/durations.pkl", "wb+") as f:
+        pickle.dump(durations, f)

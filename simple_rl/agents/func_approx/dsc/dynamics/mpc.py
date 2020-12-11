@@ -102,6 +102,8 @@ class MPC:
         if vf is None:
             return np.zeros((final_states.shape[0], ))
 
+        goal = goal[:2]
+
         assert isinstance(goal, np.ndarray), f"{type(goal)}"
         assert goal.shape == (2,), f"Expected shape (2,), got {goal.shape}"
 
@@ -117,6 +119,12 @@ class MPC:
         return (self.gamma ** horizon) * values
 
     def _get_costs(self, goals, states):
+
+        if states.shape[1] != 2:
+            states = states[:, :2]
+        if goals.shape[1] != 2:
+            goals = goals[:, :2]
+
         assert goals.shape == states.shape, f"{goals.shape, states.shape}"
 
         reward_function = self.mdp.batched_dense_gc_reward_function if self.dense_reward\

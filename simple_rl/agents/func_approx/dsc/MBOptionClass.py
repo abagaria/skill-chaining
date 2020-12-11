@@ -58,8 +58,8 @@ class ModelBasedOption(object):
 
 
         self.children = []
-        self.in_out_pairs = []
         self.success_curve = []
+        self.effect_set = []
 
         if path_to_model:
             self.solver.load_model(path_to_model)
@@ -137,7 +137,7 @@ class ModelBasedOption(object):
 
         return self.extract_goal_dimensions(sampled_goal)
 
-    def rollout(self, step_number):
+    def rollout(self, step_number, rollout_goal=None):
         """ Main option control loop. """
 
         start_state = deepcopy(self.mdp.cur_state)
@@ -149,7 +149,7 @@ class ModelBasedOption(object):
         option_transitions = []
 
         state = deepcopy(self.mdp.cur_state)
-        goal = self.get_goal_for_rollout()
+        goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
 
@@ -170,7 +170,7 @@ class ModelBasedOption(object):
 
         visited_states.append(state)
         self.success_curve.append(self.is_term_true(state))
-        self.in_out_pairs.append((start_state.features(), state.features()))
+        self.effect_set.append(state.features())
 
         if self.is_term_true(state):
             self.num_goal_hits += 1
@@ -251,16 +251,20 @@ class ModelBasedOption(object):
     # Learning Initiation Classifiers
     # ------------------------------------------------------------
 
+    def get_first_state_in_classifier(self, trajectory, classifier_type="pessimistic"):
+        """ Extract the first state in the trajectory that is inside the initiation classifier. """
+
+        assert classifier_type in ("pessimistic", "optimistic"), classifier_type
+        classifier = self.pessimistic_is_init_true if classifier_type == "pessimistic" else self.is_init_true
+        for state in trajectory:
+            if classifier(state):
+                return state
+        return None
+
     def sample_from_initiation_region(self):
         """ Sample from the pessimistic initiation classifier. """
 
-        def get_first_state_in_classifier(trajectory):
-            for state in trajectory:
-                if self.pessimistic_is_init_true(state):
-                    return state
-            return None
-
-        starting_positive_examples = [get_first_state_in_classifier(traj) for traj in self.positive_examples]
+        starting_positive_examples = [self.get_first_state_in_classifier(traj) for traj in self.positive_examples]
         starting_positive_examples = [state for state in starting_positive_examples if state is not None]
         if len(starting_positive_examples) > 0:
             return random.choice(starting_positive_examples)
