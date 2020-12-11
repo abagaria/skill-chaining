@@ -116,6 +116,7 @@ if __name__ == '__main__':
                 dense_reward=args.dense_reward
                 )
         
+            ipdb.set_trace()
             pickle.dump(pes_i, open(directory / 'pretraining_scores.pkl', 'wb'))
             pickle.dump(ped_i, open(directory / 'pretraining_durations.pkl', 'wb'))
             pickle.dump(pesuccesses_i, open(directory / 'pretraining_successes.pkl', 'wb'))
