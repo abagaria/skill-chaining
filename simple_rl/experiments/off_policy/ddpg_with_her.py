@@ -59,7 +59,7 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
     ipdb.set_trace()
-    
+
     directory = Path.cwd() / f'{args.experiment_name}_{args.seed}'
     os.mkdir(directory)
 
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     #test_time_solver.name = "test_time"
 
     start_state = np.array([0,0])
-    goal_state = np.array([2.5,2.5])
+    goal_state = np.array([3.5,3.5])
 
     # Just bad code right heeer
     use_her = True
