@@ -32,6 +32,7 @@ class ModelBasedOption(object):
         self.option_idx = option_idx
 
         self.num_goal_hits = 0
+        self.num_executions = 0
         self.gestation_period = gestation_period
 
         self.positive_examples = []
@@ -109,9 +110,9 @@ class ModelBasedOption(object):
     # Control Loop Methods
     # ------------------------------------------------------------
 
+    # TODO make configurable
     def act(self, state, goal):
         """ Epsilon-greedy action selection. """
-
         if random.random() < 0.2:
             return self.mdp.sample_random_action()
 
@@ -152,6 +153,8 @@ class ModelBasedOption(object):
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
+        
+        self.num_executions += 1
 
         while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
 
@@ -334,6 +337,14 @@ class ModelBasedOption(object):
         if positive_training_examples.shape[0] > 0:
             self.pessimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
             self.pessimistic_classifier.fit(positive_training_examples)
+
+    def get_option_success_rate(self):
+        """
+        TODO: implement success rate at test time as well (Jason)
+        """
+        if self.num_executions > 0:
+            return self.num_goal_hits / self.num_executions
+        return 1.
 
     # ------------------------------------------------------------
     # Convenience functions

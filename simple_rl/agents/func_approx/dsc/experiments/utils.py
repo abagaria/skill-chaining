@@ -70,7 +70,6 @@ def get_initiation_set_values(option):
             if hasattr(option.overall_mdp.env, 'env'):
                 init = init and not option.overall_mdp.env.env._is_in_collision(pos)
             values.append(init)
-
     return values
 
 def plot_one_class_initiation_classifier(option):

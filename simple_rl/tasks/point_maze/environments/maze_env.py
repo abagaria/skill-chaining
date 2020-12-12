@@ -437,11 +437,11 @@ class MazeEnv(gym.Env):
         additional_obs.append(self.wrapped_env.get_body_com(block_name))
       wrapped_obs = np.concatenate([wrapped_obs[:3]] + additional_obs +
                                    [wrapped_obs[3:]])
-    wrapped_obs = np.hstack([wrapped_obs[:2]] + [self.has_key] + [wrapped_obs[2:]])
+    # wrapped_obs = np.hstack([wrapped_obs[:2]] + [self.has_key] + [wrapped_obs[2:]])
     range_sensor_obs = self.get_range_sensor_obs()
     return np.concatenate([wrapped_obs,
                            range_sensor_obs.flat] +
-                           view + [[self.t * 0.001]])
+                           view )# + [[self.t * 0.001]])
 
   def reset(self):
     self.t = 0

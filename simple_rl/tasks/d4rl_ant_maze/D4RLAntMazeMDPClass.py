@@ -134,3 +134,13 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         size = (self.action_space_size(),)
         return np.random.uniform(-1., 1., size=size)
     
+    def sample_random_state_curriculum(self, x, y):
+        """
+        Samples points in the rectangle whose (x,y) is
+        the lower left corner (Jason)
+        """
+        data = self.dataset
+        mask = (data[:,0] >= x) & (data[:,1] >= y)
+        filtered_data = data[mask]
+        idx = np.random.choice(filtered_data.shape[0])
+        return filtered_data[idx, :]
