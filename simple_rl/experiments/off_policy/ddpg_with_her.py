@@ -175,7 +175,7 @@ if __name__ == '__main__':
             print("Fully emptied the replay buffer")
 
         elif args.intervention == "filter_buffer":
-            old_buffer = solver.replay_buffer
+            old_buffer = deepcopy(solver.replay_buffer)
             solver.replay_buffer.clear()
             FILTER_THRESHOLD = 1
             for state, action, reward, next_state, terminal in old_buffer:
@@ -186,6 +186,7 @@ if __name__ == '__main__':
                 if np.linalg.norm(gc_state - goal_state) <= FILTER_THRESHOLD:
                     solver.replay_buffer.add(state, action, reward, next_state, terminal)
                 
+            ipdb.set_trace()
             print(f"Filtered {solver.replay_buffer.num_exp} experiences out of {old_buffer.num_exp} with a threshold of {FILTER_THRESHOLD}")
 
         elif args.intervention == "train_subnetwork":
