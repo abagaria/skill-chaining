@@ -208,7 +208,7 @@ if __name__ == '__main__':
                 action = exp[1]
                 next_state = exp[3][:-2]
 
-                dist_to_goal = np.linalg.norm(state[:2], goal_state)
+                dist_to_goal = np.linalg.norm(state[:2] - goal_state)
                 reward = -1 * dist_to_goal
                 terminal = dist_to_goal <= args.goal_threshold
 
