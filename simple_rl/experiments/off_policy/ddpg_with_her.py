@@ -128,10 +128,10 @@ if __name__ == '__main__':
 
         new_device = torch.device(args.device)
         solver.device = new_device
-        solver.actor.to(new_device)
-        solver.critic.to(new_device)
-        solver.target_actor.to(new_device)
-        solver.target_critic.to(new_device)
+        solver.actor = solver.actor.to(new_device)
+        solver.critic = solver.critic.to(new_device)
+        solver.target_actor = solver.target_actor.to(new_device)
+        solver.target_critic = solver.target_critic.to(new_device)
 
         # # Initialize actor target network
         # def copy_to_new_solver(new_params, old_params):
@@ -177,9 +177,8 @@ if __name__ == '__main__':
         elif args.intervention == "filter_buffer":
             old_buffer = solver.replay_buffer
             solver.replay_buffer.clear()
+            FILTER_THRESHOLD = 1
             for state, action, reward, next_state, terminal in old_buffer:
-                FILTER_THRESHOLD = 1
-
                 # We are going to filter the replay buffer for states where
                 # The conditioned goal state e.g. (state[-2],state[-1])
                 # is within some threshold of our test-time goal state
