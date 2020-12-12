@@ -201,53 +201,78 @@ if __name__ == '__main__':
                 torch.device(args.device),
                 name="test_time"
                 )
-            
-            def condition_on_goal(state):
-                gc_state = state
-                gc_state[-2:] = goal_state
 
-                return gc_state
+            for exp in solver.replay_buffer:
+                # De-goal condition the states
+                state = exp[0][:-2]
+                action = exp[1]
+                next_state = exp[3][:-2]
 
-            old_buffer = solver.replay_buffer
-            # Even though we will strip the goal off this state,
-            # We need it to get the goal-conditioned predicted rewards
-            states = np.array([condition_on_goal(exp[0]) for exp in old_buffer.memory])
-            actions = np.array([exp[1] for exp in old_buffer.memory])
-
-            # Here, we use the q value of the old solver as our ground truth
-            states_tensor = torch.from_numpy(states).float().to(torch.device(args.device))
-            actions_tensor = torch.from_numpy(actions).float().to(torch.device(args.device))
-            qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
-
-            # Now, do the thing for next_state,next_action pairs
-            next_states = np.array([condition_on_goal(exp[3]) for exp in old_buffer.memory])
-            next_actions = np.array([solver.act(next_state) for next_state in next_states])
-            next_states_tensor = torch.from_numpy(next_states).float().to(torch.device(args.device))
-            next_actions_tensor = torch.from_numpy(next_actions).float().to(torch.device(args.device))
-
-            next_qvalues = solver.get_qvalues(next_states_tensor, next_actions_tensor).cpu().numpy().squeeze(1)
-            discounted_next_qvalues = solver.gamma * next_qvalues
-
-            rewards = qvalues - discounted_next_qvalues
-
-            def is_terminal(state):
-                return np.linalg.norm(state[:2] - goal_state) <= args.goal_threshold
-
-            terminals = [is_terminal(next_state) for next_state in next_states]
-
-            # We can then train on these q values
-            for state, action, reward, next_state, terminal in zip(states, actions, rewards, next_states, terminals):
-                # !!! important, our new solver is NOT goal conditioned
-                state = state[:-2]
-                next_state = next_state[:-2]
-
-                reward = float(reward)
-                terminal = bool(terminal)
+                dist_to_goal = np.linalg.norm(state[:2], goal_state)
+                reward = -1 * dist_to_goal
+                terminal = dist_to_goal <= args.goal_threshold
 
                 subnetwork.step(state, action, reward, next_state, terminal)
 
-            # Here we drop the teacher
             solver = subnetwork
+            
+            # def condition_on_goal(state):
+            #     gc_state = state
+            #     gc_state[-2:] = goal_state
+
+            #     return gc_state
+
+            # NUM_SUB_EXS = 250000
+
+            # old_buffer = solver.replay_buffer[:NUM_SUB_EXS]
+            # # Even though we will strip the goal off this state,
+            # # We need it to get the goal-conditioned predicted rewards
+            # states = np.array([condition_on_goal(exp[0]) for exp in old_buffer])
+            # actions = np.array([exp[1] for exp in old_buffer])
+
+            # # Here, we use the q value of the old solver as our ground truth
+            # states_tensor = torch.from_numpy(states).float().to(torch.device(args.device))
+            # actions_tensor = torch.from_numpy(actions).float().to(torch.device(args.device))
+            # qvalues = solver.get_qvalues(states_tensor, actions_tensor).cpu().numpy().squeeze(1)
+
+            # # Now, do the thing for next_state,next_action pairs
+            # next_states = np.array([condition_on_goal(exp[3]) for exp in old_buffer])
+            # # next_actions = np.array([solver.act(next_state) for next_state in next_states])
+            # # next_states_tensor = torch.from_numpy(next_states).float().to(torch.device(args.device))
+            # # next_actions_tensor = torch.from_numpy(next_actions).float().to(torch.device(args.device))
+
+            # # next_qvalues = solver.get_qvalues(next_states_tensor, next_actions_tensor).cpu().numpy().squeeze(1)
+            # # discounted_next_qvalues = solver.gamma * next_qvalues
+
+            # # rewards = qvalues - discounted_next_qvalues
+
+            # def is_terminal(state):
+            #     return np.linalg.norm(state[:2] - goal_state) <= args.goal_threshold
+
+            # terminals = [is_terminal(next_state) for next_state in next_states]
+
+            # rewards = np.zeros((NUM_SUB_EXS,))
+            # for state, action, next_state, qvalue in zip(states, actions, next_states, qvalues):
+            #     # Deal with the expectation by sampling a number of actions do 
+            #     # get an estimate of the next action q value
+            #     next_qvalue = 0
+            #     for _ in range(4):
+            #         next_action = solver.act(next_state)
+
+
+            # # We can then train on these q values
+            # for state, action, reward, next_state, terminal in zip(states, actions, rewards, next_states, terminals):
+            #     # !!! important, our new solver is NOT goal conditioned
+            #     state = state[:-2]
+            #     next_state = next_state[:-2]
+
+            #     reward = float(reward)
+            #     terminal = bool(terminal)
+
+            #     subnetwork.step(state, action, reward, next_state, terminal)
+
+            # # Here we drop the teacher
+            # solver = subnetwork
 
         else:
             raise NotImplementedError(f"{args.intervention} is not a valid intervention")
@@ -268,11 +293,10 @@ if __name__ == '__main__':
         use_her=use_her
         )
 
-    pickle.dump(pes_ii, open(directory / f'test_time_scores_{n}.pkl', 'wb'))
-    pickle.dump(ped_ii, open(directory / f'test_time_durations_{n}.pkl', 'wb'))
-    pickle.dump(pesuccesses_ii, open(directory / f'test_time_successes_{n}.pkl', 'wb'))
-    pickle.dump(solver, open(directory / f'ddpg_{solver.name}_{n}.pkl', 'wb'))
-
+    pickle.dump(pes_ii, open(directory / f'test_time_scores_1.pkl', 'wb'))
+    pickle.dump(ped_ii, open(directory / f'test_time_durations_1.pkl', 'wb'))
+    pickle.dump(pesuccesses_ii, open(directory / f'test_time_successes_1.pkl', 'wb'))
+    pickle.dump(solver, open(directory / f'ddpg_{solver.name}_1.pkl', 'wb'))
     ipdb.set_trace()
 
 
