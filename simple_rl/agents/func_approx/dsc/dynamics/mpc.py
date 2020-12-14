@@ -116,6 +116,12 @@ class MPC:
 
         # Query the option value function and discount it appropriately
         values = vf(final_states, goals)
+
+        # Enforce V(g, g) = 0 and clamp the value function at 0
+        _, dones = self.mdp.batched_sparse_gc_reward_function(final_states, goals)
+        values[dones==1] = 0.
+        values[values>0] = 0.
+
         return (self.gamma ** horizon) * values
 
     def _get_costs(self, goals, states):

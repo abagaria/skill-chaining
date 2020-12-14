@@ -10,11 +10,12 @@ from collections import defaultdict
 class SubgoalOption(object):
     """ Simple version of option class that we use for picking subgoals. """
 
-    def __init__(self, dsc_option, name, parent=None):
+    def __init__(self, dsc_option, name, parent=None, max_num_points=50):
         self.name = name
-        self.dsc_option = dsc_option
-        self.input_states, self.output_states = self.get_input_output_states()
         self.parent = parent
+        self.dsc_option = dsc_option
+        self.max_num_points = max_num_points
+        self.input_states, self.output_states = self.get_input_output_states()
 
         super(SubgoalOption, self).__init__()
 
@@ -28,10 +29,13 @@ class SubgoalOption(object):
         input_states = [input_state for input_state in input_states if input_state is not None]
         input_states = [s for s in input_states if self.dsc_option.is_init_true(s)]
         input_states = [features(s) for s in input_states]
+        input_states = input_states[-self.max_num_points:]
 
         output_states = self.dsc_option.effect_set
         output_states = [s for s in output_states if self.dsc_option.is_term_true(s)]
         output_states = [features(s) for s in output_states]
+        output_states = output_states[-self.max_num_points:]
+
         return input_states, output_states
 
     def __str__(self):
@@ -153,9 +157,26 @@ class OptimalSubgoalSelector(object):
             return option.output_states
         return option.parent.input_states
 
+    def construct_next_state_value_table(self, option):
+        value_table = {}
+        if option.parent is not None:
+            for output_state in self.get_output_states(option):
+                parent_output_states = self.get_output_states(option.parent)
+                Q_next = max([self.get_value(output_state, sg_prime, option.parent) for sg_prime in parent_output_states])
+                key = tuple(np.round(output_state, decimals=2))
+                value_table[key] = Q_next
+        return value_table
+
+    @staticmethod
+    def get_next_state_value(next_state_values, state):
+        key = tuple(np.round(state, decimals=2))
+        return next_state_values[key]
+
     def construct_table_for_option(self, option):
         print(f"Constructing table for option {option.name}")
+
         output_states = self.get_output_states(option)
+        next_state_values = self.construct_next_state_value_table(option)
 
         for input_state in option.input_states:
             for output_state in output_states:
@@ -163,9 +184,8 @@ class OptimalSubgoalSelector(object):
                 if self.is_equal(output_state, self.overall_goal):
                     value = self.R(input_state, output_state, option)
                 else:
-                    parent_output_states = self.get_output_states(option.parent)
-                    Q_next = max([self.get_value(output_state, sg_prime, option.parent) for sg_prime in parent_output_states])
-                    value = self.R(input_state, output_state, option) + (self.gamma * Q_next)
+                    next_state_value = self.get_next_state_value(next_state_values, output_state)
+                    value = self.R(input_state, output_state, option) + (self.gamma * next_state_value)
 
                 self.set_value(input_state, output_state, value)
 
@@ -229,8 +249,6 @@ class OptimalSubgoalSelector(object):
 
         # It is possible that (s, g) is not in the parent option's
         # Q-table. If so, use the parent option's reward function as a stand in
-        option = self.get_option(state, goal) if option is None else option
-
         return self.R(state, goal, option)
 
     def set_value(self, state, goal, value):

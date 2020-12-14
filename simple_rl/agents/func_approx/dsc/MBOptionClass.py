@@ -4,13 +4,13 @@ import random
 import itertools
 import numpy as np
 from copy import deepcopy
-from sklearn import svm
+from thundersvm import OneClassSVM, SVC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 
 class ModelBasedOption(object):
-    def __init__(self, *, name, parent, mdp, global_solver, global_value_learner,buffer_length, global_init,
+    def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, dense_reward,
                  option_idx, max_num_children=2, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
@@ -50,7 +50,7 @@ class ModelBasedOption(object):
 
         self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
                                  action_dim=self.mdp.action_space_size(),
-								 max_action=self.overall_mdp.env.action_space.high[0],
+								 max_action=1.,
                                  name=f"{name}-td3-agent",
                                  device=self.device)
 
@@ -62,6 +62,7 @@ class ModelBasedOption(object):
         self.effect_set = []
 
         if path_to_model:
+            print(f"Loading model from {path_to_model} for {self.name}")
             self.solver.load_model(path_to_model)
 
         if self.use_vf and self.parent is not None:
@@ -303,12 +304,12 @@ class ModelBasedOption(object):
         positions = [self.mdp.get_position(state) for state in states]
         return np.array(positions)
 
-    def train_one_class_svm(self, nu=0.1):
+    def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        self.pessimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
+        self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
         self.pessimistic_classifier.fit(positive_feature_matrix)
 
-        self.optimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu/10., gamma="scale")
+        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10.)
         self.optimistic_classifier.fit(positive_feature_matrix)
 
     def train_two_class_classifier(self, nu=0.1):
@@ -320,19 +321,19 @@ class ModelBasedOption(object):
         X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
         Y = np.concatenate((positive_labels, negative_labels))
 
-        if negative_feature_matrix.shape[0] >= 10:
-            kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
+        if negative_feature_matrix.shape[0] >= 10:  # TODO: Implement gamma="auto" for thundersvm
+            kwargs = {"kernel": "rbf", "gamma": "auto", "class_weight": "balanced"}
         else:
-            kwargs = {"kernel": "rbf", "gamma": "scale"}
+            kwargs = {"kernel": "rbf", "gamma": "auto"}
 
-        self.optimistic_classifier = svm.SVC(**kwargs)
+        self.optimistic_classifier = SVC(**kwargs)
         self.optimistic_classifier.fit(X, Y)
 
         training_predictions = self.optimistic_classifier.predict(X)
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = svm.OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
             self.pessimistic_classifier.fit(positive_training_examples)
 
     # ------------------------------------------------------------
