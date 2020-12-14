@@ -2,6 +2,10 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
+class KiranPlotterUtil(object):
+    def __init__(self):
+        self.hey = True
+
 def visualize_ddpg_replay_buffer(solver, solver_number, directory):
     print('*' * 80)
     print("Plotting value function...")
