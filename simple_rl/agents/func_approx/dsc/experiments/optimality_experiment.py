@@ -77,7 +77,7 @@ class OnlineModelBasedSkillChaining(object):
             selected_option = self.act(state)
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
 
-            if len(transitions) == 0:
+            if len(transitions) == 0:  # TODO
                 break
 
             self.manage_chain_after_rollout(selected_option)
@@ -223,7 +223,7 @@ def create_log_dir(experiment_name):
 
 def test_agent(exp, num_episodes, num_steps):
 
-    starting_positions = [np.array(-9, 9), np.array(9, 9), np.array((9, -9)), np.array((-9, -9))]
+    starting_positions = [np.array((-9, 9)), np.array((9, 9)), np.array((9, -9)), np.array((-9, -9))]
     get_start_pos = lambda x: starting_positions[int(x / (num_episodes / len(starting_positions)))]
 
     def reset(position):
@@ -233,23 +233,32 @@ def test_agent(exp, num_episodes, num_steps):
 
     def rollout():
         step_number = 0
+        option_transitions = []
+
         while step_number < num_steps and not exp.mdp.cur_state.is_terminal():
             state = deepcopy(exp.mdp.cur_state)
+            subgoal = exp.pick_optimal_subgoal(state) if exp.use_optimal_sampler else None
             selected_option = exp.act(state)
 
-            transitions, reward = selected_option.rollout(step_number=step_number)
-
+            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
             step_number += len(transitions)
-        return step_number
+            option_transitions.append((selected_option.name, transitions))
+
+            if exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
+                break
+
+        return step_number, option_transitions
 
     success = 0
     step_counts = []
+    trajectories = []
 
     for episode in tqdm(range(num_episodes), desc="Testing"):
         starting_position = get_start_pos(episode)
         reset(starting_position)
 
-        steps_taken = rollout()
+        steps_taken, trajectory = rollout()
+        trajectories.append(trajectory)
 
         if steps_taken != num_steps:
             success += 1
@@ -257,7 +266,7 @@ def test_agent(exp, num_episodes, num_steps):
         step_counts.append(steps_taken)
         print(f"Test Episode: {episode} \t Step Count: {steps_taken}")
 
-    return success / num_episodes, step_counts
+    return success / num_episodes, step_counts, trajectories
 
 
 if __name__ == "__main__":
