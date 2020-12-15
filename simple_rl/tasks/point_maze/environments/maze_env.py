@@ -252,6 +252,7 @@ class MazeEnv(gym.Env):
     tree.write(file_path)
 
     self.wrapped_env = model_cls(*args, file_path=file_path, **kwargs)
+    self.wrapped_env.seed(seed=0)
 
   def get_ori(self):
     return self.wrapped_env.get_ori()

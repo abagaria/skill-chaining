@@ -55,6 +55,9 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     mujoco_env.MujocoEnv.__init__(self, file_path, 5)
     utils.EzPickle.__init__(self)
 
+  def seed(self, seed=0):
+    mujoco_env.MujocoEnv.seed(self, seed)
+
   @property
   def is_healthy(self):
     state = self.state_vector()

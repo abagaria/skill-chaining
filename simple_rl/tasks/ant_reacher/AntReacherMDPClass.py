@@ -124,7 +124,10 @@ class AntReacherMDP(GoalDirectedMDP):
         """ This function only samples a random position from the MDP. """
         low = np.array((self.xlims[0], self.ylims[0]))
         high = np.array((self.xlims[1], self.ylims[1]))
-        return np.random.uniform(low=low, high=high)
+        point = np.random.uniform(low=low, high=high)
+        while self.is_goal_state(point):
+            point = np.random.uniform(low=low, high=high)
+        return point
 
     def sample_random_action(self):
         size = (self.action_space_size(),)

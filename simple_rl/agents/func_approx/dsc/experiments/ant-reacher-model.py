@@ -65,7 +65,7 @@ x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
 x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
 plt.xlim((x_low_lim, x_high_lim))
 plt.ylim((y_low_lim, y_high_lim))
-for l in trajectory_1:
+for l in traj:
     x, y = l[0], l[1]
     plt.plot(x, y, "-o")
 plt.savefig("traj.png")
