@@ -114,7 +114,7 @@ class OnlineModelBasedSkillChaining(object):
         return per_episode_durations
 
     def log_success_metrics(self, episode):
-        individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
+        individual_option_data = {option.name: option.get_success_rate() for option in self.chain}
         overall_success = reduce(lambda x, y: x * y, individual_option_data.values())
         self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
 
