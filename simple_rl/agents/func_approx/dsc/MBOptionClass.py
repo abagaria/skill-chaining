@@ -90,6 +90,7 @@ class ModelBasedOption(object):
         if self.parent is None:
             return self.target_salient_event(state)
 
+        # TODO change
         return self.parent.pessimistic_is_init_true(state)
 
     def pessimistic_is_init_true(self, state):

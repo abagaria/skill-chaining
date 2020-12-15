@@ -68,10 +68,15 @@ class GoalDirectedMDP(MDP):
 
         current_positions = states[:, :2]
         goal_positions = goals[:, :2]
+
         distances = np.linalg.norm(current_positions-goal_positions, axis=1)
         dones = distances <= self.goal_tolerance
-        rewards = -distances / normalization_factor
 
+        assert distances.shape == dones.shape == (states.shape[0],) == (goals.shape[0],)
+
+        rewards = -distances / normalization_factor
+        rewards[dones==1] = 0.
+        
         return rewards, dones
 
     def _initialize_salient_events(self):

@@ -28,7 +28,7 @@ class OnlineModelBasedSkillChaining(object):
 
         self.gestation_period = gestation_period
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)))
+        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((8, 0)))
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -124,7 +124,7 @@ class OnlineModelBasedSkillChaining(object):
             option.solver.model = self.global_option.solver.model
 
     def is_chain_complete(self):
-        return all([option.get_training_phase() == "initiation_done" for option in self.chain]) and self.mature_options[-1].is_init_true(np.array([0,0]))
+        return all([option.get_training_phase() == "initiation_done" for option in self.chain]) and self.mature_options[-1].is_init_true(self.mdp.init_state)
 
     def should_create_new_option(self):  # TODO: Cleanup
         if len(self.mature_options) > 0 and len(self.new_options) == 0:
@@ -134,7 +134,7 @@ class OnlineModelBasedSkillChaining(object):
 
     def contains_init_state(self):
         for option in self.mature_options:
-            if option.is_init_true(np.array([0,0])):
+            if option.is_init_true(self.mdp.init_state):
                 return True
         return False
 
@@ -201,7 +201,6 @@ class OnlineModelBasedSkillChaining(object):
         self.mdp.reset()
 
         if self.use_diverse_starts and episode > self.warmup_episodes:
-            # cond = lambda s: s[0] < 7.4 and s[1] < 2  # TODO: Hardcoded for bottom corridor
             random_state = self.mdp.sample_random_state()
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
@@ -240,6 +239,21 @@ def test_agent(exp, num_experiments, num_steps):
         step_counts.append(steps_taken)
     return success / num_experiments, step_counts
 
+def plot_success_curve(agent, filepath):
+    last_epoch = max(list(exp.log.keys()))
+    num_options = len(exp.log[last_epoch]["individual_option_data"])
+    x = []
+    y = []
+    for i in range(0, last_epoch + 1):
+        if len(exp.log[i]["individual_option_data"]) == num_options:
+            x.append(i)
+            y.append(exp.log[i]["success"])
+
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(x,y)
+    plt.savefig(filepath)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
@@ -263,7 +277,7 @@ if __name__ == "__main__":
                                         use_vf=args.use_value_function,
                                         use_diverse_starts=args.use_diverse_starts,
                                         use_dense_rewards=args.use_dense_rewards,
-                                        use_optimal_sampler=args.use_optimal_sampler,
+                                        use_optimal_sampler=args.use_optimal_sampler
                                         logging_freq=args.logging_frequency)
 
     create_log_dir(args.experiment_name)
