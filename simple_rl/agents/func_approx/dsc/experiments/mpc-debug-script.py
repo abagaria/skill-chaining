@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
+from simple_rl.agents.func_approx.dsc.dynamics.mpc_v2 import MPC as MPC2
 
 def generate_data(mdp, epochs, positions):
     global mpc
@@ -47,6 +48,12 @@ state_dim = mdp.state_space_size()
 action_dim = mdp.action_space_size()
 
 mpc = MPC(mdp, state_dim, action_dim, dense_reward=True, device=torch.device('cuda:0'))
+mpc2 = MPC2(mdp, state_dim, action_dim, dense_reward=True, device=torch.device('cuda:0'))
+mpc3 = MPC3(mdp, state_dim, action_dim, dense_reward=True, device=torch.device('cuda:0'))
+
+mpc.load_model("mpc-ant-umaze-model.pkl")
+mpc2.load_model("mpc-ant-umaze-model.pkl")
+mpc3.load_model("mpc-ant-umaze-model.pkl")
 
 a, b, c = generate_data(mdp, 10, positions = [np.array([0,0]), np.array([4,0]), np.array([8,0]), np.array([8,2]), np.array([8,4]), np.array([8,6]), np.array([8,8]), np.array([6,8]), np.array([4,8]), np.array([2,8]), np.array([0,8])])
 
@@ -82,10 +89,27 @@ plt.savefig("traj.png")
 
 def test(mpc, goal, num_steps=1000):
     step = 0
-    trajectory = [deepcopy(exp.mdp.cur_state)]
-    while step < num_steps and not mdp.sparse_gc_reward_function(exp.mdp.cur_state, goal, {})[1]:
-        action = mpc.act(exp.mdp.cur_state, goal)
-        exp.mdp.execute_agent_action(action)
-        trajectory.append(deepcopy(exp.mdp.cur_state))
+    trajectory = [deepcopy(mdp.cur_state)]
+    while step < num_steps and not mdp.sparse_gc_reward_function(mdp.cur_state, goal, {})[1]:
+        action = mpc.act(mdp.cur_state, goal)
+        mdp.execute_agent_action(action)
+        trajectory.append(deepcopy(mdp.cur_state))
+        step += 1
+    return trajectory
+
+mdp.reset()
+
+#################################
+
+def test_random(mpc, goal, num_steps=1000):
+    step = 0
+    trajectory = [deepcopy(mdp.cur_state)]
+    while step < num_steps and not mdp.sparse_gc_reward_function(mdp.cur_state, goal, {})[1]:
+        if random.random() < 0.20:
+            action = mdp.sample_random_action()
+        else:
+            action = mpc.act(mdp.cur_state, goal)
+        mdp.execute_agent_action(action)
+        trajectory.append(deepcopy(mdp.cur_state))
         step += 1
     return trajectory

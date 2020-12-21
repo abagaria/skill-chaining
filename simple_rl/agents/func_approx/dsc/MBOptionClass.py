@@ -85,7 +85,7 @@ class ModelBasedOption(object):
             return True
 
         features = self.mdp.get_position(state)
-        return self.optimistic_classifier.predict([features])[0] == 1
+        return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
         if self.parent is None:
@@ -115,7 +115,7 @@ class ModelBasedOption(object):
     # TODO make configurable
     def act(self, state, goal):
         """ Epsilon-greedy action selection. """
-        if random.random() < 0.2:
+        if random.random() < 0.1:
             return self.mdp.sample_random_action()
 
         vf = self.value_function if self.use_vf else None
@@ -132,7 +132,7 @@ class ModelBasedOption(object):
         if self.parent is None and self.target_salient_event is not None:
             return self.target_salient_event.get_target_position()
 
-        sampled_goal = self.parent.sample_from_initiation_region()
+        sampled_goal = self.parent.sample_from_initiation_region_fast_and_epsilon()
         assert sampled_goal is not None
 
         if isinstance(sampled_goal, np.ndarray):
@@ -140,7 +140,7 @@ class ModelBasedOption(object):
 
         return self.extract_goal_dimensions(sampled_goal)
 
-    def rollout(self, step_number, rollout_goal=None):
+    def rollout(self, step_number, rollout_goal=None, eval_mode=False):
         """ Main option control loop. """
 
         start_state = deepcopy(self.mdp.cur_state)
@@ -180,14 +180,15 @@ class ModelBasedOption(object):
         if self.is_term_true(state):
             self.num_goal_hits += 1
 
-        self.update_value_function(option_transitions,
-                                   pursued_goal=goal,
-                                   reached_goal=self.extract_goal_dimensions(state))
+        if self.use_vf and not eval_mode:
+            self.update_value_function(option_transitions,
+                                    pursued_goal=goal,
+                                    reached_goal=self.extract_goal_dimensions(state))
 
         self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
-        if not self.global_init:
+        if not self.global_init and not eval_mode:
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
@@ -266,13 +267,58 @@ class ModelBasedOption(object):
                 return state
         return None
 
-    def sample_from_initiation_region(self):
-        """ Sample from the pessimistic initiation classifier. """
+    def get_first_state_in_classifier_within_epsilon_ball(self, trajectory, classifier_type="pessimistic"):
+        """ Extract the first state in the trajectory that is inside the initiation classifier. """
+        def classify(s):
+            pos0 = self.mdp.get_position(s)
+            pos1 = np.copy(pos0)
+            pos1[0] -= self.target_salient_event.tolerance
+            pos2 = np.copy(pos0)
+            pos2[0] += self.target_salient_event.tolerance
+            pos3 = np.copy(pos0)
+            pos3[1] -= self.target_salient_event.tolerance
+            pos4 = np.copy(pos0)
+            pos4[1] += self.target_salient_event.tolerance
+            assert pos1.shape == pos2.shape == pos3.shape == pos0.shape == (2,), f"{pos0.shape}"
+            position_matrix = np.vstack((pos0, pos1, pos2, pos3, pos4))
+            if classifier_type == "pessimistic":
+                predictions = self.pessimistic_classifier.predict(position_matrix) == 1
+            else:
+                optimistic_predictions = self.optimistic_classifier.predict(position_matrix) == 1
+                pessimistic_predictions = self.pessimistic_classifier.predict(position_matrix) == 1
+                predictions = np.logical_or(optimistic_predictions, pessimistic_predictions)
+            assert predictions.shape == (5,), predictions.shape
+            return predictions.all()
+        
+        assert classifier_type in ("pessimistic", "optimistic"), classifier_type
+        for state in trajectory:
+            if classify(state):
+                return state
+        return None
 
-        starting_positive_examples = [self.get_first_state_in_classifier(traj) for traj in self.positive_examples]
-        starting_positive_examples = [state for state in starting_positive_examples if state is not None]
-        if len(starting_positive_examples) > 0:
-            return random.choice(starting_positive_examples)
+    def sample_from_initiation_region_fast(self):
+        """ Sample from the pessimistic initiation classifier. """
+        num_tries = 0
+        sampled_state = None
+        while sampled_state is None and num_tries < 200:
+            num_tries = num_tries + 1
+            sampled_trajectory_idx = random.choice(range(len(self.positive_examples)))
+            sampled_trajectory = self.positive_examples[sampled_trajectory_idx]
+            sampled_state = self.get_first_state_in_classifier(sampled_trajectory)
+        return sampled_state
+
+    def sample_from_initiation_region_fast_and_epsilon(self):
+        """ Sample from the pessimistic initiation classifier. """
+        sampled_state = None
+        idxs = [i for i in range(len(self.positive_examples))]
+        random.shuffle(idxs)
+
+        for idx in idxs:
+            sampled_trajectory = self.positive_examples[idx]
+            sampled_state = self.get_first_state_in_classifier_within_epsilon_ball(sampled_trajectory)
+            if sampled_state is not None:
+                return sampled_state
+        return self.sample_from_initiation_region_fast()
 
     def derive_positive_and_negative_examples(self, visited_states):
         start_state = visited_states[0]

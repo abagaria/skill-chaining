@@ -1,3 +1,4 @@
+import os
 import pickle
 
 import torch
@@ -33,6 +34,7 @@ class MPC:
         self.model.to(self.device)
         
         self.replay_buffer = ReplayBuffer(obs_dim=state_size, act_dim=action_size, size=int(3e5))
+        self._cpu_count = os.cpu_count() - 2
 
     def load_data(self):
         self.dataset = self._preprocess_data()
@@ -41,7 +43,7 @@ class MPC:
     def train(self, epochs=100, batch_size=512):
         self.is_trained = True
 
-        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True, pin_memory=True)
+        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True, num_workers=self._cpu_count,  pin_memory=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
         
@@ -143,29 +145,30 @@ class MPC:
 
     def simulate(self, s, goal, num_rollouts=14000, num_steps=7):
         """ Perform N simulations of length H. """
-        np_actions = np.random.uniform(-1., 1., size=(num_rollouts, num_steps, self.action_size))  # TODO hardcoded
-        np_states = np.repeat(np.array([s]), num_rollouts, axis=0)
+
+        torch_actions = 2 * torch.rand((num_rollouts, num_steps, self.action_size), device=self.device) - 1
+        torch_states = torch.tensor(s.features(), device=self.device).repeat(num_rollouts, 1)
+        pred = torch.zeros((num_rollouts, self.state_size, num_steps), device=self.device)
+        
         goals = np.repeat([goal], num_rollouts, axis=0)
         costs = np.zeros((num_rollouts, num_steps))
 
         with torch.no_grad():
             # compute next states for each step
             for j in range(num_steps):
-                actions = np_actions[:, j, :]
-                states_t = torch.from_numpy(np_states)
-                actions_t = torch.from_numpy(actions)
+                actions = torch_actions[:, j, :]
 
-                # transfer to gpu
-                states_t = states_t.to(self.device)
-                actions_t = actions_t.to(self.device)
+                prediction = self.model.predict_next_state(torch_states.float(), actions.float())
+                torch_states = prediction
+                pred[:,:,j] = prediction
 
-                pred = self.model.predict_next_state(states_t.float(), actions_t.float())
-                np_states = pred.cpu().numpy()
-
+            np_pred = pred.cpu().numpy()
+            for j in range(num_steps):
                 # update results with (any) distance metric
-                costs[:, j] = self._get_costs(goals, np_states[:, :2])
+                costs[:, j] = self._get_costs(goals, np_pred[:, :2, j])
+            np_actions = torch_actions.cpu().numpy()
 
-        return np_states, np_actions, costs
+        return np_pred[:, :, num_steps - 1], np_actions, costs
 
     def act(self, s, goal, vf=None, num_rollouts=14000, num_steps=7):
         # sample actions for all steps

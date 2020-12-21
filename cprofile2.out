@@ -1,0 +1,620 @@
+[Step: 0] Rolling out option-6, from [7.23830905 2.49992666] targeting [7.12912245 3.68457856]
+[Step: 11] Rolling out option-5, from [7.0331297 3.1066871] targeting [7.31415904 4.2349876 ]
+[Step: 94] Rolling out option-4, from [7.26007885 4.2617746 ] targeting [7.36713074 5.15451298]
+[Step: 294] Rolling out option-3, from [7.845366   5.31102334] targeting [5.97510463 7.24251839]
+[Step: 341] Rolling out option-2, from [6.50094655 6.96921276] targeting [4.76055202 7.48019221]
+[Step: 446] Rolling out option-1, from [4.78474006 7.63032098] targeting [1.71578545 7.92316983]
+[Step: 480] Rolling out goal-option, from [2.26890856 7.83852458] targeting [0 8]
+Episode 1001 	 Mean Duration: 524.0
+         12396048 function calls (12350959 primitive calls) in 66.317 seconds
+
+   Ordered by: standard name
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      240    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:416(parent)
+      243    0.000    0.000    0.001    0.000 <frozen importlib._bootstrap>:997(_handle_fromlist)
+        1    0.000    0.000   66.317   66.317 <string>:1(<module>)
+        4    0.000    0.000    0.000    0.000 <string>:12(__new__)
+        1    0.000    0.000    0.000    0.000 D4RLAntMazeMDPClass.py:120(<lambda>)
+        1    0.000    0.000    0.000    0.000 D4RLAntMazeMDPClass.py:120(sample_random_state)
+       56    0.000    0.000    0.001    0.000 D4RLAntMazeMDPClass.py:133(sample_random_action)
+      524    0.003    0.000    0.278    0.001 D4RLAntMazeMDPClass.py:45(_reward_func)
+      524    0.000    0.000    0.000    0.000 D4RLAntMazeMDPClass.py:64(_transition_func)
+      526    0.001    0.000    0.005    0.000 D4RLAntMazeMDPClass.py:67(_get_state)
+       56    0.000    0.000    0.000    0.000 D4RLAntMazeMDPClass.py:78(action_space_size)
+        1    0.000    0.000    0.000    0.000 D4RLAntMazeMDPClass.py:84(reset)
+        1    0.000    0.000    0.000    0.000 D4RLAntMazeMDPClass.py:89(set_xy)
+      526    0.002    0.000    0.002    0.000 D4RLAntMazeStateClass.py:8(__init__)
+      524    0.000    0.000    0.001    0.000 GoalDirectedMDPClass.py:165(get_current_goal)
+      524    0.001    0.000    0.280    0.001 GoalDirectedMDPClass.py:180(execute_agent_action)
+   237277    0.105    0.000    0.138    0.000 GoalDirectedMDPClass.py:184(get_position)
+     1062    0.004    0.000    0.012    0.000 GoalDirectedMDPClass.py:25(sparse_gc_reward_function)
+     3276    0.525    0.000    1.180    0.000 GoalDirectedMDPClass.py:64(batched_dense_gc_reward_function)
+      538    0.001    0.000    0.418    0.001 MBOptionClass.py:104(is_at_local_goal)
+      524    0.002    0.000    8.459    0.016 MBOptionClass.py:116(act)
+      524    0.001    0.000    0.008    0.000 MBOptionClass.py:124(update_model)
+        7    0.000    0.000   47.502    6.786 MBOptionClass.py:129(get_goal_for_rollout)
+        7    0.004    0.001   12.249    1.750 MBOptionClass.py:143(rollout)
+        6    0.000    0.000    0.000    0.000 MBOptionClass.py:212(extract_goal_dimensions)
+        4    0.000    0.000    0.003    0.001 MBOptionClass.py:260(get_first_state_in_classifier)
+     1876    0.112    0.000   47.494    0.025 MBOptionClass.py:270(get_first_state_in_classifier_within_epsilon_ball)
+    79385    0.958    0.000   47.382    0.001 MBOptionClass.py:272(classify)
+        4    0.000    0.000    0.003    0.001 MBOptionClass.py:307(sample_from_initiation_region_fast)
+        6    0.003    0.001   47.502    7.917 MBOptionClass.py:318(sample_from_initiation_region_fast_and_epsilon)
+        6    0.000    0.000    0.000    0.000 MBOptionClass.py:321(<listcomp>)
+        7    0.000    0.000    0.003    0.000 MBOptionClass.py:331(derive_positive_and_negative_examples)
+        7    0.000    0.000    3.023    0.432 MBOptionClass.py:354(fit_initiation_classifier)
+       14    0.004    0.000    0.127    0.009 MBOptionClass.py:360(construct_feature_matrix)
+       14    0.024    0.002    0.072    0.005 MBOptionClass.py:362(<listcomp>)
+        7    0.008    0.001    3.023    0.432 MBOptionClass.py:373(train_two_class_classifier)
+       13    0.000    0.000    0.000    0.000 MBOptionClass.py:397(get_option_success_rate)
+        7    0.000    0.000    0.000    0.000 MBOptionClass.py:420(__eq__)
+      571    0.000    0.000    0.000    0.000 MBOptionClass.py:78(get_training_phase)
+       35    0.000    0.000    0.165    0.005 MBOptionClass.py:83(is_init_true)
+      559    0.001    0.000    0.420    0.001 MBOptionClass.py:90(is_term_true)
+      536    0.005    0.000    0.434    0.001 MBOptionClass.py:97(pessimistic_is_init_true)
+      524    0.001    0.000    0.279    0.001 MDPClass.py:63(execute_agent_action)
+        1    0.000    0.000    0.000    0.000 MDPClass.py:81(reset)
+       49    0.000    0.000    0.001    0.000 SalientEventClass.py:128(is_init_true)
+        1    0.000    0.000    0.000    0.000 SalientEventClass.py:141(get_target_position)
+       99    0.000    0.000    0.000    0.000 SalientEventClass.py:144(_get_position)
+       49    0.000    0.000    0.001    0.000 SalientEventClass.py:28(__call__)
+     1530    0.001    0.000    0.006    0.000 StateClass.py:13(features)
+     1051    0.000    0.000    0.000    0.000 StateClass.py:30(is_terminal)
+      526    0.000    0.000    0.000    0.000 StateClass.py:9(__init__)
+    14223    0.002    0.000    0.002    0.000 __init__.py:1404(_unwrap_optional)
+        5    0.000    0.000    0.000    0.000 __init__.py:147(_lazy_init)
+     1465    0.007    0.000    0.046    0.000 __init__.py:20(_make_grads)
+        5    0.000    0.000    0.000    0.000 __init__.py:339(current_device)
+     1465    0.007    0.000    0.550    0.000 __init__.py:38(backward)
+        5    0.000    0.000    0.000    0.000 __init__.py:45(is_available)
+       56    0.000    0.000    0.000    0.000 __init__.py:484(cast)
+      130    0.000    0.000    0.005    0.000 __init__.py:8(_make_name)
+    79991    0.029    0.000    0.053    0.000 _config.py:12(get_config)
+       28    0.000    0.000    0.000    0.000 _internal.py:257(__init__)
+       28    0.000    0.000    0.000    0.000 _internal.py:260(__array_interface__)
+       28    0.000    0.000    0.001    0.000 _internal.py:272(_get_void_ptr)
+       28    0.000    0.000    0.001    0.000 _internal.py:289(__init__)
+       28    0.000    0.000    0.000    0.000 _internal.py:308(data_as)
+        3    0.000    0.000    0.055    0.018 _methods.py:138(_std)
+       14    0.000    0.000    0.000    0.000 _methods.py:26(_amax)
+    80508    0.023    0.000    0.420    0.000 _methods.py:34(_sum)
+    79909    0.027    0.000    0.300    0.000 _methods.py:45(_all)
+        7    0.000    0.000    0.000    0.000 _methods.py:48(_count_reduce_items)
+        4    0.000    0.000    0.019    0.005 _methods.py:58(_mean)
+        3    0.017    0.006    0.055    0.018 _methods.py:91(_var)
+        1    0.000    0.000    0.000    0.000 _monitor.py:32(__init__)
+        1    0.000    0.000    0.000    0.000 _monitor.py:50(exit)
+        1    0.000    0.000    0.000    0.000 _monitor.py:98(report)
+     1465    0.001    0.000    0.001    0.000 _reduction.py:8(get_enum)
+       28    0.000    0.000    0.000    0.000 _util.py:129(_prune_array)
+        1    0.000    0.000    0.000    0.000 _weakrefset.py:106(remove)
+        2    0.000    0.000    0.000    0.000 _weakrefset.py:16(__init__)
+        2    0.000    0.000    0.000    0.000 _weakrefset.py:20(__enter__)
+        2    0.000    0.000    0.000    0.000 _weakrefset.py:26(__exit__)
+       70    0.000    0.000    0.000    0.000 _weakrefset.py:38(_remove)
+        2    0.000    0.000    0.000    0.000 _weakrefset.py:52(_commit_removals)
+        3    0.000    0.000    0.000    0.000 _weakrefset.py:58(__iter__)
+        1    0.000    0.000    0.000    0.000 _weakrefset.py:67(__len__)
+    80012    0.054    0.000    0.054    0.000 _weakrefset.py:70(__contains__)
+       72    0.000    0.000    0.000    0.000 _weakrefset.py:81(add)
+    80012    0.059    0.000    0.113    0.000 abc.py:180(__instancecheck__)
+     9482    0.008    0.000    0.140    0.000 activation.py:542(forward)
+        1    0.000    0.000    0.000    0.000 adam.py:30(__init__)
+     1465    0.094    0.000    0.895    0.001 adam.py:49(step)
+        1    0.000    0.000    0.000    0.000 ant.py:120(reset_model)
+     2621    0.001    0.000    0.003    0.000 ant.py:139(get_xy)
+        1    0.000    0.000    0.000    0.000 ant.py:142(set_xy)
+     5769    0.002    0.000    0.005    0.000 ant.py:56(physics)
+      524    0.012    0.000    0.232    0.000 ant.py:69(step)
+     1573    0.005    0.000    0.009    0.000 ant.py:90(_get_obs)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:1136(__init__)
+        2    0.000    0.000    0.000    0.000 arrayprint.py:1144(__call__)
+       14    0.000    0.000    0.002    0.000 arrayprint.py:1499(_array_str_implementation)
+       14    0.000    0.000    0.000    0.000 arrayprint.py:358(_get_formatdict)
+        1    0.000    0.000    0.000    0.000 arrayprint.py:366(<lambda>)
+       13    0.000    0.000    0.001    0.000 arrayprint.py:367(<lambda>)
+       14    0.000    0.000    0.001    0.000 arrayprint.py:411(_get_format_function)
+       14    0.000    0.000    0.001    0.000 arrayprint.py:463(wrapper)
+       14    0.000    0.000    0.001    0.000 arrayprint.py:480(_array2string)
+       14    0.000    0.000    0.002    0.000 arrayprint.py:518(array2string)
+       14    0.000    0.000    0.000    0.000 arrayprint.py:69(_make_options_dict)
+       28    0.000    0.000    0.000    0.000 arrayprint.py:693(_extendLine)
+       14    0.000    0.000    0.000    0.000 arrayprint.py:707(_formatArray)
+    42/14    0.000    0.000    0.000    0.000 arrayprint.py:716(recurser)
+       14    0.000    0.000    0.000    0.000 arrayprint.py:74(<dictcomp>)
+       13    0.000    0.000    0.000    0.000 arrayprint.py:825(_none_or_positive_arg)
+       13    0.000    0.000    0.001    0.000 arrayprint.py:834(__init__)
+       13    0.000    0.000    0.001    0.000 arrayprint.py:861(fillFormat)
+       39    0.000    0.000    0.000    0.000 arrayprint.py:911(<genexpr>)
+       39    0.000    0.000    0.000    0.000 arrayprint.py:916(<genexpr>)
+       39    0.000    0.000    0.000    0.000 arrayprint.py:920(<genexpr>)
+       39    0.000    0.000    0.000    0.000 arrayprint.py:921(<genexpr>)
+       26    0.000    0.000    0.000    0.000 arrayprint.py:945(__call__)
+       21    0.000    0.000    0.000    0.000 arraysetops.py:138(_unpack_tuple)
+       21    0.000    0.000    0.003    0.000 arraysetops.py:151(unique)
+       21    0.000    0.000    0.003    0.000 arraysetops.py:299(_unique1d)
+       14    0.000    0.000    0.002    0.000 base.py:1176(_process_toarray_args)
+   239931    0.056    0.000    0.100    0.000 base.py:1190(isspmatrix)
+       56    0.000    0.000    0.000    0.000 base.py:243(nnz)
+       14    0.000    0.000    0.000    0.000 base.py:72(__init__)
+       70    0.000    0.000    0.000    0.000 base.py:86(get_shape)
+       56    0.000    0.000    0.000    0.000 compressed.py:105(getnnz)
+       14    0.000    0.000    0.000    0.000 compressed.py:1077(prune)
+       14    0.000    0.000    0.001    0.000 compressed.py:133(check_format)
+       14    0.000    0.000    0.002    0.000 compressed.py:25(__init__)
+       14    0.000    0.000    0.002    0.000 compressed.py:959(toarray)
+       70    0.000    0.000    0.000    0.000 connection.py:117(__init__)
+       70    0.000    0.000    0.000    0.000 connection.py:130(__del__)
+       35    0.000    0.000    0.001    0.000 connection.py:173(close)
+       35    0.000    0.000    0.001    0.000 connection.py:360(_close)
+       35    0.000    0.000    0.001    0.000 connection.py:501(Pipe)
+     4741    0.030    0.000    0.716    0.000 container.py:90(forward)
+      135    0.000    0.000    0.000    0.000 context.py:186(get_context)
+      130    0.000    0.000    0.000    0.000 context.py:196(get_start_method)
+       30    0.000    0.000    1.495    0.050 context.py:221(_Popen)
+       70    0.000    0.000    0.000    0.000 context.py:232(get_context)
+       30    0.000    0.000    1.495    0.050 context.py:274(_Popen)
+       75    0.000    0.000    0.010    0.000 context.py:64(Lock)
+        5    0.000    0.000    0.001    0.000 context.py:74(Condition)
+       20    0.000    0.000    0.001    0.000 context.py:79(Semaphore)
+       35    0.000    0.000    0.002    0.000 context.py:84(BoundedSemaphore)
+        5    0.000    0.000    0.001    0.000 context.py:89(Event)
+       35    0.001    0.000    0.017    0.000 context.py:99(Queue)
+21884/551    0.016    0.000    0.040    0.000 copy.py:132(deepcopy)
+    18604    0.001    0.000    0.001    0.000 copy.py:190(_deepcopy_atomic)
+      547    0.004    0.000    0.017    0.000 copy.py:210(_deepcopy_list)
+      551    0.001    0.000    0.028    0.000 copy.py:236(_deepcopy_dict)
+     2739    0.002    0.000    0.002    0.000 copy.py:252(_keep_alive)
+      547    0.002    0.000    0.034    0.000 copy.py:268(_reconstruct)
+     1094    0.000    0.000    0.001    0.000 copy.py:273(<genexpr>)
+      547    0.000    0.000    0.001    0.000 copyreg.py:87(__newobj__)
+       14    0.000    0.000    0.000    0.000 csr.py:163(tocsr)
+       70    0.000    0.000    0.000    0.000 csr.py:231(_swap)
+       14    0.000    0.000    0.000    0.000 data.py:22(__init__)
+       14    0.000    0.000    0.000    0.000 data.py:25(_get_dtype)
+        5    0.000    0.000    0.000    0.000 dataloader.py:255(_set_SIGCHLD_handler)
+       14    0.000    0.000    0.000    0.000 dataloader.py:271(handler)
+        5    0.002    0.000    1.611    0.322 dataloader.py:518(__init__)
+       35    0.000    0.000    0.000    0.000 dataloader.py:578(<genexpr>)
+     1465    0.006    0.000    0.917    0.001 dataloader.py:589(_get_batch)
+     1470    0.007    0.000    1.899    0.001 dataloader.py:612(__next__)
+     1525    0.006    0.000    0.498    0.000 dataloader.py:644(_put_indices)
+     1465    0.002    0.000    0.412    0.000 dataloader.py:654(_process_next_batch)
+       10    0.000    0.000    0.563    0.056 dataloader.py:669(_shutdown_workers)
+        5    0.000    0.000    0.000    0.000 dataloader.py:715(__del__)
+        1    0.000    0.000    0.000    0.000 dataloader.py:768(__init__)
+       11    0.000    0.000    0.000    0.000 dataloader.py:811(__setattr__)
+        5    0.000    0.000    1.611    0.322 dataloader.py:818(__iter__)
+     4741    0.257    0.000    1.131    0.000 dynamics_model.py:21(forward)
+     3276    0.098    0.000    0.681    0.000 dynamics_model.py:27(predict_next_state)
+        1    0.000    0.000    0.000    0.000 dynamics_model.py:31(set_standardization_vars)
+        6    0.000    0.000    0.000    0.000 dynamics_model.py:43(_numpy_to_torch)
+      468    0.000    0.000    0.006    0.000 fromnumeric.py:1110(argmin)
+       28    0.000    0.000    0.000    0.000 fromnumeric.py:1583(ravel)
+       28    0.000    0.000    0.000    0.000 fromnumeric.py:1785(shape)
+     1048    0.001    0.000    0.004    0.000 fromnumeric.py:1903(clip)
+      992    0.002    0.000    0.113    0.000 fromnumeric.py:1966(sum)
+        2    0.000    0.000    0.000    0.000 fromnumeric.py:2171(all)
+       14    0.000    0.000    0.000    0.000 fromnumeric.py:2397(amax)
+       14    0.000    0.000    0.000    0.000 fromnumeric.py:2512(amin)
+       49    0.000    0.000    0.000    0.000 fromnumeric.py:2940(around)
+        4    0.000    0.000    0.019    0.005 fromnumeric.py:3014(mean)
+        3    0.000    0.000    0.055    0.018 fromnumeric.py:3126(std)
+       49    0.000    0.000    0.001    0.000 fromnumeric.py:3373(round_)
+      468    0.001    0.000    0.026    0.000 fromnumeric.py:41(_wrapit)
+      468    0.000    0.000    0.028    0.000 fromnumeric.py:429(repeat)
+     2033    0.003    0.000    0.038    0.000 fromnumeric.py:54(_wrapfunc)
+     1022    0.003    0.000    0.110    0.000 fromnumeric.py:69(_wrapreduction)
+     1022    0.001    0.000    0.001    0.000 fromnumeric.py:70(<dictcomp>)
+   318075    0.063    0.000    0.413    0.000 function_base.py:747(copy)
+     9482    0.006    0.000    0.133    0.000 functional.py:1004(leaky_relu)
+    14223    0.029    0.000    0.432    0.000 functional.py:1336(linear)
+     1465    0.006    0.000    0.155    0.000 functional.py:2139(mse_loss)
+     1465    0.002    0.000    0.016    0.000 functional.py:33(broadcast_tensors)
+        1    0.000    0.000    0.000    0.000 future.py:47(__del__)
+       56    0.000    0.000    0.000    0.000 getlimits.py:497(__init__)
+       28    0.000    0.000    0.000    0.000 getlimits.py:508(min)
+       28    0.000    0.000    0.000    0.000 getlimits.py:522(max)
+     1573    0.006    0.000    0.017    0.000 goal_reaching_env.py:28(_get_obs)
+      524    0.005    0.000    0.250    0.000 goal_reaching_env.py:37(step)
+        1    0.000    0.000    0.000    0.000 goal_reaching_env.py:52(reset_model)
+      468    0.001    0.000    0.001    0.000 grad_mode.py:122(__init__)
+      468    0.001    0.000    0.001    0.000 grad_mode.py:31(__enter__)
+      468    0.001    0.000    0.002    0.000 grad_mode.py:35(__exit__)
+     5435    0.002    0.000    0.002    0.000 linalg.py:121(isComplexType)
+     8711    0.113    0.000    0.664    0.000 linalg.py:2293(norm)
+    14223    0.028    0.000    0.469    0.000 linear.py:65(forward)
+        1    0.000    0.000    0.000    0.000 loss.py:13(__init__)
+        1    0.000    0.000    0.000    0.000 loss.py:430(__init__)
+     1465    0.003    0.000    0.157    0.000 loss.py:433(forward)
+        2    0.000    0.000    0.000    0.000 maze_env.py:227(_is_in_collision)
+      524    0.001    0.000    0.255    0.000 maze_env.py:242(step)
+        1    0.000    0.000    0.000    0.000 module.py:185(_apply)
+        1    0.000    0.000    0.000    0.000 module.py:305(to)
+29911/6206    0.078    0.000    0.905    0.000 module.py:483(__call__)
+    33187    0.017    0.000    0.017    0.000 module.py:521(__getattr__)
+       17    0.000    0.000    0.000    0.000 module.py:537(__setattr__)
+        1    0.000    0.000    0.000    0.000 module.py:62(__init__)
+        7    0.000    0.000    0.000    0.000 module.py:771(_named_members)
+        7    0.000    0.000    0.000    0.000 module.py:784(parameters)
+        7    0.000    0.000    0.000    0.000 module.py:808(named_parameters)
+        7    0.000    0.000    0.000    0.000 module.py:829(<lambda>)
+        1    0.000    0.000    0.000    0.000 module.py:882(children)
+        1    0.000    0.000    0.000    0.000 module.py:891(named_children)
+     25/8    0.000    0.000    0.000    0.000 module.py:938(named_modules)
+     3276    0.028    0.000    1.208    0.000 mpc.py:130(_get_costs)
+      468    0.174    0.000    8.279    0.018 mpc.py:146(simulate)
+      468    0.057    0.000    8.456    0.018 mpc.py:173(act)
+      524    0.001    0.000    0.004    0.000 mpc.py:198(step)
+        1    0.025    0.025    0.104    0.104 mpc.py:201(_preprocess_data)
+        1    0.000    0.000    0.000    0.000 mpc.py:225(_roundup)
+        1    0.000    0.000    0.000    0.000 mpc.py:233(_get_standardization_vars)
+        1    0.000    0.000    0.000    0.000 mpc.py:251(__init__)
+        6    0.000    0.000    0.000    0.000 mpc.py:256(__len__)
+        1    0.000    0.000    0.105    0.105 mpc.py:39(load_data)
+        1    0.059    0.059    6.298    6.298 mpc.py:43(train)
+        1    0.000    0.000    0.000    0.000 mujoco_env.py:105(reset)
+        2    0.000    0.000    0.000    0.000 mujoco_env.py:110(set_state)
+      524    0.001    0.000    0.001    0.000 mujoco_env.py:118(dt)
+      524    0.002    0.000    0.190    0.000 mujoco_env.py:122(do_simulation)
+     1048    0.001    0.000    0.002    0.000 mujoco_env.py:178(get_body_com)
+      524    0.003    0.000    0.007    0.000 mujoco_env.py:181(state_vector)
+      475    0.001    0.000    0.004    0.000 numeric.py:175(ones)
+       26    0.000    0.000    0.000    0.000 numeric.py:2656(seterr)
+       26    0.000    0.000    0.000    0.000 numeric.py:2758(geterr)
+       13    0.000    0.000    0.000    0.000 numeric.py:3054(__init__)
+       13    0.000    0.000    0.000    0.000 numeric.py:3058(__enter__)
+       13    0.000    0.000    0.000    0.000 numeric.py:3063(__exit__)
+   169287    0.042    0.000    0.230    0.000 numeric.py:469(asarray)
+   476996    0.083    0.000    0.174    0.000 numeric.py:541(asanyarray)
+        1    0.000    0.000    0.000    0.000 online_mbrl_skill_chaining.py:123(log_success_metrics)
+        1    0.000    0.000    0.000    0.000 online_mbrl_skill_chaining.py:124(<dictcomp>)
+       12    0.000    0.000    0.000    0.000 online_mbrl_skill_chaining.py:125(<lambda>)
+        1    0.000    0.000    6.403    6.403 online_mbrl_skill_chaining.py:128(learn_dynamics_model)
+        7    0.000    0.000    0.000    0.000 online_mbrl_skill_chaining.py:137(should_create_new_option)
+        7    0.000    0.000    0.000    0.000 online_mbrl_skill_chaining.py:149(manage_chain_after_rollout)
+        1    0.000    0.000    0.000    0.000 online_mbrl_skill_chaining.py:162(log_status)
+        1    0.000    0.000    0.001    0.001 online_mbrl_skill_chaining.py:208(reset)
+        7    0.000    0.000   47.662    6.809 online_mbrl_skill_chaining.py:52(act)
+        1    0.001    0.001   59.913   59.913 online_mbrl_skill_chaining.py:80(dsc_rollout)
+        1    0.000    0.000   66.317   66.317 online_mbrl_skill_chaining.py:96(run_loop)
+     1465    0.011    0.000    0.095    0.000 optimizer.py:157(zero_grad)
+        1    0.000    0.000    0.000    0.000 optimizer.py:174(add_param_group)
+        1    0.000    0.000    0.000    0.000 optimizer.py:32(__init__)
+        1    0.000    0.000    0.000    0.000 os.py:664(__getitem__)
+        1    0.000    0.000    0.000    0.000 os.py:742(encode)
+       30    0.000    0.000    1.494    0.050 popen_fork.py:16(__init__)
+      105    0.000    0.000    0.558    0.005 popen_fork.py:24(poll)
+       30    0.000    0.000    0.558    0.019 popen_fork.py:43(wait)
+       30    0.002    0.000    1.493    0.050 popen_fork.py:63(_launch)
+       30    0.000    0.000    0.558    0.019 process.py:118(join)
+       30    0.000    0.000    0.000    0.000 process.py:162(daemon)
+       30    0.000    0.000    0.000    0.000 process.py:190(ident)
+       30    0.000    0.000    0.001    0.000 process.py:52(_cleanup)
+       30    0.001    0.000    0.001    0.000 process.py:71(__init__)
+       60    0.000    0.000    0.000    0.000 process.py:83(<genexpr>)
+       30    0.001    0.000    1.497    0.050 process.py:95(start)
+     1465    0.009    0.000    0.904    0.001 queue.py:147(get)
+        5    0.000    0.000    0.000    0.000 queue.py:199(_init)
+     1807    0.001    0.000    0.002    0.000 queue.py:202(_qsize)
+     1465    0.001    0.000    0.001    0.000 queue.py:210(_get)
+        5    0.000    0.000    0.000    0.000 queue.py:27(__init__)
+       35    0.000    0.000    0.001    0.000 queues.py:131(close)
+       35    0.000    0.000    0.000    0.000 queues.py:147(cancel_join_thread)
+       35    0.001    0.000    0.016    0.000 queues.py:155(_start_thread)
+       35    0.000    0.000    0.000    0.000 queues.py:196(_finalize_close)
+       35    0.001    0.000    0.015    0.000 queues.py:36(__init__)
+       35    0.001    0.000    0.001    0.000 queues.py:67(_after_fork)
+     1500    0.007    0.000    0.043    0.000 queues.py:80(put)
+     4514    0.002    0.000    0.003    0.000 random.py:223(_randbelow)
+     1044    0.001    0.000    0.002    0.000 random.py:255(choice)
+        6    0.001    0.000    0.002    0.000 random.py:263(shuffle)
+      524    0.003    0.000    0.003    0.000 replay_buffer.py:24(store)
+        1    0.000    0.000    0.000    0.000 sampler.py:142(__init__)
+     1470    0.256    0.000    0.450    0.000 sampler.py:158(__iter__)
+        1    0.000    0.000    0.000    0.000 sampler.py:50(__init__)
+        5    0.000    0.000    0.053    0.011 sampler.py:69(__iter__)
+    79385    0.026    0.000    0.062    0.000 shape_base.py:209(_arrays_for_stack_dispatcher)
+    79385    0.042    0.000    0.104    0.000 shape_base.py:220(_warn_for_nonsequence)
+    79385    0.112    0.000    1.209    0.000 shape_base.py:229(vstack)
+    79385    0.125    0.000    0.765    0.000 shape_base.py:283(<listcomp>)
+   396925    0.427    0.000    0.640    0.000 shape_base.py:83(atleast_2d)
+       28    0.000    0.000    0.000    0.000 sputils.py:120(get_index_dtype)
+       14    0.000    0.000    0.000    0.000 sputils.py:209(isshape)
+       14    0.000    0.000    0.000    0.000 sputils.py:266(check_shape)
+       42    0.000    0.000    0.000    0.000 sputils.py:279(<genexpr>)
+       14    0.000    0.000    0.000    0.000 sputils.py:92(to_native)
+        1    0.000    0.000    0.000    0.000 std.py:1085(__del__)
+        7    0.000    0.000    0.001    0.000 std.py:1088(__repr__)
+        2    0.000    0.000    0.000    0.000 std.py:1091(_comparable)
+        2    0.000    0.000    0.000    0.000 std.py:1095(__hash__)
+        6    0.000    0.000    0.001    0.000 std.py:1098(__iter__)
+        2    0.000    0.000    0.000    0.000 std.py:1260(close)
+        2    0.000    0.000    0.000    0.000 std.py:1277(fp_write)
+        6    0.000    0.000    0.001    0.000 std.py:1316(refresh)
+        7    0.000    0.000    0.000    0.000 std.py:1429(format_dict)
+        7    0.000    0.000    0.001    0.000 std.py:1446(display)
+        7    0.000    0.000    0.000    0.000 std.py:145(__init__)
+        7    0.000    0.000    0.000    0.000 std.py:154(__format__)
+       13    0.000    0.000    0.000    0.000 std.py:227(format_interval)
+       10    0.000    0.000    0.000    0.000 std.py:268(ema)
+        1    0.000    0.000    0.000    0.000 std.py:287(status_printer)
+        7    0.000    0.000    0.000    0.000 std.py:297(fp_write)
+        7    0.000    0.000    0.000    0.000 std.py:303(print_status)
+        7    0.000    0.000    0.000    0.000 std.py:310(format_meter)
+        1    0.000    0.000    0.000    0.000 std.py:511(__new__)
+        1    0.000    0.000    0.000    0.000 std.py:533(_get_free_pos)
+        1    0.000    0.000    0.000    0.000 std.py:536(<genexpr>)
+        1    0.000    0.000    0.000    0.000 std.py:540(_decr_instances)
+        1    0.000    0.000    0.000    0.000 std.py:623(get_lock)
+        1    0.000    0.000    0.000    0.000 std.py:796(__init__)
+       10    0.000    0.000    0.000    0.000 std.py:87(acquire)
+       10    0.000    0.000    0.000    0.000 std.py:91(release)
+        4    0.000    0.000    0.000    0.000 std.py:95(__enter__)
+        4    0.000    0.000    0.000    0.000 std.py:98(__exit__)
+       20    0.000    0.000    0.001    0.000 synchronize.py:125(__init__)
+       35    0.000    0.000    0.002    0.000 synchronize.py:144(__init__)
+       75    0.000    0.000    0.009    0.000 synchronize.py:161(__init__)
+        5    0.000    0.000    0.001    0.000 synchronize.py:212(__init__)
+        5    0.000    0.000    0.000    0.000 synchronize.py:229(__enter__)
+        5    0.000    0.000    0.000    0.000 synchronize.py:232(__exit__)
+        5    0.000    0.000    0.000    0.000 synchronize.py:235(_make_methods)
+        5    0.000    0.000    0.000    0.000 synchronize.py:287(notify_all)
+        5    0.000    0.000    0.001    0.000 synchronize.py:334(__init__)
+        5    0.000    0.000    0.000    0.000 synchronize.py:345(set)
+      130    0.005    0.000    0.011    0.000 synchronize.py:50(__init__)
+      130    0.000    0.000    0.000    0.000 synchronize.py:90(_make_methods)
+        5    0.000    0.000    0.000    0.000 synchronize.py:94(__enter__)
+        5    0.000    0.000    0.000    0.000 synchronize.py:97(__exit__)
+      130    0.000    0.000    0.000    0.000 tempfile.py:146(rng)
+      130    0.001    0.000    0.004    0.000 tempfile.py:157(__next__)
+      130    0.000    0.000    0.003    0.000 tempfile.py:160(<listcomp>)
+     8814    0.004    0.000    0.006    0.000 tensor.py:430(__hash__)
+     1465    0.005    0.000    0.555    0.000 tensor.py:74(backward)
+        6    0.000    0.000    0.001    0.000 threading.py:1024(join)
+     1471    0.001    0.000    0.003    0.000 threading.py:1062(_wait_for_tstate_lock)
+     1465    0.004    0.000    0.007    0.000 threading.py:1104(is_alive)
+       41    0.000    0.000    0.000    0.000 threading.py:1120(daemon)
+       41    0.000    0.000    0.000    0.000 threading.py:1136(daemon)
+       53    0.000    0.000    0.000    0.000 threading.py:1230(current_thread)
+       92    0.001    0.000    0.001    0.000 threading.py:215(__init__)
+     3042    0.002    0.000    0.006    0.000 threading.py:239(__enter__)
+     3042    0.001    0.000    0.002    0.000 threading.py:242(__exit__)
+      383    0.000    0.000    0.000    0.000 threading.py:248(_release_save)
+      383    0.000    0.000    0.000    0.000 threading.py:251(_acquire_restore)
+     3384    0.001    0.000    0.002    0.000 threading.py:254(_is_owned)
+      383    0.003    0.000    0.900    0.002 threading.py:263(wait)
+     3001    0.007    0.000    0.014    0.000 threading.py:334(notify)
+        1    0.000    0.000    0.000    0.000 threading.py:357(notify_all)
+       42    0.000    0.000    0.000    0.000 threading.py:498(__init__)
+     1554    0.001    0.000    0.001    0.000 threading.py:506(is_set)
+        1    0.000    0.000    0.000    0.000 threading.py:512(set)
+       41    0.000    0.000    0.015    0.000 threading.py:533(wait)
+        6    0.000    0.000    0.000    0.000 threading.py:727(_newname)
+       41    0.000    0.000    0.001    0.000 threading.py:757(__init__)
+       41    0.000    0.000    0.016    0.000 threading.py:828(start)
+        6    0.000    0.000    0.000    0.000 threading.py:966(_stop)
+       14    2.553    0.182    2.556    0.183 thundersvm.py:165(_dense_fit)
+    79963    0.156    0.000    3.303    0.000 thundersvm.py:269(_validate_for_predict)
+    79963    0.093    0.000   45.217    0.001 thundersvm.py:286(predict)
+    79963   41.473    0.001   41.821    0.001 thundersvm.py:327(_dense_predict)
+        7    0.000    0.000    0.000    0.000 thundersvm.py:518(__init__)
+        7    0.000    0.000    0.000    0.000 thundersvm.py:554(__init__)
+        7    0.000    0.000    0.491    0.070 thundersvm.py:566(fit)
+       14    0.000    0.000    0.000    0.000 thundersvm.py:58(__init__)
+       14    0.008    0.001    0.008    0.001 thundersvm.py:87(__del__)
+       14    0.031    0.002    2.595    0.185 thundersvm.py:91(fit)
+      524    0.001    0.000    0.264    0.001 time_limit.py:14(step)
+        1    0.000    0.000    0.000    0.000 time_limit.py:23(reset)
+      165    0.000    0.000    0.002    0.000 util.py:136(register_after_fork)
+       65    0.001    0.000    0.001    0.000 util.py:151(__init__)
+       65    0.000    0.000    0.000    0.000 util.py:167(__call__)
+       30    0.000    0.000    0.000    0.000 util.py:395(_flush_std_streams)
+       65    0.000    0.000    0.000    0.000 util.py:44(sub_debug)
+      340    0.000    0.000    0.000    0.000 util.py:48(debug)
+        7    0.000    0.000    0.000    0.000 utils.py:137(__init__)
+        7    0.000    0.000    0.000    0.000 utils.py:141(__format__)
+        1    0.000    0.000    0.000    0.000 utils.py:154(__eq__)
+        1    0.000    0.000    0.000    0.000 utils.py:238(_is_utf)
+        1    0.000    0.000    0.000    0.000 utils.py:252(_supports_unicode)
+        7    0.000    0.000    0.000    0.000 utils.py:259(_is_ascii)
+        1    0.000    0.000    0.000    0.000 utils.py:268(_screen_shape_wrapper)
+        1    0.000    0.000    0.000    0.000 utils.py:318(_screen_shape_linux)
+        1    0.000    0.000    0.000    0.000 utils.py:332(<listcomp>)
+    80012    0.105    0.000    0.363    0.000 validation.py:127(_num_samples)
+    79977    0.120    0.000    0.312    0.000 validation.py:153(_shape_repr)
+   239931    0.084    0.000    0.084    0.000 validation.py:180(<genexpr>)
+       14    0.000    0.000    0.002    0.000 validation.py:220(check_consistent_length)
+       14    0.000    0.000    0.000    0.000 validation.py:231(<listcomp>)
+    79977    0.050    0.000    0.078    0.000 validation.py:355(_ensure_no_complex_data)
+    79977    0.587    0.000    3.074    0.000 validation.py:362(check_array)
+    79991    0.315    0.000    0.862    0.000 validation.py:40(_assert_all_finite)
+       14    0.000    0.000    0.003    0.000 validation.py:636(check_X_y)
+       28    0.000    0.000    0.000    0.000 validation.py:771(column_or_1d)
+     5769    0.002    0.000    0.002    0.000 version.py:8(get_version)
+    79977    0.069    0.000    0.327    0.000 warnings.py:143(simplefilter)
+    79977    0.121    0.000    0.245    0.000 warnings.py:159(_add_filter)
+    79977    0.061    0.000    0.061    0.000 warnings.py:428(__init__)
+    79977    0.117    0.000    0.127    0.000 warnings.py:449(__enter__)
+    79977    0.066    0.000    0.071    0.000 warnings.py:468(__exit__)
+      165    0.000    0.000    0.000    0.000 weakref.py:109(remove)
+      165    0.001    0.000    0.001    0.000 weakref.py:165(__setitem__)
+      165    0.000    0.000    0.000    0.000 weakref.py:334(__new__)
+      165    0.000    0.000    0.000    0.000 weakref.py:339(__init__)
+      524    0.005    0.000    0.263    0.001 wrappers.py:155(step)
+        2    0.000    0.000    0.000    0.000 wrappers.py:16(wrapped_env)
+        1    0.000    0.000    0.000    0.000 wrappers.py:20(reset)
+        1    0.000    0.000    0.000    0.000 wrappers.py:37(__getattr__)
+      717    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x55cc72a9ad60}
+       28    0.000    0.000    0.000    0.000 {built-in method _ctypes.POINTER}
+       28    0.000    0.000    0.000    0.000 {built-in method _ctypes.pointer}
+        1    0.000    0.000    0.000    0.000 {built-in method _functools.reduce}
+       28    0.000    0.000    0.000    0.000 {built-in method _operator.index}
+      465    0.000    0.000    0.000    0.000 {built-in method _thread.allocate_lock}
+       67    0.000    0.000    0.000    0.000 {built-in method _thread.get_ident}
+       41    0.001    0.000    0.001    0.000 {built-in method _thread.start_new_thread}
+   239931    0.020    0.000    0.020    0.000 {built-in method _warnings._filters_mutated}
+      165    0.000    0.000    0.000    0.000 {built-in method _weakref._remove_dead_weakref}
+    14223    0.316    0.000    0.316    0.000 {built-in method addmm}
+        1    0.000    0.000    0.000    0.000 {built-in method atexit.register}
+     1465    0.014    0.000    0.014    0.000 {built-in method broadcast_tensors}
+        9    0.000    0.000    0.000    0.000 {built-in method builtins.abs}
+       33    0.000    0.000    0.000    0.000 {built-in method builtins.divmod}
+        1    0.000    0.000   66.317   66.317 {built-in method builtins.exec}
+    85341    0.021    0.000    0.021    0.000 {built-in method builtins.getattr}
+   640141    0.229    0.000    0.229    0.000 {built-in method builtins.hasattr}
+    35824    0.004    0.000    0.004    0.000 {built-in method builtins.id}
+   807341    0.192    0.000    0.305    0.000 {built-in method builtins.isinstance}
+    16396    0.002    0.000    0.002    0.000 {built-in method builtins.issubclass}
+       10    0.000    0.000    0.000    0.000 {built-in method builtins.iter}
+2183895/2183889    0.124    0.000    0.124    0.000 {built-in method builtins.len}
+       14    0.000    0.000    0.000    0.000 {built-in method builtins.locals}
+       51    0.000    0.000    0.000    0.000 {built-in method builtins.max}
+      525    0.000    0.000    0.000    0.000 {built-in method builtins.min}
+     1915    0.002    0.000    0.456    0.000 {built-in method builtins.next}
+       77    0.000    0.000    0.000    0.000 {built-in method builtins.ord}
+        8    0.000    0.000    0.000    0.000 {built-in method builtins.print}
+     4741    0.126    0.000    0.126    0.000 {built-in method cat}
+        1    0.000    0.000    0.000    0.000 {built-in method fcntl.ioctl}
+       14    0.000    0.000    0.000    0.000 {built-in method from_iterable}
+        6    0.000    0.000    0.000    0.000 {built-in method from_numpy}
+     8790    0.002    0.000    0.002    0.000 {built-in method math.sqrt}
+      468    0.001    0.000    0.001    0.000 {built-in method numpy.arange}
+   965951    0.690    0.000    0.690    0.000 {built-in method numpy.array}
+        7    0.000    0.000    0.000    0.000 {built-in method numpy.bincount}
+       56    0.000    0.000    0.000    0.000 {built-in method numpy.can_cast}
+    81497    0.240    0.000    0.240    0.000 {built-in method numpy.concatenate}
+      475    0.001    0.000    0.001    0.000 {built-in method numpy.copyto}
+       52    0.000    0.000    0.000    0.000 {built-in method numpy.core._multiarray_umath.dragon4_positional}
+     5435    0.008    0.000    0.008    0.000 {built-in method numpy.dot}
+      496    0.002    0.000    0.002    0.000 {built-in method numpy.empty}
+    80061    0.206    0.000    0.206    0.000 {built-in method numpy.frombuffer}
+       52    0.000    0.000    0.000    0.000 {built-in method numpy.geterrobj}
+       26    0.000    0.000    0.000    0.000 {built-in method numpy.seterrobj}
+      482    0.010    0.000    0.010    0.000 {built-in method numpy.zeros}
+     1465    0.032    0.000    0.032    0.000 {built-in method ones_like}
+       30    0.000    0.000    0.000    0.000 {built-in method posix.WEXITSTATUS}
+       30    0.000    0.000    0.000    0.000 {built-in method posix.WIFEXITED}
+       30    0.000    0.000    0.000    0.000 {built-in method posix.WIFSIGNALED}
+       95    0.001    0.000    0.001    0.000 {built-in method posix.close}
+       30    1.490    0.050    1.490    0.050 {built-in method posix.fork}
+      515    0.000    0.000    0.000    0.000 {built-in method posix.getpid}
+       65    0.000    0.000    0.000    0.000 {built-in method posix.pipe}
+      105    0.558    0.005    0.558    0.005 {built-in method posix.waitpid}
+        5    0.019    0.004    0.019    0.004 {built-in method randperm}
+      468    0.012    0.000    0.012    0.000 {built-in method rand}
+       14    0.000    0.000    0.000    0.000 {built-in method scipy.sparse._sparsetools.csr_todense}
+      468    0.018    0.000    0.018    0.000 {built-in method tensor}
+     1807    0.000    0.000    0.000    0.000 {built-in method time.monotonic}
+       17    0.000    0.000    0.000    0.000 {built-in method time.time}
+        5    0.000    0.000    0.000    0.000 {built-in method torch._C._cuda_getDeviceCount}
+        5    0.000    0.000    0.000    0.000 {built-in method torch._C._cuda_getDevice}
+        5    0.000    0.000    0.000    0.000 {built-in method torch._C._cuda_isDriverSufficient}
+       14    0.000    0.000    0.000    0.000 {built-in method torch._C._error_if_any_worker_fails}
+    29911    0.020    0.000    0.020    0.000 {built-in method torch._C._get_tracing_state}
+        1    0.000    0.000    0.000    0.000 {built-in method torch._C._nn._parse_to}
+     9482    0.127    0.000    0.127    0.000 {built-in method torch._C._nn.leaky_relu}
+     1465    0.132    0.000    0.132    0.000 {built-in method torch._C._nn.mse_loss}
+        5    0.000    0.000    0.000    0.000 {built-in method torch._C._remove_worker_pids}
+        5    0.000    0.000    0.000    0.000 {built-in method torch._C._update_worker_pids}
+      936    0.000    0.000    0.000    0.000 {built-in method torch._C.is_grad_enabled}
+      936    0.000    0.000    0.000    0.000 {built-in method torch._C.set_grad_enabled}
+       12    0.000    0.000    0.000    0.000 {built-in method zeros_like}
+      468    0.005    0.000    0.005    0.000 {built-in method zeros}
+      541    0.001    0.000    0.001    0.000 {method '__deepcopy__' of 'numpy.generic' objects}
+     1094    0.001    0.000    0.001    0.000 {method '__deepcopy__' of 'numpy.ndarray' objects}
+        5    0.000    0.000    0.000    0.000 {method '__enter__' of '_multiprocessing.SemLock' objects}
+     3042    0.004    0.000    0.004    0.000 {method '__enter__' of '_thread.lock' objects}
+        5    0.000    0.000    0.000    0.000 {method '__exit__' of '_multiprocessing.SemLock' objects}
+     3042    0.000    0.000    0.000    0.000 {method '__exit__' of '_thread.lock' objects}
+      547    0.001    0.000    0.001    0.000 {method '__reduce_ex__' of 'object' objects}
+        5    0.000    0.000    0.000    0.000 {method '_is_mine' of '_multiprocessing.SemLock' objects}
+     1530    0.005    0.000    0.005    0.000 {method 'acquire' of '_multiprocessing.SemLock' objects}
+       10    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.RLock' objects}
+     6004    0.900    0.000    0.900    0.000 {method 'acquire' of '_thread.lock' objects}
+      131    0.000    0.000    0.000    0.000 {method 'add' of 'set' objects}
+    17580    0.218    0.000    0.218    0.000 {method 'add_' of 'torch._C._TensorBase' objects}
+     8790    0.105    0.000    0.105    0.000 {method 'addcdiv_' of 'torch._C._TensorBase' objects}
+     8790    0.095    0.000    0.095    0.000 {method 'addcmul_' of 'torch._C._TensorBase' objects}
+    79909    0.063    0.000    0.362    0.000 {method 'all' of 'numpy.ndarray' objects}
+     1919    0.000    0.000    0.000    0.000 {method 'append' of 'collections.deque' objects}
+  1917607    0.123    0.000    0.123    0.000 {method 'append' of 'list' objects}
+      468    0.005    0.000    0.005    0.000 {method 'argmin' of 'numpy.ndarray' objects}
+       77    0.000    0.000    0.000    0.000 {method 'astype' of 'numpy.ndarray' objects}
+     4514    0.000    0.000    0.000    0.000 {method 'bit_length' of 'int' objects}
+       35    0.000    0.000    0.000    0.000 {method 'clear' of 'collections.deque' objects}
+     1048    0.003    0.000    0.003    0.000 {method 'clip' of 'numpy.ndarray' objects}
+     3276    0.001    0.000    0.001    0.000 {method 'conj' of 'numpy.ndarray' objects}
+    80035    0.024    0.000    0.024    0.000 {method 'copy' of 'dict' objects}
+      936    6.115    0.007    6.115    0.007 {method 'cpu' of 'torch._C._TensorBase' objects}
+     8790    0.010    0.000    0.010    0.000 {method 'detach_' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.000    0.000 {method 'difference' of 'set' objects}
+    14223    0.003    0.000    0.003    0.000 {method 'dim' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+      114    0.000    0.000    0.000    0.000 {method 'discard' of 'set' objects}
+        2    0.000    0.000    0.000    0.000 {method 'encode' of 'str' objects}
+     1551    0.001    0.000    0.001    0.000 {method 'flatten' of 'numpy.ndarray' objects}
+    10953    0.027    0.000    0.027    0.000 {method 'float' of 'torch._C._TensorBase' objects}
+       67    0.000    0.000    0.000    0.000 {method 'flush' of '_io._IOBase' objects}
+       54    0.000    0.000    0.000    0.000 {method 'format' of 'str' objects}
+        2    0.000    0.000    0.000    0.000 {method 'forward' of 'mujoco_py.cymj.MjSim' objects}
+       28    0.000    0.000    0.000    0.000 {method 'from_buffer' of '_ctypes.PyCArrayType' objects}
+    45995    0.004    0.000    0.004    0.000 {method 'get' of 'dict' objects}
+     1048    0.002    0.000    0.002    0.000 {method 'get_body_xpos' of 'mujoco_py.cymj.PyMjData' objects}
+        2    0.000    0.000    0.000    0.000 {method 'get_state' of 'mujoco_py.cymj.MjSim' objects}
+     6829    0.001    0.000    0.001    0.000 {method 'getrandbits' of '_random.Random' objects}
+       28    0.000    0.000    0.000    0.000 {method 'index' of 'list' objects}
+    79977    0.040    0.000    0.040    0.000 {method 'insert' of 'list' objects}
+        1    0.000    0.000    0.000    0.000 {method 'isdisjoint' of 'set' objects}
+        5    0.000    0.000    0.000    0.000 {method 'item' of 'torch._C._TensorBase' objects}
+       16    0.000    0.000    0.000    0.000 {method 'items' of 'collections.OrderedDict' objects}
+     1588    0.000    0.000    0.000    0.000 {method 'items' of 'dict' objects}
+    80137    0.090    0.000    0.173    0.000 {method 'join' of 'str' objects}
+        7    0.000    0.000    0.000    0.000 {method 'keys' of 'dict' objects}
+        6    0.000    0.000    0.000    0.000 {method 'locked' of '_thread.lock' objects}
+       14    0.000    0.000    0.000    0.000 {method 'max' of 'numpy.ndarray' objects}
+    17580    0.270    0.000    0.270    0.000 {method 'mul_' of 'torch._C._TensorBase' objects}
+       14    0.000    0.000    0.000    0.000 {method 'newbyteorder' of 'numpy.dtype' objects}
+     1465    0.007    0.000    0.007    0.000 {method 'numel' of 'torch._C._TensorBase' objects}
+      936    0.003    0.000    0.003    0.000 {method 'numpy' of 'torch._C._TensorBase' objects}
+      126    0.000    0.000    0.000    0.000 {method 'pop' of 'dict' objects}
+     1465    0.000    0.000    0.000    0.000 {method 'popleft' of 'collections.deque' objects}
+        1    0.000    0.000    0.000    0.000 {method 'randn' of 'mtrand.RandomState' objects}
+      524    0.000    0.000    0.000    0.000 {method 'random' of '_random.Random' objects}
+        5    0.000    0.000    0.000    0.000 {method 'random_' of 'torch._C._TensorBase' objects}
+    85440    0.044    0.000    0.044    0.000 {method 'ravel' of 'numpy.ndarray' objects}
+   164739    1.362    0.000    1.362    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+       15    0.000    0.000    0.000    0.000 {method 'release' of '_multiprocessing.SemLock' objects}
+       10    0.000    0.000    0.000    0.000 {method 'release' of '_thread.RLock' objects}
+     1855    0.006    0.000    0.006    0.000 {method 'release' of '_thread.lock' objects}
+     1466    0.000    0.000    0.000    0.000 {method 'remove' of 'collections.deque' objects}
+    79977    0.079    0.000    0.079    0.000 {method 'remove' of 'list' objects}
+        3    0.000    0.000    0.000    0.000 {method 'remove' of 'set' objects}
+      468    0.022    0.000    0.022    0.000 {method 'repeat' of 'numpy.ndarray' objects}
+      468    0.011    0.000    0.011    0.000 {method 'repeat' of 'torch._C._TensorBase' objects}
+        1    0.000    0.000    0.000    0.000 {method 'reset' of 'mujoco_py.cymj.MjSim' objects}
+       14    0.000    0.000    0.000    0.000 {method 'reshape' of 'numpy.ndarray' objects}
+       49    0.000    0.000    0.000    0.000 {method 'round' of 'numpy.generic' objects}
+      240    0.000    0.000    0.000    0.000 {method 'rpartition' of 'str' objects}
+       14    0.000    0.000    0.000    0.000 {method 'rstrip' of 'str' objects}
+     1465    0.496    0.000    0.496    0.000 {method 'run_backward' of 'torch._C._EngineBase' objects}
+        2    0.000    0.000    0.000    0.000 {method 'set_state' of 'mujoco_py.cymj.MjSim' objects}
+        5    0.000    0.000    0.000    0.000 {method 'setdefault' of 'dict' objects}
+       21    0.003    0.000    0.003    0.000 {method 'sort' of 'numpy.ndarray' objects}
+       26    0.000    0.000    0.000    0.000 {method 'split' of 'str' objects}
+     8790    0.103    0.000    0.103    0.000 {method 'sqrt' of 'torch._C._TensorBase' objects}
+     2620    0.188    0.000    0.188    0.000 {method 'step' of 'mujoco_py.cymj.MjSim' objects}
+    80508    0.043    0.000    0.463    0.000 {method 'sum' of 'numpy.ndarray' objects}
+    14223    0.083    0.000    0.083    0.000 {method 't' of 'torch._C._TensorBase' objects}
+     4401    0.452    0.000    0.452    0.000 {method 'to' of 'torch._C._TensorBase' objects}
+     1052    0.001    0.000    0.001    0.000 {method 'tolist' of 'numpy.ndarray' objects}
+        5    0.033    0.007    0.033    0.007 {method 'tolist' of 'torch._C._TensorBase' objects}
+       59    0.000    0.000    0.000    0.000 {method 'uniform' of 'mtrand.RandomState' objects}
+      568    0.000    0.000    0.000    0.000 {method 'update' of 'dict' objects}
+    64564    0.006    0.000    0.006    0.000 {method 'values' of 'collections.OrderedDict' objects}
+        8    0.000    0.000    0.000    0.000 {method 'values' of 'dict' objects}
+        9    0.000    0.000    0.000    0.000 {method 'write' of '_io.StringIO' objects}
+     8790    0.074    0.000    0.074    0.000 {method 'zero_' of 'torch._C._TensorBase' objects}
+
+

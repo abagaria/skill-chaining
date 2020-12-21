@@ -1,5 +1,6 @@
 import os
 import ipdb
+import time
 import torch
 import pickle
 import argparse
@@ -49,8 +50,14 @@ class OnlineModelBasedSkillChaining(object):
                 return option
 
     def act(self, state):
-        current_option = self._pick_earliest_option(state, self.chain)
-        return current_option if current_option is not None else self.global_option
+        # current_option = self._pick_earliest_option(state, self.chain)
+        # return current_option if current_option is not None else self.global_option
+        for option in self.chain:
+            if option.is_init_true(state):
+                subgoal = option.get_goal_for_rollout()
+                if not option.is_at_local_goal(state, subgoal):
+                    return option, subgoal
+        return self.global_option, self.global_option.get_goal_for_rollout()
 
     def pick_optimal_subgoal(self, state):
         current_option = self._pick_earliest_option(state, self.mature_options)
@@ -74,8 +81,9 @@ class OnlineModelBasedSkillChaining(object):
         step_number = 0
         while step_number < num_steps and not self.mdp.cur_state.is_terminal():
             state = deepcopy(self.mdp.cur_state)
-            subgoal = self.pick_optimal_subgoal(state) if self.use_optimal_sampler else None
-            selected_option = self.act(state)
+            # TODO fix for pic_optimal_subgoal
+            # subgoal = self.pick_optimal_subgoal(state) if self.use_optimal_sampler else None
+            selected_option, subgoal = self.act(state)
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
 
             if len(transitions) == 0:
@@ -223,10 +231,10 @@ def test_agent(exp, num_experiments, num_steps):
         while step_number < num_steps and not exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
 
             state = deepcopy(exp.mdp.cur_state)
-            subgoal = exp.pick_optimal_subgoal(state) if exp.use_optimal_sampler else None
-            selected_option = exp.act(state)
-            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
-
+            # subgoal = exp.pick_optimal_subgoal(state) if exp.use_optimal_sampler else None
+            selected_option, subgoal = exp.act(state)
+            transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
+            # exp.manage_chain_after_rollout(selected_option)
             step_number += len(transitions)
         return step_number
         
@@ -270,7 +278,9 @@ if __name__ == "__main__":
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
     create_log_dir(f"value_function_plots/{args.experiment_name}")
 
+    start_time = time.time()
     durations = exp.run_loop(args.episodes, args.steps)
+    end_time = time.time()
 
     with open(f"{args.experiment_name}/durations.pkl", "wb+") as f:
         pickle.dump(durations, f)
