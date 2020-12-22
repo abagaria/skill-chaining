@@ -15,21 +15,28 @@ from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoa
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, max_steps, gestation_period, use_vf,
-                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, experiment_name, device, logging_freq):
+    def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_model,
+                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, experiment_name, device,
+                 logging_freq, generate_init_gif, evaluation_freq, seed):
         self.device = device
         self.use_vf = use_vf
+        self.use_model = use_model
         self.experiment_name = experiment_name
         self.warmup_episodes = warmup_episodes
         self.max_steps = max_steps
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
         self.use_optimal_sampler = use_optimal_sampler
-        self.logging_freq = logging_freq
 
+        self.seed = seed
+        self.logging_freq = logging_freq
+        self.evaluation_freq = evaluation_freq
+        self.generate_init_gif = generate_init_gif
+
+        self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)))
+        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=seed)
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -106,9 +113,9 @@ class OnlineModelBasedSkillChaining(object):
             per_episode_durations.append(step)
             self.log_status(episode, last_10_durations)
 
-            if episode == self.warmup_episodes - 1:
+            if episode == self.warmup_episodes - 1 and self.use_model:
                 self.learn_dynamics_model(epochs=50)
-            elif episode >= self.warmup_episodes:
+            elif episode >= self.warmup_episodes and self.use_model:
                 self.learn_dynamics_model(epochs=5)
 
             if len(self.mature_options) > 0 and self.use_optimal_sampler:
@@ -124,6 +131,15 @@ class OnlineModelBasedSkillChaining(object):
         individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
         overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
         self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
+
+        if episode % self.evaluation_freq == 0:
+            success, step_count = test_agent(self, 1, self.max_steps)
+
+            self.log[episode]["success"] = success
+            self.log[episode]["step-count"] = step_count[0]
+
+            with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
+                pickle.dump(self.log, log_file)
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
         self.global_option.solver.load_data()
@@ -142,7 +158,7 @@ class OnlineModelBasedSkillChaining(object):
 
     def contains_init_state(self):
         for option in self.mature_options:
-            if option.is_init_true(np.array([0,0])):
+            if option.is_init_true(np.array([0,0])):  # TODO: Get test-time start state automatically
                 return True
         return False
 
@@ -166,18 +182,20 @@ class OnlineModelBasedSkillChaining(object):
             options = self.mature_options + self.new_options
 
             for option in self.mature_options:
-                plot_two_class_classifier(option, episode, self.experiment_name, plot_examples=True)
+                episode_label = episode if self.generate_init_gif else -1
+                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
 
             for option in options:
                 make_chunked_goal_conditioned_value_function_plot(option.value_learner,
                                                                 goal=option.get_goal_for_rollout(),
-                                                                episode=episode, seed=0,
+                                                                episode=episode, seed=self.seed,
                                                                 experiment_name=self.experiment_name)
 
     def create_model_based_option(self, name, parent=None):
         option_idx = len(self.chain) + 1 if parent is not None else 1
         option = ModelBasedOption(parent=parent, mdp=self.mdp,
-                                  buffer_length=50, global_init=False,
+                                  buffer_length=self.buffer_length,
+                                  global_init=False,
                                   gestation_period=self.gestation_period,
                                   timeout=200, max_steps=self.max_steps, device=self.device,
                                   target_salient_event=self.target_salient_event,
@@ -185,6 +203,7 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=self.global_option.solver,
                                   use_vf=self.use_vf,
+                                  use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
                                   option_idx=option_idx)
@@ -192,7 +211,8 @@ class OnlineModelBasedSkillChaining(object):
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
         option = ModelBasedOption(parent=None, mdp=self.mdp,
-                                  buffer_length=50, global_init=True,
+                                  buffer_length=self.buffer_length,
+                                  global_init=True,
                                   gestation_period=self.gestation_period,
                                   timeout=200, max_steps=self.max_steps, device=self.device,
                                   target_salient_event=self.target_salient_event,
@@ -200,6 +220,7 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=None,
                                   use_vf=self.use_vf,
+                                  use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,
                                   option_idx=0)
@@ -240,39 +261,57 @@ def test_agent(exp, num_experiments, num_steps):
         
     success = 0
     step_counts = []
-    for _ in tqdm(range(num_experiments)):
+
+    for _ in tqdm(range(num_experiments), desc="Performing test rollout"):
         exp.mdp.reset()
         steps_taken = rollout()
         if steps_taken != num_steps:
             success += 1
         step_counts.append(steps_taken)
+
+    print("*" * 80)
+    print(f"Test Rollout Success Rate: {success / num_experiments}, Duration: {np.mean(step_counts)}")
+    print("*" * 80)
+
     return success / num_experiments, step_counts
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
+    parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gestation_period", type=int, default=3)
+    parser.add_argument("--buffer_length", type=int, default=50)
     parser.add_argument("--episodes", type=int, default=150)
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--warmup_episodes", type=int, default=5)
     parser.add_argument("--use_value_function", action="store_true", default=False)
+    parser.add_argument("--use_model", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     parser.add_argument("--use_optimal_sampler", action="store_true", default=False)
     parser.add_argument("--logging_frequency", type=int, default=50, help="Draw init sets, etc after every _ episodes")
+    parser.add_argument("--generate_init_gif", action="store_true", default=False)
+    parser.add_argument("--evaluation_frequency", type=int, default=10)
     args = parser.parse_args()
+
+    assert args.use_model or args.use_value_function
 
     exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
                                         warmup_episodes=args.warmup_episodes,
                                         max_steps=args.steps,
+                                        use_model=args.use_model,
                                         use_vf=args.use_value_function,
                                         use_diverse_starts=args.use_diverse_starts,
                                         use_dense_rewards=args.use_dense_rewards,
                                         use_optimal_sampler=args.use_optimal_sampler,
-                                        logging_freq=args.logging_frequency)
+                                        logging_freq=args.logging_frequency,
+                                        evaluation_freq=args.evaluation_frequency,
+                                        buffer_length=args.buffer_length,
+                                        generate_init_gif=args.generate_init_gif,
+                                        seed=args.seed)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
@@ -282,5 +321,5 @@ if __name__ == "__main__":
     durations = exp.run_loop(args.episodes, args.steps)
     end_time = time.time()
 
-    with open(f"{args.experiment_name}/durations.pkl", "wb+") as f:
+    with open(f"{args.experiment_name}/training_durations.pkl", "wb+") as f:
         pickle.dump(durations, f)
