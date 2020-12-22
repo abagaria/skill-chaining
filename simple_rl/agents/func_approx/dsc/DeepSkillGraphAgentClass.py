@@ -110,9 +110,7 @@ class DeepSkillGraphAgent(object):
             target_event (SalientEvent)
         """
         assert selection_criteria in ("closest", "random"), selection_criteria
-        events = self.mdp.get_all_target_events_ever()
-        # TODO: Add start state back in
-        # events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
+        events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
         if len(self.mdp.get_all_target_events_ever()) > 0:
             if selection_criteria == "closest":
                 selected_event = self._select_closest_unconnected_salient_event(state, events)
@@ -238,6 +236,7 @@ class DeepSkillGraphAgent(object):
             return False
         elif episode == 5:
             return True
+
         return episode - self.last_event_creation_episode >= self.salient_event_freq
 
     def generate_candidate_salient_events(self, state):

@@ -24,7 +24,7 @@ class D4RLSwimmerMazeState(State):
         State.__init__(self, data=features, is_terminal=is_terminal)
 
     def __str__(self):
-        return f"position: {self.position}, terminal: {self.is_terminal()}"
+        return f"position: {self.position}, terminal: {self.is_terminal}"
 
     def __repr__(self):
         return str(self)

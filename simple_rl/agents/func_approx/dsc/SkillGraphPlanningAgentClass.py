@@ -319,7 +319,6 @@ class SkillGraphPlanningAgent(object):
             self.add_newly_created_option_to_plan_graph(newly_created_option)
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option):
-        ipdb.set_trace()
 
         assert newly_created_option.get_training_phase() == "initiation_done",\
                f"{newly_created_option} in {newly_created_option.get_training_phase()}"
