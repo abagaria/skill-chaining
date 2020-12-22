@@ -76,9 +76,9 @@ class MDPPlotter(metaclass=abc.ABCMeta):
             mdp (MDP): MDP
         """
         self.save_option_success_rate(dsg_agent.dsc_agent)
-        self.plot_learning_curve(dsg_agent, train_time=250)
         self._generate_final_experiment_plots(dsg_agent)
         self.generate_episode_plots(dsg_agent.dsc_agent, 'post_testing')
+        return self.plot_learning_curve(dsg_agent, train_time=2)
 
     def plot_learning_curve(self, dsg_agent, train_time):
         def plot_learning_curves():
@@ -126,6 +126,7 @@ class MDPPlotter(metaclass=abc.ABCMeta):
         print('*' * 80)
         plot_learning_curves()
         save_test_parameters()
+        return learning_curves
 
     def learning_curve(self, dsg_agent, num_training_episodes, randomize_start_states, num_states=20):
         def generate_start_states():
