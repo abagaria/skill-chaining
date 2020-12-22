@@ -11,7 +11,7 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
-                 gestation_period, timeout, max_steps, device, use_vf, dense_reward,
+                 gestation_period, timeout, max_steps, device, use_vf, use_model, dense_reward,
                  option_idx, max_num_children=2, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
@@ -19,6 +19,7 @@ class ModelBasedOption(object):
         self.device = device
         self.use_vf = use_vf
         self.timeout = timeout
+        self.use_model = use_model
         self.max_steps = max_steps
         self.global_init = global_init
         self.dense_reward = dense_reward
@@ -40,23 +41,32 @@ class ModelBasedOption(object):
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
 
-        if global_solver is not None:
-            self.solver = global_solver
-        else:
-            self.solver = MPC(mdp=self.mdp,
-                              state_size=self.mdp.state_space_size(),
-                              action_size=self.mdp.action_space_size(),
-                              dense_reward=self.dense_reward,
-                              device=self.device)
+        # In the model-free setting, the output norm doesn't seem to work
+        # But it seems to stabilize off policy value function learning
+        # Therefore, only use output norm if we are using MPC for action selection
+        use_output_norm = self.use_model
 
         self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
                                  action_dim=self.mdp.action_space_size(),
 								 max_action=1.,
                                  name=f"{name}-td3-agent",
-                                 device=self.device)
+                                 device=self.device,
+                                 use_output_normalization=use_output_norm)
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
+        if global_solver is not None:
+            self.solver = global_solver
+        elif use_model:
+            print(f"Using model-based controller for {name}")
+            self.solver = MPC(mdp=self.mdp,
+                              state_size=self.mdp.state_space_size(),
+                              action_size=self.mdp.action_space_size(),
+                              dense_reward=self.dense_reward,
+                              device=self.device)
+        else:
+            print(f"Using model-free controller for {name}")
+            self.solver = self.value_learner
 
         self.children = []
         self.success_curve = []
@@ -112,14 +122,27 @@ class ModelBasedOption(object):
     # Control Loop Methods
     # ------------------------------------------------------------
 
-    # TODO make configurable
+    def _get_epsilon(self):
+        if self.use_model:
+            return 0.1
+        if not self.dense_reward and self.num_goal_hits <= 3:
+            return 0.8
+        return 0.2
+
     def act(self, state, goal):
         """ Epsilon-greedy action selection. """
-        if random.random() < 0.1:
+
+        if random.random() < self._get_epsilon():
             return self.mdp.sample_random_action()
 
-        vf = self.value_function if self.use_vf else None
-        return self.solver.act(state, goal, vf=vf)
+        if self.use_model:
+            assert isinstance(self.solver, MPC), f"{type(self.solver)}"
+            vf = self.value_function if self.use_vf else None
+            return self.solver.act(state, goal, vf=vf)
+
+        assert isinstance(self.solver, TD3), f"{type(self.solver)}"
+        augmented_state = self.get_augmented_state(state, goal)
+        return self.solver.act(augmented_state, evaluation_mode=False)
 
     def update_model(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
@@ -163,7 +186,9 @@ class ModelBasedOption(object):
             # Control
             action = self.act(state, goal)
             reward, next_state = self.mdp.execute_agent_action(action)
-            self.update_model(state, action, reward, next_state)
+
+            if self.use_model:
+                self.update_model(state, action, reward, next_state)
 
             # Logging
             num_steps += 1
