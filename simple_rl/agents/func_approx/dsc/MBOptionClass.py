@@ -4,7 +4,12 @@ import random
 import itertools
 import numpy as np
 from copy import deepcopy
-from thundersvm import OneClassSVM, SVC
+
+try:
+    from thundersvm import OneClassSVM, SVC
+except ImportError:
+    from sklearn.svm import OneClassSVM, SVC
+
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
@@ -180,7 +185,7 @@ class ModelBasedOption(object):
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
-        
+
         self.num_executions += 1
 
         while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
@@ -338,7 +343,7 @@ class ModelBasedOption(object):
             indices = np.argwhere(valid == True)
             if len(indices) > 0:
                 return sampled_trajectory[indices[0][0]]
-        
+
         return self.sample_from_initiation_region_fast()
 
     def derive_positive_and_negative_examples(self, visited_states):
