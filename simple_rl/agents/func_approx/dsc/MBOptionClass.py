@@ -55,9 +55,11 @@ class ModelBasedOption(object):
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
-        if global_solver is not None:
+        if global_solver is not None and use_model:
+            assert not self.global_init, "Assuming local option here"
             self.solver = global_solver
         elif use_model:
+            assert self.global_init, "Assuming global option here"
             print(f"Using model-based controller for {name}")
             self.solver = MPC(mdp=self.mdp,
                               state_size=self.mdp.state_space_size(),

@@ -132,7 +132,7 @@ class OnlineModelBasedSkillChaining(object):
         overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
         self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
 
-        if episode % self.evaluation_freq == 0:
+        if episode % self.evaluation_freq == 0 and episode > self.warmup_episodes:
             success, step_count = test_agent(self, 1, self.max_steps)
 
             self.log[episode]["success"] = success
@@ -167,6 +167,10 @@ class OnlineModelBasedSkillChaining(object):
         if executed_option in self.new_options and executed_option.get_training_phase() != "gestation":
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
+            self.filter_replay_buffer(executed_option)
+
+        if executed_option.num_goal_hits == 2 * executed_option.gestation_period:
+            self.filter_replay_buffer(executed_option)
 
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
@@ -174,6 +178,11 @@ class OnlineModelBasedSkillChaining(object):
             print(f"Creating {name}, parent {new_option.parent}, new_options = {self.new_options}, mature_options = {self.mature_options}")
             self.new_options.append(new_option)
             self.chain.append(new_option)
+
+    def filter_replay_buffer(self, option):
+        assert isinstance(option, ModelBasedOption)
+        print(f"Clearing the replay buffer for {option.name}")
+        option.value_learner.replay_buffer.clear()
 
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
