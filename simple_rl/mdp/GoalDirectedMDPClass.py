@@ -36,14 +36,12 @@ class GoalDirectedMDP(MDP):
 
     def dense_gc_reward_function(self, state, goal, info={}):
         time_limit_truncated = info.get('TimeLimit.truncated', False)
-        init_pos = self.get_position(self.init_state)
         curr_pos = self.get_position(state)
         goal_pos = self.get_position(goal)
         distance_to_goal = np.linalg.norm(curr_pos - goal_pos)
-        normalization_factor = np.linalg.norm(init_pos - goal_pos)
         done = distance_to_goal <= self.goal_tolerance
         is_terminal = done and not time_limit_truncated
-        reward = +0. if is_terminal else -distance_to_goal # /normalization_factor
+        reward = +0. if is_terminal else -distance_to_goal
         return reward, is_terminal
 
     def batched_sparse_gc_reward_function(self, states, goals):
@@ -62,9 +60,6 @@ class GoalDirectedMDP(MDP):
         return rewards, dones
 
     def batched_dense_gc_reward_function(self, states, goals):
-        init_pos = self.get_position(self.init_state)
-        goal_pos = self.get_position(self.goal_state)
-        normalization_factor = np.linalg.norm(init_pos - goal_pos)
 
         current_positions = states[:, :2]
         goal_positions = goals[:, :2]
@@ -74,7 +69,7 @@ class GoalDirectedMDP(MDP):
 
         assert distances.shape == dones.shape == (states.shape[0],) == (goals.shape[0],)
 
-        rewards = -distances # / normalization_factor
+        rewards = -distances
         rewards[dones==1] = 0.
         
         return rewards, dones
@@ -119,11 +114,11 @@ class GoalDirectedMDP(MDP):
 
     def is_start_state(self, state):
         pos = self.get_position(state)
-        s0 = self.init_state.position
+        s0 = self.get_start_state_salient_event().get_target_position()
         return np.linalg.norm(pos - s0) <= self.goal_tolerance
 
     def batched_is_start_state(self, position_matrix):
-        s0 = self.init_state.position
+        s0 = self.get_start_state_salient_event().get_target_position()
         in_start_pos = distance.cdist(position_matrix, s0[None, :]) <= self.goal_tolerance
         return in_start_pos.squeeze(1)
 
