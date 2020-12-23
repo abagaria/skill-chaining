@@ -43,7 +43,7 @@ class GoalDirectedMDP(MDP):
         normalization_factor = np.linalg.norm(init_pos - goal_pos)
         done = distance_to_goal <= self.goal_tolerance
         is_terminal = done and not time_limit_truncated
-        reward = +0. if is_terminal else -distance_to_goal/normalization_factor
+        reward = +0. if is_terminal else -distance_to_goal # /normalization_factor
         return reward, is_terminal
 
     def batched_sparse_gc_reward_function(self, states, goals):
@@ -74,7 +74,7 @@ class GoalDirectedMDP(MDP):
 
         assert distances.shape == dones.shape == (states.shape[0],) == (goals.shape[0],)
 
-        rewards = -distances / normalization_factor
+        rewards = -distances # / normalization_factor
         rewards[dones==1] = 0.
         
         return rewards, dones

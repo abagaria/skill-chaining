@@ -36,6 +36,11 @@ class MPC:
         self.replay_buffer = ReplayBuffer(obs_dim=state_size, act_dim=action_size, size=int(3e5))
         self._cpu_count = os.cpu_count() - 2
 
+        # TODO vf debug variables
+        self.cost_log_size = 10
+        self.cost_log = [(None, None) for _ in range(self.cost_log_size)]
+        self.cost_log_counter = 0
+
     def load_data(self):
         self.dataset = self._preprocess_data()
         self.model.set_standardization_vars(*self._get_standardization_vars())
@@ -189,6 +194,12 @@ class MPC:
         terminal_rewards = self.get_terminal_rewards(final_states, goal, horizon=num_steps, vf=vf)
         terminal_costs = -1 * terminal_rewards.squeeze()
         augmented_costs = n_step_costs + terminal_costs
+
+        # TODO debug vf variables
+        self.cost_log[self.cost_log_counter] = (n_step_costs, terminal_costs)
+        self.cost_log_counter += 1
+        if self.cost_log_counter == self.cost_log_size:
+            self.cost_log_counter = 0
 
         assert terminal_costs.shape == n_step_costs.shape, f"{terminal_costs.shape, n_step_costs.shape}"
         assert augmented_costs.shape == n_step_costs.shape, f"{augmented_costs.shape, n_step_costs.shape}"
