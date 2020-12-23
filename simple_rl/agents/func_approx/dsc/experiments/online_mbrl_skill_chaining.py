@@ -16,8 +16,12 @@ from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoa
 
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_model,
-                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed):
+                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a,
+                 experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, seed):
+
+        self.lr_c = lr_c
+        self.lr_a = lr_a
+
         self.device = device
         self.use_vf = use_vf
         self.use_model = use_model
@@ -215,7 +219,8 @@ class OnlineModelBasedSkillChaining(object):
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
-                                  option_idx=option_idx)
+                                  option_idx=option_idx,
+                                  lr_c=self.lr_c, lr_a=self.lr_a)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -232,7 +237,8 @@ class OnlineModelBasedSkillChaining(object):
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,
-                                  option_idx=0)
+                                  option_idx=0,
+                                  lr_c=self.lr_c, lr_a=self.lr_a)
         return option
 
     def reset(self, episode):
@@ -302,6 +308,10 @@ if __name__ == "__main__":
     parser.add_argument("--logging_frequency", type=int, default=50, help="Draw init sets, etc after every _ episodes")
     parser.add_argument("--generate_init_gif", action="store_true", default=False)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
+
+    parser.add_argument("--lr_c", type=float, help="critic learning rate")
+    parser.add_argument("--lr_a", type=float, help="actor learning rate")
+
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
@@ -320,7 +330,9 @@ if __name__ == "__main__":
                                         evaluation_freq=args.evaluation_frequency,
                                         buffer_length=args.buffer_length,
                                         generate_init_gif=args.generate_init_gif,
-                                        seed=args.seed)
+                                        seed=args.seed,
+                                        lr_c=args.lr_c,
+                                        lr_a=args.lr_a)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")

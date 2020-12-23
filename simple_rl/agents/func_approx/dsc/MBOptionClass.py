@@ -17,9 +17,11 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_model, dense_reward,
-                 option_idx, max_num_children=2, target_salient_event=None, path_to_model=""):
+                 option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
+        self.lr_c = lr_c
+        self.lr_a = lr_a
         self.parent = parent
         self.device = device
         self.use_vf = use_vf
@@ -56,6 +58,7 @@ class ModelBasedOption(object):
 								 max_action=1.,
                                  name=f"{name}-td3-agent",
                                  device=self.device,
+                                 lr_c=lr_c, lr_a=lr_a,
                                  use_output_normalization=use_output_norm)
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3

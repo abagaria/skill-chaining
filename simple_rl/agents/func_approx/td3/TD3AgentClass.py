@@ -26,12 +26,13 @@ class TD3(object):
             policy_freq=2,
             batch_size=256,
             exploration_noise=0.1,
+            lr_c=3e-4, lr_a=3e-4,
             device=torch.device("cuda"),
             name="Global-TD3-Agent"
     ):
 
-        self.critic_learning_rate = 3e-5
-        self.actor_learning_rate = 3e-5
+        self.critic_learning_rate = lr_c
+        self.actor_learning_rate = lr_a
 
         if use_output_normalization:
             assert max_action == 1., "Haven't fixed max-action for output-norm yet"
