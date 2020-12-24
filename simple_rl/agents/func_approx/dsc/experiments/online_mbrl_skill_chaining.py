@@ -329,7 +329,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
-    assert (args.use_value_function and args.use_global_value_function) or (args.use_value_function and not args.use_global_value_function) or not (args.use_value_function and args.use_global_value_function)
+
+    if not args.use_value_function:
+        assert not args.use_global_value_function
+
     if args.clear_option_buffers:
         assert not args.use_global_value_function
 
