@@ -15,7 +15,7 @@ from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoa
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_model,
+    def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a,
                  experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, seed):
 
@@ -24,6 +24,7 @@ class OnlineModelBasedSkillChaining(object):
 
         self.device = device
         self.use_vf = use_vf
+        self.use_global_vf = use_global_vf
         self.use_model = use_model
         self.experiment_name = experiment_name
         self.warmup_episodes = warmup_episodes
@@ -199,10 +200,16 @@ class OnlineModelBasedSkillChaining(object):
                 plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
 
             for option in options:
-                make_chunked_goal_conditioned_value_function_plot(option.value_learner,
-                                                                goal=option.get_goal_for_rollout(),
-                                                                episode=episode, seed=self.seed,
-                                                                experiment_name=self.experiment_name)
+                if self.use_global_vf:
+                    make_chunked_goal_conditioned_value_function_plot(option.global_value_learner,
+                                                                    goal=option.get_goal_for_rollout(),
+                                                                    episode=episode, seed=self.seed,
+                                                                    experiment_name=self.experiment_name)
+                else:
+                    make_chunked_goal_conditioned_value_function_plot(option.value_learner,
+                                                                    goal=option.get_goal_for_rollout(),
+                                                                    episode=episode, seed=self.seed,
+                                                                    experiment_name=self.experiment_name)
 
     def create_model_based_option(self, name, parent=None):
         option_idx = len(self.chain) + 1 if parent is not None else 1
@@ -216,6 +223,7 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=self.global_option.solver,
                                   use_vf=self.use_vf,
+                                  use_global_vf=self.use_global_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
@@ -234,6 +242,7 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=None,
                                   use_vf=self.use_vf,
+                                  use_global_vf=self.use_global_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,
@@ -301,6 +310,7 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--warmup_episodes", type=int, default=5)
     parser.add_argument("--use_value_function", action="store_true", default=False)
+    parser.add_argument("--use_global_value_function", action="store_true", default=False)
     parser.add_argument("--use_model", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
@@ -315,6 +325,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
+    assert (args.use_value_function and args.use_global_value_function) or (args.use_value_function and not args.use_global_value_function) or not (args.use_value_function and args.use_global_value_function)
 
     exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
                                         experiment_name=args.experiment_name,
@@ -323,6 +334,7 @@ if __name__ == "__main__":
                                         max_steps=args.steps,
                                         use_model=args.use_model,
                                         use_vf=args.use_value_function,
+                                        use_global_vf=args.use_global_value_function,
                                         use_diverse_starts=args.use_diverse_starts,
                                         use_dense_rewards=args.use_dense_rewards,
                                         use_optimal_sampler=args.use_optimal_sampler,

@@ -11,7 +11,7 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
-                 gestation_period, timeout, max_steps, device, use_vf, use_model, dense_reward,
+                 gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
                  option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model=""):
         self.mdp = mdp
         self.name = name
@@ -20,6 +20,7 @@ class ModelBasedOption(object):
         self.parent = parent
         self.device = device
         self.use_vf = use_vf
+        self.use_global_vf = use_global_vf
         self.timeout = timeout
         self.use_model = use_model
         self.max_steps = max_steps
@@ -48,13 +49,14 @@ class ModelBasedOption(object):
         # Therefore, only use output norm if we are using MPC for action selection
         use_output_norm = self.use_model
 
-        self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                 action_dim=self.mdp.action_space_size(),
-								 max_action=1.,
-                                 name=f"{name}-td3-agent",
-                                 device=self.device,
-                                 lr_c=lr_c, lr_a=lr_a,
-                                 use_output_normalization=use_output_norm)
+        if not self.use_global_vf or global_init:
+            self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
+                                    action_dim=self.mdp.action_space_size(),
+                                    max_action=1.,
+                                    name=f"{name}-td3-agent",
+                                    device=self.device,
+                                    lr_c=lr_c, lr_a=lr_a,
+                                    use_output_normalization=use_output_norm)
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
@@ -81,7 +83,7 @@ class ModelBasedOption(object):
             print(f"Loading model from {path_to_model} for {self.name}")
             self.solver.load_model(path_to_model)
 
-        if self.use_vf and self.parent is not None:
+        if self.use_vf and not self.use_global_vf and self.parent is not None:
             self.initialize_value_function_with_global_value_function()
 
         print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
@@ -260,7 +262,9 @@ class ModelBasedOption(object):
             reward_func = self.overall_mdp.dense_gc_reward_function if self.dense_reward \
                 else self.overall_mdp.sparse_gc_reward_function
             reward, global_done = reward_func(next_state, goal_state, info={})
-            self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
+
+            if not self.use_global_vf or self.global_init:
+                self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
 
             # Off-policy updates to the global option value function
             if not self.global_init:
@@ -279,7 +283,11 @@ class ModelBasedOption(object):
         goal_positions = goals[:, :2]
         augmented_states = np.concatenate((states, goal_positions), axis=1)
         augmented_states = torch.as_tensor(augmented_states).float().to(self.device)
-        values = self.value_learner.get_values(augmented_states)
+        
+        if self.use_global_vf and not self.global_init:
+            values = self.global_value_learner.get_values(augmented_states)
+        else:
+            values = self.value_learner.get_values(augmented_states)
 
         return values
 
