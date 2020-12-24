@@ -4,12 +4,7 @@ import random
 import itertools
 import numpy as np
 from copy import deepcopy
-
-try:
-    from thundersvm import OneClassSVM, SVC
-except ImportError:
-    from sklearn.svm import OneClassSVM, SVC
-
+from thundersvm import OneClassSVM, SVC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
