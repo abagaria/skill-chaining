@@ -30,8 +30,8 @@ class TD3(object):
             name="Global-TD3-Agent"
     ):
 
-        self.critic_learning_rate = 3e-4
-        self.actor_learning_rate = 3e-4
+        self.critic_learning_rate = 3e-5#3e-4
+        self.actor_learning_rate = 3e-5#3e-4
 
         if use_output_normalization:
             assert max_action == 1., "Haven't fixed max-action for output-norm yet"
