@@ -16,7 +16,7 @@ from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoa
 
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_model,
-                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a,
+                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a, clear_option_buffers,
                  experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, seed):
 
         self.lr_c = lr_c
@@ -31,6 +31,7 @@ class OnlineModelBasedSkillChaining(object):
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
         self.use_optimal_sampler = use_optimal_sampler
+        self.clear_option_buffers = clear_option_buffers
 
         self.seed = seed
         self.logging_freq = logging_freq
@@ -171,9 +172,11 @@ class OnlineModelBasedSkillChaining(object):
         if executed_option in self.new_options and executed_option.get_training_phase() != "gestation":
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
-            self.filter_replay_buffer(executed_option)
 
-        if executed_option.num_goal_hits == 2 * executed_option.gestation_period:
+            if self.clear_option_buffers:
+                self.filter_replay_buffer(executed_option)
+
+        if executed_option.num_goal_hits == 2 * executed_option.gestation_period and self.clear_option_buffers:
             self.filter_replay_buffer(executed_option)
 
         if self.should_create_new_option():
@@ -309,9 +312,9 @@ if __name__ == "__main__":
     parser.add_argument("--generate_init_gif", action="store_true", default=False)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
 
+    parser.add_argument("--clear_option_buffers", action="store_true", default=False)
     parser.add_argument("--lr_c", type=float, help="critic learning rate")
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
-
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
@@ -332,7 +335,8 @@ if __name__ == "__main__":
                                         generate_init_gif=args.generate_init_gif,
                                         seed=args.seed,
                                         lr_c=args.lr_c,
-                                        lr_a=args.lr_a)
+                                        lr_a=args.lr_a,
+                                        clear_option_buffers=args.clear_option_buffers)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
