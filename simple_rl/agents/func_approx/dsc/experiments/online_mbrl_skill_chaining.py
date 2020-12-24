@@ -195,7 +195,7 @@ class OnlineModelBasedSkillChaining(object):
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
 
-        if episode % self.logging_freq == 0:
+        if episode % self.logging_freq == 0 and episode != 0:
             options = self.mature_options + self.new_options
 
             for option in self.mature_options:
@@ -364,5 +364,10 @@ if __name__ == "__main__":
     durations = exp.run_loop(args.episodes, args.steps)
     end_time = time.time()
 
-    with open(f"{args.experiment_name}/training_durations.pkl", "wb+") as f:
-        pickle.dump(durations, f)
+    print("exporting graphs!")
+    exp.log_status(2000, [1000])
+
+    print("TIME: ", end_time - start_time)
+
+    # with open(f"{args.experiment_name}/training_durations.pkl", "wb+") as f:
+    #     pickle.dump(durations, f)
