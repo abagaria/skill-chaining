@@ -73,7 +73,7 @@ class ModelBasedOption(object):
                               device=self.device)
         else:
             print(f"Using model-free controller for {name}")
-            self.solver = self.value_learner
+            self.solver = self.value_learner if not self.use_global_vf else self.global_value_learner
 
         self.children = []
         self.success_curve = []
