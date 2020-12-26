@@ -20,6 +20,7 @@ class ModelBasedOption(object):
         self.parent = parent
         self.device = device
         self.use_vf = use_vf
+        self.global_solver = global_solver
         self.use_global_vf = use_global_vf
         self.timeout = timeout
         self.use_model = use_model
@@ -60,20 +61,12 @@ class ModelBasedOption(object):
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
-        if global_solver is not None and use_model:
-            assert not self.global_init, "Assuming local option here"
-            self.solver = global_solver
-        elif use_model:
-            assert self.global_init, "Assuming global option here"
+        if use_model:
             print(f"Using model-based controller for {name}")
-            self.solver = MPC(mdp=self.mdp,
-                              state_size=self.mdp.state_space_size(),
-                              action_size=self.mdp.action_space_size(),
-                              dense_reward=self.dense_reward,
-                              device=self.device)
+            self.solver = self._get_model_based_solver()
         else:
             print(f"Using model-free controller for {name}")
-            self.solver = self.value_learner if not self.use_global_vf else self.global_value_learner
+            self.solver = self._get_model_free_solver()
 
         self.children = []
         self.success_curve = []
@@ -87,6 +80,37 @@ class ModelBasedOption(object):
             self.initialize_value_function_with_global_value_function()
 
         print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
+
+    def _get_model_based_solver(self):
+        assert self.use_model
+
+        if self.global_init:
+            return MPC(mdp=self.mdp,
+                       state_size=self.mdp.state_space_size(),
+                       action_size=self.mdp.action_space_size(),
+                       dense_reward=self.dense_reward,
+                       device=self.device)
+
+        assert self.global_solver is not None
+        return self.global_solver
+
+    def _get_model_free_solver(self):
+        assert not self.use_model
+        assert self.use_vf
+
+        # Global option creates its own VF solver
+        if self.global_init:
+            assert self.value_learner is not None
+            return self.value_learner
+
+        # Local option either uses the global VF..
+        if self.use_global_vf:
+            assert self.global_value_learner is not None
+            return self.global_value_learner
+
+        # .. or uses its own local VF as solver
+        assert self.value_learner is not None
+        return self.value_learner
 
     # ------------------------------------------------------------
     # Learning Phase Methods
