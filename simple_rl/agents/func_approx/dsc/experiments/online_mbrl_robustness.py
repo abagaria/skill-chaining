@@ -130,14 +130,17 @@ class OnlineModelBasedSkillChaining(object):
 
         return per_episode_durations
 
+    def save_log(self):
+        with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
+            pickle.dump(self.log, log_file)
+
     def log_success_metrics(self, episode):
         individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
         overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
         self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
 
         if episode % self.evaluation_freq == 0 and episode > self.warmup_episodes:
-            with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
-                pickle.dump(self.log, log_file)
+            self.save_log()
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
         self.global_option.solver.load_data()
@@ -344,6 +347,9 @@ if __name__ == "__main__":
     end_time = time.time()
 
     print("TIME: ", end_time - start_time)
+
+    exp.save_log()
+    plot_success_curve(exp, f"{args.experiment_name}_{args.seed}_success_curve")
 
     # with open(f"{args.experiment_name}/training_durations.pkl", "wb+") as f:
     #     pickle.dump(durations, f)
