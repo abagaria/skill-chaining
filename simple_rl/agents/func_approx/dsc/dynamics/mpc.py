@@ -1,6 +1,6 @@
 import os
 import pickle
-
+import math
 import torch
 import numpy as np
 import torch.nn as nn
@@ -42,13 +42,13 @@ class MPC:
         self.cost_log_counter = 0
 
     def load_data(self):
-        self.dataset = self._preprocess_data()
+        self.train_data = self._preprocess_data()
         self.model.set_standardization_vars(*self._get_standardization_vars())
 
     def train(self, epochs=100, batch_size=512):
         self.is_trained = True
 
-        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True, num_workers=self._cpu_count,  pin_memory=True)
+        training_gen = DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self._cpu_count,  pin_memory=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
         
@@ -229,9 +229,8 @@ class MPC:
         self._roundup()
 
         norm_states_delta = (states_delta - self.mean_z) / self.std_z
-
-        dataset = RolloutDataset(states, actions, norm_states_delta)
-        return dataset
+        train_data = RolloutDataset(states, actions, norm_states_delta)
+        return train_data
 
     def _roundup(self, c=1e-5):
         """
@@ -257,6 +256,34 @@ class MPC:
             state_dictionary = pickle.load(f)
         self.model = DynamicsModel(self.state_size, self.action_size, self.device)
         self.model.__setstate__(state_dictionary)
+
+    def compute_validation_error(self, states, actions, states_p):
+        pred_trajs = np.array([self.predict_trajectory(traj_states, traj_actions) for traj_states, traj_actions in zip(states, actions)])
+        max_traj_length = max(len(traj) for traj in states)
+        error = np.zeros(max_traj_length)
+        counts = np.zeros(max_traj_length)
+        for pred_traj, actual_traj in zip(pred_trajs, states_p):
+            pred_traj = np.array(pred_traj)[:, :2]
+            actual_traj =
+            curr_traj_length = len(pred_traj)
+            one_step_errors = np.sum(np.subtract(pred_traj, actual_traj) ** 2, axis=1) / 2
+            h_step_errors = np.cumsum(one_step_errors) / np.array(range(1, curr_traj_length + 1))
+            counts[:curr_traj_length] += 1
+            error[:curr_traj_length] += h_step_errors
+        return error / counts
+
+    def predict_trajectory(self, states, actions):
+        torch_states = torch.tensor(states, device=self.device)
+        torch_actions = torch.tensor(actions, device=self.device)
+        torch_states, torch_actions = torch_states[:,None], torch_actions[:,None]
+        pred_states = []
+        prev_state = torch_states[0]
+        with torch.no_grad():
+            for state, action in zip(torch_states, torch_actions):
+                next_state = prev_state.float() + self.model.predict_next_state(state.float(), action.float())
+                pred_states.append(next_state[0].cpu().numpy())
+                prev_state = next_state
+        return pred_states
 
 class RolloutDataset(Dataset):
     def __init__(self, states, actions, states_p):
