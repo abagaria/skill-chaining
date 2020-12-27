@@ -81,6 +81,8 @@ class ModelBasedOption(object):
 
         print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
 
+        self.is_last_option = False
+
     def _get_model_based_solver(self):
         assert self.use_model
 
@@ -123,6 +125,9 @@ class ModelBasedOption(object):
 
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
+            return True
+        
+        if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
         features = self.mdp.get_position(state)

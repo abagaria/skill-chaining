@@ -11,11 +11,12 @@ from collections import deque
 from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+from simple_rl.tasks.ant_four_rooms.AntFourRoomsMDPClass import AntFourRoomsMDP
 from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoalSelector
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
+    def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a, clear_option_buffers,
                  experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, seed):
 
@@ -42,7 +43,7 @@ class OnlineModelBasedSkillChaining(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=seed)
+        self.mdp = mdp
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -307,6 +308,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
+    parser.add_argument("--environment", type=str, help="umaze, 4-room")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
@@ -336,7 +338,17 @@ if __name__ == "__main__":
     if args.clear_option_buffers:
         assert not args.use_global_value_function
 
-    exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
+    if args.environment == "umaze":
+        mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=args.seed)
+    elif args.environment == "medium":
+        mdp = D4RLAntMazeMDP("medium", goal_state=np.array((20, 20)))
+    elif args.environment == "4-room":
+        mdp = AntFourRoomsMDP(goal_state=np.array((12, 12)), seed=args.seed)
+    else:
+        raise RuntimeError("Environment not supported!")
+
+    exp = OnlineModelBasedSkillChaining(mdp=mdp,
+                                        gestation_period=args.gestation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
                                         warmup_episodes=args.warmup_episodes,
