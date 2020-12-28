@@ -376,8 +376,8 @@ if __name__ == "__main__":
     durations = exp.run_loop(args.episodes, args.steps)
     end_time = time.time()
 
-    print("exporting graphs!")
-    exp.log_status(2000, [1000])
+    # print("exporting graphs!")
+    # exp.log_status(2000, [1000])
 
     print("TIME: ", end_time - start_time)
 
