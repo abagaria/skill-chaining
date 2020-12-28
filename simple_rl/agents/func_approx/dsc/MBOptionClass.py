@@ -4,6 +4,7 @@ import random
 import itertools
 import numpy as np
 from copy import deepcopy
+from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
@@ -307,7 +308,7 @@ class ModelBasedOption(object):
         goal_positions = goals[:, :2]
         augmented_states = np.concatenate((states, goal_positions), axis=1)
         augmented_states = torch.as_tensor(augmented_states).float().to(self.device)
-        
+
         if self.use_global_vf and not self.global_init:
             values = self.global_value_learner.get_values(augmented_states)
         else:
@@ -442,6 +443,47 @@ class ModelBasedOption(object):
             self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
             self.pessimistic_classifier.fit(positive_training_examples)
 
+    # ------------------------------------------------------------
+    # Distance functions
+    # ------------------------------------------------------------
+
+    def get_states_inside_pessimistic_classifier_region(self):
+        point_array = self.construct_feature_matrix(self.positive_examples)
+        point_array_predictions = self.pessimistic_classifier.predict(point_array)
+        positive_point_array = point_array[point_array_predictions == 1]
+        return positive_point_array
+
+    def distance_to_state(self, state, metric="euclidean"):
+        """ Compute the distance between the current option and the input `state`. """
+
+        assert metric in ("euclidean", "value"), metric
+        if metric == "euclidean":
+            return self._euclidean_distance_to_state(state)
+        return self._value_distance_to_state(state)
+
+    def _euclidean_distance_to_state(self, state):
+        point = self.mdp.get_position(state)
+
+        assert isinstance(point, np.ndarray)
+        assert point.shape == (2,), point.shape
+
+        positive_point_array = self.get_states_inside_pessimistic_classifier_region()
+
+        distances = distance.cdist(point[None, :], positive_point_array)
+        return np.median(distances)
+
+    def _value_distance_to_state(self, state):
+        features = state.features() if not isinstance(state, np.ndarray) else state
+        goals = self.get_states_inside_pessimistic_classifier_region()
+
+        distances = self.value_function(features, goals)
+        distances[distances > 0] = 0.
+        return np.median(np.abs(distances))
+
+    # ------------------------------------------------------------
+    # Convenience functions
+    # ------------------------------------------------------------
+
     def get_option_success_rate(self):
         """
         TODO: implement success rate at test time as well (Jason)
@@ -449,10 +491,6 @@ class ModelBasedOption(object):
         if self.num_executions > 0:
             return self.num_goal_hits / self.num_executions
         return 1.
-
-    # ------------------------------------------------------------
-    # Convenience functions
-    # ------------------------------------------------------------
 
     def get_success_rate(self):
         if len(self.success_curve) == 0:
