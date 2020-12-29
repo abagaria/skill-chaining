@@ -57,7 +57,12 @@ class OnlineModelBasedSkillTrees(object):
         options = [self.skill_tree.get_option(name) for name in option_names]
 
         # Use this list rather than `self.mature_options` to take advantage of the tree.bfs() traversal order
-        options_in_maturation = [option for option in options if option.get_training_phase() == "initiation_done"]
+        # Checking if classifiers exist because it is possible that you are at init-done, but don't have clf yet
+        cond = lambda o: o.get_training_phase() == "initiation_done" \
+                         and o.optimistic_classifier is not None \
+                         and o.pessimistic_classifier is not None
+
+        options_in_maturation = [option for option in options if cond(option)]
         selected_option_and_subgoal = self._pick_among_mature_options(options_in_maturation, state)
 
         if selected_option_and_subgoal is not None:
