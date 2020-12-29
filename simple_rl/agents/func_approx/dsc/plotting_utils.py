@@ -49,6 +49,12 @@ def generate_plot(score_array, label, smoothen=False):
     plt.plot(mean, linewidth=2, label=label, alpha=0.9)
     plt.fill_between( range(len(top)), top, bottom, alpha=0.2 )
 
+def gp(score_array, label, smoothen=False):
+    if smoothen:
+        score_array = smoothen_data(score_array)
+    plt.plot(range(len(score_array)), score_array, linewidth=2, label=label, alpha=0.9)
+    plt.savefig("plot")
+
 def get_successes(path):
     scores = []
     with open(path, "rb") as f:

@@ -43,7 +43,7 @@ class MPC:
     def train(self, epochs=100, batch_size=512):
         self.is_trained = True
 
-        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True, num_workers=self._cpu_count,  pin_memory=True)
+        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True,  pin_memory=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
         

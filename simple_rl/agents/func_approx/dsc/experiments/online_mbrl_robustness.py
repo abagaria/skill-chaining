@@ -201,7 +201,7 @@ class OnlineModelBasedSkillChaining(object):
 
             for option in self.mature_options:
                 episode_label = episode if self.generate_init_gif else -1
-                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
+                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True, seed=self.seed)
 
             for option in options:
                 if self.use_global_vf:
@@ -294,6 +294,20 @@ def plot_success_curve(agent, filepath):
             y.append(exp.log[i]["overall-success-rate"])
 
     import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(x,y)
+    plt.savefig(filepath)
+
+def plot_success_curve2(file, filepath):
+    last_epoch = 1000
+    log = pickle.load(open(file, "rb"))
+    num_options = len(log[last_epoch]["individual-option-rates"])
+    x = []
+    y = []
+    for i in range(0, last_epoch + 1):
+        if len(log[i]["individual-option-rates"]) == num_options:
+            x.append(i)
+            y.append(log[i]["overall-success-rate"])
     plt.figure()
     plt.plot(x,y)
     plt.savefig(filepath)
