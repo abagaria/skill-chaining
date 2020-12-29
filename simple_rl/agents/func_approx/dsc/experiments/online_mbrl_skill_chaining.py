@@ -18,7 +18,7 @@ from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoa
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a, clear_option_buffers,
-                 experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, seed):
+                 experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -34,6 +34,8 @@ class OnlineModelBasedSkillChaining(object):
         self.use_dense_rewards = use_dense_rewards
         self.use_optimal_sampler = use_optimal_sampler
         self.clear_option_buffers = clear_option_buffers
+
+        self.multithread_mpc = multithread_mpc
 
         self.seed = seed
         self.logging_freq = logging_freq
@@ -233,7 +235,8 @@ class OnlineModelBasedSkillChaining(object):
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
                                   option_idx=option_idx,
-                                  lr_c=self.lr_c, lr_a=self.lr_a)
+                                  lr_c=self.lr_c, lr_a=self.lr_a,
+                                  multithread_mpc=self.multithread_mpc)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -252,7 +255,8 @@ class OnlineModelBasedSkillChaining(object):
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,
                                   option_idx=0,
-                                  lr_c=self.lr_c, lr_a=self.lr_a)
+                                  lr_c=self.lr_c, lr_a=self.lr_a,
+                                  multithread_mpc=self.multithread_mpc)
         return option
 
     def reset(self, episode):
@@ -318,6 +322,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_value_function", action="store_true", default=False)
     parser.add_argument("--use_global_value_function", action="store_true", default=False)
     parser.add_argument("--use_model", action="store_true", default=False)
+    parser.add_argument("--multithread_mpc", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     parser.add_argument("--use_optimal_sampler", action="store_true", default=False)
@@ -358,6 +363,7 @@ if __name__ == "__main__":
                                         use_global_vf=args.use_global_value_function,
                                         use_diverse_starts=args.use_diverse_starts,
                                         use_dense_rewards=args.use_dense_rewards,
+                                        multithread_mpc=args.multithread_mpc,
                                         use_optimal_sampler=args.use_optimal_sampler,
                                         logging_freq=args.logging_frequency,
                                         evaluation_freq=args.evaluation_frequency,
