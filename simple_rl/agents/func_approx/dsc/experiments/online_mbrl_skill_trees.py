@@ -131,11 +131,11 @@ class OnlineModelBasedSkillTrees(object):
             step_number += len(transitions)
         return step_number
 
-    def run_loop(self, num_episodes=300, num_steps=150):
+    def run_loop(self, num_episodes=300, num_steps=150, start_episode=0):
         per_episode_durations = []
         last_10_durations = deque(maxlen=10)
 
-        for episode in range(num_episodes):
+        for episode in range(start_episode, start_episode + num_episodes):
             self.reset(episode)
 
             step = self.dsc_rollout(num_steps) if episode > self.warmup_episodes else self.random_rollout(num_steps)
@@ -144,9 +144,9 @@ class OnlineModelBasedSkillTrees(object):
             per_episode_durations.append(step)
             self.log_status(episode, last_10_durations)
 
-            if episode == self.warmup_episodes - 1:
+            if episode == self.warmup_episodes - 1 and self.use_model:
                 self.learn_dynamics_model(epochs=50)
-            elif episode >= self.warmup_episodes:
+            elif episode >= self.warmup_episodes and self.use_model:
                 self.learn_dynamics_model(epochs=5)
 
             self.log_success_metrics(episode)
@@ -198,7 +198,12 @@ class OnlineModelBasedSkillTrees(object):
 
     def pick_subgoal_for_global_option(self, state):
         nearest_option = self.find_nearest_option_in_tree(state)
-        return nearest_option.sample_from_initiation_region_fast_and_epsilon()
+        sampled_goal = nearest_option.sample_from_initiation_region_fast_and_epsilon()
+
+        if isinstance(sampled_goal, np.ndarray):
+            return sampled_goal.squeeze()
+
+        return self.global_option.extract_goal_dimensions(sampled_goal)
 
     def add_new_options(self, new_options):
         for new_option in new_options:  # type: ModelBasedOption
@@ -213,7 +218,7 @@ class OnlineModelBasedSkillTrees(object):
         self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
 
         if episode % self.evaluation_freq == 0 and episode > self.warmup_episodes:
-            success, step_count = test_agent(self, 1, self.max_steps)
+            success, step_count, _ = test_agent(self, 1, self.max_steps, get_trajectories=False)
 
             self.log[episode]["success"] = success
             self.log[episode]["step-count"] = step_count[0]
@@ -296,33 +301,42 @@ class OnlineModelBasedSkillTrees(object):
         print(f"[Episode {episode}] Reset state to {self.mdp.cur_state.position}")
 
 
-def test_agent(exp, num_experiments, num_steps):
+def test_agent(exp, num_experiments, num_steps, get_trajectories=False):
     def rollout():
         step_number = 0
+        episodic_trajectory = []
         while step_number < num_steps and not \
         exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
             state = deepcopy(exp.mdp.cur_state)
             selected_option, subgoal = exp.act(state)
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal,
                                                           eval_mode=True)
+            if get_trajectories:
+                episodic_trajectory.append((selected_option.option_idx, transitions))
+
             step_number += len(transitions)
-        return step_number
+        return step_number, episodic_trajectory
 
     success = 0
     step_counts = []
 
+    trajectories = []
+
     for _ in tqdm(range(num_experiments), desc="Performing test rollout"):
         exp.mdp.reset()
-        steps_taken = rollout()
+        steps_taken, trajectory = rollout()
         if steps_taken != num_steps:
             success += 1
         step_counts.append(steps_taken)
+
+        if get_trajectories:
+            trajectories.append(trajectory)
 
     print("*" * 80)
     print(f"Test Rollout Success Rate: {success / num_experiments}, Duration: {np.mean(step_counts)}")
     print("*" * 80)
 
-    return success / num_experiments, step_counts
+    return success / num_experiments, step_counts, trajectories
 
 
 def create_log_dir(experiment_name):

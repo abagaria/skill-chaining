@@ -125,7 +125,7 @@ class ModelBasedOption(object):
         return "initiation_done"
 
     def is_init_true(self, state):
-        if self.global_init or self.get_training_phase() == "gestation":
+        if self.global_init or self.get_training_phase() == "gestation" or self.optimistic_classifier is None:
             return True
 
         features = self.mdp.get_position(state)
@@ -139,7 +139,7 @@ class ModelBasedOption(object):
         return self.parent.pessimistic_is_init_true(state)
 
     def pessimistic_is_init_true(self, state):
-        if self.global_init or self.get_training_phase() == "gestation":
+        if self.global_init or self.get_training_phase() == "gestation" or self.pessimistic_classifier is None:
             return True
 
         features = self.mdp.get_position(state)
@@ -462,7 +462,8 @@ class ModelBasedOption(object):
         if not length_condition:
             return False
 
-        siblings = [option for option in self.get_sibling_options() if option.get_training_phase() != "gestation"]
+        sibling_cond = lambda o: o.get_training_phase() != "gestation" and o.pessimistic_classifier is not None
+        siblings = [option for option in self.get_sibling_options() if sibling_cond(option)]
 
         if len(siblings) > 0:
             assert self.parent is not None, "Root option has no siblings"
