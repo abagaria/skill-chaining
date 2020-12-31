@@ -150,7 +150,7 @@ class ModelFreeOption(object):
             self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
-        if not self.global_init and not eval_mode and self.get_training_phase() != "initiation_done":
+        if not self.global_init and not eval_mode:
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward

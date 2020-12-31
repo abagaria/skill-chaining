@@ -65,7 +65,7 @@ class BaselineModelFreeDSC(object):
         step_number = 0
         while step_number < num_steps and not self.mdp.cur_state.is_terminal():
             state = deepcopy(self.mdp.cur_state)
-            selected_option, subgoal = self.act(state)
+            selected_option = self.act(state)
             transitions, reward = selected_option.rollout(step_number=step_number)
 
             if len(transitions) == 0:
@@ -200,7 +200,7 @@ def test_agent(exp, num_experiments, num_steps):
         while step_number < num_steps and not \
         exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
             state = deepcopy(exp.mdp.cur_state)
-            selected_option, subgoal = exp.act(state)
+            selected_option = exp.act(state)
             transitions, reward = selected_option.rollout(step_number=step_number, eval_mode=True)
             step_number += len(transitions)
         return step_number
