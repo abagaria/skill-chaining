@@ -117,8 +117,9 @@ class ModelFreeOption(object):
         option_transitions = []
 
         state = deepcopy(self.mdp.cur_state)
-
-        print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position}")
+        
+        if not self.global_init:
+            print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position}")
 
         self.num_executions += 1
 

@@ -47,6 +47,7 @@ class BaselineModelFreeDSC(object):
         self.new_options = [self.goal_option]
         self.mature_options = []
 
+        self.freeze_chain = False
         self.log = {}
 
     @staticmethod
@@ -71,7 +72,9 @@ class BaselineModelFreeDSC(object):
             if len(transitions) == 0:
                 break
 
-            self.manage_chain_after_rollout(selected_option)
+            if not self.freeze_chain:
+                self.manage_chain_after_rollout(selected_option)
+            
             step_number += len(transitions)
         return step_number
 
@@ -80,7 +83,7 @@ class BaselineModelFreeDSC(object):
         last_10_durations = deque(maxlen=10)
 
         for episode in range(start_episode, start_episode + num_episodes):
-            self.reset()
+            self.reset(episode)
 
             step = self.dsc_rollout(num_steps)
 
@@ -94,13 +97,16 @@ class BaselineModelFreeDSC(object):
     def log_success_metrics(self, episode):
         individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
         overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
-        self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
+        self.log[episode] = {}
+        self.log[episode]["individual-option-rates"] = individual_option_data
+        self.log[episode]["overall-success-rate"] = overall_success
+        self.log[episode]["option_stats"] = [f"{option.name}: {option.num_goal_hits}/{option.num_executions}" for option in self.chain]
 
         if episode % self.evaluation_freq == 0 and episode > 0:
-            success, step_count = test_agent(self, 1, self.max_steps)
+            #success, step_count = test_agent(self, 1, self.max_steps)
 
-            self.log[episode]["success"] = success
-            self.log[episode]["step-count"] = step_count[0]
+            #self.log[episode]["success"] = success
+            #self.log[episode]["step-count"] = step_count[0]
 
             with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
                 pickle.dump(self.log, log_file)
@@ -137,20 +143,26 @@ class BaselineModelFreeDSC(object):
                 not self.contains_init_state()
         return False
 
+    def is_chain_complete(self):
+        return all([option.get_training_phase() == "initiation_done" for option in self.chain]) and self.mature_options[-1].is_init_true(np.array([0,0]))
+
     def contains_init_state(self):
         for option in self.mature_options:
             if option.is_init_true(np.array([0,0])):  # TODO: Get test-time start state automatically
                 return True
         return False
 
-    def reset(self):
+    def reset(self, episode):
         self.mdp.reset()
 
-        if self.use_diverse_starts:
+        if self.use_diverse_starts and not self.is_chain_complete():
             cond = lambda s: s[0] < 7.4 and s[1] < 2  # TODO: Hardcoded for bottom corridor
             random_state = self.mdp.sample_random_state(cond=cond)
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
+        elif not self.freeze_chain:
+            self.freeze_chain = True
+            self.log["chain-freeze-episode"] = episode
 
     def create_local_option(self, name, parent=None):
         option_idx = len(self.chain) + 1 if parent is not None else 1
