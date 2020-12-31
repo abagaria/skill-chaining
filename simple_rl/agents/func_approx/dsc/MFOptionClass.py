@@ -10,7 +10,7 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 class ModelFreeOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, buffer_length, global_init,
                  gestation_period, initiation_period, timeout, max_steps, device, dense_reward,
-                 option_idx, lr_c, lr_a, init_salient_event=None, target_salient_event=None):
+                 option_idx, lr_c, lr_a, target_salient_event=None):
         self.seed = 0
         self.mdp = mdp
         self.name = name
@@ -24,7 +24,6 @@ class ModelFreeOption(object):
         self.global_init = global_init
         self.dense_reward = dense_reward
         self.buffer_length = buffer_length
-        self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.overall_mdp = mdp
 
