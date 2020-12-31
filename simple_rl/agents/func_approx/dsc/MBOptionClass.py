@@ -13,7 +13,7 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
-                 option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model=""):
+                 option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model="", multithread_mpc=False):
         self.mdp = mdp
         self.name = name
         self.lr_c = lr_c
@@ -31,6 +31,7 @@ class ModelBasedOption(object):
         self.buffer_length = buffer_length
         self.max_num_children = max_num_children
         self.target_salient_event = target_salient_event
+        self.multithread_mpc = multithread_mpc
 
         # TODO
         self.overall_mdp = mdp
@@ -82,6 +83,8 @@ class ModelBasedOption(object):
 
         print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
 
+        self.is_last_option = False
+
     def _get_model_based_solver(self):
         assert self.use_model
 
@@ -90,7 +93,8 @@ class ModelBasedOption(object):
                        state_size=self.mdp.state_space_size(),
                        action_size=self.mdp.action_space_size(),
                        dense_reward=self.dense_reward,
-                       device=self.device)
+                       device=self.device,
+                       multithread=self.multithread_mpc)
 
         assert self.global_solver is not None
         return self.global_solver
@@ -124,6 +128,9 @@ class ModelBasedOption(object):
 
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
+            return True
+        
+        if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
         features = self.mdp.get_position(state)

@@ -54,6 +54,7 @@ class OnlineModelBasedSkillChaining(object):
 
         self.optimal_subgoal_selector = None
 
+        self.freeze_chain = False
         self.log = {}
 
     @staticmethod
@@ -99,7 +100,9 @@ class OnlineModelBasedSkillChaining(object):
             if len(transitions) == 0:
                 break
 
-            self.manage_chain_after_rollout(selected_option)
+            if not self.freeze_chain:
+                self.manage_chain_after_rollout(selected_option)
+            
             step_number += len(transitions)
         return step_number
 
@@ -137,7 +140,10 @@ class OnlineModelBasedSkillChaining(object):
     def log_success_metrics(self, episode):
         individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
         overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
-        self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
+        self.log[episode] = {}
+        self.log[episode]["individual-option-rates"] = individual_option_data
+        self.log[episode]["overall-success-rate"] = overall_success
+        self.log[episode]["option_stats"] = [f"{option.name}: {option.num_goal_hits}/{option.num_executions}" for option in self.chain]
 
         if episode % self.evaluation_freq == 0 and episode > self.warmup_episodes:
             self.save_log()
@@ -195,7 +201,7 @@ class OnlineModelBasedSkillChaining(object):
 
             for option in self.mature_options:
                 episode_label = episode if self.generate_init_gif else -1
-                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
+                plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True, seed=self.seed)
 
             for option in options:
                 if self.use_global_vf:
@@ -251,13 +257,20 @@ class OnlineModelBasedSkillChaining(object):
 
     def reset(self, episode):
         self.mdp.reset()
+        self.mdp.set_xy((0,0))
 
         if not self.is_chain_complete():
             if self.use_diverse_starts and episode > self.warmup_episodes:
-                cond = lambda s: s[0] < 7.4 and s[1] < 2  # TODO: Hardcoded for bottom corridor
+                cond = lambda s: s[0] < 7.4 and s[1] < 2  # Hardcoded for bottom corridor
                 random_state = self.mdp.sample_random_state(cond=cond)
                 random_position = self.mdp.get_position(random_state)
                 self.mdp.set_xy(random_position)
+        elif not self.freeze_chain:
+            # sets up variables to ensure no new options will ever be added
+            # and that the last option has the start state always in its init set
+            self.freeze_chain = True
+            self.mature_options[-1].is_last_option = True
+            self.log["chain-freeze-episode"] = episode
 
 
 def create_log_dir(experiment_name):
@@ -272,15 +285,29 @@ def create_log_dir(experiment_name):
 
 def plot_success_curve(agent, filepath):
     last_epoch = max(list(exp.log.keys()))
-    num_options = len(exp.log[last_epoch]["individual_option_data"])
+    num_options = len(exp.log[last_epoch]["individual-option-rates"])
     x = []
     y = []
     for i in range(0, last_epoch + 1):
-        if len(exp.log[i]["individual_option_data"]) == num_options:
+        if len(exp.log[i]["individual-option-rates"]) == num_options:
             x.append(i)
-            y.append(exp.log[i]["success_rate"])
+            y.append(exp.log[i]["overall-success-rate"])
 
     import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(x,y)
+    plt.savefig(filepath)
+
+def plot_success_curve2(file, filepath):
+    last_epoch = 1000
+    log = pickle.load(open(file, "rb"))
+    num_options = len(log[last_epoch]["individual-option-rates"])
+    x = []
+    y = []
+    for i in range(0, last_epoch + 1):
+        if len(log[i]["individual-option-rates"]) == num_options:
+            x.append(i)
+            y.append(log[i]["overall-success-rate"])
     plt.figure()
     plt.plot(x,y)
     plt.savefig(filepath)

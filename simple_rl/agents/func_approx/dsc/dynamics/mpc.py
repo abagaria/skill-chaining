@@ -17,7 +17,7 @@ from tqdm import tqdm
 import ipdb
 
 class MPC:
-    def __init__(self, mdp, state_size, action_size, dense_reward, device):
+    def __init__(self, mdp, state_size, action_size, dense_reward, device, multithread=False):
         assert isinstance(mdp, GoalDirectedMDP)
 
         self.mdp = mdp
@@ -34,7 +34,11 @@ class MPC:
         self.model.to(self.device)
         
         self.replay_buffer = ReplayBuffer(obs_dim=state_size, act_dim=action_size, size=int(3e5))
-        self._cpu_count = os.cpu_count() - 2
+
+        if multithread:
+            self.workers = os.cpu_count() - 2
+        else:
+            self.workers = 0
 
     def load_data(self):
         self.dataset = self._preprocess_data()
@@ -43,7 +47,7 @@ class MPC:
     def train(self, epochs=100, batch_size=512):
         self.is_trained = True
 
-        training_gen = DataLoader(self.dataset, batch_size=batch_size, shuffle=True, num_workers=self._cpu_count,  pin_memory=True)
+        training_gen = DataLoader(self.dataset, batch_size=batch_size, num_workers=self.workers, shuffle=True,  pin_memory=True)
         loss_function = nn.MSELoss().to(self.device)
         optimizer = Adam(self.model.parameters(), lr=1e-3)
         

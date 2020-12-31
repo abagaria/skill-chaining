@@ -11,14 +11,15 @@ from collections import deque
 from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+from simple_rl.tasks.ant_four_rooms.AntFourRoomsMDPClass import AntFourRoomsMDP
 from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoalSelector
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
+    def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a, clear_option_buffers,
                  use_global_option_subgoals, maze_type, experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed):
+                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
 
         assert maze_type in ("umaze", "medium")
 
@@ -37,6 +38,8 @@ class OnlineModelBasedSkillChaining(object):
         self.use_optimal_sampler = use_optimal_sampler
         self.clear_option_buffers = clear_option_buffers
         self.use_global_option_subgoals = use_global_option_subgoals
+
+        self.multithread_mpc = multithread_mpc
 
         self.seed = seed
         self.logging_freq = logging_freq
@@ -254,7 +257,8 @@ class OnlineModelBasedSkillChaining(object):
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
                                   option_idx=option_idx,
-                                  lr_c=self.lr_c, lr_a=self.lr_a)
+                                  lr_c=self.lr_c, lr_a=self.lr_a,
+                                  multithread_mpc=self.multithread_mpc)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -273,7 +277,8 @@ class OnlineModelBasedSkillChaining(object):
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,
                                   option_idx=0,
-                                  lr_c=self.lr_c, lr_a=self.lr_a)
+                                  lr_c=self.lr_c, lr_a=self.lr_a,
+                                  multithread_mpc=self.multithread_mpc)
         return option
 
     def reset(self, episode):
@@ -308,7 +313,7 @@ def test_agent(exp, num_experiments, num_steps):
             # exp.manage_chain_after_rollout(selected_option)
             step_number += len(transitions)
         return step_number
-        
+
     success = 0
     step_counts = []
 
@@ -329,6 +334,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
+    parser.add_argument("--environment", type=str, help="umaze, 4-room")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
@@ -338,6 +344,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_value_function", action="store_true", default=False)
     parser.add_argument("--use_global_value_function", action="store_true", default=False)
     parser.add_argument("--use_model", action="store_true", default=False)
+    parser.add_argument("--multithread_mpc", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     parser.add_argument("--use_optimal_sampler", action="store_true", default=False)
@@ -361,7 +368,17 @@ if __name__ == "__main__":
     if args.clear_option_buffers:
         assert not args.use_global_value_function
 
-    exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
+    if args.environment == "umaze":
+        mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=args.seed)
+    elif args.environment == "medium":
+        mdp = D4RLAntMazeMDP("medium", goal_state=np.array((20, 20)))
+    elif args.environment == "4-room":
+        mdp = AntFourRoomsMDP(goal_state=np.array((12, 12)), seed=args.seed)
+    else:
+        raise RuntimeError("Environment not supported!")
+
+    exp = OnlineModelBasedSkillChaining(mdp=mdp,
+                                        gestation_period=args.gestation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
                                         warmup_episodes=args.warmup_episodes,
@@ -371,6 +388,7 @@ if __name__ == "__main__":
                                         use_global_vf=args.use_global_value_function,
                                         use_diverse_starts=args.use_diverse_starts,
                                         use_dense_rewards=args.use_dense_rewards,
+                                        multithread_mpc=args.multithread_mpc,
                                         use_optimal_sampler=args.use_optimal_sampler,
                                         logging_freq=args.logging_frequency,
                                         evaluation_freq=args.evaluation_frequency,
@@ -392,8 +410,8 @@ if __name__ == "__main__":
     durations = exp.run_loop(args.episodes, args.steps)
     end_time = time.time()
 
-    print("exporting graphs!")
-    exp.log_status(2000, [1000])
+    # print("exporting graphs!")
+    # exp.log_status(2000, [1000])
 
     print("TIME: ", end_time - start_time)
 

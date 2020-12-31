@@ -85,7 +85,7 @@ def plot_one_class_initiation_classifier(option):
     color = colors[option.option_idx % len(colors)]
     plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
 
-def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True):
+def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True, seed=0):
     states = get_grid_states(option.overall_mdp)
     values = get_initiation_set_values(option)
 
@@ -116,7 +116,7 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
 
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.title("{} Initiation Set".format(option.name))
-    plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
+    plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, seed))
     plt.close()
 
 
