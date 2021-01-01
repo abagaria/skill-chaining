@@ -33,9 +33,6 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
                                  np.array((4, 8)),
                                  np.array((0, 8))]
 
-        self.dataset = self.env.get_dataset()["observations"]
-        self._determine_x_y_lims()
-
         GoalDirectedMDP.__init__(self, range(self.env.action_space.shape[0]),
                                  self._transition_func,
                                  self._reward_func, self.init_state,
@@ -98,20 +95,11 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # Used for visualizations only
     # --------------------------------
 
-    def _determine_x_y_lims(self):
-        observations = self.dataset
-        x = [obs[0] for obs in observations]
-        y = [obs[1] for obs in observations]
-        xlow, xhigh = min(x), max(x)
-        ylow, yhigh = min(y), max(y)
-        self.xlims = (xlow, xhigh)
-        self.ylims = (ylow, yhigh)
-
     def get_x_y_low_lims(self):
-        return self.xlims[0], self.ylims[0]
+        return -1., -1.
 
     def get_x_y_high_lims(self):
-        return self.xlims[1], self.ylims[1]
+        return 21., 21.
 
     # ---------------------------------
     # Used during testing only
@@ -136,13 +124,13 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         size = (self.action_space_size(),)
         return np.random.uniform(-1., 1., size=size)
     
-    def sample_random_state_curriculum(self, x, y):
-        """
-        Samples points in the rectangle whose (x,y) is
-        the lower left corner (Jason)
-        """
-        data = self.dataset
-        mask = (data[:,0] >= x) & (data[:,1] >= y)
-        filtered_data = data[mask]
-        idx = np.random.choice(filtered_data.shape[0])
-        return filtered_data[idx, :]
+    # def sample_random_state_curriculum(self, x, y):
+    #     """
+    #     Samples points in the rectangle whose (x,y) is
+    #     the lower left corner (Jason)
+    #     """
+    #     data = self.dataset
+    #     mask = (data[:,0] >= x) & (data[:,1] >= y)
+    #     filtered_data = data[mask]
+    #     idx = np.random.choice(filtered_data.shape[0])
+    #     return filtered_data[idx, :]
