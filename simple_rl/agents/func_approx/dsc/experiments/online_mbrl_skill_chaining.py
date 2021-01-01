@@ -18,7 +18,10 @@ from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoa
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a, clear_option_buffers,
-                 experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
+                 use_global_option_subgoals, maze_type, experiment_name, device,
+                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
+
+        assert maze_type in ("umaze", "medium")
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -34,6 +37,7 @@ class OnlineModelBasedSkillChaining(object):
         self.use_dense_rewards = use_dense_rewards
         self.use_optimal_sampler = use_optimal_sampler
         self.clear_option_buffers = clear_option_buffers
+        self.use_global_option_subgoals = use_global_option_subgoals
 
         self.multithread_mpc = multithread_mpc
 
@@ -45,7 +49,8 @@ class OnlineModelBasedSkillChaining(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
-        self.mdp = mdp
+        goal_state = np.array((0, 8)) if maze_type == "umaze" else np.array((20, 20))
+        self.mdp = D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -100,6 +105,11 @@ class OnlineModelBasedSkillChaining(object):
             # TODO fix for pic_optimal_subgoal
             # subgoal = self.pick_optimal_subgoal(state) if self.use_optimal_sampler else None
             selected_option, subgoal = self.act(state)
+
+            # Overwrite the subgoal for the global-option
+            if selected_option == self.global_option and self.use_global_option_subgoals:
+                subgoal = self.pick_subgoal_for_global_option(state)
+
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
 
             if len(transitions) == 0:
@@ -189,6 +199,18 @@ class OnlineModelBasedSkillChaining(object):
             print(f"Creating {name}, parent {new_option.parent}, new_options = {self.new_options}, mature_options = {self.mature_options}")
             self.new_options.append(new_option)
             self.chain.append(new_option)
+
+    def find_nearest_option_in_chain(self, state):
+        if len(self.mature_options) > 0:
+            distances = [(option, option.distance_to_state(state)) for option in self.mature_options]
+            nearest_option = sorted(distances, key=lambda x: x[1])[0][0]  # type: ModelBasedOption
+            return nearest_option
+
+    def pick_subgoal_for_global_option(self, state):
+        nearest_option = self.find_nearest_option_in_chain(state)
+        if nearest_option is not None:
+            return nearest_option.sample_from_initiation_region_fast_and_epsilon()
+        return self.global_option.get_goal_for_rollout()
 
     def filter_replay_buffer(self, option):
         assert isinstance(option, ModelBasedOption)
@@ -291,7 +313,7 @@ def test_agent(exp, num_experiments, num_steps):
             # exp.manage_chain_after_rollout(selected_option)
             step_number += len(transitions)
         return step_number
-        
+
     success = 0
     step_counts = []
 
@@ -344,6 +366,9 @@ if __name__ == "__main__":
     parser.add_argument("--generate_init_gif", action="store_true", default=False)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
 
+    parser.add_argument("--maze_type", type=str)
+    parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
+
     parser.add_argument("--clear_option_buffers", action="store_true", default=False)
     parser.add_argument("--lr_c", type=float, help="critic learning rate")
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
@@ -386,7 +411,10 @@ if __name__ == "__main__":
                                         seed=args.seed,
                                         lr_c=args.lr_c,
                                         lr_a=args.lr_a,
-                                        clear_option_buffers=args.clear_option_buffers)
+                                        clear_option_buffers=args.clear_option_buffers,
+                                        maze_type=args.maze_type,
+                                        use_global_option_subgoals=args.use_global_option_subgoals
+                                        )
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
