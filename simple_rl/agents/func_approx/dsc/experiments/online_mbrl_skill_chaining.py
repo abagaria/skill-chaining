@@ -308,6 +308,20 @@ def test_agent(exp, num_experiments, num_steps):
 
     return success / num_experiments, step_counts
 
+def get_trajectory(exp, num_steps):
+    exp.mdp.reset()
+    
+    traj = []
+    step_number = 0
+    
+    while step_number < num_steps and not exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.mdp.goal_state, {})[1]:
+        state = deepcopy(exp.mdp.cur_state)
+        selected_option, subgoal = exp.act(state)
+        transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal, eval_mode=True)
+        step_number += len(transitions)
+        traj.append((selected_option.name, transitions))
+    return traj, step_number
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
