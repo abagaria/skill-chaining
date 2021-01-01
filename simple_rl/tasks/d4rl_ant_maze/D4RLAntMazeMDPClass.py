@@ -14,6 +14,9 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         self.env_name = 'antmaze-umaze-v0' if maze_size == "umaze" else f"antmaze-{maze_size}-play-v0"
         self.use_hard_coded_events = use_hard_coded_events
         self.env = gym.make(self.env_name)
+
+        self._determine_x_y_lims()
+
         self.reset()
 
         self.render = render
@@ -95,11 +98,16 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     # Used for visualizations only
     # --------------------------------
 
+    def _determine_x_y_lims(self):
+        assert "medium" in self.env_name or "umaze" in self.env_name, self.env_name
+        self.xlims = (-1., 21.) if "medium" in self.env_name else (-2., 9.)
+        self.ylims = (-1., 21.) if "medium" in self.env_name else (-2., 9.)
+
     def get_x_y_low_lims(self):
-        return -1., -1.
+        return self.xlims[0], self.ylims[0]
 
     def get_x_y_high_lims(self):
-        return 21., 21.
+        return self.xlims[1], self.ylims[1]
 
     # ---------------------------------
     # Used during testing only
