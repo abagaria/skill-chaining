@@ -66,13 +66,17 @@ class OnlineModelBasedSkillChaining(object):
     def act(self, state):
         for option in self.chain:
             if option.is_init_true(state):
-                subgoal = option.get_goal_for_rollout()
+                subgoal = self.pick_optimal_subgoal(state, option) if self.use_optimal_sampler else None
+                if subgoal is None:  # can be none if use_optimal_sampler is False or if pick_optimal_subgoal returned none
+                    subgoal = option.get_goal_for_rollout()
                 if not option.is_at_local_goal(state, subgoal):
                     return option, subgoal
         return self.global_option, self.global_option.get_goal_for_rollout()
 
-    def pick_optimal_subgoal(self, state):
-        current_option = self._pick_earliest_option(state, self.mature_options)
+    def pick_optimal_subgoal(self, state, current_option=None):
+
+        if current_option is None:
+            current_option = self._pick_earliest_option(state, self.mature_options)
 
         if current_option is not None and self.optimal_subgoal_selector is not None:
             sg = self.optimal_subgoal_selector.pick_subgoal(state, current_option)
@@ -125,7 +129,9 @@ class OnlineModelBasedSkillChaining(object):
                 self.learn_dynamics_model(epochs=5)
 
             if len(self.mature_options) > 0 and self.use_optimal_sampler:
-                self.optimal_subgoal_selector = OptimalSubgoalSelector(self.mature_options,
+                condition = lambda o: len(o.positive_examples) > 0 and len(o.effect_set) > 0
+                options = [option for option in self.chain if condition(option)]
+                self.optimal_subgoal_selector = OptimalSubgoalSelector(options,
                                                                        self.mdp.goal_state,
                                                                        self.mdp.state_space_size())
 
