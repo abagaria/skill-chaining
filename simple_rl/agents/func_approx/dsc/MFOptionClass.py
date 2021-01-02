@@ -10,7 +10,7 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 class ModelFreeOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, buffer_length, global_init,
                  gestation_period, initiation_period, timeout, max_steps, device, dense_reward,
-                 option_idx, lr_c, lr_a, target_salient_event=None):
+                 option_idx, lr_c, lr_a, use_pessimistic_clf_only=False, target_salient_event=None):
         self.seed = 0
         self.mdp = mdp
         self.name = name
@@ -36,6 +36,7 @@ class ModelFreeOption(object):
         self.negative_examples = []
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
+        self.use_pessimistic_clf_only = use_pessimistic_clf_only
 
         self.solver = TD3(state_dim=self.mdp.state_space_size(),
                          action_dim=self.mdp.action_space_size(),
@@ -72,6 +73,10 @@ class ModelFreeOption(object):
             return True
 
         features = self.mdp.get_position(state)
+
+        if self.use_pessimistic_clf_only:
+            return self.pessimistic_is_init_true(state)
+
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):

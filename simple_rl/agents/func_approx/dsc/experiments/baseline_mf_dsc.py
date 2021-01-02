@@ -15,7 +15,7 @@ from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 class BaselineModelFreeDSC(object):
     def __init__(self, max_steps, gestation_period, initiation_period, buffer_length,
                  use_diverse_starts, use_dense_rewards, lr_c, lr_a,
-                 maze_type, experiment_name, device,
+                 maze_type, experiment_name, device, use_pessimistic_clf_only,
                  logging_freq, generate_init_gif, evaluation_freq, seed):
         assert maze_type in ("umaze", "medium")
 
@@ -36,6 +36,7 @@ class BaselineModelFreeDSC(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
         self.initiation_period = initiation_period
+        self.use_pessimistic_clf_only = use_pessimistic_clf_only
 
         goal_state = np.array((8, 0)) if maze_type == "umaze" else np.array((20, 20))
         self.mdp = D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
@@ -155,12 +156,12 @@ class BaselineModelFreeDSC(object):
     def reset(self, episode):
         self.mdp.reset()
 
-        if self.use_diverse_starts and not self.is_chain_complete():
+        if self.use_diverse_starts and not self.freeze_chain:
             cond = lambda s: s[0] < 7.4 and s[1] < 2  # TODO: Hardcoded for bottom corridor
             random_state = self.mdp.sample_random_state(cond=cond)
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
-        elif not self.freeze_chain:
+        if not self.freeze_chain and self.is_chain_complete():
             self.freeze_chain = True
             self.log["chain-freeze-episode"] = episode
 
@@ -181,7 +182,8 @@ class BaselineModelFreeDSC(object):
                                  option_idx=option_idx,
                                  lr_c=self.lr_c,
                                  lr_a=self.lr_a,
-                                 target_salient_event=self.target_salient_event
+                                 target_salient_event=self.target_salient_event,
+                                 use_pessimistic_clf_only=self.use_pessimistic_clf_only
                                  )
         return option
 
@@ -201,7 +203,8 @@ class BaselineModelFreeDSC(object):
                                  option_idx=0,
                                  lr_c=self.lr_c,
                                  lr_a=self.lr_a,
-                                 target_salient_event=self.target_salient_event
+                                 target_salient_event=self.target_salient_event,
+                                 use_pessimistic_clf_only=self.use_pessimistic_clf_only
                                  )
         return option
 
@@ -252,6 +255,7 @@ if __name__ == "__main__":
     parser.add_argument("--maze_type", type=str)
     parser.add_argument("--lr_c", type=float, help="critic learning rate", default=3e-4)
     parser.add_argument("--lr_a", type=float, help="actor learning rate", default=3e-4)
+    parser.add_argument("--use_pessimistic_clf_only", action="store_true", default=False)
     args = parser.parse_args()
 
     exp = BaselineModelFreeDSC(max_steps=args.steps,
@@ -268,7 +272,8 @@ if __name__ == "__main__":
                                logging_freq=args.logging_frequency,
                                generate_init_gif=args.generate_init_gif,
                                evaluation_freq=args.evaluation_frequency,
-                               seed=args.seed
+                               seed=args.seed,
+                               use_pessimistic_clf_only=args.use_pessimistic_clf_only
                                )
 
     create_log_dir(args.experiment_name)
