@@ -133,12 +133,6 @@ class MPC:
         return (self.gamma ** horizon) * values
 
     def _get_costs(self, goals, states):
-
-        if states.shape[1] != 2:
-            states = states[:, :2]
-        if goals.shape[1] != 2:
-            goals = goals[:, :2]
-
         assert goals.shape == states.shape, f"{goals.shape, states.shape}"
 
         reward_function = self.mdp.batched_dense_gc_reward_function if self.dense_reward\
@@ -150,7 +144,6 @@ class MPC:
 
     def simulate(self, s, goal, num_rollouts=14000, num_steps=7):
         """ Perform N simulations of length H. """
-
         torch_actions = 2 * torch.rand((num_rollouts, num_steps, self.action_size), device=self.device) - 1
         torch_states = torch.tensor(s.features(), device=self.device).repeat(num_rollouts, 1)
         pred = torch.zeros((num_rollouts, self.state_size, num_steps), device=self.device)
@@ -170,9 +163,8 @@ class MPC:
             np_pred = pred.cpu().numpy()
             for j in range(num_steps):
                 # update results with (any) distance metric
-                costs[:, j] = self._get_costs(goals, np_pred[:, :2, j])
+                costs[:, j] = self._get_costs(goals, np_pred[:, :, j])
             np_actions = torch_actions.cpu().numpy()
-
         return np_pred[:, :, num_steps - 1], np_actions, costs
 
     def act(self, s, goal, vf=None, num_rollouts=14000, num_steps=7):
@@ -258,13 +250,13 @@ class MPC:
         self.model.__setstate__(state_dictionary)
 
     def compute_validation_error(self, states, actions, states_p):
-        pred_trajs = np.array([self.predict_trajectory(traj_states, traj_actions) for traj_states, traj_actions in zip(states, actions)])
+        pred_trajs = np.array([self.predict_trajectory(traj_states[0], traj_actions) for traj_states, traj_actions in zip(states, actions)])
         max_traj_length = max(len(traj) for traj in states)
         error = np.zeros(max_traj_length)
         counts = np.zeros(max_traj_length)
         for pred_traj, actual_traj in zip(pred_trajs, states_p):
-            pred_traj = np.array(pred_traj)[:, :2]
-            actual_traj =
+            pred_traj = np.array(pred_traj)[3:]
+            actual_traj = np.array(actual_traj)[3:]
             curr_traj_length = len(pred_traj)
             one_step_errors = np.sum(np.subtract(pred_traj, actual_traj) ** 2, axis=1) / 2
             h_step_errors = np.cumsum(one_step_errors) / np.array(range(1, curr_traj_length + 1))
@@ -272,15 +264,28 @@ class MPC:
             error[:curr_traj_length] += h_step_errors
         return error / counts
 
-    def predict_trajectory(self, states, actions):
-        torch_states = torch.tensor(states, device=self.device)
-        torch_actions = torch.tensor(actions, device=self.device)
-        torch_states, torch_actions = torch_states[:,None], torch_actions[:,None]
+    def compute_baseline_validation_error(states, states_p, mdp):
+        pred_trajs = np.array([[mdp.sample_random_state() for s in traj_states] for traj_states in states])
+        max_traj_length = max(len(traj) for traj in states)
+        error = np.zeros(max_traj_length)
+        counts = np.zeros(max_traj_length)
+        for pred_traj, actual_traj in zip(pred_trajs, states_p):
+            pred_traj = np.array(pred_traj)[3:]
+            actual_traj = np.array(actual_traj)
+            curr_traj_length = len(pred_traj)
+            one_step_errors = np.sum(np.subtract(pred_traj, actual_traj) ** 2, axis=1) / 2
+            h_step_errors = np.cumsum(one_step_errors) / np.array(range(1, curr_traj_length + 1))
+            counts[:curr_traj_length] += 1
+            error[:curr_traj_length] += h_step_errors
+        return error / counts
+
+    def predict_trajectory(self, state, actions):
+        prev_state = torch.tensor(state, device=self.device)[None,...]
+        torch_actions = torch.tensor(actions, device=self.device)[:, None, :]
         pred_states = []
-        prev_state = torch_states[0]
         with torch.no_grad():
-            for state, action in zip(torch_states, torch_actions):
-                next_state = prev_state.float() + self.model.predict_next_state(state.float(), action.float())
+            for action in torch_actions:
+                next_state = self.model.predict_next_state(prev_state.float(), action.float())
                 pred_states.append(next_state[0].cpu().numpy())
                 prev_state = next_state
         return pred_states
