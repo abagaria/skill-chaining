@@ -38,7 +38,7 @@ class BaselineModelFreeDSC(object):
         self.initiation_period = initiation_period
         self.use_pessimistic_clf_only = use_pessimistic_clf_only
 
-        goal_state = np.array((8, 0)) if maze_type == "umaze" else np.array((20, 20))
+        goal_state = np.array((0, 8)) if maze_type == "umaze" else np.array((20, 20))
         self.mdp = D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
@@ -48,7 +48,6 @@ class BaselineModelFreeDSC(object):
         self.new_options = [self.goal_option]
         self.mature_options = []
 
-        self.freeze_chain = False
         self.log = {}
 
     @staticmethod
@@ -73,8 +72,7 @@ class BaselineModelFreeDSC(object):
             if len(transitions) == 0:
                 break
 
-            if not self.freeze_chain:
-                self.manage_chain_after_rollout(selected_option)
+            self.manage_chain_after_rollout(selected_option)
             
             step_number += len(transitions)
         return step_number
@@ -104,10 +102,10 @@ class BaselineModelFreeDSC(object):
         self.log[episode]["option_stats"] = [f"{option.name}: {option.num_goal_hits}/{option.num_executions}" for option in self.chain]
 
         if episode % self.evaluation_freq == 0 and episode > 0:
-            #success, step_count = test_agent(self, 1, self.max_steps)
+            success, step_count = test_agent(self, 1, self.max_steps)
 
-            #self.log[episode]["success"] = success
-            #self.log[episode]["step-count"] = step_count[0]
+            self.log[episode]["success"] = success
+            self.log[episode]["step-count"] = step_count[0]
 
             with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
                 pickle.dump(self.log, log_file)
@@ -156,14 +154,14 @@ class BaselineModelFreeDSC(object):
     def reset(self, episode):
         self.mdp.reset()
 
-        if self.use_diverse_starts and not self.freeze_chain:
-            cond = lambda s: s[0] < 7.4 and s[1] < 2  # TODO: Hardcoded for bottom corridor
-            random_state = self.mdp.sample_random_state(cond=cond)
+        if self.use_diverse_starts:  # and not self.freeze_chain:
+            #cond = lambda s: s[0] < 7.4 and s[1] < 2  # TODO: Hardcoded for bottom corridor
+            random_state = self.mdp.sample_random_state()
             random_position = self.mdp.get_position(random_state)
             self.mdp.set_xy(random_position)
-        if not self.freeze_chain and self.is_chain_complete():
-            self.freeze_chain = True
-            self.log["chain-freeze-episode"] = episode
+        #if not self.freeze_chain and self.is_chain_complete():
+        #    self.freeze_chain = True
+        #    self.log["chain-freeze-episode"] = episode
 
     def create_local_option(self, name, parent=None):
         option_idx = len(self.chain) + 1 if parent is not None else 1
@@ -285,6 +283,6 @@ if __name__ == "__main__":
     end_time = time.time()
 
     print("exporting graphs!")
-    exp.log_status(2000, [1000])
+    exp.log_status(args.episodes, [1000])
 
     print("TIME: ", end_time - start_time)
