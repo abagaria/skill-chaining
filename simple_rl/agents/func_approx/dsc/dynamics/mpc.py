@@ -264,21 +264,6 @@ class MPC:
             error[:curr_traj_length] += h_step_errors
         return error / counts
 
-    def compute_baseline_validation_error(states, states_p, mdp):
-        pred_trajs = np.array([[mdp.sample_random_state() for s in traj_states] for traj_states in states])
-        max_traj_length = max(len(traj) for traj in states)
-        error = np.zeros(max_traj_length)
-        counts = np.zeros(max_traj_length)
-        for pred_traj, actual_traj in zip(pred_trajs, states_p):
-            pred_traj = np.array(pred_traj)[3:]
-            actual_traj = np.array(actual_traj)
-            curr_traj_length = len(pred_traj)
-            one_step_errors = np.sum(np.subtract(pred_traj, actual_traj) ** 2, axis=1) / 2
-            h_step_errors = np.cumsum(one_step_errors) / np.array(range(1, curr_traj_length + 1))
-            counts[:curr_traj_length] += 1
-            error[:curr_traj_length] += h_step_errors
-        return error / counts
-
     def predict_trajectory(self, state, actions):
         prev_state = torch.tensor(state, device=self.device)[None,...]
         torch_actions = torch.tensor(actions, device=self.device)[:, None, :]
@@ -289,6 +274,7 @@ class MPC:
                 pred_states.append(next_state[0].cpu().numpy())
                 prev_state = next_state
         return pred_states
+
 
 class RolloutDataset(Dataset):
     def __init__(self, states, actions, states_p):

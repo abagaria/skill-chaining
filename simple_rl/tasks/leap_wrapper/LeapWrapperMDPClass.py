@@ -21,13 +21,13 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.env_name = "sawyer"
         self.task_agnostic = task_agnostic
         self.goal_tolerance = 0.06
-        self.touch_threshold = 0.08
+        self.touch_threshold = 0.1
         self.orientation_threshold = 0.03
 
         # Configure env
         multiworld.register_all_envs()
         self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type=goal_type, dense_reward=dense_reward,
-                            goal_tolerance=self.goal_tolerance, task_agnostic=task_agnostic, goal=(0.15, 0.6, 0.02, -0.2, 0.6))
+                            goal_tolerance=self.goal_tolerance, task_agnostic=task_agnostic)
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
         # Sets the initial state
@@ -169,30 +169,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
             return np.linalg.norm(curr_puck_pos - goal_puck_pos)
         elif self.goal_type == 'hand':
             return np.linalg.norm(curr_arm_pos - goal_arm_pos)
-        elif self.goal_type == 'complex_puck':
+        elif self.goal_type == 'hand_and_puck':
             touch_distance = np.linalg.norm(curr_puck_pos - curr_arm_pos)
             puck_distance = np.linalg.norm(curr_puck_pos - goal_puck_pos)
-
-            if touch_distance > self.touch_threshold:
-                return touch_distance * 10
-            elif puck_distance > self.touch_threshold:
-                return puck_distance
+            if puck_distance > self.goal_tolerance:
+                return puck_distance + touch_distance
             return 0
-
-            # def _dist_point_and_line(l1, l2, p):
-            #     return np.cross(l2 - l1, p - l1) / np.linalg.norm(l2 - l1)
-            #
-            # orientation_distance = np.abs(_dist_point_and_line(curr_puck_pos, goal_puck_pos, curr_arm_pos))
-            # touch_distance = np.linalg.norm(curr_puck_pos - curr_arm_pos)
-            # puck_distance = np.linalg.norm(curr_puck_pos - goal_puck_pos)
-            #
-            # if orientation_distance > self.orientation_threshold:
-            #     return 2 * orientation_distance + touch_distance + puck_distance
-            # elif touch_distance > self.touch_threshold:
-            #     return touch_distance + puck_distance
-            # elif puck_distance > self.touch_threshold:
-            #     return puck_distance
-            # return 0
         else:
             raise NotImplementedError
 
@@ -210,39 +192,14 @@ class LeapWrapperMDP(GoalDirectedMDP):
             distances = np.linalg.norm(curr_puck_pos - goal_puck_pos, axis=1)
         elif self.goal_type == 'hand':
             distances = np.linalg.norm(curr_arm_pos - goal_arm_pos, axis=1)
-        elif self.goal_type == 'complex_puck':
+        elif self.goal_type == 'hand_and_puck':
             touch_distance = np.linalg.norm(curr_puck_pos - curr_arm_pos, axis=1)
             puck_distance = np.linalg.norm(curr_puck_pos - goal_puck_pos, axis=1)
-
-            dones = touch_distance <= self.touch_threshold
-            touch_distance[dones] = 0
-            return -touch_distance, dones
-
-
-            not_touching_idxs = touch_distance > self.touch_threshold
-
-            distances = puck_distance
-            distances[not_touching_idxs] = touch_distance[not_touching_idxs] * 10
-            distances[dones] = 0
-            rewards = -distances
+            dones = puck_distance <= self.goal_tolerance
+            distance = puck_distance + touch_distance
+            rewards = -distance
+            rewards[dones] = 0
             return rewards, dones
-
-            # def _dist_point_and_line(l1, l2, p):
-            #     return np.cross(l2 - l1, p - l1) / np.linalg.norm(l2 - l1, axis=1)
-            # orientation_distance = _dist_point_and_line(goal_puck_pos, curr_puck_pos, curr_arm_pos)
-            # touch_distance = np.linalg.norm(curr_puck_pos - curr_arm_pos, axis=1)
-            # puck_distance = np.linalg.norm(curr_puck_pos - goal_puck_pos, axis=1)
-            #
-            # dones = puck_distance <= self.goal_tolerance
-            # not_touching_idxs = touch_distance > self.touch_threshold
-            # not_aligned_idxs = orientation_distance > self.orientation_threshold
-            #
-            # distances = puck_distance
-            # distances[not_touching_idxs] += touch_distance[not_touching_idxs]
-            # distances[not_aligned_idxs] += 2 * orientation_distance[not_aligned_idxs]
-            # distances[dones] = 0
-            # rewards = -distances
-            # return rewards, dones
         else:
             raise NotImplementedError
         dones = distances <= self.goal_tolerance

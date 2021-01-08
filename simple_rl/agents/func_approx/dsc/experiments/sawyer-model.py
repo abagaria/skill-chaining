@@ -6,44 +6,21 @@ from scipy.ndimage import uniform_filter1d
 from simple_rl.tasks.leap_wrapper.LeapWrapperMDPClass import LeapWrapperMDP
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
-def generate_train_data(mdp, epochs, num_positions, num_steps=1000, puck_interactions=False):
-    global mpc
 
+def generate_data(mdp, epochs, num_positions, num_steps=1000, puck_interactions=False):
     states = []
     actions = []
     states_p = []
-
+    rewards = []
     for i in range(num_positions):
-        position = mdp.sample_state() if not puck_interactions else sample_arm_puck_touching_state(mdp)
-        print(f"[{i+1}/{num_positions}] Generating train data for {position}")
+        start_state = mdp.sample_state() if not puck_interactions else sample_arm_puck_touching_state(mdp)
+        print(f"[{i + 1}/{num_positions}] Generating validation data for {start_state}")
         for episode in range(epochs):
-            mdp.reset_to_start_state(position)
-            for step in range(num_steps):
-                s = deepcopy(mdp.cur_state)
-                a = mdp.sample_random_action() if not puck_interactions else sample_puck_action(s)
-                r, sp = mdp.execute_agent_action(a)
-                mpc.step(s, a, r, sp, False)
-                
-                states.append(np.array(s, dtype='float64'))
-                actions.append(a)
-                states_p.append(np.array(sp, dtype='float64'))
-            
-                if sp.is_terminal() or (puck_interactions and not valid_puck_state(sp)):
-                    break
-    return states, actions, states_p
-
-def generate_validation_data(mdp, epochs, num_positions, num_steps=1000, puck_interactions=False):
-    states = []
-    actions = []
-    states_p = []
-    for i in range(num_positions):
-        position = mdp.sample_state() if not puck_interactions else sample_arm_puck_touching_state(mdp)
-        print(f"[{i + 1}/{num_positions}] Generating validation data for {position}")
-        for episode in range(epochs):
-            mdp.reset_to_start_state(position)
+            mdp.reset_to_start_state(start_state)
             traj_states = []
             traj_actions = []
             traj_states_p = []
+            traj_rewards = []
             for step in range(num_steps):
                 s = deepcopy(mdp.cur_state)
                 a = mdp.sample_random_action() if not puck_interactions else sample_puck_action(s)
@@ -52,39 +29,45 @@ def generate_validation_data(mdp, epochs, num_positions, num_steps=1000, puck_in
                 traj_states.append(np.array(s, dtype='float64'))
                 traj_actions.append(a)
                 traj_states_p.append(np.array(sp, dtype='float64'))
+                traj_rewards.append(r)
 
                 if sp.is_terminal() or (puck_interactions and not valid_puck_state(sp)):
                     break
             states.append(traj_states)
             actions.append(traj_actions)
             states_p.append(traj_states_p)
-    return states, actions, states_p
+            rewards.append(traj_rewards)
+    return states, actions, states_p, rewards
+
 
 def valid_puck_state(state):
     puck_pos = state[3:]
-    puck_low = [-.5, .2]
-    puck_high = [.5, 1]
+    puck_low = [-.4, .3]
+    puck_high = [.4, .9]
     return np.less(puck_low, puck_pos).all() and np.less(puck_pos, puck_high).all()
 
+
 def sample_arm_puck_touching_state(mdp):
-    max_iter = 500
-    for _ in range(max_iter):
+    while True:
         state = mdp.sample_state()
         if is_touching(state):
-            break
-    return state
+            return state
+
 
 def sample_puck_action(state):
     state = np.array(state)
     arm_pos = state[:2]
     puck_pos = state[3:]
+
     touch_diff = (puck_pos - arm_pos)
-    touch_vector_factor = 0.5
-    tangential_noise_factor = 1
-    noise = np.random.uniform(-1, 1) * np.array([-touch_diff[1], touch_diff[0]])
-    action = noise * tangential_noise_factor + touch_diff * touch_vector_factor
-    clipped_action = np.clip(action, [-1, -1], [1 ,1])
+    scaled_touch_diff = touch_diff / np.linalg.norm(touch_diff) * np.random.uniform()
+    orth_vector = np.array([-scaled_touch_diff[1], scaled_touch_diff[0]])
+    noise = orth_vector * np.random.uniform(-.1, .1)
+
+    action = noise + scaled_touch_diff
+    clipped_action = np.clip(action, [-1, -1], [1, 1])
     return clipped_action
+
 
 def test(starts, goals, num_steps=1000):
     rewards = []
@@ -98,7 +81,7 @@ def test(starts, goals, num_steps=1000):
         action = []
         mdp.set_goal(goal)
         for step in range(num_steps):
-            a = mpc.act(mdp.cur_state, goal, num_rollouts=20000, num_steps=4)
+            a = mpc.act(mdp.cur_state, goal, num_rollouts=20000, num_steps=10)
             r,_ = mdp.execute_agent_action(a)
             reward.append(r)
             action.append(a)
@@ -108,22 +91,25 @@ def test(starts, goals, num_steps=1000):
         actions.append(action)
     return trajs, rewards, actions
 
+
 def num_puck_interactions(mpc):
     count = 0
     for state in mpc.train_data.states:
-        count += is_touching(state, 0.1)
+        count += is_touching(state)
     return count / len(mpc.train_data.states) * 100
 
-def is_touching(state, touch_indicator=0.06):
+
+def is_touching(state):
     state = np.array(state)
     hand_pos = state[:2]
     puck_pos = state[3:]
     touch_diff = hand_pos - puck_pos
     touch_distance = np.linalg.norm(touch_diff, ord=2)
-    return touch_distance < touch_indicator
+    return touch_distance < 0.1
 
-def plot_data_distribution(mdp, states):
-    states = np.array(states)
+
+def plot_data_distribution(mdp):
+    np_states = mpc.replay_buffer.obs_buf[:mpc.replay_buffer.size]
     low_hand_x, low_hand_y, _, low_puck_x, low_puck_y = mdp.get_low_lims()
     high_hand_x, high_hand_y, _, high_puck_x, high_puck_y = mdp.get_high_lims()
     fig, (ax1, ax2) = plt.subplots(1, 2)
@@ -131,9 +117,10 @@ def plot_data_distribution(mdp, states):
     ax1.set_ylim((low_hand_y, high_hand_y))
     ax2.set_xlim((low_puck_x, high_puck_x))
     ax2.set_ylim((low_puck_y, high_puck_y))
-    ax1.scatter(states[:, 0], states[:, 1], alpha=0.2)
-    ax2.scatter(states[:, 3], states[:, 4], alpha=0.2)
+    ax1.scatter(np_states[:, 0], np_states[:, 1], alpha=0.2)
+    ax2.scatter(np_states[:, 3], np_states[:, 4], alpha=0.2)
     fig.savefig("dist.png")
+
 
 def plot_validation_error(error, filename):
     plt.figure()
@@ -141,13 +128,13 @@ def plot_validation_error(error, filename):
     plt.savefig(filename)
     plt.close()
 
+
 def plot_traj_rewards(rewards):
     train_time = len(rewards[0])
     smooth_learning_curve = uniform_filter1d(rewards, 20, mode='nearest', output=np.float)
     mean = np.mean(smooth_learning_curve, axis=0)
     std_err = np.std(smooth_learning_curve, axis=0)
     y_low, y_high = np.amin(rewards), 0
-    ipdb.set_trace()
     plt.figure()
     plt.plot(range(train_time), mean, '-')
     plt.fill_between(range(train_time), np.maximum(mean - std_err, y_low), np.minimum(mean + std_err, y_high), alpha=0.2)
@@ -155,6 +142,7 @@ def plot_traj_rewards(rewards):
     plt.ylim((y_low, y_high))
     plt.savefig("mpc_learning_curve.png")
     plt.close()
+
 
 def sample_complex_puck_start_goal_states(mdp):
     def scale(vector, length):
@@ -184,6 +172,7 @@ def sample_complex_puck_start_goal_states(mdp):
             start[:2] = hand_start
             return start, goal
 
+
 def calculate_puck_rewards(trajs, goals):
     trajs = np.array(trajs)
     goals = np.array(goals)
@@ -192,11 +181,18 @@ def calculate_puck_rewards(trajs, goals):
     return -np.linalg.norm(goal_pos - curr_pos, axis=2)
 
 
+def load_data(a, b, c, d):
+    for states, actions, state_ps, rewards in zip(a, b, c, d):
+        for state, action, r, state_p in zip(states, actions, rewards, state_ps):
+            mpc.step(state, action, r, state_p, False)
+    mpc.load_data()
+
+
 if __name__ == "__main__":
     # run parameters
-    GOAL_TYPE = 'complex_puck'
+    GOAL_TYPE = 'hand_and_puck'
     DEBUG = False
-    NUM_TRAJS = 10
+    NUM_TRAJS = 15
     puck_interactions = 'puck' in GOAL_TYPE
 
     # create objects
@@ -205,43 +201,45 @@ if __name__ == "__main__":
     mpc = MPC(mdp, mdp.state_space_size(), mdp.action_space_size(), dense_reward=True, device=torch.device('cuda:0'))
 
     if DEBUG:
-        a, b, c = generate_train_data(mdp, 2, 2, num_steps=50, puck_interactions=puck_interactions)
-        mpc.load_data()
+        a, b, c, d = generate_data(mdp, 2, 2, num_steps=50, puck_interactions=puck_interactions)
+        load_data(a, b, c, d)
         mpc.train(2, 2)
-        val_random_a, val_random_b, val_random_c = generate_validation_data(mdp, 2, 2, num_steps=20, puck_interactions=False)
-        val_puck_a, val_puck_b, val_puck_c = generate_validation_data(mdp, 2, 2, num_steps=5, puck_interactions=True)
-        goals = [mdp.sample_valid_goal() for _ in range(2)]
-        starts = [deepcopy(mdp.init_state) for _ in range(NUM_TRAJS)]
+        val_random_a, val_random_b, val_random_c, _ = generate_data(mdp, 2, 2, num_steps=20, puck_interactions=False)
+        val_puck_a, val_puck_b, val_puck_c, _ = generate_data(mdp, 2, 2, num_steps=5, puck_interactions=True)
 
-        if GOAL_TYPE == 'complex_puck':
+        if GOAL_TYPE == 'hand_and_puck':
             goals, starts = [], []
             for _ in range(NUM_TRAJS):
                 start, goal = sample_complex_puck_start_goal_states(mdp)
                 goals.append(goal)
                 starts.append(start)
+        else:
+            goals = [mdp.sample_valid_goal() for _ in range(2)]
+            starts = [deepcopy(mdp.init_state) for _ in range(2)]
         trajs, rewards, actions = test(starts, goals, num_steps=1)
     else:
         # train MPC
-        # a, b, c = generate_train_data(mdp, 10, 1500, num_steps=5000, puck_interactions=puck_interactions)
-        a, b, c = generate_train_data(mdp, 1, 1500, num_steps=200, puck_interactions=puck_interactions)
-        mpc.load_data()
+        a, b, c, d = generate_data(mdp, 1, 2000, num_steps=200, puck_interactions=True)
+        e, f, g, h = generate_data(mdp, 1, 350, num_steps=200, puck_interactions=False)
+        load_data(a, b, c, d)
+        load_data(e, f, g, h)
         mpc.train(750, 1024)
-        plot_data_distribution(mdp, a)
+        plot_data_distribution(mdp)
         if puck_interactions:
             print(num_puck_interactions(mpc))
 
         # validation error
-        val_random_a, val_random_b, val_random_c = generate_validation_data(mdp, 1, 100, num_steps=500, puck_interactions=False)
-        random_error = mpc.compute_validation_error(val_random_a, val_random_b, val_random_c)
+        val_rand_a, val_rand_b, val_rand_c, _ = generate_data(mdp, 1, 200, num_steps=200, puck_interactions=False)
+        random_error = mpc.compute_validation_error(val_rand_a, val_rand_b, val_rand_c)
         plot_validation_error(random_error, 'validation_random_error.png')
         plot_validation_error(random_error[:5], 'validation_random_error_truncated.png')
-        val_puck_a, val_puck_b, val_puck_c = generate_validation_data(mdp, 1, 200, num_steps=200, puck_interactions=True)
+        val_puck_a, val_puck_b, val_puck_c, _ = generate_data(mdp, 1, 200, num_steps=200, puck_interactions=True)
         puck_error = mpc.compute_validation_error(val_puck_a, val_puck_b, val_puck_c)
         plot_validation_error(puck_error, 'validation_puck_error.png')
         plot_validation_error(puck_error[:5], 'validation_puck_error_truncated.png')
 
         # Test MPC trajectories
-        if GOAL_TYPE == 'complex_puck':
+        if GOAL_TYPE == 'hand_and_puck':
             goals, starts = [], []
             for _ in range(NUM_TRAJS):
                 start, goal = sample_complex_puck_start_goal_states(mdp)
@@ -251,30 +249,7 @@ if __name__ == "__main__":
             goals = [mdp.sample_valid_goal() for _ in range(NUM_TRAJS)]
             starts = [mdp.sample_valid_goal() for _ in range(NUM_TRAJS)]
 
-        trajs, rewards, actions = test(starts, goals, num_steps=500)
+        trajs, rewards, actions = test(starts, goals, num_steps=200)
         puck_rewards = calculate_puck_rewards(trajs, goals)
         plot_traj_rewards(puck_rewards)
-
-
-# NOTE: ax1 = endeff; ax2 = puck
-# fig, (ax1, ax2) = plt.subplots(1, 2)
-# ax1.set_xlim((low_hand_x, high_hand_x))
-# ax1.set_ylim((low_hand_y, high_hand_y))
-# ax2.set_xlim((low_puck_x, high_puck_x))
-# ax2.set_ylim((low_puck_y, high_puck_y))
-#
-# for l in traj_4:
-#     endeff_x, endeff_y, endeff_z, puck_x, puck_y = l
-#     ax1.plot(endeff_x, endeff_y, "-o", alpha=0.8)
-#     ax2.plot(puck_x, puck_y, "-o", alpha=0.8)
-# init_state = traj_4[0]
-# arm_start = init_state[:2]
-# puck_start = init_state[3:]
-# puck_goal = goal_4[3:]
-# ax1.scatter(arm_start[0], arm_start[1], color="k", label="endeff start", marker="x", s=180)
-# ax1.scatter(puck_start[0], puck_start[1], color="k", label="puck start", marker="+", s=180)
-# ax1.scatter(puck_goal[0], puck_goal[1], color="k", label="puck start", marker="*", s=400)
-# plt.show(fig)
-# fig.savefig("trajectory.png")
-# plt.close(fig)
 
