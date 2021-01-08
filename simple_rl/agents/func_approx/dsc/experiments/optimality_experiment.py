@@ -182,7 +182,8 @@ class OnlineModelBasedSkillChaining(object):
                                   use_vf=self.use_vf,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
-                                  option_idx=option_idx)
+                                  option_idx=option_idx,
+                                  lr_a=3e-4, lr_c=3e-4, use_model=True, use_global_vf=False)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -197,7 +198,8 @@ class OnlineModelBasedSkillChaining(object):
                                   use_vf=self.use_vf,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,
-                                  option_idx=0)
+                                  option_idx=0,
+                                  lr_a=3e-4, lr_c=3e-4, use_model=True, use_global_vf=False)
         return option
 
     def reset(self, episode):

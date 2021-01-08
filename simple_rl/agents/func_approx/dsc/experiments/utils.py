@@ -85,7 +85,7 @@ def plot_one_class_initiation_classifier(option):
     color = colors[option.option_idx % len(colors)]
     plt.contour(xx, yy, Z1, levels=[0], linewidths=2, colors=[color])
 
-def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True):
+def plot_two_class_classifier(option, episode, experiment_name, plot_examples=True, seed=0):
     states = get_grid_states(option.overall_mdp)
     values = get_initiation_set_values(option)
 
@@ -116,7 +116,7 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
 
     name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
     plt.title("{} Initiation Set".format(option.name))
-    plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, option.seed))
+    plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}.png".format(experiment_name, name, seed))
     plt.close()
 
 
@@ -144,7 +144,7 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
     plt.close()
 
 
-def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
+def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None, option_idx=None):
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
 
     # Take out the original goal and append the new goal
@@ -179,7 +179,11 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
 
     plt.scatter(states[:, 0], states[:, 1], c=qvalues)
     plt.colorbar()
-    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+
+    if option_idx is None:
+        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+    else:
+        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}_option_{option_idx}"
     plt.title(f"VF Targeting {np.round(goal, 2)}")
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()

@@ -4,6 +4,7 @@ import random
 import itertools
 import numpy as np
 from copy import deepcopy
+from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
@@ -11,13 +12,17 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
-                 gestation_period, timeout, max_steps, device, use_vf, use_model, dense_reward,
-                 option_idx, max_num_children=2, target_salient_event=None, path_to_model=""):
+                 gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
+                 option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model="", multithread_mpc=False):
         self.mdp = mdp
         self.name = name
+        self.lr_c = lr_c
+        self.lr_a = lr_a
         self.parent = parent
         self.device = device
         self.use_vf = use_vf
+        self.global_solver = global_solver
+        self.use_global_vf = use_global_vf
         self.timeout = timeout
         self.use_model = use_model
         self.max_steps = max_steps
@@ -26,6 +31,7 @@ class ModelBasedOption(object):
         self.buffer_length = buffer_length
         self.max_num_children = max_num_children
         self.target_salient_event = target_salient_event
+        self.multithread_mpc = multithread_mpc
 
         # TODO
         self.overall_mdp = mdp
@@ -46,27 +52,23 @@ class ModelBasedOption(object):
         # Therefore, only use output norm if we are using MPC for action selection
         use_output_norm = self.use_model
 
-        self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                 action_dim=self.mdp.action_space_size(),
-								 max_action=1.,
-                                 name=f"{name}-td3-agent",
-                                 device=self.device,
-                                 use_output_normalization=use_output_norm)
+        if not self.use_global_vf or global_init:
+            self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
+                                    action_dim=self.mdp.action_space_size(),
+                                    max_action=1.,
+                                    name=f"{name}-td3-agent",
+                                    device=self.device,
+                                    lr_c=lr_c, lr_a=lr_a,
+                                    use_output_normalization=use_output_norm)
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
-        if global_solver is not None:
-            self.solver = global_solver
-        elif use_model:
+        if use_model:
             print(f"Using model-based controller for {name}")
-            self.solver = MPC(mdp=self.mdp,
-                              state_size=self.mdp.state_space_size(),
-                              action_size=self.mdp.action_space_size(),
-                              dense_reward=self.dense_reward,
-                              device=self.device)
+            self.solver = self._get_model_based_solver()
         else:
             print(f"Using model-free controller for {name}")
-            self.solver = self.value_learner
+            self.solver = self._get_model_free_solver()
 
         self.children = []
         self.success_curve = []
@@ -76,10 +78,44 @@ class ModelBasedOption(object):
             print(f"Loading model from {path_to_model} for {self.name}")
             self.solver.load_model(path_to_model)
 
-        if self.use_vf and self.parent is not None:
+        if self.use_vf and not self.use_global_vf and self.parent is not None:
             self.initialize_value_function_with_global_value_function()
 
         print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
+
+        self.is_last_option = False
+
+    def _get_model_based_solver(self):
+        assert self.use_model
+
+        if self.global_init:
+            return MPC(mdp=self.mdp,
+                       state_size=self.mdp.state_space_size(),
+                       action_size=self.mdp.action_space_size(),
+                       dense_reward=self.dense_reward,
+                       device=self.device,
+                       multithread=self.multithread_mpc)
+
+        assert self.global_solver is not None
+        return self.global_solver
+
+    def _get_model_free_solver(self):
+        assert not self.use_model
+        assert self.use_vf
+
+        # Global option creates its own VF solver
+        if self.global_init:
+            assert self.value_learner is not None
+            return self.value_learner
+
+        # Local option either uses the global VF..
+        if self.use_global_vf:
+            assert self.global_value_learner is not None
+            return self.global_value_learner
+
+        # .. or uses its own local VF as solver
+        assert self.value_learner is not None
+        return self.value_learner
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -92,6 +128,9 @@ class ModelBasedOption(object):
 
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
+            return True
+        
+        if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
         features = self.mdp.get_position(state)
@@ -178,7 +217,7 @@ class ModelBasedOption(object):
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
         print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
-        
+
         self.num_executions += 1
 
         while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
@@ -255,7 +294,9 @@ class ModelBasedOption(object):
             reward_func = self.overall_mdp.dense_gc_reward_function if self.dense_reward \
                 else self.overall_mdp.sparse_gc_reward_function
             reward, global_done = reward_func(next_state, goal_state, info={})
-            self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
+
+            if not self.use_global_vf or self.global_init:
+                self.value_learner.step(augmented_state, action, reward, augmented_next_state, done)
 
             # Off-policy updates to the global option value function
             if not self.global_init:
@@ -274,7 +315,11 @@ class ModelBasedOption(object):
         goal_positions = goals[:, :2]
         augmented_states = np.concatenate((states, goal_positions), axis=1)
         augmented_states = torch.as_tensor(augmented_states).float().to(self.device)
-        values = self.value_learner.get_values(augmented_states)
+
+        if self.use_global_vf and not self.global_init:
+            values = self.global_value_learner.get_values(augmented_states)
+        else:
+            values = self.value_learner.get_values(augmented_states)
 
         return values
 
@@ -336,7 +381,7 @@ class ModelBasedOption(object):
             indices = np.argwhere(valid == True)
             if len(indices) > 0:
                 return sampled_trajectory[indices[0][0]]
-        
+
         return self.sample_from_initiation_region_fast()
 
     def derive_positive_and_negative_examples(self, visited_states):
@@ -405,6 +450,47 @@ class ModelBasedOption(object):
             self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
             self.pessimistic_classifier.fit(positive_training_examples)
 
+    # ------------------------------------------------------------
+    # Distance functions
+    # ------------------------------------------------------------
+
+    def get_states_inside_pessimistic_classifier_region(self):
+        point_array = self.construct_feature_matrix(self.positive_examples)
+        point_array_predictions = self.pessimistic_classifier.predict(point_array)
+        positive_point_array = point_array[point_array_predictions == 1]
+        return positive_point_array
+
+    def distance_to_state(self, state, metric="euclidean"):
+        """ Compute the distance between the current option and the input `state`. """
+
+        assert metric in ("euclidean", "value"), metric
+        if metric == "euclidean":
+            return self._euclidean_distance_to_state(state)
+        return self._value_distance_to_state(state)
+
+    def _euclidean_distance_to_state(self, state):
+        point = self.mdp.get_position(state)
+
+        assert isinstance(point, np.ndarray)
+        assert point.shape == (2,), point.shape
+
+        positive_point_array = self.get_states_inside_pessimistic_classifier_region()
+
+        distances = distance.cdist(point[None, :], positive_point_array)
+        return np.median(distances)
+
+    def _value_distance_to_state(self, state):
+        features = state.features() if not isinstance(state, np.ndarray) else state
+        goals = self.get_states_inside_pessimistic_classifier_region()
+
+        distances = self.value_function(features, goals)
+        distances[distances > 0] = 0.
+        return np.median(np.abs(distances))
+
+    # ------------------------------------------------------------
+    # Convenience functions
+    # ------------------------------------------------------------
+
     def get_option_success_rate(self):
         """
         TODO: implement success rate at test time as well (Jason)
@@ -412,10 +498,6 @@ class ModelBasedOption(object):
         if self.num_executions > 0:
             return self.num_goal_hits / self.num_executions
         return 1.
-
-    # ------------------------------------------------------------
-    # Convenience functions
-    # ------------------------------------------------------------
 
     def get_success_rate(self):
         if len(self.success_curve) == 0:

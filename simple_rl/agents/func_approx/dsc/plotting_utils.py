@@ -48,3 +48,33 @@ def generate_plot(score_array, label, smoothen=False):
     median, mean, top, bottom = get_plot_params(score_array)
     plt.plot(mean, linewidth=2, label=label, alpha=0.9)
     plt.fill_between( range(len(top)), top, bottom, alpha=0.2 )
+
+def gp(score_array, label, smoothen=False):
+    if smoothen:
+        score_array = smoothen_data(score_array)
+    plt.plot(range(len(score_array)), score_array, linewidth=2, label=label, alpha=0.9)
+    plt.savefig("plot")
+
+def get_successes(path):
+    scores = []
+    with open(path, "rb") as f:
+        log_file = pickle.load(f)
+    for episode in log_file:
+        print(log_file[episode].keys())
+        if "success" in log_file[episode].keys():
+            scores.append(log_file[episode]["success"])
+    return scores
+
+def get_log_files(dir_path):
+    fnames = os.path.join(dir_path, "log_file_*.pkl")
+    return glob.glob(fnames)
+
+def get_scores2(dir_path):
+    files = get_log_files(dir_path)
+    successes = [get_successes(_file) for _file in files]
+    return successes
+
+def truncate(scores):
+    min_length = min([len(x) for x in scores])
+    truncated_scores = [score[:min_length] for score in scores]
+    return truncated_scores

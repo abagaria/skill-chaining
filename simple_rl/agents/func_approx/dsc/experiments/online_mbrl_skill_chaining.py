@@ -11,15 +11,24 @@ from collections import deque
 from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+from simple_rl.tasks.ant_four_rooms.AntFourRoomsMDPClass import AntFourRoomsMDP
 from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoalSelector
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_model,
-                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed):
+    def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
+                 use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a, clear_option_buffers,
+                 use_global_option_subgoals, maze_type, experiment_name, device,
+                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
+
+        assert maze_type in ("umaze", "medium")
+
+        self.lr_c = lr_c
+        self.lr_a = lr_a
+
         self.device = device
         self.use_vf = use_vf
+        self.use_global_vf = use_global_vf
         self.use_model = use_model
         self.experiment_name = experiment_name
         self.warmup_episodes = warmup_episodes
@@ -27,6 +36,11 @@ class OnlineModelBasedSkillChaining(object):
         self.use_diverse_starts = use_diverse_starts
         self.use_dense_rewards = use_dense_rewards
         self.use_optimal_sampler = use_optimal_sampler
+
+        self.clear_option_buffers = clear_option_buffers
+        self.use_global_option_subgoals = use_global_option_subgoals
+
+        self.multithread_mpc = multithread_mpc
 
         self.seed = seed
         self.logging_freq = logging_freq
@@ -36,7 +50,8 @@ class OnlineModelBasedSkillChaining(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=seed)
+        goal_state = np.array((0, 8)) if maze_type == "umaze" else np.array((20, 20))
+        self.mdp = D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -91,6 +106,11 @@ class OnlineModelBasedSkillChaining(object):
             # TODO fix for pic_optimal_subgoal
             # subgoal = self.pick_optimal_subgoal(state) if self.use_optimal_sampler else None
             selected_option, subgoal = self.act(state)
+
+            # Overwrite the subgoal for the global-option
+            if selected_option == self.global_option and self.use_global_option_subgoals:
+                subgoal = self.pick_subgoal_for_global_option(state)
+
             transitions, reward = selected_option.rollout(step_number=step_number, rollout_goal=subgoal)
 
             if len(transitions) == 0:
@@ -132,7 +152,7 @@ class OnlineModelBasedSkillChaining(object):
         overall_success = reduce(lambda x,y: x*y, individual_option_data.values())
         self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
 
-        if episode % self.evaluation_freq == 0 and episode >= self.warmup_episodes:
+        if episode % self.evaluation_freq == 0 and episode > self.warmup_episodes:
             success, step_count = test_agent(self, 1, self.max_steps)
 
             self.log[episode]["success"] = success
@@ -168,6 +188,12 @@ class OnlineModelBasedSkillChaining(object):
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
 
+            if self.clear_option_buffers:
+                self.filter_replay_buffer(executed_option)
+
+        if executed_option.num_goal_hits == 2 * executed_option.gestation_period and self.clear_option_buffers:
+            self.filter_replay_buffer(executed_option)
+
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
             new_option = self.create_model_based_option(name, parent=self.mature_options[-1])
@@ -175,10 +201,27 @@ class OnlineModelBasedSkillChaining(object):
             self.new_options.append(new_option)
             self.chain.append(new_option)
 
+    def find_nearest_option_in_chain(self, state):
+        if len(self.mature_options) > 0:
+            distances = [(option, option.distance_to_state(state)) for option in self.mature_options]
+            nearest_option = sorted(distances, key=lambda x: x[1])[0][0]  # type: ModelBasedOption
+            return nearest_option
+
+    def pick_subgoal_for_global_option(self, state):
+        nearest_option = self.find_nearest_option_in_chain(state)
+        if nearest_option is not None:
+            return nearest_option.sample_from_initiation_region_fast_and_epsilon()
+        return self.global_option.get_goal_for_rollout()
+
+    def filter_replay_buffer(self, option):
+        assert isinstance(option, ModelBasedOption)
+        print(f"Clearing the replay buffer for {option.name}")
+        option.value_learner.replay_buffer.clear()
+
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
 
-        if episode % self.logging_freq == 0:
+        if episode % self.logging_freq == 0 and episode != 0:
             options = self.mature_options + self.new_options
 
             for option in self.mature_options:
@@ -186,10 +229,17 @@ class OnlineModelBasedSkillChaining(object):
                 plot_two_class_classifier(option, episode_label, self.experiment_name, plot_examples=True)
 
             for option in options:
-                make_chunked_goal_conditioned_value_function_plot(option.value_learner,
-                                                                goal=option.get_goal_for_rollout(),
-                                                                episode=episode, seed=self.seed,
-                                                                experiment_name=self.experiment_name)
+                if self.use_global_vf:
+                    make_chunked_goal_conditioned_value_function_plot(option.global_value_learner,
+                                                                    goal=option.get_goal_for_rollout(),
+                                                                    episode=episode, seed=self.seed,
+                                                                    experiment_name=self.experiment_name,
+                                                                    option_idx=option.option_idx)
+                else:
+                    make_chunked_goal_conditioned_value_function_plot(option.value_learner,
+                                                                    goal=option.get_goal_for_rollout(),
+                                                                    episode=episode, seed=self.seed,
+                                                                    experiment_name=self.experiment_name)
 
     def create_model_based_option(self, name, parent=None):
         option_idx = len(self.chain) + 1 if parent is not None else 1
@@ -203,10 +253,13 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=self.global_option.solver,
                                   use_vf=self.use_vf,
+                                  use_global_vf=self.use_global_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
-                                  option_idx=option_idx)
+                                  option_idx=option_idx,
+                                  lr_c=self.lr_c, lr_a=self.lr_a,
+                                  multithread_mpc=self.multithread_mpc)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -220,10 +273,13 @@ class OnlineModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=None,
                                   use_vf=self.use_vf,
+                                  use_global_vf=self.use_global_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,
-                                  option_idx=0)
+                                  option_idx=0,
+                                  lr_c=self.lr_c, lr_a=self.lr_a,
+                                  multithread_mpc=self.multithread_mpc)
         return option
 
     def reset(self, episode):
@@ -258,7 +314,7 @@ def test_agent(exp, num_experiments, num_steps):
             # exp.manage_chain_after_rollout(selected_option)
             step_number += len(transitions)
         return step_number
-        
+
     success = 0
     step_counts = []
 
@@ -279,6 +335,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
+    parser.add_argument("--environment", type=str, help="umaze, 4-room")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
@@ -286,32 +343,64 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--warmup_episodes", type=int, default=5)
     parser.add_argument("--use_value_function", action="store_true", default=False)
+    parser.add_argument("--use_global_value_function", action="store_true", default=False)
     parser.add_argument("--use_model", action="store_true", default=False)
+    parser.add_argument("--multithread_mpc", action="store_true", default=False)
     parser.add_argument("--use_diverse_starts", action="store_true", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", default=False)
     parser.add_argument("--use_optimal_sampler", action="store_true", default=False)
     parser.add_argument("--logging_frequency", type=int, default=50, help="Draw init sets, etc after every _ episodes")
     parser.add_argument("--generate_init_gif", action="store_true", default=False)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
+    parser.add_argument("--maze_type", type=str)
+    parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
+
+    parser.add_argument("--clear_option_buffers", action="store_true", default=False)
+    parser.add_argument("--lr_c", type=float, help="critic learning rate")
+    parser.add_argument("--lr_a", type=float, help="actor learning rate")
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
 
-    exp = OnlineModelBasedSkillChaining(gestation_period=args.gestation_period,
+    if not args.use_value_function:
+        assert not args.use_global_value_function
+
+    if args.clear_option_buffers:
+        assert not args.use_global_value_function
+
+    if args.environment == "umaze":
+        mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=args.seed)
+    elif args.environment == "medium":
+        mdp = D4RLAntMazeMDP("medium", goal_state=np.array((20, 20)))
+    elif args.environment == "4-room":
+        mdp = AntFourRoomsMDP(goal_state=np.array((12, 12)), seed=args.seed)
+    else:
+        raise RuntimeError("Environment not supported!")
+
+    exp = OnlineModelBasedSkillChaining(mdp=mdp,
+                                        gestation_period=args.gestation_period,
                                         experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
                                         warmup_episodes=args.warmup_episodes,
                                         max_steps=args.steps,
                                         use_model=args.use_model,
                                         use_vf=args.use_value_function,
+                                        use_global_vf=args.use_global_value_function,
                                         use_diverse_starts=args.use_diverse_starts,
                                         use_dense_rewards=args.use_dense_rewards,
+                                        multithread_mpc=args.multithread_mpc,
                                         use_optimal_sampler=args.use_optimal_sampler,
                                         logging_freq=args.logging_frequency,
                                         evaluation_freq=args.evaluation_frequency,
                                         buffer_length=args.buffer_length,
                                         generate_init_gif=args.generate_init_gif,
-                                        seed=args.seed)
+                                        seed=args.seed,
+                                        lr_c=args.lr_c,
+                                        lr_a=args.lr_a,
+                                        clear_option_buffers=args.clear_option_buffers,
+                                        maze_type=args.maze_type,
+                                        use_global_option_subgoals=args.use_global_option_subgoals
+                                        )
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
@@ -321,5 +410,4 @@ if __name__ == "__main__":
     durations = exp.run_loop(args.episodes, args.steps)
     end_time = time.time()
 
-    with open(f"{args.experiment_name}/training_durations.pkl", "wb+") as f:
-        pickle.dump(durations, f)
+    print("TIME: ", end_time - start_time)
