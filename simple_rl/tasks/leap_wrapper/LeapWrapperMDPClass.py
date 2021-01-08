@@ -7,10 +7,10 @@ import ipdb
 import numpy as np
 import gym
 import multiworld
+from copy import deepcopy
 
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
-from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 
 
 class LeapWrapperMDP(GoalDirectedMDP):
@@ -57,9 +57,9 @@ class LeapWrapperMDP(GoalDirectedMDP):
                                  actions=action_dims,
                                  transition_func=self._transition_func,
                                  reward_func=self._reward_func,
-                                 init_state=self.init_state,
+                                 init_state=deepcopy(self.init_state),
                                  task_agnostic=task_agnostic,
-                                 goal_state=self.goal_state,
+                                 goal_state=deepcopy(self.goal_state),
                                  salient_positions=[],
                                  goal_tolerance = self.goal_tolerance
                                  )
@@ -127,18 +127,10 @@ class LeapWrapperMDP(GoalDirectedMDP):
         size = (self.action_space_size(),)
         return np.random.uniform(-1., 1., size=size)
 
-    def sample_salient_event(self, episode):
-        event_idx = len(self.all_salient_events_ever) + 1
-        target_state = np.random.uniform(self.env.goal_low, self.env.goal_high)
-
-        return SalientEvent(target_state=target_state,
-                            event_idx=event_idx,
-                            get_relevant_position=get_puck_pos,
-                            name=f"RRT Salient Episode {episode}")
-
     def reset_to_start_state(self, start_state):
-        self.env.reset_to_new_start_state(start_pos=start_state)
-        self.cur_state = LeapWrapperState(endeff_pos=start_state[:3], puck_pos=start_state[3:], done=False)
+        obs = self.env.reset_to_new_start_state(start_pos=start_state)
+        self.init_state = self._get_state(obs)
+        super(LeapWrapperMDP, self).reset()
 
     def sample_state(self):
         return np.random.uniform(self.env.goal_low, self.env.goal_high)
