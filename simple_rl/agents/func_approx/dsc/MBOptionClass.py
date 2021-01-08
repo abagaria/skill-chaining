@@ -81,7 +81,7 @@ class ModelBasedOption(object):
 
         self.children = []
         self.success_curve = []
-        self.effect_set = []
+        self.effect_set = deque(maxlen=200)
 
         if path_to_model:
             print(f"Loading model from {path_to_model} for {self.name}")
@@ -288,11 +288,12 @@ class ModelBasedOption(object):
 
         visited_states.append(state)
         self.success_curve.append(self.is_term_true(state))
-        self.effect_set.append(state.features())
 
         if self.is_term_true(state) and self.last_episode_term_triggered != episode:
+            print(f"{self.name} successful")
             self.num_goal_hits += 1
             self.last_episode_term_triggered = episode
+            self.effect_set.append(state.features())
 
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
@@ -464,6 +465,7 @@ class ModelBasedOption(object):
             if len(indices) > 0:
                 return sampled_trajectory[indices[0][0]]
 
+        print(f"[{self.name}] Could not find epsilon-safe sample, using random sample.")
         return self.sample_from_initiation_region_fast()
 
     def derive_positive_and_negative_examples(self, visited_states):
@@ -535,7 +537,8 @@ class ModelBasedOption(object):
             trajectory_so_far.append((state, action, reward, next_state))
             states_so_far.append(state)
 
-            if self.is_term_true(next_state) and episode != self.last_episode_term_triggered:
+            if self.is_term_true(next_state) and episode != self.last_episode_term_triggered and \
+                    self.is_valid_init_data(states_so_far):
 
                 print(f"Triggered termination condition for {self}")
                 self.effect_set.append(next_state)
