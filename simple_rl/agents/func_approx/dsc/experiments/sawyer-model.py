@@ -149,12 +149,6 @@ def sample_complex_puck_start_goal_states(mdp):
         """ Returns the unit vector of the vector.  """
         return vector / np.linalg.norm(vector) * length
 
-    def angle_between(v1, v2):
-        """ Returns the angle in radians between vectors 'v1' and 'v2'"""
-        v1_u = unit_vector(v1)
-        v2_u = unit_vector(v2)
-        return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-
     def valid_arm_start(hand_pos):
         low_hand_x, low_hand_y, _, _, _ = mdp.get_low_lims()
         high_hand_x, high_hand_y, _, _, _ = mdp.get_high_lims()
