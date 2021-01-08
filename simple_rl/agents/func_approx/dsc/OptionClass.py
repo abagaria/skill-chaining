@@ -156,6 +156,9 @@ class Option(object):
 	def __hash__(self):
 		return hash(self.name)
 
+	def __call__(self, state):
+		return self.is_in_effect_set(state)
+
 	def __eq__(self, other):
 		if not isinstance(other, Option):
 			return False

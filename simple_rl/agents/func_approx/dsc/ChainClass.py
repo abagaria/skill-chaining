@@ -1,13 +1,12 @@
 import ipdb
 import numpy as np
-from simple_rl.agents.func_approx.dsc.OptionClass import Option
+from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.mdp.StateClass import State
 
 
 class SkillChain(object):
-    def __init__(self, init_salient_event, target_salient_event, options, chain_id, mdp_init_salient_event,
-                 intersecting_options=[], option_intersection_salience=False, event_intersection_salience=True):
+    def __init__(self, init_salient_event, target_salient_event, options, chain_id, mdp_init_salient_event):
         """
         Data structure that keeps track of all options in a particular chain,
         where each chain is identified by a unique target salient event. Chain here
@@ -18,28 +17,18 @@ class SkillChain(object):
             options (list): list of options in the current chain
             chain_id (int): Identifier for the current skill chain
             mdp_init_salient_event (SalientEvent): Start state salient event of the overall MDP
-            intersecting_options (list): List of options whose initiation sets overlap
-            option_intersection_salience (bool): Whether to chain until the current chain intersects with another option
-            event_intersection_salience (bool): Chain until you intersect with another salient event
         """
         self.options = options
         self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.mdp_init_salient_event = mdp_init_salient_event
         self.chain_id = chain_id
-        self.intersecting_options = intersecting_options
-
-        self.option_intersection_salience = option_intersection_salience
-        self.event_intersection_salience = event_intersection_salience
 
         # Data structures for determining when a skill chain is completed
         self._init_descendants = []
         self._init_ancestors = []
         self._is_deemed_completed = False
         self.completing_vertex = None
-
-        if target_salient_event is None and len(intersecting_options) > 0:
-            self.target_predicate = lambda s: all([option.is_init_true(s) for option in intersecting_options])
 
     def __eq__(self, other):
         return self.chain_id == other.chain_id
@@ -62,42 +51,14 @@ class SkillChain(object):
     def set_init_descendants(self, descendants):
         """ The `descendants` are the set of vertices that you can get to from the chain's init-salient-event. """
         if len(descendants) > 0:
-            assert all([isinstance(node, (Option, SalientEvent)) for node in descendants]), f"{descendants}"
+            assert all([isinstance(node, (ModelBasedOption, SalientEvent)) for node in descendants]), f"{descendants}"
             self._init_descendants = descendants
 
     def set_init_ancestors(self, ancestors):
         """ The `ancestors` are the set of vertices from which you can get to the chain's init-salient-event. """
         if len(ancestors) > 0:
-            assert all([isinstance(node, (Option, SalientEvent)) for node in ancestors]), f"{ancestors}"
+            assert all([isinstance(node, (ModelBasedOption, SalientEvent)) for node in ancestors]), f"{ancestors}"
             self._init_ancestors = ancestors
-
-    def state_in_chain(self, state):
-        """ Is state inside the initiation set of any of the options in the chain. """
-
-        # We consider the state is in the target salient event, it can be
-        # considered to be inside the skill-chain
-        if self.target_salient_event(state):
-            return True
-
-        for option in self.options:  # type: Option
-            if option.initiation_classifier is not None and \
-                    option.is_init_true(state) and option.get_training_phase() == "initiation_done":
-                return True
-        return False
-
-    def get_option_for_state(self, state):
-
-        if self.target_salient_event(state) and len(self.options) > 0:
-            goal_option = self.options[0]
-            assert goal_option.parent is None
-            assert goal_option.is_term_true(state)
-            return goal_option
-
-        for option in self.options:  # type: Option
-            if option.initiation_classifier is not None and \
-                    option.is_init_true(state):
-                return option
-        return None
 
     def should_continue_chaining(self):
         return not self.is_chain_completed()
@@ -105,21 +66,27 @@ class SkillChain(object):
     @staticmethod
     def should_exist_edge_between_options(my_option, other_option):
         """ Should there exist an edge from option1 -> option2? """
+        assert isinstance(my_option, ModelBasedOption)
+        assert isinstance(other_option, ModelBasedOption)
+
         if my_option.get_training_phase() == "initiation_done" and other_option.get_training_phase() == "initiation_done":
-            effect_set = my_option.effect_set  # list of states
-            effect_set_matrix = SkillChain.get_position_matrix(effect_set)
-            inits = other_option.batched_is_init_true(effect_set_matrix)
-            is_intersecting = inits.all()
-            return is_intersecting
+            effect_set_matrix = my_option.get_effective_effect_set()
+            if len(effect_set_matrix) > 0:
+                inits = other_option.pessimistic_batched_is_init_true(effect_set_matrix)
+                is_intersecting = inits.all()
+                return is_intersecting
         return False
 
     @staticmethod
     def should_exist_edge_from_event_to_option(event, option):
         """ Should there be an edge from `event` to `option`? """
+        assert isinstance(event, SalientEvent)
+        assert isinstance(option, ModelBasedOption)
+
         if option.get_training_phase() == "initiation_done":
             if len(event.trigger_points) > 0:  # Be careful: all([]) = True
                 state_matrix = SkillChain.get_position_matrix(event.trigger_points)
-                inits = option.batched_is_init_true(state_matrix)
+                inits = option.pessimistic_batched_is_init_true(state_matrix)
                 is_intersecting = inits.all()
                 return is_intersecting
             return option.is_init_true(event.target_state)
@@ -128,6 +95,9 @@ class SkillChain(object):
     @staticmethod
     def should_exist_edge_from_option_to_event(option, event):
         """ Should there be an edge from `option` to `event`? """
+        assert isinstance(option, ModelBasedOption)
+        assert isinstance(event, SalientEvent)
+
         if option.get_training_phase() == "initiation_done":
             effect_set = option.effect_set  # list of states
             effect_set_matrix = SkillChain.get_position_matrix(effect_set)
@@ -136,7 +106,7 @@ class SkillChain(object):
         return False
 
     def should_expand_initiation_classifier(self, option):
-        assert isinstance(option, Option), f"{type(option)}"
+        assert isinstance(option, ModelBasedOption), f"{type(option)}"
 
         if len(self.init_salient_event.trigger_points) > 0:
             return any([option.is_init_true(s) for s in self.init_salient_event.trigger_points])
@@ -146,7 +116,7 @@ class SkillChain(object):
 
     def should_complete_chain(self, option):
         """ Check if a newly learned option completes its corresponding chain. """
-        assert isinstance(option, Option), f"{type(option)}"
+        assert isinstance(option, ModelBasedOption), f"{type(option)}"
 
         # If there is a path from a descendant of the chain's init salient event
         # to the newly learned option, then that chain's job is done
@@ -155,7 +125,7 @@ class SkillChain(object):
                 if self.should_exist_edge_from_event_to_option(descendant, option):
                     self.completing_vertex = descendant, "descendant"
                     return True
-            if isinstance(descendant, Option):
+            if isinstance(descendant, ModelBasedOption):
                 if self.should_exist_edge_between_options(descendant, option):
                     self.completing_vertex = descendant, "descendant"
                     return True
@@ -174,7 +144,7 @@ class SkillChain(object):
                         ancestor.distance_to_other_event(self.target_salient_event) > init_distance:
                     self.completing_vertex = ancestor, "ancestor"
                     return True
-            if isinstance(ancestor, Option):
+            if isinstance(ancestor, ModelBasedOption):
                 if self.should_exist_edge_between_options(ancestor, option) and \
                         SalientEvent.set_to_set_distance(option.effect_set, ancestor.effect_set) > init_distance:
                     self.completing_vertex = ancestor, "ancestor"

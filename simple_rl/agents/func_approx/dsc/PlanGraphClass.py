@@ -3,7 +3,8 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import networkx.algorithms.shortest_paths as shortest_paths
-from simple_rl.agents.func_approx.dsc.OptionClass import Option
+from simple_rl.agents.func_approx.dsc.OptionClass import Option as MFOption
+from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.mdp.StateClass import State
@@ -25,7 +26,7 @@ class PlanGraph(object):
             self.plan_graph.add_node(node)
 
         #  Keep track of the options and the salient events separately in the graph
-        if isinstance(node, Option) and (node not in self.option_nodes):
+        if self._is_option_type(node) and (node not in self.option_nodes):
             self.option_nodes.append(node)
         elif isinstance(node, SalientEvent) and (node not in self.salient_nodes):
             self.salient_nodes.append(node)
@@ -44,7 +45,7 @@ class PlanGraph(object):
 
     def does_path_exist(self, state, node):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
-        assert isinstance(node, (Option, SalientEvent)), f"{type(node)}"
+        assert self._is_option_or_event_type(node), f"{type(node)}"
 
         start_nodes = self._get_available_options(state)
         does_exists = [self.does_path_exist_between_nodes(start, node) for start in start_nodes]
@@ -52,7 +53,7 @@ class PlanGraph(object):
 
     def get_path_to_execute(self, start_state, goal_node):
         assert isinstance(start_state, (State, np.ndarray))
-        assert isinstance(goal_node, (SalientEvent, Option))
+        assert self._is_option_or_event_type(goal_node)
 
         paths, costs = self.get_shortest_paths(start_state, goal_node)
 
@@ -68,7 +69,7 @@ class PlanGraph(object):
         path_to_execute = paths_sorted_by_length[0]
 
         # Filter out all the salient events from the path so that it is actually executable
-        option_sequence_to_execute = list(filter(lambda node: isinstance(node, Option), path_to_execute))
+        option_sequence_to_execute = list(filter(lambda node: self._is_option_type(node), path_to_execute))
 
         return option_sequence_to_execute
 
@@ -83,7 +84,7 @@ class PlanGraph(object):
 
     def get_nodes_that_reach_target_node(self, target_node):
         """ Get all the nodes from which you can reach the `target_node`. """
-        assert isinstance(target_node, (Option, SalientEvent)), f"{type(target_node)}"
+        assert self._is_option_or_event_type(target_node), f"{type(target_node)}"
         if target_node in self.plan_graph.nodes:
             return nx.algorithms.dag.ancestors(self.plan_graph, target_node)
         return []
@@ -94,7 +95,7 @@ class PlanGraph(object):
 
     def get_shortest_paths(self, start_state, goal_node):
         assert isinstance(start_state, (State, np.ndarray))
-        assert isinstance(goal_node, (SalientEvent, Option))
+        assert self._is_option_or_event_type(goal_node)
 
         paths, path_costs = [], []
 
@@ -109,8 +110,8 @@ class PlanGraph(object):
         return paths, path_costs
 
     def does_path_exist_between_nodes(self, node1, node2):
-        assert isinstance(node1, (Option, SalientEvent)), f"{type(node1)}"
-        assert isinstance(node2, (Option, SalientEvent)), f"{type(node2)}"
+        assert self._is_option_or_event_type(node1), f"{type(node1)}"
+        assert self._is_option_or_event_type(node2), f"{type(node2)}"
 
         if node1 not in self.plan_graph.nodes or node2 not in self.plan_graph.nodes:
             return False
@@ -118,8 +119,8 @@ class PlanGraph(object):
         return shortest_paths.has_path(self.plan_graph, node1, node2)
 
     def get_shortest_path_between_nodes(self, node1, node2):
-        assert isinstance(node1, (Option, SalientEvent)), f"{type(node1)}"
-        assert isinstance(node2, (Option, SalientEvent)), f"{type(node2)}"
+        assert self._is_option_or_event_type(node1), f"{type(node1)}"
+        assert self._is_option_or_event_type(node2), f"{type(node2)}"
 
         def _get_path_cost(n1, n2):
             return nx.dijkstra_path_length(self.plan_graph, n1, n2)
@@ -132,7 +133,7 @@ class PlanGraph(object):
 
         # If we are targeting an option effect set, we have to add that option
         # to the path and account for the additional cost of executing that option
-        if isinstance(node2, Option):
+        if self._is_option_type(node2):
             path += [node2]
             neighboring_nodes = self.get_outgoing_nodes(node2)
             additional_costs = [_get_path_cost(node2, node3) for node3 in neighboring_nodes]
@@ -177,7 +178,7 @@ class PlanGraph(object):
         return neighboring_nodes
 
     def get_reachable_nodes_from_source_node(self, source_node):
-        assert isinstance(source_node, (Option, SalientEvent)), f"{type(source_node)}"
+        assert self._is_option_or_event_type(source_node), f"{type(source_node)}"
         if source_node not in self.plan_graph.nodes:
             return set()
         return nx.algorithms.dag.descendants(self.plan_graph, source_node)
@@ -205,3 +206,11 @@ class PlanGraph(object):
 
         plt.savefig(file_name) if file_name is not None else plt.show()
         plt.close()
+
+    @staticmethod
+    def _is_option_type(node):
+        return isinstance(node, (ModelBasedOption, MFOption))
+
+    @staticmethod
+    def _is_option_or_event_type(node):
+        return isinstance(node, (ModelBasedOption, MFOption, SalientEvent))

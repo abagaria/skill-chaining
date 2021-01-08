@@ -68,7 +68,7 @@ class MPC:
         s = deepcopy(mdp.cur_state)
 
         while not mdp.sparse_gc_reward_function(s, goal, {})[1]:
-            action = self.act(s, goal, num_rollouts, num_steps)
+            action = self.act(s, goal, num_rollouts=num_rollouts, num_steps=num_steps)
         
             # execute action in mdp
             mdp.execute_agent_action(action)

@@ -3,6 +3,7 @@ from simple_rl.mdp.StateClass import State
 from scipy.spatial import distance
 from sklearn.svm import OneClassSVM
 import ipdb
+import random
 
 
 class SalientEvent(object):
@@ -82,6 +83,12 @@ class SalientEvent(object):
 
         return self.point_to_set_distance(point1, other.trigger_points)
 
+    def distance_to_state(self, state):
+        return self.distance_to_effect_set([state])
+
+    def sample_from_initiation_region_fast_and_epsilon(self):
+        return self.get_target_position()
+
     def distance_to_effect_set(self, effect_set):
         """
         To compute the distance between a point (eg a goal state) and graph vertices,
@@ -130,6 +137,9 @@ class SalientEvent(object):
         target_position = self._get_position(self.target_state)
         dist = np.linalg.norm(position - target_position)
         return np.round(dist, 8) <= self.tolerance
+
+    def pessimistic_is_init_true(self, state):
+        return self.is_init_true(state)
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)

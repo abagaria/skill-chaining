@@ -4,6 +4,7 @@ import random
 import itertools
 import numpy as np
 from copy import deepcopy
+from collections import deque
 from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
@@ -13,7 +14,8 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
-                 option_idx, lr_c, lr_a, max_num_children=2, target_salient_event=None, path_to_model="", multithread_mpc=False):
+                 option_idx, chain_id, lr_c=3e-4, lr_a=3e-4, max_num_children=2,
+                 target_salient_event=None, init_salient_event=None, path_to_model="", multithread_mpc=False):
         self.mdp = mdp
         self.name = name
         self.lr_c = lr_c
@@ -30,22 +32,29 @@ class ModelBasedOption(object):
         self.dense_reward = dense_reward
         self.buffer_length = buffer_length
         self.max_num_children = max_num_children
+        self.init_salient_event = init_salient_event
         self.target_salient_event = target_salient_event
         self.multithread_mpc = multithread_mpc
 
         # TODO
         self.overall_mdp = mdp
         self.seed = 0
+        self.chain_id = chain_id
         self.option_idx = option_idx
 
         self.num_goal_hits = 0
         self.num_executions = 0
         self.gestation_period = gestation_period
 
-        self.positive_examples = []
-        self.negative_examples = []
+        # TODO: Make the classifier examples and the effect_set fixed-length
+        self.positive_examples = deque(maxlen=100)
+        self.negative_examples = deque(maxlen=100)
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
+        self.last_episode_term_triggered = -1
+        self.started_at_target_salient_event = False
+
+        self.expansion_classifiers = []
 
         # In the model-free setting, the output norm doesn't seem to work
         # But it seems to stabilize off policy value function learning
@@ -129,18 +138,17 @@ class ModelBasedOption(object):
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
-        
-        if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
-            return True
 
         features = self.mdp.get_position(state)
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
+        if self.global_init:
+            return True
+
         if self.parent is None:
             return self.target_salient_event(state)
 
-        # TODO change
         return self.parent.pessimistic_is_init_true(state)
 
     def pessimistic_is_init_true(self, state):
@@ -149,6 +157,46 @@ class ModelBasedOption(object):
 
         features = self.mdp.get_position(state)
         return self.pessimistic_classifier.predict([features])[0] == 1
+
+    def batched_is_init_true(self, state_matrix):
+        if self.global_init or self.get_training_phase() == "gestation":
+            return np.ones((state_matrix.shape[0]))
+
+        position_matrix = state_matrix[:, :2]
+        return self.optimistic_classifier.predict(position_matrix) == 1
+
+    def pessimistic_batched_is_init_true(self, state_matrix):
+        if self.global_init or self.get_training_phase() == "gestation":
+            return np.ones((state_matrix.shape[0]))
+
+        position_matrix = state_matrix[:, :2]
+        return self.pessimistic_classifier.predict(position_matrix) == 1
+
+    def batched_is_term_true(self, state_matrix):
+        if self.parent is None:
+            return self.target_salient_event(state_matrix)
+
+        position_matrix = state_matrix[:, :2]
+        return self.parent.pessimistic_classifier.predict(position_matrix) == 1
+
+    def is_in_effect_set(self, state):
+        if not self.is_term_true(state):
+            return False
+
+        return self.is_close_to_effect_set(state)
+
+    def is_close_to_effect_set(self, state):
+
+        states = np.repeat([self.mdp.get_position(state)], repeats=len(self.effect_set), axis=0)
+        goals = np.vstack([self.mdp.get_position(goal) for goal in self.effect_set])
+
+        assert states.shape[0] == goals.shape[0] == len(self.effect_set), f"{states.shape, goals.shape}"
+
+        dones = self.mdp.batched_dense_gc_reward_function(states, goals)[1]
+        return dones.any()
+
+    def expand_initiation_classifier(self, classifier):  # TODO: add support
+        self.expansion_classifiers.append(classifier)
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
@@ -202,11 +250,12 @@ class ModelBasedOption(object):
 
         return self.extract_goal_dimensions(sampled_goal)
 
-    def rollout(self, step_number, rollout_goal=None, eval_mode=False):
+    def rollout(self, episode, step_number, rollout_goal=None, eval_mode=False):
         """ Main option control loop. """
 
         start_state = deepcopy(self.mdp.cur_state)
         assert self.is_init_true(start_state)
+        if self.global_init: assert rollout_goal is not None
 
         num_steps = 0
         total_reward = 0
@@ -241,8 +290,9 @@ class ModelBasedOption(object):
         self.success_curve.append(self.is_term_true(state))
         self.effect_set.append(state.features())
 
-        if self.is_term_true(state):
+        if self.is_term_true(state) and self.last_episode_term_triggered != episode:
             self.num_goal_hits += 1
+            self.last_episode_term_triggered = episode
 
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
@@ -327,6 +377,38 @@ class ModelBasedOption(object):
     # Learning Initiation Classifiers
     # ------------------------------------------------------------
 
+    @staticmethod
+    def is_between(x1, x2, x3):
+        """ is x3 in between x1 and x2? """
+        d0 = x2 - x1
+        d0m = np.linalg.norm(d0)
+        v = d0 / d0m
+        d1 = x3 - x1
+        r = v.dot(d1)
+        return 0 <= r <= d0m
+
+    def is_valid_init_data(self, state_buffer):
+
+        def get_points_in_between(init_point, final_point, positions):
+            return [position for position in positions if self.is_between(init_point, final_point, position)]
+
+        # Use the data if it could complete the chain
+        if self.init_salient_event is not None:
+            if any([self.is_init_true(s) for s in self.init_salient_event.trigger_points]):
+                return True
+
+        length_condition = len(state_buffer) >= self.buffer_length // 10
+
+        if not length_condition:
+            return False
+
+        position_buffer = [self.overall_mdp.get_position(state) for state in state_buffer]
+        points_in_between = get_points_in_between(self.init_salient_event.get_target_position(),
+                                                  self.target_salient_event.get_target_position(),
+                                                  position_buffer)
+        in_between_condition = len(points_in_between) >= self.buffer_length // 10
+        return in_between_condition
+
     def get_first_state_in_classifier(self, trajectory, classifier_type="pessimistic"):
         """ Extract the first state in the trajectory that is inside the initiation classifier. """
 
@@ -395,18 +477,6 @@ class ModelBasedOption(object):
             negative_examples = [start_state]
             self.negative_examples.append(negative_examples)
 
-    def should_change_negative_examples(self):
-        should_change = []
-        for negative_example in self.negative_examples:
-            should_change += [self.does_model_rollout_reach_goal(negative_example[0])]
-        return should_change
-
-    def does_model_rollout_reach_goal(self, state):
-        sampled_goal = self.get_goal_for_rollout()
-        final_states, actions, costs = self.solver.simulate(state, sampled_goal, num_rollouts=14000, num_steps=self.timeout)
-        farthest_position = final_states[:, :2].max(axis=0)
-        return self.is_term_true(farthest_position)
-
     def fit_initiation_classifier(self):
         if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
             self.train_two_class_classifier()
@@ -450,9 +520,49 @@ class ModelBasedOption(object):
             self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
             self.pessimistic_classifier.fit(positive_training_examples)
 
+    def is_eligible_for_off_policy_triggers(self):
+        eligible_phase = self.get_training_phase() != "initiation_done"
+        return eligible_phase and not self.started_at_target_salient_event
+
+    def trigger_termination_condition_off_policy(self, trajectory, episode):
+        trajectory_so_far = []
+        states_so_far = []
+
+        if not self.is_eligible_for_off_policy_triggers():
+            return False
+
+        for state, action, reward, next_state in trajectory:
+            trajectory_so_far.append((state, action, reward, next_state))
+            states_so_far.append(state)
+
+            if self.is_term_true(next_state) and episode != self.last_episode_term_triggered:
+
+                print(f"Triggered termination condition for {self}")
+                self.effect_set.append(next_state)
+                self.last_episode_term_triggered = episode
+
+                if self.parent is None and self.is_term_true(next_state):
+                    print(f"[{self}] Adding {next_state.position} to {self.target_salient_event}'s trigger points")
+                    self.target_salient_event.trigger_points.append(next_state)
+
+                self.num_goal_hits += 1
+                states_so_far.append(next_state)  # We want the terminal state to be part of the initiation classifier
+                self.derive_positive_and_negative_examples(visited_states=states_so_far)
+                self.fit_initiation_classifier()
+                return self.get_training_phase() != "gestation"
+
+        return False
+
     # ------------------------------------------------------------
     # Distance functions
     # ------------------------------------------------------------
+
+    def get_effective_effect_set(self):
+        """ Return the subset of the effect set still in the termination region. """
+
+        goals = np.vstack([self.mdp.get_position(goal) for goal in self.effect_set])
+        termination_predictions = self.batched_is_term_true(goals)
+        return goals[termination_predictions==1]
 
     def get_states_inside_pessimistic_classifier_region(self):
         point_array = self.construct_feature_matrix(self.positive_examples)
@@ -492,9 +602,6 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
 
     def get_option_success_rate(self):
-        """
-        TODO: implement success rate at test time as well (Jason)
-        """
         if self.num_executions > 0:
             return self.num_goal_hits / self.num_executions
         return 1.
@@ -514,3 +621,9 @@ class ModelBasedOption(object):
         if isinstance(other, ModelBasedOption):
             return self.name == other.name
         return False
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __call__(self, state):
+        return self.is_in_effect_set(state)

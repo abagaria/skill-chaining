@@ -767,7 +767,8 @@ def visualize_bi_graph(planner, mdp):
                 if planner.plan_graph.does_path_exist(event1.target_state, event2):
                     make_arrow(event1.target_state, event2.target_state)
 
-def visualize_mpc_rollout_and_graph_result(planner, mdp, chains, goal_state, start_state, result_state, steps_taken, episode, rejected, experiment_name, use_target_states=True):
+def visualize_mpc_rollout_and_graph_result(planner, goal_state, start_state, result_state, steps_taken, episode,
+                                           rejected, experiment_name, use_target_states=True):
     def _get_representative_point(event):
         assert isinstance(event, SalientEvent)
         if event.get_target_position() is not None:
