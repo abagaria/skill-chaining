@@ -79,9 +79,8 @@ class LeapWrapperMDP(GoalDirectedMDP):
         # References the next state calculated in the reward function
         return self.next_state
 
-    def _get_state(self, observation_dict):
+    def _get_state(self, np_state):
         """ Convert observation dict from gym into a State object. """
-        np_state = observation_dict['observation']
         done = self.is_goal_state(np_state)
         endeff_pos = np_state[:3]
         puck_pos = np_state[3:]
@@ -128,7 +127,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
         return np.random.uniform(-1., 1., size=size)
 
     def reset_to_start_state(self, start_state):
-        obs = self.env.reset_to_new_start_state(start_pos=start_state)
+        obs = self.env.reset(start_pos=start_state)
         self.init_state = self._get_state(obs)
         super(LeapWrapperMDP, self).reset()
 
