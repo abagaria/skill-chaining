@@ -1,8 +1,14 @@
 import torch
 import scipy
+import itertools
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style("white")
+sns.set_context("talk")
+
+from collections import deque
 from treelib import Tree, Node
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
@@ -145,6 +151,7 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
 
 
 def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None, option_idx=None):
+    sns.set_palette(sns.color_palette("viridis"))
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
 
     # Take out the original goal and append the new goal
@@ -189,3 +196,39 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
     plt.close()
 
     return qvalues.max()
+
+def monte_plot_option_init_set(exp, option, history):
+    info = {'positives': {'x': [], 'y': [], 'colors': []},
+            'negatives': {'x': [], 'y': [], 'colors': []}}
+
+    for state in history:
+        pos = state.get_position()
+        x, y = pos[0], pos[1]
+
+        if option.pessimistic_is_init_true(state):
+            info['positives']['x'].append(x)
+            info['positives']['y'].append(y)
+            info['positives']['colors'].append('green')
+        else:
+            info['negatives']['x'].append(x)
+            info['negatives']['y'].append(y)
+            info['negatives']['colors'].append('red')
+        
+    green = sum([1 for c in info['positives']['colors'] if c == "green"])
+    print(f"There are {green} points in the pessimistic clf")
+
+    plt.figure()
+    plt.xlim((0,140))
+    plt.ylim((0,300))
+    plt.scatter(info['positives']['x'], info['positives']['y'], c=info['positives']['colors'], alpha=0.5)
+    plt.title(f"{option.name} Initiation Set Inside")
+    plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}_inside.png".format(exp.experiment_name, option.name, exp.seed))
+    
+    plt.figure()
+    plt.xlim((0,140))
+    plt.ylim((0,300))
+    plt.scatter(info['negatives']['x'], info['negatives']['y'], c=info['negatives']['colors'], alpha=0.5)
+    plt.title(f"{option.name} Initiation Set Outside")
+    plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}_outside.png".format(exp.experiment_name, option.name, exp.seed))
+    
+    plt.close()

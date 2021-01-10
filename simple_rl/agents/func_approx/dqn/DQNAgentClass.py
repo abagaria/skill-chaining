@@ -22,10 +22,10 @@ from tensorboardX import SummaryWriter
 
 from simple_rl.agents.AgentClass import Agent
 from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
+from simple_rl.agents.func_approx.dqn.model import *
+from simple_rl.agents.func_approx.dqn.replay_buffer import ReplayBuffer
 from simple_rl.agents.func_approx.exploration.PseudoCountExploration import DensityModel
 from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
-from simple_rl.tasks.gym.GymMDPClass import GymMDP
-from simple_rl.tasks.four_room.FourRoomMDPClass import FourRoomMDP
 
 ## Hyperparameters
 BUFFER_SIZE = int(3e5)  # replay buffer size
@@ -37,214 +37,41 @@ UPDATE_EVERY = 1  # how often to update the network
 NUM_EPISODES = 3500
 NUM_STEPS = 10000
 
-class EpsilonSchedule:
-    def __init__(self, eps_start, eps_end, eps_exp_decay, eps_linear_decay_length):
-        self.eps_start = eps_start
-        self.eps_end = eps_end
-        self.eps_exp_decay = eps_exp_decay
-        self.eps_linear_decay_length = eps_linear_decay_length
-        self.eps_linear_decay = (eps_start - eps_end) / eps_linear_decay_length
-
-    def update_epsilon(self, current_epsilon, num_executions):
-        pass
-
-class ConstantEpsilonSchedule(EpsilonSchedule):
-    def __init__(self, eps_start):
-        super(ConstantEpsilonSchedule, self).__init__(eps_start, eps_start, 1.0, 1.0)
-
-    def update_epsilon(self, current_epsilon, num_executions):
-        return self.eps_start
-
-class GlobalEpsilonSchedule(EpsilonSchedule):
-    def __init__(self, eps_start):
-        EPS_END = 0.05
-        EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 50000
-        super(GlobalEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
-
-    def update_epsilon(self, current_epsilon, num_executions):
-        if num_executions < self.eps_linear_decay_length:
-            return current_epsilon - self.eps_linear_decay
-        if num_executions == self.eps_linear_decay_length:
-            print("Global Epsilon schedule switching to exponential decay")
-        return max(self.eps_end, self.eps_exp_decay * current_epsilon)
-
-class OptionEpsilonSchedule(EpsilonSchedule):
-    def __init__(self, eps_start):
-        EPS_END = 0.05
-        EPS_EXPONENTIAL_DECAY = 0.999
-        EPS_LINEAR_DECAY_LENGTH = 10000
-        super(OptionEpsilonSchedule, self).__init__(eps_start, EPS_END, EPS_EXPONENTIAL_DECAY, EPS_LINEAR_DECAY_LENGTH)
-
-    def update_epsilon(self, current_epsilon, num_executions):
-        return max(self.eps_end, self.eps_exp_decay * current_epsilon)
-
-class QNetwork(nn.Module):
-    """Actor (Policy) Model."""
-
-    def __init__(self, state_size, action_size, seed, fc1_units=256, fc2_units=128):
-        """
-        Set up the layers of the DQN
-        Args:
-            state_size (int): number of states in the state variable (can be continuous)
-            action_size (int): number of actions in the discrete action domain
-            seed (int): random seed
-            fc1_units (int): size of the hidden layer
-            fc2_units (int): size of the hidden layer
-        """
-        super(QNetwork, self).__init__()
-        self.seed = torch.manual_seed(seed)
-        self.fc1 = nn.Linear(state_size, fc1_units)
-        self.fc2 = nn.Linear(fc1_units, fc2_units)
-        self.fc3 = nn.Linear(fc2_units, action_size)
-
-    def forward(self, state):
-        """
-        DQN forward pass
-        Args:
-            state (torch.tensor): convert env.state into a tensor
-
-        Returns:
-            logits (torch.tensor): score for each possible action (1, num_actions)
-        """
-        x = F.relu(self.fc1(state))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
-
-    def initialize_with_bigger_network(self, bigger_net):
-        """
-        { Used only when learning options in environments with discrete action spaces }.
-        Given a policy network or target network from the global DQN, initialize the corresponding option DQN
-        Args:
-            bigger_net (QNetwork): Outputs q values over larger number of actions
-        """
-        for local_param, global_param in zip(self.fc1.parameters(), bigger_net.fc1.parameters()):
-            local_param.data.copy_(global_param)
-        for local_param, global_param in zip(self.fc2.parameters(), bigger_net.fc2.parameters()):
-            local_param.data.copy_(global_param)
-
-        num_original_actions = 4 # TODO: Assuming that we are in pinball domain
-        self.fc3.weight.data.copy_(bigger_net.fc3.weight[:num_original_actions, :])
-        self.fc3.bias.data.copy_(bigger_net.fc3.bias[:num_original_actions])
-
-        assert self.fc3.out_features == 4, "Expected LunarLander with 4 actions, not {} ".format(self.fc3.out_features)
-
-    def initialize_with_smaller_network(self, smaller_net, init_q_value):
-        """
-        Given a DQN over K actions, create a DQN over K + 1 actions. This is needed when we augment the
-        MDP with a new action in the form of a learned option.
-        Args:
-            smaller_net (QNetwork)
-            init_q_value (float)
-        """
-        for my_param, source_param in zip(self.fc1.parameters(), smaller_net.fc1.parameters()):
-            my_param.data.copy_(source_param)
-        for my_param, source_param in zip(self.fc2.parameters(), smaller_net.fc2.parameters()):
-            my_param.data.copy_(source_param)
-
-        smaller_num_labels = smaller_net.fc3.out_features
-        self.fc3.weight[:smaller_num_labels, :].data.copy_(smaller_net.fc3.weight)
-        self.fc3.bias[:smaller_num_labels].data.copy_(smaller_net.fc3.bias)
-
-        new_action_idx = self.fc3.out_features - 1
-
-        # Old way of initializing the weights and biases of the new option node:
-        # self.fc3.weight[new_action_idx].data.copy_(torch.max(smaller_net.fc3.weight, dim=0)[0])
-        # self.fc3.bias[new_action_idx].data.copy_(torch.max(smaller_net.fc3.bias, dim=0)[0])
-        self.fc3.bias[new_action_idx].data.fill_(init_q_value)
-
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, trained_options, seed, device, name="DQN-Agent",
-                 eps_start=1., tensor_log=False, lr=LR, use_double_dqn=False, gamma=GAMMA, loss_function="huber",
-                 exploration_strategy="eps-greedy", state_rounding_decimals=1, use_position_only_for_exploration=False,
-                 gradient_clip=None, evaluation_epsilon=0.05, writer=None):
+    def __init__(self, state_size, action_size, device, name="DQN-Agent",
+                 lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
+                 pixel_observation=False):
         self.state_size = state_size
         self.action_size = action_size
-        self.trained_options = trained_options
         self.learning_rate = lr
         self.use_ddqn = use_double_dqn
         self.gamma = gamma
         self.loss_function = loss_function
-        self.gradient_clip = gradient_clip
-        self.exploration_strategy = exploration_strategy
-        self.evaluation_epsilon = evaluation_epsilon
-        self.seed = random.seed(seed)
-        self.tensor_log = tensor_log
+        self.pixel_observation = pixel_observation
         self.device = device
+        seed = 0
 
         # Q-Network
-        self.policy_network = QNetwork(state_size, action_size, seed).to(self.device)
-        self.target_network = QNetwork(state_size, action_size, seed).to(self.device)
+        if pixel_observation:
+            self.policy_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
+            self.target_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
+        else:
+            self.policy_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
+            self.target_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
 
         self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
 
         # Replay memory
-        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.device)
+        self.replay_buffer = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed, self.device, pixel_observation)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
-
-        # Epsilon strategy
-        # Epsilon strategy
-        if exploration_strategy == "eps-greedy":
-            self.epsilon_schedule = GlobalEpsilonSchedule(
-                eps_start) if "global" in name.lower() else OptionEpsilonSchedule(eps_start)
-            self.epsilon = eps_start
-            self.num_executions = 0  # Number of times act() is called (used for eps-decay)
-        elif exploration_strategy == "pseudo-counts":
-            self.density_model = DensityModel()
-            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
-            self.epsilon = evaluation_epsilon
-            self.num_executions = 0
-            self.fitting_interval = 200  # every episode
-        elif exploration_strategy == "counts":
-            self.density_model = CountBasedDensityModel(state_rounding_decimals=state_rounding_decimals,
-                                                        use_position_only=use_position_only_for_exploration)
-            self.epsilon_schedule = ConstantEpsilonSchedule(evaluation_epsilon)
-            self.epsilon = evaluation_epsilon
-            self.num_executions = 0
-            self.fitting_interval = 200  # every episode
-            self.sampled_bonus_for_action = defaultdict(lambda : [])
-        elif exploration_strategy == "shaping":
-            self.epsilon_schedule = GlobalEpsilonSchedule(eps_start)
-            self.epsilon = eps_start
-            self.num_executions = 0
-
-        # Debugging attributes
-        self.num_updates = 0
-        self.num_epsilon_updates = 0
-
-        if self.tensor_log:
-            self.writer = SummaryWriter() if writer is None else writer
 
         print("\nCreating {} with lr={} and ddqn={} and buffer_sz={}\n".format(name, self.learning_rate,
                                                                                self.use_ddqn, BUFFER_SIZE))
 
         Agent.__init__(self, name, range(action_size), GAMMA)
-
-    def get_impossible_option_idx(self, state):
-
-        # Arg-max only over actions that can be executed from the current state
-        # -- In general an option can be executed from s if s is in its initiation set and NOT in its termination set
-        # -- However, in the case of the goal option we just need to ensure that we are in its initiation set since
-        # -- its termination set is terminal anyway and we are thus not in the risk of executing og from its
-        # -- termination set.
-
-        impossible_option_idx = []
-        for idx, option in enumerate(self.trained_options):
-            np_state = state.cpu().data.numpy()[0] if not isinstance(state, np.ndarray) else state
-
-            # if option.parent is None:
-            #     assert "goal_option" in option.name or option.name == "global_option" or option.name == "intersection_option", option.name
-            #     impossible = not option.is_init_true(np_state)
-            # else:
-            impossible = (not option.is_init_true(np_state)) or option.is_term_true(np_state)
-
-            if impossible:
-                impossible_option_idx.append(idx)
-
-        return impossible_option_idx
 
     def act(self, state, train_mode=True):
         """
@@ -252,48 +79,17 @@ class DQNAgent(Agent):
         Args:
             state (np.array): numpy array state from Gym env
             train_mode (bool): if training, use the internal epsilon. If evaluating, set epsilon to min epsilon
-
         Returns:
             action (int): integer representing the action to take in the Gym env
         """
-        self.num_executions += 1
-        epsilon = self.epsilon if train_mode else self.evaluation_epsilon
-
+        state = np.array(state)  # Lazy Frame
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
         with torch.no_grad():
             action_values = self.policy_network(state)
         self.policy_network.train()
 
-        impossible_option_idx = self.get_impossible_option_idx(state)
-
-        for impossible_idx in impossible_option_idx:
-            action_values[0][impossible_idx] = torch.min(action_values, dim=1)[0] - 1.
-
-        action_values = action_values.cpu().data.numpy()
-        # Epsilon-greedy action selection
-        if random.random() > epsilon:
-            return np.argmax(action_values)
-
-        all_option_idx = list(range(len(self.trained_options))) if len(self.trained_options) > 0 else self.actions
-        possible_option_idx = list(set(all_option_idx).difference(impossible_option_idx))
-        randomly_chosen_option = random.choice(possible_option_idx)
-
-        return randomly_chosen_option
-
-    def get_best_actions_batched(self, states):
-        q_values = self.get_batched_qvalues(states)
-        return torch.argmax(q_values, dim=1)
-
-    def get_value(self, state):
-        action_values = self.get_qvalues(state)
-
-        # Argmax only over actions that can be implemented from the current state
-        impossible_option_idx = self.get_impossible_option_idx(state)
-        for impossible_idx in impossible_option_idx:
-            action_values[0][impossible_idx] = torch.min(action_values).item() - 1.
-
-        return np.max(action_values.cpu().data.numpy())
+        return torch.argmax(action_values).item()
 
     def get_qvalue(self, state, action_idx):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
@@ -317,7 +113,6 @@ class DQNAgent(Agent):
         Q-values corresponding to `states` for all ** permissible ** actions/options given `states`.
         Args:
             states (torch.tensor) of shape (64 x 4)
-
         Returns:
             qvalues (torch.tensor) of shape (64 x |A|)
         """
@@ -325,27 +120,9 @@ class DQNAgent(Agent):
         with torch.no_grad():
             action_values = self.policy_network(states)
         self.policy_network.train()
-
-        if len(self.trained_options) > 0:
-            # Move the states and action values to the cpu to allow numpy computations
-            states = states.cpu().data.numpy()
-            action_values = action_values.cpu().data.numpy()
-
-            for idx, option in enumerate(self.trained_options): # type: Option
-                try:
-                    inits = option.batched_is_init_true(states)
-                    # terms = np.zeros(inits.shape) if option.parent is None else option.parent.batched_is_init_true(states)
-                    terms = option.batched_is_term_true(states)
-                    action_values[(inits != 1) | (terms == 1), idx] = np.min(action_values) - 1.
-                except:
-                    pdb.set_trace()
-
-            # Move the q-values back the GPU
-            action_values = torch.from_numpy(action_values).float().to(self.device)
-
         return action_values
 
-    def step(self, state, action, reward, next_state, done, num_steps):
+    def step(self, state, action, reward, next_state, done, num_steps=1):
         """
         Interface method to perform 1 step of learning/optimization during training.
         Args:
@@ -356,6 +133,7 @@ class DQNAgent(Agent):
             done (bool): is_terminal
             num_steps (int): number of steps taken by the option to terminate
         """
+        # Save experience in replay memory
         self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
 
         # Learn every UPDATE_EVERY time steps.
@@ -363,11 +141,8 @@ class DQNAgent(Agent):
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
             if len(self.replay_buffer) > BATCH_SIZE:
-                experiences = self.replay_buffer.sample()
+                experiences = self.replay_buffer.sample(batch_size=BATCH_SIZE)
                 self._learn(experiences, GAMMA)
-                if self.tensor_log:
-                    self.writer.add_scalar("NumPositiveTransitions", self.replay_buffer.positive_transitions[-1], self.num_updates)
-                self.num_updates += 1
 
     def _learn(self, experiences, gamma):
         """
@@ -375,33 +150,22 @@ class DQNAgent(Agent):
         Args:
             experiences (tuple<torch.Tensor>): tuple of (s, a, r, s', done, tau) tuples
             gamma (float): discount factor
-        """        
+        """
         states, actions, rewards, next_states, dones, steps = experiences
-
-        assert self.exploration_strategy not in ("shaping", "counts"), self.exploration_strategy
 
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
-
-            if len(self.trained_options) == 0:
-                self.policy_network.eval()
-                with torch.no_grad():
-                    selected_actions = self.policy_network(next_states).argmax(dim=1).unsqueeze(1)
-                self.policy_network.train()
-            else:
-                selected_actions = self.get_best_actions_batched(next_states).unsqueeze(1)
-
+            self.policy_network.eval()
+            with torch.no_grad():
+                selected_actions = self.policy_network(next_states).argmax(dim=1).unsqueeze(1)
+            self.policy_network.train()
             Q_targets_next = self.target_network(next_states).detach().gather(1, selected_actions)
         else:
             Q_targets_next = self.target_network(next_states).detach().max(1)[0].unsqueeze(1)
-            raise NotImplementedError("I have not fixed the Q(s',a') problem for vanilla DQN yet")
-
-        # Options in SMDPs can take multiple steps to terminate, the Q-value needs to be discounted appropriately
-        discount_factors = gamma ** steps
 
         # Compute Q targets for current states
         # Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
-        Q_targets = rewards + (discount_factors * Q_targets_next * (1 - dones))
+        Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
 
         # Get expected Q values from local model
         Q_expected = self.policy_network(states).gather(1, actions)
@@ -418,18 +182,7 @@ class DQNAgent(Agent):
         self.optimizer.zero_grad()
         loss.backward()
 
-        # # Gradient clipping: tried but the results looked worse -- needs more testing
-        if self.gradient_clip is not None:
-            for param in self.policy_network.parameters():
-                param.grad.data.clamp_(-self.gradient_clip, self.gradient_clip)
-
         self.optimizer.step()
-
-        if self.tensor_log:
-            self.writer.add_scalar("DQN-Loss", loss.item(), self.num_updates)
-            self.writer.add_scalar("DQN-AverageTargetQvalue", Q_targets.mean().item(), self.num_updates)
-            self.writer.add_scalar("DQN-AverageQValue", Q_expected.mean().item(), self.num_updates)
-            self.writer.add_scalar("DQN-GradientNorm", compute_gradient_norm(self.policy_network), self.num_updates)
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.policy_network, self.target_network, TAU)
@@ -445,147 +198,7 @@ class DQNAgent(Agent):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
     def update_epsilon(self):
-        self.num_epsilon_updates += 1
-        self.epsilon = self.epsilon_schedule.update_epsilon(self.epsilon, self.num_epsilon_updates)
-
-        # Log epsilon decay
-        if self.tensor_log:
-            self.writer.add_scalar("DQN-Epsilon", self.epsilon, self.num_epsilon_updates)
-
-    def __getstate__(self):
-        policy_state = self.policy_network.state_dict()
-        target_state = self.target_network.state_dict()
-
-        optimizer_state = self.optimizer.state_dict()
-        
-        excluded_keys = ("policy_network", "target_network", "optimizer")
-        state_dictionary = {x: self.__dict__[x] for x in self.__dict__ if x not in excluded_keys}
-        state_dictionary["policy_state"] = policy_state
-        state_dictionary["target_state"] = target_state
-        state_dictionary["optimizer_state"] = optimizer_state
-        
-        return state_dictionary
-
-    def __setstate__(self, state_dictionary):
-        excluded_keys = ("policy_network", "target_network", "optimizer", "policy_state", "target_state", "optimizer_state")
-        for key in state_dictionary:
-            if key not in excluded_keys:
-                self.__dict__[key] = state_dictionary[key]
-        
-        self.policy_network = QNetwork(state_size, action_size, seed).to(self.device)
-        self.target_network = QNetwork(state_size, action_size, seed).to(self.device)
-
-        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=lr)
-
-        self.policy_network.load_state_dict(state_dictionary["policy_state"])
-        self.target_network.load_state_dict(state_dictionary["target_state"])
-        self.optimizer.load_state_dict(state_dictionary["optimizer_state"])
-
-
-class ReplayBuffer:
-    """Fixed-size buffer to store experience tuples."""
-
-    def __init__(self, action_size, buffer_size, batch_size, seed, device):
-        """
-        Initialize a ReplayBuffer object.
-        Args:
-            action_size (int): dimension of each action
-            buffer_size (int): maximum size of buffer
-            batch_size (int): size of each training batch
-            seed (int): random seed
-            device (torch.device): cpu / cuda:0 / cuda:1
-        """
-        self.action_size = action_size
-        self.memory = deque(maxlen=buffer_size)
-        self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
-        self.seed = random.seed(seed)
-        self.device = device
-        self.buffer_size = buffer_size
-        self.name = ''
-
-        self.positive_transitions = []
-
-    def add(self, state, action, reward, next_state, done, num_steps):
-        """
-        Add new experience to memory.
-        Args:
-            state (np.array): We add numpy arrays from gym env to the buffer, but sampling from buffer returns tensor
-            action (int)
-            reward (float_
-            next_state (np.array)
-            done (bool)
-            num_steps (int): number of steps taken by the action/option to terminate
-        """
-        e = self.experience(state, action, reward, next_state, done, num_steps)
-        self.memory.append(e)
-
-    def sample(self, batch_size=None, get_tensor=True):
-        """Randomly sample a batch of experiences from memory."""
-        size = self.batch_size if batch_size is None else batch_size
-        experiences = random.sample(self.memory, k=size)
-
-        # Log the number of times we see a non-negative reward (should be sparse)
-        num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])
-        self.positive_transitions.append(num_positive_transitions)
-
-        states = np.vstack([e.state for e in experiences if e is not None])
-        actions = np.vstack([e.action for e in experiences if e is not None])
-        rewards = np.vstack([e.reward for e in experiences if e is not None])
-        next_states = np.vstack([e.next_state for e in experiences if e is not None])
-        dones = np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)
-        steps = np.vstack([e.num_steps for e in experiences if e is not None])
-        
-        if get_tensor:
-            states = torch.from_numpy(states).float().to(self.device)
-            actions = torch.from_numpy(actions).long().to(self.device)
-            rewards = torch.from_numpy(rewards).float().to(self.device)
-            next_states = torch.from_numpy(next_states).float().to(self.device)
-            dones = torch.from_numpy(dones).float().to(self.device)
-            steps = torch.from_numpy(steps).float().to(self.device)
-
-        return states, actions, rewards, next_states, dones, steps
-
-    def __len__(self):
-        """Return the current size of internal memory."""
-        return len(self.memory)
-
-    def __getitem__(self, i):
-        return self.memory[i]
-
-def train(agent, mdp, episodes, steps):
-    per_episode_scores = []
-    last_10_scores = deque(maxlen=10)
-    iteration_counter = 0
-
-    for episode in range(episodes):
-        mdp.reset()
-        state = deepcopy(mdp.init_state)
-        score = 0.
-        for step in range(steps):
-            iteration_counter += 1
-            action = agent.act(state.features(), agent.epsilon)
-            if isinstance(overall_mdp.actions[0], str):
-                reward, next_state = mdp.execute_agent_action(overall_mdp.actions[action])
-            else:
-                reward, next_state = mdp.execute_agent_action(action)
-            agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal(), num_steps=1)
-            agent.update_epsilon()
-            state = next_state
-            score += reward
-            if agent.tensor_log:
-                agent.writer.add_scalar("Score", score, iteration_counter)
-            if state.is_terminal():
-                break
-        last_10_scores.append(score)
-        per_episode_scores.append(score)
-
-        print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)), end="")
-        if episode % 10 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}'.format(episode, np.mean(last_10_scores)))
-            make_count_plot(agent, episode, args.experiment_name, args.seed)
-            make_bonus_plot(agent, episode, args.experiment_name, args.seed)
-    return per_episode_scores
+        pass
 
 def test_forward_pass(dqn_agent, mdp):
     # load the weights from file
@@ -622,100 +235,3 @@ def create_log_dir(experiment_name):
     else:
         print("Successfully created the directory %s " % path)
     return path
-
-def make_kde_plot(dqn_agent, episode, experiment_name, seed):
-    sns.set_style("white")
-
-    states = np.array([transition[0] for transition in dqn_agent.replay_buffer.memory])
-    x = [state[0] for state in states]
-    y = [state[1] for state in states]
-    z = dqn_agent.density_model.infer_probabilities(states)
-
-    plt.scatter(x, y, None, c=z)
-    plt.colorbar()
-    plt.title("Probability density under density model # {}".format(episode))
-    plt.savefig("kde_plots/{}/density_model_fit_number_{}_seed_{}.png".format(experiment_name, episode, seed))
-    plt.close()
-
-def make_pseudo_count_plot(dqn_agent, episode, experiment_name, seed):
-    sns.set_style("white")
-    state_count_pairs = dqn_agent.density_model.state_to_count
-    x, y, z = [], [], []
-
-    for state in state_count_pairs:
-        x.append(state[0])
-        y.append(state[1])
-        z.append(state_count_pairs[state])
-
-    plt.scatter(x, y, None, c=z)
-    plt.colorbar()
-    plt.title("Pseudo-Counts under density model # {}".format(episode))
-    plt.savefig("kde_plots/{}/pseudocounts_episode_{}_seed_{}.png".format(experiment_name, episode, seed))
-    plt.close()
-
-def make_count_plot(dqn_agent, episode, experiment_name, seed):
-    sns.set_style("white")
-    s_a_counts = dqn_agent.density_model.s_a_counts
-    x, y, z = [], [], []
-
-    for state in s_a_counts:
-        x.append(state[0])
-        y.append(state[1])
-        count = 0
-        for action in s_a_counts[state]:
-            count += dqn_agent.density_model.get_single_count(state, action)
-        z.append(count)
-
-    plt.scatter(x, y, None, c=z)
-    plt.colorbar()
-    plt.title("Counts @ Episode # {}".format(episode))
-    plt.savefig("kde_plots/{}/counts_episode_{}_seed_{}.png".format(experiment_name, episode, seed))
-    plt.close()
-
-def make_bonus_plot(dqn_agent, episode, experiment_name, seed):
-    sns.set_style("white")
-    s_a_bonus = dqn_agent.density_model.s_a_bonus
-    x, y, z = [], [], []
-
-    for state in s_a_bonus:
-        x.append(state[0])
-        y.append(state[1])
-        bonus = 0
-        for action in s_a_bonus[state]:
-            bonus += s_a_bonus[state][action]
-        z.append(bonus)
-
-    plt.scatter(x, y, None, c=z)
-    plt.colorbar()
-    plt.title("Bonus @ Episode # {}".format(episode))
-    plt.savefig("kde_plots/{}/bonus_episode_{}_seed_{}.png".format(experiment_name, episode, seed))
-    plt.close()
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment_name", type=str, help="Experiment Name")
-    parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
-    parser.add_argument("--episodes", type=int, help="# episodes", default=NUM_EPISODES)
-    parser.add_argument("--steps", type=int, help="# steps", default=NUM_STEPS)
-    parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--exploration_strategy", type=str, default="eps-greedy")
-    parser.add_argument("--eval_eps", type=float, default=0.05)
-    parser.add_argument("--state_rounding_decimals", type=int, default=2, help="Discretization for counts")
-    args = parser.parse_args()
-
-    logdir = create_log_dir(args.experiment_name)
-    create_log_dir("kde_plots")
-    create_log_dir("kde_plots/{}".format(args.experiment_name))
-    learning_rate = 1e-4
-
-    overall_mdp = GymMDP(env_name="MountainCar-v0", render=args.render)
-    # overall_mdp = FourRoomMDP(11, 11, goal_locs=[(11, 11)], step_cost=0.0)
-
-    ddqn_agent = DQNAgent(state_size=overall_mdp.init_state.features().shape[0], action_size=len(overall_mdp.actions),
-                          trained_options=[], seed=args.seed, exploration_strategy=args.exploration_strategy,
-                          name="GlobalDDQN", lr=learning_rate, tensor_log=False, use_double_dqn=True,
-                          state_rounding_decimals=args.state_rounding_decimals,
-                          device=torch.device(args.device), evaluation_epsilon=args.eval_eps)
-    ddqn_episode_scores = train(ddqn_agent, overall_mdp, args.episodes, args.steps)
-    save_all_scores(args.experiment_name, logdir, args.seed, ddqn_episode_scores)

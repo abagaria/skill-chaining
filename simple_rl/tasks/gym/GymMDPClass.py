@@ -3,61 +3,163 @@ GymMDPClass.py: Contains implementation for MDPs of the Gym Environments.
 '''
 
 # Python imports.
-import random
 import sys
 import os
 import random
 
 # Other imports.
 import gym
+import cv2
 from simple_rl.mdp.MDPClass import MDP
 from simple_rl.tasks.gym.GymStateClass import GymState
+from simple_rl.tasks.gym.wrappers import *
 
 
 class GymMDP(MDP):
     ''' Class for Gym MDPs '''
 
-    def __init__(self, env_name='CartPole-v0', render=False):
+    def __init__(self, env_name='CartPole-v0', pixel_observation=False,
+                 clip_rewards=False, term_func=None, render=False, seed=0):
         '''
         Args:
             env_name (str)
         '''
         self.env_name = env_name
-        self.env = gym.make(env_name)
+
+        if pixel_observation:
+            self.env = FrameStack(AtariPreprocessing(gym.make(env_name)), num_stack=4)
+        else:
+            self.env = gym.make(env_name)
+
+        self.env.seed(seed)
+
+        self.clip_rewards = clip_rewards
+        self.term_func = term_func
         self.render = render
-        MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func, init_state=GymState(self.env.reset()))
+        self.dense_reward = False
+
+        init_obs = self.env.reset()
+
+        self.game_over = False
+
+        self.spawn_states = [(77, 235), (88, 235), (77, 215), (75, 192), (84, 192), (109,192), (109,199), (132,192),
+                             (138,192), (139,192), (130,192), (133,173), (133,162), (133,151), (133,148), (123,148),
+                             (114,148), (99, 148), (75, 148), (62, 148), (50, 148), (38, 148), (25, 148), (20, 148),
+                             (21, 152), (21, 164), (21, 177), (21, 192), (10, 192), (77, 250)]
+
+        MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func,
+                     init_state=GymState(image=init_obs, position=self.get_player_position(), ram=self.env.env.ale.getRAM()))
+
+    def is_goal_state(self, state):
+        return self.has_key(state)
+
+    def has_key(self, state):
+        return int(self.getByte(state.ram, 'c1')) != 0
+
+    def is_action_space_discrete(self):
+        return hasattr(self.env.action_space, 'n')
+
+    def state_space_size(self):
+        return self.env.observation_space.shape
+
+    def action_space_size(self):
+        return len(self.actions)
 
     def _reward_func(self, state, action):
         '''
         Args:
             state (AtariState)
             action (str)
-
         Returns
             (float)
         '''
-        obs, reward, is_terminal, info = self.env.step(action)
+        obs, reward, done, info = self.env.step(action)
+        ram = self.env.env.ale.getRAM()
+
+        self.game_over = self.get_player_lives(ram) != 5
 
         if self.render:
             self.env.render()
 
-        self.next_state = GymState(obs, is_terminal=is_terminal)
+        if "Monte" in self.env_name:
+            position = self.get_player_position()
+            goal_cond = int(self.getByte(ram, 'c1')) != 0
+            is_terminal = goal_cond or self.game_over
+            reward = +10. if goal_cond else 0.
+        else:
+            is_terminal = self.term_func(obs, reward) if self.term_func is not None else done
 
-        return reward
+        self.next_state = GymState(image=obs, position=position, ram=ram, is_terminal=is_terminal)
+
+        if self.clip_rewards:
+            if reward < 0:
+                return -1.
+            if reward > 0:
+                return 1.
+            return 0.
+        else:
+            return reward
 
     def _transition_func(self, state, action):
         '''
         Args:
             state (AtariState)
             action (str)
-
         Returns
             (State)
         '''
         return self.next_state
 
     def reset(self):
-        self.env.reset()
+        init_state_array = self.env.reset()
+        ram = self.env.env.ale.getRAM()
+        self.init_state = GymState(image=init_state_array, position=self.get_player_position(), ram=ram, is_terminal=False)
+        super(GymMDP, self).reset()
 
     def __str__(self):
         return "gym-" + str(self.env_name)
+
+    @staticmethod
+    def _getIndex(address):
+        assert type(address) == str and len(address) == 2
+        row, col = tuple(address)
+        row = int(row, 16) - 8
+        col = int(col, 16)
+        return row * 16 + col
+
+    @staticmethod
+    def getByte(ram, address):
+        # Return the byte at the specified emulator RAM location
+        idx = GymMDP._getIndex(address)
+        return ram[idx]
+
+    def get_player_lives(self, ram):
+        return int(self.getByte(ram, 'ba'))
+
+    def get_player_position(self):
+        ram = self.env.env.ale.getRAM()
+        x = int(self.getByte(ram, 'aa'))
+        y = int(self.getByte(ram, 'ab'))
+        return x, y
+
+    def set_player_position(self, x, y):
+        state_ref = self.env.env.ale.cloneState()
+        state = self.env.env.ale.encodeState(state_ref)
+        self.env.env.ale.deleteState(state_ref)
+        
+        state[331] = x
+        state[335] = y
+        
+        new_state_ref = self.env.env.ale.decodeState(state)
+        self.env.env.ale.restoreState(new_state_ref)
+        self.env.env.ale.deleteState(new_state_ref)
+        self.execute_agent_action(0) # NO-OP action to update the RAM state
+    
+    def saveImage(self, path):
+        cv2.imwrite(f"{path}.png", self.cur_state.image[-1,:,:])
+
+    def is_primitive_action(self, action):
+        return action in self.actions
+    
+    def sample_random_action(self):
+        return random.choice(self.actions)

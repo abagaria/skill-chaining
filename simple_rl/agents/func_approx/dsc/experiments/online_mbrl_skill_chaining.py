@@ -18,10 +18,8 @@ from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoa
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, mdp, warmup_episodes, max_steps, gestation_period, buffer_length, use_vf, use_global_vf, use_model,
                  use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a, clear_option_buffers,
-                 use_global_option_subgoals, maze_type, experiment_name, device,
-                 logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
-
-        assert maze_type in ("umaze", "medium")
+                 use_global_option_subgoals, experiment_name, device, logging_freq, generate_init_gif, evaluation_freq, 
+                 seed, multithread_mpc):
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -49,8 +47,7 @@ class OnlineModelBasedSkillChaining(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
-        goal_state = np.array((0, 8)) if maze_type == "umaze" else np.array((20, 20))
-        self.mdp = D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
+        self.mdp = mdp
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -366,7 +363,6 @@ if __name__ == "__main__":
     parser.add_argument("--generate_init_gif", action="store_true", default=False)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
 
-    parser.add_argument("--maze_type", type=str)
     parser.add_argument("--use_global_option_subgoals", action="store_true", default=False)
 
     parser.add_argument("--clear_option_buffers", action="store_true", default=False)
@@ -412,7 +408,6 @@ if __name__ == "__main__":
                                         lr_c=args.lr_c,
                                         lr_a=args.lr_a,
                                         clear_option_buffers=args.clear_option_buffers,
-                                        maze_type=args.maze_type,
                                         use_global_option_subgoals=args.use_global_option_subgoals
                                         )
 
