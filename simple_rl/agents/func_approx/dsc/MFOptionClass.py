@@ -165,6 +165,28 @@ class ModelFreeOption(object):
     # Experience Replay
     # ------------------------------------------------------------
 
+    def distance_to_goal_state(self, state):
+        pos = self.mdp.get_position(state)
+        goal = self.target_salient_event.get_target_position()
+        return np.linalg.norm(pos-goal)
+
+    def distance_to_goal_region(self, state):
+        pos = self.mdp.get_position(state)
+        if self.parent is None:
+            return self.distance_to_goal_state(state)
+        # Decision_function returns a negative distance for points not inside the classifier
+        return -self.parent.initiation_classifier.decision_function(pos.reshape(1, -1))[0]
+
+    def get_local_reward(self, state):
+        if self.dense_reward:
+            return -self.distance_to_goal_region(state)
+        return -1.
+
+    def get_global_reward(self, state):
+        if self.dense_reward:
+            return -self.distance_to_goal_state(state)
+        return -1.
+
     def initialize_value_function_with_global_value_function(self):
         self.solver.actor.load_state_dict(self.global_solver.actor.state_dict())
         self.solver.critic.load_state_dict(self.global_solver.critic.state_dict())
@@ -172,15 +194,13 @@ class ModelFreeOption(object):
         self.solver.target_critic.load_state_dict(self.global_solver.target_critic.state_dict())
 
     def experience_replay(self, trajectory):
-        if self.dense_reward:
-            raise NotImplementedError()
 
         for state, action, reward, next_state in trajectory:
             done = self.is_term_true(next_state)
             global_done = self.target_salient_event(next_state)
 
-            local_reward = +0 if done else -1.
-            global_reward = +0. if global_done else -1.
+            local_reward = +0 if done else self.get_local_reward(next_state)
+            global_reward = +0. if global_done else self.get_global_reward(next_state)
 
             self.solver.step(state.features(), action, local_reward, next_state.features(), done)
 
