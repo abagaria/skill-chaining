@@ -175,7 +175,7 @@ class ModelFreeOption(object):
         if self.parent is None:
             return self.distance_to_goal_state(state)
         # Decision_function returns a negative distance for points not inside the classifier
-        return -self.parent.initiation_classifier.decision_function(pos.reshape(1, -1))[0]
+        return -self.parent.pessimistic_classifier.decision_function(pos.reshape(1, -1))[0]
 
     def get_local_reward(self, state):
         if self.dense_reward:
