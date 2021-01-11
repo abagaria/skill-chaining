@@ -4,6 +4,7 @@ from scipy.spatial import distance
 from sklearn.svm import OneClassSVM
 import ipdb
 import random
+from collections import deque
 
 
 class SalientEvent(object):
@@ -111,7 +112,7 @@ class SalientEvent(object):
 
     @staticmethod
     def point_to_set_distance(point, state_set):
-        assert isinstance(state_set, list)
+        assert isinstance(state_set, (list, deque))
         assert isinstance(point, np.ndarray)
 
         point_set = [SalientEvent._get_position(state) for state in state_set]
@@ -122,8 +123,8 @@ class SalientEvent(object):
 
     @staticmethod
     def set_to_set_distance(set1, set2):
-        assert isinstance(set1, list)
-        assert isinstance(set2, list)
+        assert isinstance(set1, (list, deque))
+        assert isinstance(set2, (list, deque))
 
         positions1 = np.array([SalientEvent._get_position(state) for state in set1])
         positions2 = np.array([SalientEvent._get_position(state) for state in set2])

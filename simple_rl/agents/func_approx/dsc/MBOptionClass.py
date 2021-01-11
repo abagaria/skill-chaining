@@ -287,13 +287,16 @@ class ModelBasedOption(object):
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
-        self.success_curve.append(self.is_term_true(state))
+        reached_parent = self.is_term_true(state)
+        self.success_curve.append(reached_parent)
 
-        if self.is_term_true(state) and self.last_episode_term_triggered != episode:
-            print(f"{self.name} successful")
+        if reached_parent:
+            print(f"****** {self.name} execution successful ******")
+            self.effect_set.append(state.features())
+
+        if reached_parent and self.last_episode_term_triggered != episode:
             self.num_goal_hits += 1
             self.last_episode_term_triggered = episode
-            self.effect_set.append(state.features())
 
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
