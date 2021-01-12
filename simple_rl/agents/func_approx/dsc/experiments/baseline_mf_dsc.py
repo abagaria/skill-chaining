@@ -11,17 +11,18 @@ from collections import deque
 from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MFOptionClass import ModelFreeOption
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
 
 class BaselineModelFreeDSC(object):
     def __init__(self, max_steps, gestation_period, initiation_period, buffer_length,
                  use_diverse_starts, use_dense_rewards, lr_c, lr_a,
-                 maze_type, experiment_name, device, use_pessimistic_clf_only,
+                 mdp, experiment_name, device, use_pessimistic_clf_only,
                  logging_freq, generate_init_gif, evaluation_freq, seed):
-        assert maze_type in ("umaze", "medium")
 
         self.lr_c = lr_c
         self.lr_a = lr_a
 
+        self.mdp = mdp
         self.device = device
         self.experiment_name = experiment_name
         self.max_steps = max_steps
@@ -38,8 +39,6 @@ class BaselineModelFreeDSC(object):
         self.initiation_period = initiation_period
         self.use_pessimistic_clf_only = use_pessimistic_clf_only
 
-        goal_state = np.array((0, 8)) if maze_type == "umaze" else np.array((20, 20))
-        self.mdp = D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_option()
@@ -147,7 +146,13 @@ class BaselineModelFreeDSC(object):
 
     def contains_init_state(self):
         for option in self.mature_options:
-            if option.is_init_true(np.array([0,0])):  # TODO: Get test-time start state automatically
+
+            if self.mdp.env_name != "ant-reacher":
+                init_pos = self.mdp.get_start_state_salient_event().get_target_position()
+            else:
+                init_pos = np.array((9, 9))
+
+            if option.is_init_true(init_pos):
                 return True
         return False
 
@@ -238,6 +243,7 @@ def test_agent(exp, num_experiments, num_steps):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
+    parser.add_argument("--env", type=str, help="Domain Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gestation_period", type=int, default=3)
@@ -256,6 +262,15 @@ if __name__ == "__main__":
     parser.add_argument("--use_pessimistic_clf_only", action="store_true", default=False)
     args = parser.parse_args()
 
+    if args.env == "ant-reacher":
+        overall_mdp = AntReacherMDP(False, goal_state=np.array((0, 0)), seed=args.seed, render=False)
+    elif args.env == "ant-umaze":
+        overall_mdp = D4RLAntMazeMDP(maze_size="umaze", goal_state=np.array((0, 8)), seed=args.seed)
+    elif args.env == "ant-medium-maze":
+        overall_mdp = D4RLAntMazeMDP(maze_size="medium", goal_state=np.array((20, 20)), seed=args.seed)
+    else:
+        raise NotImplementedError(args.env)
+
     exp = BaselineModelFreeDSC(max_steps=args.steps,
                                gestation_period=args.gestation_period,
                                initiation_period=args.initiation_period,
@@ -264,7 +279,7 @@ if __name__ == "__main__":
                                use_dense_rewards=args.use_dense_rewards,
                                lr_c=args.lr_c,
                                lr_a=args.lr_a,
-                               maze_type=args.maze_type,
+                               mdp=overall_mdp,
                                experiment_name=args.experiment_name,
                                device=torch.device(args.device),
                                logging_freq=args.logging_frequency,
