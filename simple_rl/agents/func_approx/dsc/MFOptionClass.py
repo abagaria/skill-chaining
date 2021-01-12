@@ -52,8 +52,8 @@ class ModelFreeOption(object):
         self.success_curve = []
         self.effect_set = []
 
-        if self.parent is not None:
-            self.initialize_value_function_with_global_value_function()
+        #if self.parent is not None:
+        #    self.initialize_value_function_with_global_value_function()
 
         print(f"Created baseline model-free option {self.name} with option_idx={self.option_idx}")
 
@@ -156,7 +156,7 @@ class ModelFreeOption(object):
             self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
-        if not self.global_init and not eval_mode:
+        if not self.global_init and not eval_mode: # and self.get_training_phase() != "initiation_done":
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
