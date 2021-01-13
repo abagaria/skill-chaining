@@ -14,17 +14,18 @@ from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MBOptionClassMonte import ModelBasedOption
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, mdp, max_steps, gestation_period, buffer_length, clear_option_examples,
-                 diverse_starts, experiment_name, device, evaluation_freq, seed):
+    def __init__(self, mdp, max_steps, gestation_period, buffer_length, clear_replay_buffer,
+                 diverse_starts, experiment_name, device, evaluation_freq, seed, preprocessing):
 
         self.device = device
         self.experiment_name = experiment_name
         self.max_steps = max_steps
-        self.clear_option_examples = clear_option_examples
+        self.clear_replay_buffer = clear_replay_buffer
         self.diverse_starts = diverse_starts
 
         self.seed = seed
         self.evaluation_freq = evaluation_freq
+        self.preprocessing = preprocessing
 
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
@@ -64,6 +65,26 @@ class OnlineModelBasedSkillChaining(object):
             random_rollout(100)     
 
         return history  
+
+    def collect_full_data(self):
+        def helper(num_steps):
+            step_number = 0
+            while step_number < num_steps and not self.mdp.cur_state.is_terminal():
+                state = deepcopy(self.mdp.cur_state)   
+                history.append(state)         
+                selected_option = self.act(state)
+                transitions, reward = selected_option.rollout(step_number=step_number, eval_mode=True)
+                if len(transitions) == 0:
+                    break
+                step_number += len(transitions)
+            return step_number
+        
+        history = deque(maxlen=10000)
+        for i in range(100):
+            print(f"Episode {i}")
+            self.reset(i)
+            helper(1000)
+        return history
 
     def dsc_rollout(self, num_steps):
         step_number = 0
@@ -118,12 +139,12 @@ class OnlineModelBasedSkillChaining(object):
 
     def should_create_new_option(self):
         if len(self.mature_options) > 0 and len(self.new_options) == 0:
-            return self.mature_options[-1].get_training_phase() == "initiation_done" and self.contains_init_state()
+            return self.mature_options[-1].get_training_phase() == "initiation_done" and not self.contains_init_state()
         return False
 
     def contains_init_state(self):
         for option in self.mature_options:
-            if option.is_init_true(self.mdp.init_state):
+            if option.pessimistic_is_init_true(self.mdp.init_state):
                 return True
         return False
 
@@ -132,9 +153,10 @@ class OnlineModelBasedSkillChaining(object):
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
 
-            if self.clear_option_examples:
+            if self.clear_replay_buffer:
+                executed_option.solver.replay_buffer.clear()
                 executed_option.negative_examples.clear()
-                print(f"{executed_option.name} positive and negative examples have been cleared")
+                print(f"{executed_option.name} replay buffer has been cleared!")
 
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
@@ -162,7 +184,7 @@ class OnlineModelBasedSkillChaining(object):
                                   name=name,
                                   global_value_learner=self.global_option.solver,
                                   option_idx=option_idx,
-                                  preprocessing="go-explore")
+                                  preprocessing=self.preprocessing)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -174,7 +196,7 @@ class OnlineModelBasedSkillChaining(object):
                                   name="global-option",
                                   global_value_learner=None,
                                   option_idx=0,
-                                  preprocessing="go-explore")
+                                  preprocessing=self.preprocessing)
         return option
 
     def reset(self, episode):
@@ -244,7 +266,7 @@ def filter_traj(trajectory):
     traj = []
     for option, transitions in trajectory:
         for state, action, reward, next_state in transitions:
-            traj.append(state[-1,:,:])
+            traj.append(next_state[-1,:,:])
     return traj
 
 if __name__ == "__main__":
@@ -257,12 +279,15 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, default=150)
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
-    parser.add_argument("--clear_option_examples", action="store_true", default=False)
+    parser.add_argument("--clear_replay_buffer", action="store_true", default=False)
     parser.add_argument("--diverse_starts", action="store_true", default=False)
+    parser.add_argument("--preprocessing", type=str, help="go-explore/position")
+
 
     args = parser.parse_args()
 
     mdp = GymMDP(env_name="MontezumaRevenge-v0", pixel_observation=True, seed=args.seed)
+    # mdp = GymMDP(env_name="MontezumaRevengeNoFrameskip-v0", pixel_observation=True, seed=args.seed)
 
     exp = OnlineModelBasedSkillChaining(mdp=mdp,
                                         gestation_period=args.gestation_period,
@@ -272,8 +297,11 @@ if __name__ == "__main__":
                                         evaluation_freq=args.evaluation_frequency,
                                         buffer_length=args.buffer_length,
                                         seed=args.seed,
-                                        clear_option_examples=args.clear_option_examples,
-                                        diverse_starts=args.diverse_starts)
+                                        clear_replay_buffer=args.clear_replay_buffer,
+                                        diverse_starts=args.diverse_starts,
+                                        preprocessing=args.preprocessing)
+
+    assert args.preprocessing == "go-explore" or args.preprocessing == "position"
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")

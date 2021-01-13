@@ -53,8 +53,9 @@ class ModelBasedOption(object):
                                pixel_observation=True,
                                name=f"DQN-Agent-{option_idx}")
 
-        if self.parent is not None:
-            self.initialize_value_function_with_global_value_function()
+        # TODO do we need to do this?
+        # if self.parent is not None:
+        #     self.initialize_value_function_with_global_value_function()
 
         print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
 
@@ -83,7 +84,7 @@ class ModelBasedOption(object):
         if self.parent is None:
             return self.mdp.is_goal_state(state)
 
-        return self.parent.pessimistic_is_init_true(state)
+        return self.parent.pessimistic_is_init_true(state) and not self.mdp.is_dead(state.ram)
 
     def pessimistic_is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
@@ -103,7 +104,7 @@ class ModelBasedOption(object):
     def act(self, state, train_mode):
         """ Epsilon-greedy action selection. """
 
-        if random.random() < self._get_epsilon():
+        if train_mode and random.random() < self._get_epsilon():
             return self.mdp.sample_random_action()
 
         assert isinstance(self.solver, DQNAgent), f"{type(self.solver)}"
@@ -155,8 +156,7 @@ class ModelBasedOption(object):
             print(f"{self.name} reached termination condition!")
             self.num_goal_hits += 1
 
-        if not eval_mode:
-            self.derive_positive_and_negative_examples(visited_states)
+        self.derive_positive_and_negative_examples(visited_states)
 
         # Always be refining your initiation classifier
         if not self.global_init and not eval_mode:
@@ -170,7 +170,10 @@ class ModelBasedOption(object):
         elif self.preprocessing == "go-explore": # TODO scale range from 0-255 to 0-8?
             frame = state.features()[-1,10:,:]
             downsampled = cv2.resize(frame, (11,8), interpolation=cv2.INTER_AREA)
+            downsampled = ((downsampled / 255.0) * 8).astype(np.uint8)
             return downsampled.flatten()
+        elif self.preprocessing == "position":
+            return state.get_position()
         else:
             raise RuntimeError(f"{self.preprocessing} not implemented!")
 
@@ -191,7 +194,7 @@ class ModelBasedOption(object):
         final_state = visited_states[-1]
 
         if self.is_term_true(final_state):
-            positive_states = visited_states[-self.buffer_length:] # [start_state] + visited_states[-self.buffer_length:]
+            positive_states = [start_state] + visited_states[-self.buffer_length:]
             self.positive_examples.append(positive_states)
         else:
             negative_examples = [start_state]

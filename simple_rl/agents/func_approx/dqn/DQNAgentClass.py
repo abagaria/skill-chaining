@@ -99,6 +99,20 @@ class DQNAgent(Agent):
         self.policy_network.train()
         return action_values[0][action_idx]
 
+    def get_batched_qvalues(self, states):
+        """
+        Q-values corresponding to `states` for all ** permissible ** actions/options given `states`.
+        Args:
+            states (torch.tensor) of shape (64 x 4)
+        Returns:
+            qvalues (torch.tensor) of shape (64 x |A|)
+        """
+        self.policy_network.eval()
+        with torch.no_grad():
+            action_values = self.policy_network(states)
+        self.policy_network.train()
+        return action_values
+
     def get_qvalues(self, state):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()

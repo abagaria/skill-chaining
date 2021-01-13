@@ -42,16 +42,17 @@ class GymMDP(MDP):
 
         self.game_over = False
 
-        self.spawn_states = [(77, 235), (88, 235), (77, 215), (75, 192), (84, 192), (109,192), (109,199), (132,192),
-                             (138,192), (139,192), (130,192), (133,173), (133,162), (133,151), (133,148), (123,148),
-                             (114,148), (99, 148), (75, 148), (62, 148), (50, 148), (38, 148), (25, 148), (20, 148),
-                             (21, 152), (21, 164), (21, 177), (21, 192), (10, 192), (77, 250)]
+        # self.spawn_states = [(77, 250), (88, 235), (77, 215), (75, 192), (84, 192), (109,192), (109,199), (132,192),
+        #                      (138,192), (139,192), (130,192), (133,173), (133,162), (133,151), (133,148), (123,148),
+        #                      (114,148), (99, 148), (75, 148), (62, 148), (50, 148), (38, 148), (25, 148), (20, 148),
+        #                      (21, 152), (21, 164), (21, 177), (21, 192), (10, 192)]
+        self.spawn_states = [(77, 250), (130, 192), (123, 148), (20, 148), (21, 192)]
 
         MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func,
                      init_state=GymState(image=init_obs, position=self.get_player_position(), ram=self.env.env.ale.getRAM()))
 
     def is_goal_state(self, state):
-        return self.has_key(state)
+        return self.has_key(state) and not self.is_dead(state.ram)
 
     def has_key(self, state):
         return int(self.getByte(state.ram, 'c1')) != 0
@@ -136,6 +137,9 @@ class GymMDP(MDP):
     def get_player_lives(self, ram):
         return int(self.getByte(ram, 'ba'))
 
+    def is_dead(self, ram):
+        return int(self.getByte(ram, 'ba')) != 5
+
     def get_player_position(self):
         ram = self.env.env.ale.getRAM()
         x = int(self.getByte(ram, 'aa'))
@@ -145,14 +149,14 @@ class GymMDP(MDP):
     def set_player_position(self, x, y):
         state_ref = self.env.env.ale.cloneState()
         state = self.env.env.ale.encodeState(state_ref)
-        self.env.env.ale.deleteState(state_ref)
+        # self.env.env.ale.deleteState(state_ref)
         
         state[331] = x
         state[335] = y
         
         new_state_ref = self.env.env.ale.decodeState(state)
         self.env.env.ale.restoreState(new_state_ref)
-        self.env.env.ale.deleteState(new_state_ref)
+        # self.env.env.ale.deleteState(new_state_ref)
         self.execute_agent_action(0) # NO-OP action to update the RAM state
     
     def saveImage(self, path):
