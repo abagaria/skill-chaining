@@ -48,7 +48,7 @@ class SkillTree(object):
         self._tree.show()
 
 
-def make_meshgrid(x, y, h=.02):
+def make_meshgrid(x, y, h=0.2):
     x_min, x_max = x.min() - 1, x.max() + 1
     y_min, y_max = y.min() - 1, y.max() + 1
     xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
@@ -59,22 +59,20 @@ def get_grid_states(mdp):
     ss = []
     x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim+1, 1):
-        for y in np.arange(y_low_lim, y_high_lim+1, 1):
+    for x in np.arange(x_low_lim, x_high_lim+1, 10):
+        for y in np.arange(y_low_lim, y_high_lim+1, 10):
             ss.append(np.array((x, y)))
     return ss
 
 
 def get_initiation_set_values(option):
     values = []
-    x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim+1, 1):
-        for y in np.arange(y_low_lim, y_high_lim+1, 1):
+    x_low_lim, y_low_lim = option.mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = option.mdp.get_x_y_high_lims()
+    for x in np.arange(x_low_lim, x_high_lim+1, 10):
+        for y in np.arange(y_low_lim, y_high_lim+1, 10):
             pos = np.array((x, y))
             init = option.is_init_true(pos)
-            if hasattr(option.overall_mdp.env, 'env'):
-                init = init and not option.overall_mdp.env.env._is_in_collision(pos)
             values.append(init)
     return values
 
@@ -82,6 +80,8 @@ def plot_one_class_initiation_classifier(option):
 
     colors = ["blue", "yellow", "green", "red", "cyan", "brown"]
 
+    if hasattr(option, "positive_training_examples"):
+        plt.scatter(option.positive_training_examples[:,0], option.positive_training_examples[:,1], c='pink')
     X = option.construct_feature_matrix(option.positive_examples)
     X0, X1 = X[:, 0], X[:, 1]
     xx, yy = make_meshgrid(X0, X1)
@@ -197,6 +197,38 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
 
     return qvalues.max()
 
+def make_chunked_value_function_plot(solver, episode, seed, experiment_name, state_buffer, chunk_size=1000):
+    obs = np.array([state.image for state in state_buffer])
+    pos = np.array([state.position for state in state_buffer])
+
+    # Chunk up the inputs so as to conserve GPU memory
+    num_chunks = int(np.ceil(obs.shape[0] / chunk_size))
+
+    if num_chunks == 0:
+        return 0.
+
+    state_chunks = np.array_split(obs, num_chunks, axis=0)
+    qvalues = np.zeros((obs.shape[0],))
+    current_idx = 0
+
+    for chunk_number, state_chunk in tqdm(enumerate(state_chunks), desc="Making VF plot"):  # type: (int, np.ndarray)
+        state_chunk = torch.from_numpy(state_chunk).float().to(solver.device)
+        if isinstance(solver, DQNAgent):
+            chunk_qvalues = solver.get_batched_qvalues(state_chunk).cpu().numpy()
+            chunk_qvalues = np.max(chunk_qvalues, axis=1)
+        current_chunk_size = len(state_chunk)
+        qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
+        current_idx += current_chunk_size
+
+    plt.figure()
+    plt.scatter(pos[:, 0], pos[:, 1], c=qvalues)
+    plt.colorbar()
+    file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
+    plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
+    plt.close()
+
+    return qvalues.max()
+
 def monte_plot_option_init_set(exp, option, history):
     info = {'positives': {'x': [], 'y': [], 'colors': []},
             'negatives': {'x': [], 'y': [], 'colors': []}}
@@ -223,12 +255,33 @@ def monte_plot_option_init_set(exp, option, history):
     plt.scatter(info['positives']['x'], info['positives']['y'], c=info['positives']['colors'], alpha=0.5)
     plt.title(f"{option.name} Initiation Set Inside")
     plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}_inside.png".format(exp.experiment_name, option.name, exp.seed))
-    
+    plt.close()
+
     plt.figure()
     plt.xlim((0,140))
     plt.ylim((0,300))
     plt.scatter(info['negatives']['x'], info['negatives']['y'], c=info['negatives']['colors'], alpha=0.5)
     plt.title(f"{option.name} Initiation Set Outside")
     plt.savefig("initiation_set_plots/{}/{}_initiation_classifier_{}_outside.png".format(exp.experiment_name, option.name, exp.seed))
-    
+    plt.close()
+
+def visualize_option_replay_buffer(option, experiment_name):
+    """
+    Deprecated, but kept for future use
+    """
+    pos = [experience.pos for experience in option.solver.replay_buffer.memory]
+    pos = np.array(pos)
+
+    is_deads = np.array([experience.is_dead for experience in option.solver.replay_buffer.memory])
+    is_fallings = np.array([experience.is_falling for experience in option.solver.replay_buffer.memory])
+
+    rewards, dones = option.solver.batched_reward_function(is_deads, is_fallings, pos)
+    rewards = rewards.cpu().numpy()
+    dones = dones.cpu().numpy()
+
+    plt.figure()
+    plt.scatter(x=pos[:,0], y=pos[:,1], c=dones)
+    plt.colorbar()
+    plt.title(f'{option.name}')
+    plt.savefig(f"value_function_plots/{experiment_name}/{option.name}_replaybuffer_dones.png")
     plt.close()

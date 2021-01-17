@@ -5,6 +5,7 @@ import torch
 import random
 import pickle
 import argparse
+import itertools
 import numpy as np
 from copy import deepcopy
 from functools import reduce
@@ -15,7 +16,8 @@ from simple_rl.agents.func_approx.dsc.MBOptionClassMonte import ModelBasedOption
 
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, mdp, max_steps, gestation_period, buffer_length, clear_replay_buffer,
-                 diverse_starts, experiment_name, device, evaluation_freq, seed, preprocessing):
+                 diverse_starts, experiment_name, device, evaluation_freq, seed, preprocessing,
+                 logging_frequency):
 
         self.device = device
         self.experiment_name = experiment_name
@@ -25,6 +27,7 @@ class OnlineModelBasedSkillChaining(object):
 
         self.seed = seed
         self.evaluation_freq = evaluation_freq
+        self.logging_frequency = logging_frequency
         self.preprocessing = preprocessing
 
         self.buffer_length = buffer_length
@@ -55,7 +58,7 @@ class OnlineModelBasedSkillChaining(object):
             self.mdp.reset()
             while step_number < num_steps and not self.mdp.cur_state.is_terminal():
                 state = deepcopy(self.mdp.cur_state)      
-                history.append(state)      
+                history.append(state)
                 action = self.mdp.sample_random_action()
                 self.mdp.execute_agent_action(action)
                 step_number += 1
@@ -126,10 +129,11 @@ class OnlineModelBasedSkillChaining(object):
         self.log[episode] = {"individual_option_data": individual_option_data, "success_rate": overall_success}
 
         if episode % self.evaluation_freq == 0 and episode != 0:
-            success, step_count = test_agent(self, 1, self.max_steps)
+            success, step_count, traj = test_agent(self, 1, self.max_steps)
 
             self.log[episode]["success"] = success
             self.log[episode]["step-count"] = step_count[0]
+            self.log[episode]["traj"] = traj
 
             with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
                 pickle.dump(self.log, log_file)
@@ -144,7 +148,7 @@ class OnlineModelBasedSkillChaining(object):
 
     def contains_init_state(self):
         for option in self.mature_options:
-            if option.pessimistic_is_init_true(self.mdp.init_state):
+            if option.is_init_true(self.mdp.init_state):
                 return True
         return False
 
@@ -172,7 +176,25 @@ class OnlineModelBasedSkillChaining(object):
 
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
-        # TODO PLOT INIT SETS
+        if episode % self.logging_frequency == 0 and episode != 0:
+            """Collect data"""
+            data = []
+            for option in self.chain:
+                data += option.positive_examples
+                data += option.negative_examples
+            buffer = list(itertools.chain.from_iterable(data))
+
+            """Plot value function"""
+            for option in self.chain:
+                make_chunked_value_function_plot(option.solver, episode, self.seed, self.experiment_name, buffer)
+
+            """Plot init sets"""
+            random.shuffle(buffer)
+            for option in self.mature_options:
+                if self.preprocessing == "position":
+                    plot_two_class_classifier(option, episode, self.experiment_name)
+                else: 
+                    monte_plot_option_init_set(self, option, buffer)
 
     def create_model_based_option(self, name, parent=None):
         option_idx = len(self.chain) + 1 if parent is not None else 1
@@ -227,10 +249,12 @@ def test_agent(exp, num_experiments, num_steps):
             transitions, _ = selected_option.rollout(step_number=step_number, eval_mode=True)
             if len(transitions) == 0:
                 break
+            traj.append((selected_option.name, transitions))
             step_number += len(transitions)
         return step_number, exp.mdp.is_goal_state(exp.mdp.cur_state)
 
     success = 0
+    traj = []
     step_counts = []
 
     for _ in tqdm(range(num_experiments), desc="Performing test rollout"):
@@ -244,7 +268,7 @@ def test_agent(exp, num_experiments, num_steps):
     print(f"Test Rollout Success Rate: {success / num_experiments}, Duration: {np.mean(step_counts)}")
     print("*" * 80)
 
-    return success / num_experiments, step_counts
+    return success / num_experiments, step_counts, traj
 
 def get_trajectory(exp, num_steps):
     exp.mdp.reset()
@@ -279,6 +303,7 @@ if __name__ == "__main__":
     parser.add_argument("--episodes", type=int, default=150)
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
+    parser.add_argument("--logging_frequency", type=int, default=1000)
     parser.add_argument("--clear_replay_buffer", action="store_true", default=False)
     parser.add_argument("--diverse_starts", action="store_true", default=False)
     parser.add_argument("--preprocessing", type=str, help="go-explore/position")
@@ -295,16 +320,16 @@ if __name__ == "__main__":
                                         device=torch.device(args.device),
                                         max_steps=args.steps,
                                         evaluation_freq=args.evaluation_frequency,
+                                        logging_frequency=args.logging_frequency,
                                         buffer_length=args.buffer_length,
                                         seed=args.seed,
                                         clear_replay_buffer=args.clear_replay_buffer,
                                         diverse_starts=args.diverse_starts,
                                         preprocessing=args.preprocessing)
 
-    assert args.preprocessing == "go-explore" or args.preprocessing == "position"
-
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")
+    create_log_dir(f"value_function_plots/{args.experiment_name}")
 
     start_time = time.time()
     durations = exp.run_loop(args.episodes, args.steps)

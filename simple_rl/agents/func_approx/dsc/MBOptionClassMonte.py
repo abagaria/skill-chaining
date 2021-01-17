@@ -8,6 +8,7 @@ from copy import deepcopy
 from collections import deque
 from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
+
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
 
@@ -28,6 +29,7 @@ class ModelBasedOption(object):
         self.global_value_learner = global_value_learner
 
         # TODO
+        self.overall_mdp = mdp
         self.seed = 0
         self.option_idx = option_idx
 
@@ -44,7 +46,6 @@ class ModelBasedOption(object):
 
         self.children = []
         self.success_curve = []
-        self.effect_set = []
 
         self.global_value_learner = global_value_learner
         self.solver = DQNAgent(state_size=self.mdp.state_space_size(),
@@ -84,7 +85,7 @@ class ModelBasedOption(object):
         if self.parent is None:
             return self.mdp.is_goal_state(state)
 
-        return self.parent.pessimistic_is_init_true(state) and not self.mdp.is_dead(state.ram)
+        return self.parent.pessimistic_is_init_true(state) and not self.mdp.is_dead(state.ram) and not self.mdp.falling(state)
 
     def pessimistic_is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
@@ -132,14 +133,7 @@ class ModelBasedOption(object):
             # Control
             action = self.act(state, not eval_mode)
             reward, next_state = self.mdp.execute_agent_action(action)
-            done = self.is_term_true(next_state)
-            subgoal_reward = +10 if done else 0
             
-            if not eval_mode:
-                self.solver.step(state.features(), action, subgoal_reward, next_state.features(), done)
-                if not self.global_init:
-                    self.global_value_learner.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-
             # Logging
             num_steps += 1
             step_number += 1
@@ -150,7 +144,6 @@ class ModelBasedOption(object):
 
         visited_states.append(state)
         self.success_curve.append(self.is_term_true(state))
-        self.effect_set.append(state.features())
 
         if self.is_term_true(state):
             print(f"{self.name} reached termination condition!")
@@ -158,22 +151,35 @@ class ModelBasedOption(object):
 
         self.derive_positive_and_negative_examples(visited_states)
 
+        if not eval_mode:
+            self.experience_replay(option_transitions)
+
         # Always be refining your initiation classifier
-        if not self.global_init and not eval_mode:
+        if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
 
+    def experience_replay(self, trajectory):
+        for state, action, reward, next_state in trajectory:
+            done = self.is_term_true(next_state)
+            subgoal_reward = +1. if done else -1.
+
+            self.solver.step(state.features(), action, subgoal_reward, next_state.features(), done)
+            if not self.global_init:
+                self.global_value_learner.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+    
     def get_features_for_initiation_classifier(self, state):
-        if self.preprocessing == None:
+        if self.preprocessing == "None":
             return state.features()[-1,:,:].flatten()
         elif self.preprocessing == "go-explore": # TODO scale range from 0-255 to 0-8?
             frame = state.features()[-1,10:,:]
             downsampled = cv2.resize(frame, (11,8), interpolation=cv2.INTER_AREA)
-            downsampled = ((downsampled / 255.0) * 8).astype(np.uint8)
             return downsampled.flatten()
         elif self.preprocessing == "position":
-            return state.get_position()
+            return state if isinstance(state, np.ndarray) else state.get_position()
+        elif self.preprocessing == "dqn":
+            return self.solver.feature_extract(state.features())[0]
         else:
             raise RuntimeError(f"{self.preprocessing} not implemented!")
 
@@ -197,7 +203,7 @@ class ModelBasedOption(object):
             positive_states = [start_state] + visited_states[-self.buffer_length:]
             self.positive_examples.append(positive_states)
         else:
-            negative_examples = [start_state]
+            negative_examples = [start_state] + visited_states[-self.buffer_length:]
             self.negative_examples.append(negative_examples)
 
     def fit_initiation_classifier(self):
@@ -211,12 +217,19 @@ class ModelBasedOption(object):
         positions = [self.get_features_for_initiation_classifier(state) for state in states]
         return np.array(positions)
 
+    def get_gamma(self, feature_matrix, gamma="scale"):
+        if gamma == "scale":
+            return 1.0 / (feature_matrix.shape[1] * feature_matrix.var())
+        return gamma
+
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+        gamma = self.get_gamma(positive_feature_matrix)
+        
+        self.pessimistic_classifier = OneClassSVM(gamma=gamma, nu=nu)
         self.pessimistic_classifier.fit(positive_feature_matrix)
 
-        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10.)
+        self.optimistic_classifier = OneClassSVM(gamma=gamma, nu=nu/10.)
         self.optimistic_classifier.fit(positive_feature_matrix)
 
     def train_two_class_classifier(self, nu=0.1):
@@ -227,21 +240,25 @@ class ModelBasedOption(object):
 
         X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
         Y = np.concatenate((positive_labels, negative_labels))
+        
+        gamma = self.get_gamma(X)
 
         if negative_feature_matrix.shape[0] >= 10:  # TODO: Implement gamma="auto" for thundersvm
-            kwargs = {"kernel": "rbf", "gamma": "auto", "class_weight": "balanced"}
+            kwargs = {"kernel": "rbf", "gamma": gamma, "class_weight": "balanced"}
         else:
-            kwargs = {"kernel": "rbf", "gamma": "auto"}
+            kwargs = {"kernel": "rbf", "gamma": gamma}
 
         self.optimistic_classifier = SVC(**kwargs)
         self.optimistic_classifier.fit(X, Y)
 
-        training_predictions = self.optimistic_classifier.predict(X)
-        positive_training_examples = X[training_predictions == 1]
+        training_predictions = self.optimistic_classifier.predict(X) == 1
+        correct_training_predictions = np.logical_and(training_predictions, Y)
+        self.positive_training_examples = X[correct_training_predictions == 1]
 
-        if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
-            self.pessimistic_classifier.fit(positive_training_examples)
+        if self.positive_training_examples.shape[0] > 0:
+            gamma = self.get_gamma(self.positive_training_examples)
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", gamma=gamma, nu=nu)
+            self.pessimistic_classifier.fit(self.positive_training_examples)
     
     # ------------------------------------------------------------
     # Convenience functions

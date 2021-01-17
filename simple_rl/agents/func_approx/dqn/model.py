@@ -65,6 +65,14 @@ class ConvQNetwork(nn.Module):
         x = F.relu(self.fc4(x.view(x.size(0), -1)))
         return self.head(x)
 
+    def extract_features(self, x):
+        x = x.float() / 255
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = self.fc4(x.view(x.size(0), -1))
+        return x
+
     def initialize_with_smaller_network(self, smaller_net, init_q_value=0.):
         """
         Given a DQN over K actions, create a DQN over K + 1 actions. This is needed when we augment the

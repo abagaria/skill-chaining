@@ -4,10 +4,6 @@ import torch
 import numpy as np
 import pdb
 
-
-Transition = namedtuple('Transition', ("state", "action", "reward", "next_state", "done", "num_steps"))
-
-
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""
 
@@ -25,15 +21,13 @@ class ReplayBuffer:
         self.action_size = action_size
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done", "num_steps"])
+        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
         self.seed = random.seed(seed)
         np.random.seed(seed)
         self.device = device
         self.pixel_observation = pixel_observation
 
-        self.positive_transitions = []
-
-    def add(self, state, action, reward, next_state, done, num_steps):
+    def add(self, state, action, reward, next_state, done):
         """
         Add new experience to memory.
         Args:
@@ -44,17 +38,13 @@ class ReplayBuffer:
             done (bool)
             num_steps (int): number of steps taken by the action/option to terminate
         """
-        e = self.experience(state, action, reward, next_state, done, num_steps)
+        e = self.experience(state, action, reward, next_state, done)
         self.memory.append(e)
 
     def sample(self, batch_size=None):
         """Randomly sample a batch of experiences from memory."""
         size = self.batch_size if batch_size is None else batch_size
         experiences = random.sample(self.memory, k=size)
-
-        # Log the number of times we see a non-negative reward (should be sparse)
-        num_positive_transitions = sum([exp.reward >= 0 for exp in experiences])
-        self.positive_transitions.append(num_positive_transitions)
 
         # With image observations, we need to add another dimension to the tensor before stacking
         if self.pixel_observation:
@@ -68,9 +58,8 @@ class ReplayBuffer:
         else:
             next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(self.device)
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
-        steps = torch.from_numpy(np.vstack([e.num_steps for e in experiences if e is not None])).float().to(self.device)
-
-        return states, actions, rewards, next_states, dones, steps
+        
+        return states, actions, rewards, next_states, dones
 
     def clear(self):
         self.memory.clear()

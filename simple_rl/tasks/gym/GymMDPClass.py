@@ -46,7 +46,7 @@ class GymMDP(MDP):
         #                      (138,192), (139,192), (130,192), (133,173), (133,162), (133,151), (133,148), (123,148),
         #                      (114,148), (99, 148), (75, 148), (62, 148), (50, 148), (38, 148), (25, 148), (20, 148),
         #                      (21, 152), (21, 164), (21, 177), (21, 192), (10, 192)]
-        self.spawn_states = [(77, 250), (130, 192), (123, 148), (20, 148), (21, 192)]
+        self.spawn_states = [(77, 235), (130, 192), (123, 148), (20, 148), (21, 192), (114,148), (99, 148), (75, 148), (62, 148), (50, 148), (38, 148), (25, 148)]
 
         MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func,
                      init_state=GymState(image=init_obs, position=self.get_player_position(), ram=self.env.env.ale.getRAM()))
@@ -56,6 +56,9 @@ class GymMDP(MDP):
 
     def has_key(self, state):
         return int(self.getByte(state.ram, 'c1')) != 0
+
+    def falling(self, state):
+        return int(self.getByte(state.ram, 'd8')) != 0
 
     def is_action_space_discrete(self):
         return hasattr(self.env.action_space, 'n')
@@ -86,7 +89,7 @@ class GymMDP(MDP):
             position = self.get_player_position()
             goal_cond = int(self.getByte(ram, 'c1')) != 0
             is_terminal = goal_cond or self.game_over
-            reward = +10. if goal_cond else 0.
+            reward = +1. if goal_cond else -1.
         else:
             is_terminal = self.term_func(obs, reward) if self.term_func is not None else done
 
@@ -112,9 +115,11 @@ class GymMDP(MDP):
         return self.next_state
 
     def reset(self):
-        init_state_array = self.env.reset()
+        self.env.reset()
+        for _ in range(4): 
+            obs, _, _, _ = self.env.step(0) # no-op to get agent onto ground
         ram = self.env.env.ale.getRAM()
-        self.init_state = GymState(image=init_state_array, position=self.get_player_position(), ram=ram, is_terminal=False)
+        self.init_state = GymState(image=obs, position=self.get_player_position(), ram=ram, is_terminal=False)
         super(GymMDP, self).reset()
 
     def __str__(self):
@@ -149,14 +154,14 @@ class GymMDP(MDP):
     def set_player_position(self, x, y):
         state_ref = self.env.env.ale.cloneState()
         state = self.env.env.ale.encodeState(state_ref)
-        # self.env.env.ale.deleteState(state_ref)
+        self.env.env.ale.deleteState(state_ref)
         
         state[331] = x
         state[335] = y
         
         new_state_ref = self.env.env.ale.decodeState(state)
         self.env.env.ale.restoreState(new_state_ref)
-        # self.env.env.ale.deleteState(new_state_ref)
+        self.env.env.ale.deleteState(new_state_ref)
         self.execute_agent_action(0) # NO-OP action to update the RAM state
     
     def saveImage(self, path):
@@ -167,3 +172,9 @@ class GymMDP(MDP):
     
     def sample_random_action(self):
         return random.choice(self.actions)
+
+    def get_x_y_low_lims(self):
+        return 0, 100
+
+    def get_x_y_high_lims(self):
+        return 140, 300

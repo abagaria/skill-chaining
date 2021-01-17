@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import ipdb
 from collections import namedtuple, deque
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -34,8 +35,6 @@ GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
 LR = 1e-4  # learning rate
 UPDATE_EVERY = 1  # how often to update the network
-NUM_EPISODES = 3500
-NUM_STEPS = 10000
 
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
@@ -91,6 +90,15 @@ class DQNAgent(Agent):
 
         return torch.argmax(action_values).item()
 
+    def feature_extract(self, state):
+        state = np.array(state)  # Lazy Frame
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        self.policy_network.eval()
+        with torch.no_grad():
+            representation = self.policy_network.extract_features(state)
+        self.policy_network.train()
+        return representation.cpu().numpy()
+
     def get_qvalue(self, state, action_idx):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.policy_network.eval()
@@ -136,7 +144,7 @@ class DQNAgent(Agent):
         self.policy_network.train()
         return action_values
 
-    def step(self, state, action, reward, next_state, done, num_steps=1):
+    def step(self, state, action, reward, next_state, done):
         """
         Interface method to perform 1 step of learning/optimization during training.
         Args:
@@ -145,10 +153,9 @@ class DQNAgent(Agent):
             reward (float)
             next_state (np.array)
             done (bool): is_terminal
-            num_steps (int): number of steps taken by the option to terminate
         """
         # Save experience in replay memory
-        self.replay_buffer.add(state, action, reward, next_state, done, num_steps)
+        self.replay_buffer.add(state, action, reward, next_state, done)
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -165,7 +172,7 @@ class DQNAgent(Agent):
             experiences (tuple<torch.Tensor>): tuple of (s, a, r, s', done, tau) tuples
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones, steps = experiences
+        states, actions, rewards, next_states, dones = experiences
 
         # Get max predicted Q values (for next states) from target model
         if self.use_ddqn:
