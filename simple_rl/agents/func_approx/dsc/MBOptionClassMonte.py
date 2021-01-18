@@ -15,9 +15,10 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, global_value_learner,
-                 option_idx, target_salient_event=None, preprocessing=None):
+                 option_idx, gamma, freeze_init_sets, target_salient_event=None, preprocessing=None):
         self.mdp = mdp
         self.name = name
+        self.gamma = gamma
         self.parent = parent
         self.device = device
         self.timeout = timeout
@@ -25,6 +26,7 @@ class ModelBasedOption(object):
         self.global_init = global_init
         self.buffer_length = buffer_length
         self.preprocessing = preprocessing
+        self.freeze_init_sets = freeze_init_sets
         self.target_salient_event = target_salient_event
         self.global_value_learner = global_value_learner
 
@@ -53,6 +55,9 @@ class ModelBasedOption(object):
                                device=self.device,
                                pixel_observation=True,
                                name=f"DQN-Agent-{option_idx}")
+
+        if self.preprocessing == "orb":
+            self.orb = cv2.ORB_create(nfeatures=15, edgeThreshold=2, nlevels=1, patchSize=32)
 
         # TODO do we need to do this?
         # if self.parent is not None:
@@ -156,6 +161,7 @@ class ModelBasedOption(object):
 
         # Always be refining your initiation classifier
         if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
+            if not self.freeze_init_sets or (self.freeze_init_sets and self.num_goal_hits <= 2 * self.gestation_period)
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
@@ -174,8 +180,13 @@ class ModelBasedOption(object):
             return state.features()[-1,:,:].flatten()
         elif self.preprocessing == "go-explore": # TODO scale range from 0-255 to 0-8?
             frame = state.features()[-1,10:,:]
-            downsampled = cv2.resize(frame, (11,8), interpolation=cv2.INTER_AREA)
+            downsampled = cv2.resize(frame, (6,6), interpolation=cv2.INTER_AREA)
             return downsampled.flatten()
+        elif self.preprocessing == "orb": # ORB doesn't return same sized feature vectors
+            frame = state.features()[-1,10:,:]
+            kp = self.orb.detect(frame, None)
+            kp, des = self.orb.compute(frame, kp)
+            return des.flatten()
         elif self.preprocessing == "position":
             return state if isinstance(state, np.ndarray) else state.get_position()
         elif self.preprocessing == "dqn":
@@ -217,10 +228,11 @@ class ModelBasedOption(object):
         positions = [self.get_features_for_initiation_classifier(state) for state in states]
         return np.array(positions)
 
-    def get_gamma(self, feature_matrix, gamma="scale"):
-        if gamma == "scale":
-            return 1.0 / (feature_matrix.shape[1] * feature_matrix.var())
-        return gamma
+    def get_gamma(self, feature_matrix):
+        if self.gamma == "scale":
+            num_features = feature_matrix.shape[1]
+            return 1.0 / (num_features * feature_matrix.var())
+        return self.gamma
 
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
