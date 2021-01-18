@@ -214,7 +214,7 @@ class ModelBasedOption(object):
             positive_states = [start_state] + visited_states[-self.buffer_length:]
             self.positive_examples.append(positive_states)
         else:
-            negative_examples = [start_state] + visited_states[-self.buffer_length:]
+            negative_examples = [start_state] # + visited_states[-self.buffer_length:]
             self.negative_examples.append(negative_examples)
 
     def fit_initiation_classifier(self):
