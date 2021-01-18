@@ -164,7 +164,9 @@ class OnlineModelBasedSkillChaining(object):
                 print(f"{executed_option.name} replay buffer has been cleared!")
         
         if self.clear_replay_buffer:
-            pass
+            if executed_option.num_goal_hits % 150 == 0:
+                executed_option.solver.replay_buffer.clear()
+                print(f"{executed_option.name} replay buffer has been cleared!")
 
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
