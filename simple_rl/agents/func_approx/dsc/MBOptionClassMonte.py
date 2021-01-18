@@ -161,7 +161,7 @@ class ModelBasedOption(object):
 
         # Always be refining your initiation classifier
         if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
-            if not self.freeze_init_sets or (self.freeze_init_sets and self.num_goal_hits <= 2 * self.gestation_period)
+            if not self.freeze_init_sets or (self.freeze_init_sets and self.num_goal_hits <= 2 * self.gestation_period):
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
