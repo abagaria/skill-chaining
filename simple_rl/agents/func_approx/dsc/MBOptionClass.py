@@ -492,9 +492,6 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
 
     def get_option_success_rate(self):
-        """
-        TODO: implement success rate at test time as well (Jason)
-        """
         if self.num_executions > 0:
             return self.num_goal_hits / self.num_executions
         return 1.

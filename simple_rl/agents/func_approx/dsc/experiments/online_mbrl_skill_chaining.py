@@ -21,7 +21,7 @@ class OnlineModelBasedSkillChaining(object):
                  use_global_option_subgoals, maze_type, experiment_name, device,
                  logging_freq, generate_init_gif, evaluation_freq, seed, multithread_mpc):
 
-        assert maze_type in ("umaze", "medium")
+        # assert maze_type in ("umaze", "medium")
 
         self.lr_c = lr_c
         self.lr_a = lr_a
@@ -50,7 +50,7 @@ class OnlineModelBasedSkillChaining(object):
         self.gestation_period = gestation_period
 
         goal_state = np.array((0, 8)) if maze_type == "umaze" else np.array((20, 20))
-        self.mdp = D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
+        self.mdp = mdp #D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()

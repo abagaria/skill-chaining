@@ -137,7 +137,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
     def sample_random_state_curriculum(self, x, y):
         """
         Samples points in the rectangle whose (x,y) is
-        the lower left corner (Jason)
+        the lower left corner
         """
         data = self.dataset
         mask = (data[:,0] >= x) & (data[:,1] >= y)
