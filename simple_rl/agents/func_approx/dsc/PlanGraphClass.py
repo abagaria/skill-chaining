@@ -177,6 +177,13 @@ class PlanGraph(object):
         neighboring_nodes = [n for n in connected_nodes if n != node]
         return neighboring_nodes
 
+    def get_incoming_nodes(self, node):
+        """ Get the nodes from which you can get to `node` in a single transition. """
+        edges = [edge for edge in self.plan_graph.edges if node == edge[1]]
+        connected_nodes = list(itertools.chain.from_iterable(edges))
+        neighboring_nodes = [n for n in connected_nodes if n != node]
+        return neighboring_nodes
+
     def get_reachable_nodes_from_source_node(self, source_node):
         assert self._is_option_or_event_type(source_node), f"{type(source_node)}"
         if source_node not in self.plan_graph.nodes:

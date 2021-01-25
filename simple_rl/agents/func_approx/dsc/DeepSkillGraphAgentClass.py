@@ -99,6 +99,13 @@ class DeepSkillGraphAgent(object):
             if not closest_event(state):
                 return closest_event
 
+    def _select_closest_unfinished_chain_init_event(self, state):
+        unfinished_chains = [chain for chain in self.dsc_agent.chains if not chain.is_chain_completed()]
+        unfinished_chains = [chain for chain in unfinished_chains if not chain.init_salient_event(state)]
+        init_salient_events = [chain.init_salient_event for chain in unfinished_chains]
+        if len(init_salient_events) > 0:
+            return random.choice(init_salient_events)
+
     def select_goal_salient_event(self, state):
         """
 
@@ -117,13 +124,16 @@ class DeepSkillGraphAgent(object):
                     print(f"[Closest] Deep skill graphs target event: {selected_event}")
                     return selected_event
                 else:
-                    pass
+                    selected_event = self._select_closest_unfinished_chain_init_event(state)
+                    if selected_event is not None:
+                        print(f"[ChainInit] Deep skill graphs target event: {selected_event}")
+                        return selected_event
             return self._randomly_select_salient_event(state, events)
 
-    def dsg_run_loop(self, episodes, num_steps):
+    def dsg_run_loop(self, episodes, num_steps, starting_episode=0):
         successes = []
 
-        for episode in range(episodes):
+        for episode in range(starting_episode, starting_episode+episodes):
 
             if self.should_generate_new_salient_events(episode):
                 accepted, num_tries = self.dsg_event_discovery_loop(episode, num_tries_allowed=10, num_steps=num_steps)
@@ -415,6 +425,7 @@ if __name__ == "__main__":
     parser.add_argument("--plot_gc_value_functions", action="store_true", default=False)
     parser.add_argument("--use_model", action="store_true", default=False)
     parser.add_argument("--use_vf", action="store_true", default=False)
+    parser.add_argument("--multithread_mpc", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -476,7 +487,7 @@ if __name__ == "__main__":
                                       use_model=args.use_model, use_dense_rewards=args.use_dense_rewards,
                                       experiment_name=args.experiment_name, device=args.device,
                                       gestation_period=args.gestation_period, buffer_length=args.buffer_len,
-                                      generate_init_gif=False, seed=args.seed, multithread_mpc=False)
+                                      generate_init_gif=False, seed=args.seed, multithread_mpc=args.multithread_mpc)
 
     planner = SkillGraphPlanner(mdp=overall_mdp,
                                 chainer=chainer,

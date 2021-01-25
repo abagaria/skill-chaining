@@ -54,7 +54,7 @@ class ModelBasedOption(object):
         self.last_episode_term_triggered = -1
         self.started_at_target_salient_event = False
 
-        self.expansion_classifiers = []
+        self.expansion_classifier = None
 
         # In the model-free setting, the output norm doesn't seem to work
         # But it seems to stabilize off policy value function learning
@@ -81,7 +81,7 @@ class ModelBasedOption(object):
 
         self.children = []
         self.success_curve = []
-        self.effect_set = deque(maxlen=200)
+        self.effect_set = deque(maxlen=100)
 
         if path_to_model:
             print(f"Loading model from {path_to_model} for {self.name}")
@@ -156,7 +156,8 @@ class ModelBasedOption(object):
             return True
 
         features = self.mdp.get_position(state)
-        return self.pessimistic_classifier.predict([features])[0] == 1
+        expansion_clf_decision = self.expansion_classifier(features) if self.expansion_classifier else False
+        return self.pessimistic_classifier.predict([features])[0] == 1 or expansion_clf_decision
 
     def batched_is_init_true(self, state_matrix):
         if self.global_init or self.get_training_phase() == "gestation":
@@ -170,7 +171,9 @@ class ModelBasedOption(object):
             return np.ones((state_matrix.shape[0]))
 
         position_matrix = state_matrix[:, :2]
-        return self.pessimistic_classifier.predict(position_matrix) == 1
+        defaults = np.zeros((position_matrix.shape[0],))
+        expansion_clf_decision = self.expansion_classifier(position_matrix) if self.expansion_classifier else defaults
+        return np.logical_or(self.pessimistic_classifier.predict(position_matrix) == 1, expansion_clf_decision)
 
     def batched_is_term_true(self, state_matrix):
         if self.parent is None:
@@ -196,7 +199,8 @@ class ModelBasedOption(object):
         return dones.any()
 
     def expand_initiation_classifier(self, classifier):  # TODO: add support
-        self.expansion_classifiers.append(classifier)
+        print(f"Expanding {self.name}'s pessimistic classifier to include {classifier}")
+        self.expansion_classifier = classifier
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """

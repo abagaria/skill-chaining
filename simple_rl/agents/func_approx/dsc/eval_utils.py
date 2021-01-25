@@ -28,14 +28,14 @@ def create_test_event(dsg_agent, goal_state):
         sorted_known_events = sorted(known_events, key=lambda e: len(e.trigger_points), reverse=True)
         return sorted_known_events[0]
 
-    # Is there an option that is a subset of the test event?
-    known_options = [option for option in dsg_agent.planning_agent.plan_graph.option_nodes if
-                     SkillChain.should_exist_edge_from_option_to_event(option, test_event)]
-
-    if len(known_options) > 0:
-        ipdb.set_trace()
-        sorted_known_options = sorted(known_options, key=lambda o: len(o.effect_set), reverse=True)
-        return sorted_known_options[0]
+    # # Is there an option that is a subset of the test event?
+    # known_options = [option for option in dsg_agent.planning_agent.plan_graph.option_nodes if
+    #                  SkillChain.should_exist_edge_from_option_to_event(option, test_event)]
+    #
+    # if len(known_options) > 0:
+    #     ipdb.set_trace()
+    #     sorted_known_options = sorted(known_options, key=lambda o: len(o.effect_set), reverse=True)
+    #     return sorted_known_options[0]
 
     return test_event
 

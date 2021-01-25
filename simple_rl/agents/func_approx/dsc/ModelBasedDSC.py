@@ -221,7 +221,7 @@ class ModelBasedSkillChaining(object):
             prefix = f"option_{parent_option.name.split('_')[-1]}"
         else:
             prefix = parent_option.name
-        name = prefix + "_{}".format(len(parent_option.children))
+        name = prefix + "-{}".format(len(parent_option.children))
         print("Creating {} with parent {}".format(name, parent_option.name))
 
         new_option = self.create_model_based_option(name=name, parent=parent_option,
@@ -246,13 +246,13 @@ class ModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=self.global_option.solver,
                                   use_vf=self.use_vf,
-                                  use_global_vf=self.use_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=self.global_option.value_learner,
                                   option_idx=self.current_option_idx,
                                   multithread_mpc=self.multithread_mpc,
                                   chain_id=chain_id)
+        self.current_option_idx += 1
         return option
 
     def create_global_model_based_option(self):
@@ -266,7 +266,6 @@ class ModelBasedSkillChaining(object):
                                   path_to_model="",
                                   global_solver=None,
                                   use_vf=self.use_vf,
-                                  use_global_vf=self.use_vf,
                                   use_model=self.use_model,
                                   dense_reward=self.use_dense_rewards,
                                   global_value_learner=None,

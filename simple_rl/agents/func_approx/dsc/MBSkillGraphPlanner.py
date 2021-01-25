@@ -369,6 +369,9 @@ class SkillGraphPlanner(object):
         # With off-policy triggers, you can trigger the termination condition of an option w/o rolling it out
         self.manage_options_learned_during_rollout(newly_created_options=new_options, episode=episode)
 
+        # Remove edges that no longer make sense for the executed option
+        self.modify_node_connections(executed_option=option)
+
         # Modify the edge weight associated with the executed option
         self.modify_edge_weight(executed_option=option, final_state=state_after_rollout)
 
@@ -424,6 +427,50 @@ class SkillGraphPlanner(object):
 
         for vertex in failed_reaching_vertices:
             modify(vertex, -1)
+
+    def _delete_outgoing_edges_if_needed(self, executed_option):
+        assert isinstance(executed_option, ModelBasedOption)
+
+        outgoing_nodes = self.plan_graph.get_outgoing_nodes(executed_option)
+
+        for node in outgoing_nodes:
+            assert isinstance(node, (ModelBasedOption, SalientEvent))
+
+            if isinstance(node, ModelBasedOption):
+                should_remove = not SkillChain.should_exist_edge_between_options(executed_option, node) \
+                                and len(node.get_effective_effect_set()) > 0 \
+                                and executed_option.parent != node
+            else:
+                assert isinstance(node, SalientEvent)
+                should_remove = not SkillChain.should_exist_edge_from_option_to_event(executed_option, node)
+
+            if should_remove:
+                print(f"Deleting edge from {executed_option} to {node}")
+                self.plan_graph.plan_graph.remove_edge(executed_option, node)
+
+    def _delete_incoming_edges_if_needed(self, executed_option):
+        assert isinstance(executed_option, ModelBasedOption)
+
+        incoming_nodes = self.plan_graph.get_incoming_nodes(executed_option)
+
+        for node in incoming_nodes:
+            assert isinstance(node, (ModelBasedOption, SalientEvent))
+
+            if isinstance(node, ModelBasedOption):
+                should_remove = not SkillChain.should_exist_edge_between_options(node, executed_option) \
+                                and len(node.get_effective_effect_set()) > 0 \
+                                and node.parent != executed_option
+            else:
+                assert isinstance(node, SalientEvent)
+                should_remove = not SkillChain.should_exist_edge_from_event_to_option(node, executed_option)
+
+            if should_remove:
+                print(f"Deleting edge from {node} to {executed_option}")
+                self.plan_graph.plan_graph.remove_edge(node, executed_option)
+
+    def modify_node_connections(self, executed_option):
+        self._delete_outgoing_edges_if_needed(executed_option)
+        self._delete_incoming_edges_if_needed(executed_option)
 
     def add_newly_created_option_to_plan_graph(self, newly_created_option, episode):
 
