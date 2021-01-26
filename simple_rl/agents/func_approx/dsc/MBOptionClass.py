@@ -13,7 +13,7 @@ from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
-                 gestation_period, timeout, max_steps, device, use_vf, use_global_vf, use_model, dense_reward,
+                 gestation_period, timeout, max_steps, device, use_vf, use_model, dense_reward,
                  option_idx, chain_id, lr_c=3e-4, lr_a=3e-4, max_num_children=2,
                  target_salient_event=None, init_salient_event=None, path_to_model="", multithread_mpc=False):
         self.mdp = mdp
@@ -24,7 +24,7 @@ class ModelBasedOption(object):
         self.device = device
         self.use_vf = use_vf
         self.global_solver = global_solver
-        self.use_global_vf = use_global_vf
+        self.use_global_vf = use_vf
         self.timeout = timeout
         self.use_model = use_model
         self.max_steps = max_steps
@@ -46,7 +46,6 @@ class ModelBasedOption(object):
         self.num_executions = 0
         self.gestation_period = gestation_period
 
-        # TODO: Make the classifier examples and the effect_set fixed-length
         self.positive_examples = deque(maxlen=100)
         self.negative_examples = deque(maxlen=100)
         self.optimistic_classifier = None
@@ -56,12 +55,17 @@ class ModelBasedOption(object):
 
         self.expansion_classifier = None
 
+        lr_a = lr_c = 1e-5 if self.use_model else 3e-4
+
         # In the model-free setting, the output norm doesn't seem to work
         # But it seems to stabilize off policy value function learning
         # Therefore, only use output norm if we are using MPC for action selection
         use_output_norm = self.use_model
 
-        if not self.use_global_vf or global_init:
+        self.value_learner = None
+
+        if use_vf and (not self.use_global_vf or global_init):
+            print(f"Initializing VF with lra={lr_a}, lrc={lr_c} and output-norm={use_output_norm}")
             self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
                                     action_dim=self.mdp.action_space_size(),
                                     max_action=1.,

@@ -355,9 +355,10 @@ class SkillGraphPlanner(object):
         # Execute the option: if the option is the global-option, it doesn't have a default
         # goal in the task-agnostic setting. As a result, we ask it to target the same goal
         # as the policy-over-options.
+        # Note that we are setting eval_mode to False because we need new options to update their VF and init sets
         option_goal = policy_over_options_goal if option.global_init else None
         option_transitions, option_reward = option.rollout(episode=episode, step_number=step,
-                                                           rollout_goal=option_goal, eval_mode=eval_mode)
+                                                           rollout_goal=option_goal, eval_mode=False)
 
         new_options = self.chainer.manage_chain_after_option_rollout(executed_option=option,
                                                                      created_options=[],

@@ -124,10 +124,11 @@ class DeepSkillGraphAgent(object):
                     print(f"[Closest] Deep skill graphs target event: {selected_event}")
                     return selected_event
                 else:
-                    selected_event = self._select_closest_unfinished_chain_init_event(state)
-                    if selected_event is not None:
-                        print(f"[ChainInit] Deep skill graphs target event: {selected_event}")
-                        return selected_event
+                    # selected_event = self._select_closest_unfinished_chain_init_event(state)
+                    # if selected_event is not None:
+                    #     print(f"[ChainInit] Deep skill graphs target event: {selected_event}")
+                    #     return selected_event
+                    pass
             return self._randomly_select_salient_event(state, events)
 
     def dsg_run_loop(self, episodes, num_steps, starting_episode=0):
