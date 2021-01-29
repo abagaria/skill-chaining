@@ -534,7 +534,7 @@ class ModelBasedOption(object):
             self.pessimistic_classifier.fit(positive_training_examples)
 
     def is_eligible_for_off_policy_triggers(self):
-        eligible_phase = self.get_training_phase() != "initiation_done"
+        eligible_phase = False  # self.get_training_phase() != "initiation_done"
         return eligible_phase and not self.started_at_target_salient_event
 
     def trigger_termination_condition_off_policy(self, trajectory, episode):

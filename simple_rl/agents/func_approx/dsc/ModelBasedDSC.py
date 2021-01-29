@@ -50,22 +50,19 @@ class ModelBasedSkillChaining(object):
             if option.is_init_true(state) and not option.is_term_true(state):
                 return option
 
-    def _pick_chain_corresponding_to_goal(self, goal):
-        for chain in self.chains:
-            if chain.target_salient_event(goal):
-                return chain
+    def _get_chains_corresponding_to_goal(self, goal):
+        chains = [chain for chain in self.chains if chain.target_salient_event(goal)]
 
-    def _pick_chain_corresponding_to_goal_2(self, goal):
-        for chain in self.chains:
-            for option in chain.options:
-                if option.is_in_effect_set(goal):
-                    return chain
+        if len(chains) == 0:
+            for chain in self.chains:
+                for option in chain.options:
+                    if len(option.effect_set) > 0 and option.is_in_effect_set(goal) and chain not in chains:
+                        chains.append(chain)
+        return chains
 
     def act(self, state, goal):
-        chain = self._pick_chain_corresponding_to_goal(goal)
-        if chain is None:
-            chain = self._pick_chain_corresponding_to_goal_2(goal)
-        if chain is not None:
+        chains_targeting_goal = self._get_chains_corresponding_to_goal(goal)
+        for chain in chains_targeting_goal:
             for option in chain.options:
                 if option.is_init_true(state):
                     subgoal = option.get_goal_for_rollout()

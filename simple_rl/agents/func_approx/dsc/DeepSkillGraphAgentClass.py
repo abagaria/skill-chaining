@@ -172,6 +172,12 @@ class DeepSkillGraphAgent(object):
 
                 successes.append(success)
 
+            if episode > 0 and episode % 10 == 0:
+                t0 = time.time()
+                for option in self.planning_agent.plan_graph.option_nodes:
+                    self.planning_agent.add_potential_edges(option)
+                print(f"Took {time.time() - t0}s to add potential edges")
+
             if episode > 0 and episode % 50 == 0 and self.plot_gc_value_functions:
                 assert goal_salient_event is not None
                 make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,

@@ -469,6 +469,26 @@ class SkillGraphPlanner(object):
                 print(f"Deleting edge from {node} to {executed_option}")
                 self.plan_graph.plan_graph.remove_edge(node, executed_option)
 
+    def add_potential_edges(self, option):
+
+        for node in self.plan_graph.plan_graph.nodes:
+
+            if node != option and not self.plan_graph.plan_graph.has_edge(option, node):
+                if isinstance(node, SalientEvent) and SkillChain.should_exist_edge_from_option_to_event(option, node):
+                    print(f"Adding edge from {option} to {node}")
+                    self.plan_graph.add_edge(option, node)
+                if isinstance(node, ModelBasedOption) and SkillChain.should_exist_edge_between_options(option, node):
+                    print(f"Adding edge from {option} to {node}")
+                    self.plan_graph.add_edge(option, node)
+
+            if node != option and not self.plan_graph.plan_graph.has_edge(node, option):
+                if isinstance(node, SalientEvent) and SkillChain.should_exist_edge_from_event_to_option(node, option):
+                    print(f"Adding edge from {node} to {option}")
+                    self.plan_graph.add_edge(node, option)
+                if isinstance(node, ModelBasedOption) and SkillChain.should_exist_edge_between_options(node, option):
+                    print(f"Adding edge from {node} to {option}")
+                    self.plan_graph.add_edge(node, option)
+
     def modify_node_connections(self, executed_option):
         self._delete_outgoing_edges_if_needed(executed_option)
         self._delete_incoming_edges_if_needed(executed_option)
