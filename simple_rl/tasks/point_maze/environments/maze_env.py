@@ -123,7 +123,7 @@ class MazeEnv(gym.Env):
               material="",
               contype="1",
               conaffinity="1",
-              rgba="0.9 0.9 0.9 1",
+              rgba="0.7 0.5 0.3 1.0",
           )
         if struct == 1:  # Unmovable block.
           # Offset all coordinates so that robot starts at the origin.
@@ -141,7 +141,7 @@ class MazeEnv(gym.Env):
               material="",
               contype="1",
               conaffinity="1",
-              rgba="0.4 0.4 0.4 1",
+              rgba="0.7 0.5 0.3 1.0",
           )
         elif maze_env_utils.can_move(struct):  # Movable block.
           # The "falling" blocks are shrunk slightly and increased in mass to
@@ -174,7 +174,7 @@ class MazeEnv(gym.Env):
               mass="0.001" if falling else "0.0002",
               contype="1",
               conaffinity="1",
-              rgba="0.9 0.1 0.1 1"
+              rgba="0.7 0.5 0.3 1.0"
           )
           if maze_env_utils.can_move_x(struct):
             ET.SubElement(

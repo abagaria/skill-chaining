@@ -31,7 +31,7 @@ class OnlineModelBasedSkillChaining(object):
         self.logging_freq = logging_freq
         self.evaluation_freq = evaluation_freq
 
-        self.mdp = D4RLAntMazeMDP("umaze", goal_state=np.array((0, 8)), seed=seed)
+        self.mdp = D4RLAntMazeMDP("large", seed=seed)
         
         self.agent = TD3(state_dim=self.mdp.state_space_size()+2,
                                     action_dim=self.mdp.action_space_size(),
@@ -41,13 +41,13 @@ class OnlineModelBasedSkillChaining(object):
                                     lr_c=lr_c, lr_a=lr_a,
                                     use_output_normalization=False)
         
-        self.target_salient_event = self.mdp.get_original_target_events()[0]
-        self.goal = self.target_salient_event.get_target_position()
+        # self.target_salient_event = self.mdp.get_original_target_events()[0]
+        self.goal = None # self.target_salient_event.get_target_position()
 
         self.log = {}
 
     def act(self, aug_state, eval_mode=False):
-        if random.random() < 0.1:
+        if not eval_mode and random.random() < 0.2:
             return self.mdp.sample_random_action()
         return self.agent.act(aug_state, evaluation_mode=eval_mode)
 
@@ -109,20 +109,7 @@ class OnlineModelBasedSkillChaining(object):
             per_episode_durations.append(step)
             self.log_status(episode, last_10_durations)
 
-            self.log_success_metrics(episode)
-
         return per_episode_durations
-
-    def log_success_metrics(self, episode):
-        if episode % self.evaluation_freq == 0:
-            success, step_count = test_agent(self, 1, self.max_steps)
-
-            self.log[episode] = {}
-            self.log[episode]["success"] = success
-            self.log[episode]["step-count"] = step_count[0]
-
-            with open(f"{self.experiment_name}/log_file_{self.seed}.pkl", "wb+") as log_file:
-                pickle.dump(self.log, log_file)
 
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
@@ -153,7 +140,7 @@ def create_log_dir(experiment_name):
         print("Successfully created the directory %s " % path)
     return path
 
-def test_agent(exp, num_experiments, num_steps):
+def test_agent(exp, num_experiments, num_steps, start, goal):
     def rollout():
         step_number = 0
         while step_number < num_steps and not exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.goal, {})[1]:
@@ -164,22 +151,25 @@ def test_agent(exp, num_experiments, num_steps):
             step_number += 1
         return step_number
         
-    success = 0
     step_counts = []
-    exp.goal = exp.target_salient_event.get_target_position()
+    success_counts = []
+    exp.goal = goal
 
     for _ in tqdm(range(num_experiments), desc="Performing test rollout"):
         exp.mdp.reset()
+        exp.mdp.set_xy(start)
         steps_taken = rollout()
-        if steps_taken != num_steps or exp.target_salient_event(exp.mdp.cur_state):
-            success += 1
+        if exp.mdp.sparse_gc_reward_function(exp.mdp.cur_state, exp.goal, {})[1]:
+            success_counts.append(1)
+        else:
+            success_counts.append(0)
         step_counts.append(steps_taken)
 
     print("*" * 80)
-    print(f"Test Rollout Success Rate: {success / num_experiments}, Duration: {np.mean(step_counts)}")
+    print(f"Test Rollout Success Rate: {sum(success_counts) / num_experiments}, Duration: {np.mean(step_counts)}")
     print("*" * 80)
 
-    return success / num_experiments, step_counts
+    return success_counts, step_counts
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -218,6 +208,14 @@ if __name__ == "__main__":
     start_time = time.time()
     durations = exp.run_loop(args.episodes, args.steps)
     end_time = time.time()
+
+    positions = pickle.load(open("large-start-goal.pkl", "rb"))
+    results = {}
+    for key in positions.keys():
+        start, goal = positions[key]['start'], positions[key]['goal']
+        success_curve, step_counts = test_agent(exp, 50, 1000, start, goal)
+        results[f"{start}, {goal}"] = {'successes': success_curve, 'durations': step_counts, 'start': start, 'goal': goal}
+        pickle.dump(results, open(f"{args.experiment_name}/log_file.pkl", "wb+"))
 
     print("TIME: ", end_time - start_time)
 

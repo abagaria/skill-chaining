@@ -15,7 +15,8 @@ from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, global_value_learner,
-                 option_idx, gamma, freeze_init_sets, target_salient_event=None, preprocessing=None):
+                 option_idx, gamma, goal_conditioning, target_salient_event=None, 
+                 preprocessing=None):
         self.mdp = mdp
         self.name = name
         self.gamma = gamma
@@ -26,7 +27,7 @@ class ModelBasedOption(object):
         self.global_init = global_init
         self.buffer_length = buffer_length
         self.preprocessing = preprocessing
-        self.freeze_init_sets = freeze_init_sets
+        self.goal_conditioning = goal_conditioning
         self.target_salient_event = target_salient_event
         self.global_value_learner = global_value_learner
 
@@ -50,22 +51,24 @@ class ModelBasedOption(object):
         self.success_curve = []
 
         self.global_value_learner = global_value_learner
-        self.solver = DQNAgent(state_size=self.mdp.state_space_size(),
-                               action_size=self.mdp.action_space_size(),
-                               device=self.device,
-                               pixel_observation=True,
-                               name=f"DQN-Agent-{option_idx}")
+        self.solver = self._get_model_free_solver()
 
-        if self.preprocessing == "orb":
-            self.orb = cv2.ORB_create(nfeatures=15, edgeThreshold=2, nlevels=1, patchSize=32)
+        print(f"Created option {self.name} with option_idx={self.option_idx}")
 
-        # TODO do we need to do this?
-        # if self.parent is not None:
-        #     self.initialize_value_function_with_global_value_function()
+    # ------------------------------------------------------------
+    # Initialization Methods
+    # ------------------------------------------------------------
 
-        print(f"Created model-based option {self.name} with option_idx={self.option_idx}")
+    def _get_model_free_solver(self):
+        if self.goal_conditioning and not self.global_init:
+            return self.global_value_learner
 
-        self.is_last_option = False
+        return DQNAgent(state_size=self.mdp.state_space_size(),
+                        action_size=self.mdp.action_space_size(),
+                        device=self.device,
+                        goal_conditioning=self.goal_conditioning,
+                        pixel_observation=True,
+                        name=f"DQN-Agent-{self.option_idx}")
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -80,9 +83,6 @@ class ModelBasedOption(object):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
         
-        if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
-            return True
-
         features = self.get_features_for_initiation_classifier(state)
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
@@ -104,16 +104,18 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
 
     def _get_epsilon(self):
-        # TODO decrease to 0
+        # TODO find some better method
         return 0.1
 
-    def act(self, state, train_mode):
+    def act(self, state, train_mode, goal=None):
         """ Epsilon-greedy action selection. """
 
         if train_mode and random.random() < self._get_epsilon():
             return self.mdp.sample_random_action()
 
-        assert isinstance(self.solver, DQNAgent), f"{type(self.solver)}"
+        if goal:
+            augmented_state = self.get_augmented_state(state, goal)
+            return self.solver.act(augmented_state, train_mode=train_mode)
         return self.solver.act(state, train_mode=train_mode)
 
     def rollout(self, step_number, eval_mode=False):
@@ -161,8 +163,7 @@ class ModelBasedOption(object):
 
         # Always be refining your initiation classifier
         if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
-            if not self.freeze_init_sets or (self.freeze_init_sets and self.num_goal_hits <= 2 * self.gestation_period):
-                self.fit_initiation_classifier()
+            self.fit_initiation_classifier()
 
         return option_transitions, total_reward
 
@@ -182,11 +183,6 @@ class ModelBasedOption(object):
             frame = state.features()[-1,10:,:]
             downsampled = cv2.resize(frame, (6,6), interpolation=cv2.INTER_AREA)
             return downsampled.flatten()
-        elif self.preprocessing == "orb": # ORB doesn't return same sized feature vectors
-            frame = state.features()[-1,10:,:]
-            kp = self.orb.detect(frame, None)
-            kp, des = self.orb.compute(frame, kp)
-            return des.flatten()
         elif self.preprocessing == "position":
             return state if isinstance(state, np.ndarray) else state.get_position()
         elif self.preprocessing == "dqn":
@@ -201,6 +197,28 @@ class ModelBasedOption(object):
     def initialize_value_function_with_global_value_function(self):
         self.solver.policy_network.load_state_dict(self.global_value_learner.policy_network.state_dict())
         self.solver.target_network.load_state_dict(self.global_value_learner.target_network.state_dict())
+
+    # ------------------------------------------------------------
+    # Goal Conditioning
+    # ------------------------------------------------------------
+
+    def get_augmented_state(self, state, goal):
+        goal_image = goal.features()[-1,:,:]
+        return np.concatenate((state.features(), goal_image), axis=0)
+
+    def is_at_local_goal(self, state, goal):
+        def is_close(pos1, pos2):
+            return abs(pos1[0] - pos2[0]) <= 5 and abs(pos1[1] - pos2[1]) <= 5
+        state_pos = state.get_position()
+        goal_pos = goal.get_position()
+        return is_close(state_pos, goal_pos)
+
+    def get_goal_for_rollout(self):
+        if not self.parent:
+            pass
+        num_positives = len(self.parent.positive_examples)
+        idx = random.randint(0, num_positives)
+        return self.parent.positive_examples[idx][0]
 
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
@@ -234,7 +252,7 @@ class ModelBasedOption(object):
             return 1.0 / (num_features * feature_matrix.var())
         return self.gamma
 
-    def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
+    def train_one_class_svm(self, nu=0.1):
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
         gamma = self.get_gamma(positive_feature_matrix)
         
@@ -255,7 +273,7 @@ class ModelBasedOption(object):
         
         gamma = self.get_gamma(X)
 
-        if negative_feature_matrix.shape[0] >= 10:  # TODO: Implement gamma="auto" for thundersvm
+        if negative_feature_matrix.shape[0] >= 10:
             kwargs = {"kernel": "rbf", "gamma": gamma, "class_weight": "balanced"}
         else:
             kwargs = {"kernel": "rbf", "gamma": gamma}

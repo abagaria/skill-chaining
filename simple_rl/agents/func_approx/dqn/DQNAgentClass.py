@@ -41,7 +41,7 @@ class DQNAgent(Agent):
 
     def __init__(self, state_size, action_size, device, name="DQN-Agent",
                  lr=LR, use_double_dqn=True, gamma=GAMMA, loss_function="huber",
-                 pixel_observation=False):
+                 goal_conditioning=False, pixel_observation=False):
         self.state_size = state_size
         self.action_size = action_size
         self.learning_rate = lr
@@ -54,8 +54,9 @@ class DQNAgent(Agent):
 
         # Q-Network
         if pixel_observation:
-            self.policy_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
-            self.target_network = ConvQNetwork(in_channels=4, n_actions=action_size).to(self.device)
+            in_channels = 5 if goal_conditioning else 4
+            self.policy_network = ConvQNetwork(in_channels=in_channels, n_actions=action_size).to(self.device)
+            self.target_network = ConvQNetwork(in_channels=in_channels, n_actions=action_size).to(self.device)
         else:
             self.policy_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)
             self.target_network = DenseQNetwork(state_size, action_size, seed, fc1_units=32, fc2_units=16).to(self.device)

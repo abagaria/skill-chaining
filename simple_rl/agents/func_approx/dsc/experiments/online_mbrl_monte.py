@@ -17,7 +17,7 @@ from simple_rl.agents.func_approx.dsc.MBOptionClassMonte import ModelBasedOption
 class OnlineModelBasedSkillChaining(object):
     def __init__(self, mdp, max_steps, gestation_period, buffer_length, clear_replay_buffer,
                  diverse_starts, experiment_name, device, evaluation_freq, seed, preprocessing,
-                 logging_frequency, svm_gamma, freeze_init_sets):
+                 logging_frequency, svm_gamma, goal_conditioning):
 
         self.device = device
         self.experiment_name = experiment_name
@@ -25,12 +25,12 @@ class OnlineModelBasedSkillChaining(object):
         self.clear_replay_buffer = clear_replay_buffer
         self.diverse_starts = diverse_starts
         self.svm_gamma = svm_gamma
-        self.freeze_init_sets = freeze_init_sets
 
         self.seed = seed
         self.evaluation_freq = evaluation_freq
         self.logging_frequency = logging_frequency
         self.preprocessing = preprocessing
+        self.goal_conditioning = goal_conditioning
 
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
@@ -214,7 +214,7 @@ class OnlineModelBasedSkillChaining(object):
                                   option_idx=option_idx,
                                   preprocessing=self.preprocessing,
                                   gamma=self.svm_gamma,
-                                  freeze_init_sets=self.freeze_init_sets)
+                                  goal_conditioning=self.goal_conditioning)
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -228,7 +228,7 @@ class OnlineModelBasedSkillChaining(object):
                                   option_idx=0,
                                   preprocessing=self.preprocessing,
                                   gamma=self.svm_gamma,
-                                  freeze_init_sets=self.freeze_init_sets)
+                                  goal_conditioning=self.goal_conditioning)
         return option
 
     def reset(self, episode):
@@ -316,9 +316,9 @@ if __name__ == "__main__":
     parser.add_argument("--logging_frequency", type=int, default=1000)
     parser.add_argument("--clear_replay_buffer", action="store_true", default=False)
     parser.add_argument("--diverse_starts", action="store_true", default=False)
-    parser.add_argument("--freeze_init_sets", action="store_true", default=False)
     parser.add_argument("--preprocessing", type=str, help="go-explore/position")
     parser.add_argument("--svm_gamma", type=str, help="auto/scale")
+    parser.add_argument("--goal_conditioning", action="store_true", default=False)
 
     args = parser.parse_args()
 
@@ -339,7 +339,7 @@ if __name__ == "__main__":
                                         diverse_starts=args.diverse_starts,
                                         preprocessing=args.preprocessing,
                                         svm_gamma=args.svm_gamma,
-                                        freeze_init_sets=args.freeze_init_sets)
+                                        goal_conditioning=args.goal_conditioning)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")

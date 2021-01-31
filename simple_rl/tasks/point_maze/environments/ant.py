@@ -136,8 +136,12 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     return self._get_obs()
 
   def viewer_setup(self):
-    self.viewer.cam.distance = self.model.stat.extent * 0.5
-
+    self.viewer.cam.distance = self.model.stat.extent * 1.5
+    self.viewer.cam.elevation = -65
+    self.viewer.cam.lookat[0] += 2       
+    self.viewer.cam.lookat[1] += 3
+    self.viewer.cam.lookat[2] += 0
+  
   def get_ori(self):
     ori = [0, 1, 0, 0]
     rot = self.physics.data.qpos[self.__class__.ORI_IND:self.__class__.ORI_IND + 4]  # take the quaternion
