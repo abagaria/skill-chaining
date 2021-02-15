@@ -149,17 +149,33 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
     plt.savefig(f"initiation_set_plots/{experiment_name}/{option.name}_initiation_distribution_{episode}.png")
     plt.close()
 
+def render_state(state, filename="monte.png"):
+    import cv2
+    cv2.imwrite(filename, state.features()[-1,:,:])
 
-def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None, option_idx=None):
+def get_states(state_buffer, goal):
+    def get_augmented_state(state, goal):
+        goal_image = np.expand_dims(goal.features()[-1,:,:], axis=0)
+        return np.concatenate((state.features(), goal_image), axis=0)
+
+    obs = [get_augmented_state(state, goal) for state in state_buffer]
+    pos = [state.position for state in state_buffer]
+    return np.array(obs), np.array(pos)
+
+def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None, state_buffer=None, option_idx=None):
     sns.set_palette(sns.color_palette("viridis"))
     replay_buffer = replay_buffer if replay_buffer is not None else solver.replay_buffer
 
     # Take out the original goal and append the new goal
-    states = [exp[0] for exp in replay_buffer]
-    states = [state[:-2] for state in states]
-    states = np.array([np.concatenate((state, goal), axis=0) for state in states])
+    if state_buffer:
+        states, pos = get_states(state_buffer, goal)
+        actions = np.zeros((len(states),))
+    else:
+        states = [exp[0] for exp in replay_buffer]
+        states = [state[:-2] for state in states]
+        states = np.array([np.concatenate((state, goal), axis=0) for state in states])
 
-    actions = np.array([exp[1] for exp in replay_buffer])
+        actions = np.array([exp[1] for exp in replay_buffer])
 
     # Chunk up the inputs so as to conserve GPU memory
     num_chunks = int(np.ceil(states.shape[0] / chunk_size))
@@ -184,14 +200,14 @@ def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, see
         qvalues[current_idx:current_idx + current_chunk_size] = chunk_qvalues
         current_idx += current_chunk_size
 
-    plt.scatter(states[:, 0], states[:, 1], c=qvalues)
+    plt.scatter(pos[:, 0], pos[:, 1], c=qvalues)
     plt.colorbar()
 
     if option_idx is None:
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}"
     else:
         file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}_option_{option_idx}"
-    plt.title(f"VF Targeting {np.round(goal, 2)}")
+    plt.title(f"VF Targeting {goal.position}")
     plt.savefig(f"value_function_plots/{experiment_name}/{file_name}.png")
     plt.close()
 
