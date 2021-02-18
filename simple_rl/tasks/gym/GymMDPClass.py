@@ -69,6 +69,21 @@ class GymMDP(MDP):
     def action_space_size(self):
         return len(self.actions)
 
+    def sparse_gc_reward_function(self, state, goal, info={}):
+        assert isinstance(state, GymState), f"{type(state)}"
+        assert isinstance(goal, GymState), f"{type(goal)}"
+
+        def is_close(pos1, pos2):
+            return abs(pos1[0] - pos2[0]) <= 5 and abs(pos1[1] - pos2[1]) <= 5
+
+        state_pos = state.get_position()
+        goal_pos = goal.get_position()
+
+        done = is_close(state_pos, goal_pos)
+        reward = +0. if done else -1.
+
+        return reward, done
+
     def _reward_func(self, state, action):
         '''
         Args:

@@ -15,14 +15,13 @@ from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MBOptionClassMonte import ModelBasedOption
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, mdp, max_steps, gestation_period, buffer_length, clear_replay_buffer,
+    def __init__(self, mdp, max_steps, gestation_period, buffer_length,
                  diverse_starts, experiment_name, device, evaluation_freq, seed, preprocessing,
-                 logging_frequency, svm_gamma, goal_conditioning):
+                 logging_frequency, svm_gamma):
 
         self.device = device
         self.experiment_name = experiment_name
         self.max_steps = max_steps
-        self.clear_replay_buffer = clear_replay_buffer
         self.diverse_starts = diverse_starts
         self.svm_gamma = svm_gamma
 
@@ -30,7 +29,6 @@ class OnlineModelBasedSkillChaining(object):
         self.evaluation_freq = evaluation_freq
         self.logging_frequency = logging_frequency
         self.preprocessing = preprocessing
-        self.goal_conditioning = goal_conditioning
 
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
@@ -159,26 +157,12 @@ class OnlineModelBasedSkillChaining(object):
             self.new_options.remove(executed_option)
             self.mature_options.append(executed_option)
 
-            if self.clear_replay_buffer:
-                executed_option.solver.replay_buffer.clear()
-                print(f"{executed_option.name} replay buffer has been cleared!")
-        
-        if self.clear_replay_buffer:
-            if executed_option.num_goal_hits % 150 == 0:
-                executed_option.solver.replay_buffer.clear()
-                print(f"{executed_option.name} replay buffer has been cleared!")
-
         if self.should_create_new_option():
             name = f"option-{len(self.mature_options)}"
             new_option = self.create_model_based_option(name, parent=self.mature_options[-1])
             print(f"Creating {name}, parent {new_option.parent}, new_options = {self.new_options}, mature_options = {self.mature_options}")
             self.new_options.append(new_option)
             self.chain.append(new_option)
-
-    def filter_replay_buffer(self, option):
-        assert isinstance(option, ModelBasedOption)
-        print(f"Clearing the replay buffer for {option.name}")
-        option.solver.replay_buffer.clear()
 
     def log_status(self, episode, last_10_durations):
         print(f"Episode {episode} \t Mean Duration: {np.mean(last_10_durations)}")
@@ -192,13 +176,15 @@ class OnlineModelBasedSkillChaining(object):
 
             """Plot value function"""
             for option in self.chain:
-                make_chunked_value_function_plot(option.solver, episode, self.seed, self.experiment_name, buffer)
+                make_chunked_goal_conditioned_value_function_plot(option.solver, option.get_goal_for_rollout(), -1,
+                                                                  self.seed, self.experiment_name, state_buffer=buffer,
+                                                                  option_idx=option.option_idx)
 
             """Plot init sets"""
             random.shuffle(buffer)
             for option in self.mature_options:
                 if self.preprocessing == "position":
-                    plot_two_class_classifier(option, episode, self.experiment_name)
+                    plot_two_class_classifier(option, -1, self.experiment_name)
                 else: 
                     monte_plot_option_init_set(self, option, buffer)
 
@@ -214,7 +200,7 @@ class OnlineModelBasedSkillChaining(object):
                                   option_idx=option_idx,
                                   preprocessing=self.preprocessing,
                                   gamma=self.svm_gamma,
-                                  goal_conditioning=self.goal_conditioning)
+                                  )
         return option
 
     def create_global_model_based_option(self):  # TODO: what should the timeout be for this option?
@@ -228,7 +214,7 @@ class OnlineModelBasedSkillChaining(object):
                                   option_idx=0,
                                   preprocessing=self.preprocessing,
                                   gamma=self.svm_gamma,
-                                  goal_conditioning=self.goal_conditioning)
+                                  )
         return option
 
     def reset(self, episode):
@@ -314,17 +300,16 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=1000)
     parser.add_argument("--evaluation_frequency", type=int, default=10)
     parser.add_argument("--logging_frequency", type=int, default=1000)
-    parser.add_argument("--clear_replay_buffer", action="store_true", default=False)
     parser.add_argument("--diverse_starts", action="store_true", default=False)
     parser.add_argument("--preprocessing", type=str, help="go-explore/position")
     parser.add_argument("--svm_gamma", type=str, help="auto/scale")
-    parser.add_argument("--goal_conditioning", action="store_true", default=False)
+    parser.add_argument("--render", action="store_true", default=False)
 
     args = parser.parse_args()
 
     assert args.svm_gamma == "auto" or args.svm_gamma == "scale"
 
-    mdp = GymMDP(env_name="MontezumaRevenge-v0", pixel_observation=True, seed=args.seed)
+    mdp = GymMDP(env_name="MontezumaRevenge-v0", pixel_observation=True, seed=args.seed, render=args.render)
 
     exp = OnlineModelBasedSkillChaining(mdp=mdp,
                                         gestation_period=args.gestation_period,
@@ -335,11 +320,9 @@ if __name__ == "__main__":
                                         logging_frequency=args.logging_frequency,
                                         buffer_length=args.buffer_length,
                                         seed=args.seed,
-                                        clear_replay_buffer=args.clear_replay_buffer,
                                         diverse_starts=args.diverse_starts,
                                         preprocessing=args.preprocessing,
-                                        svm_gamma=args.svm_gamma,
-                                        goal_conditioning=args.goal_conditioning)
+                                        svm_gamma=args.svm_gamma,)
 
     create_log_dir(args.experiment_name)
     create_log_dir(f"initiation_set_plots/{args.experiment_name}")

@@ -1,39 +1,22 @@
 import numpy as np
-import random
 import ipdb
-from collections import namedtuple, deque
-import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
-import pdb
 from copy import deepcopy
-import shutil
 import os
-import time
-import argparse
 import pickle
-from collections import defaultdict
-
 import torch.optim as optim
-
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from tensorboardX import SummaryWriter
-
 from simple_rl.agents.AgentClass import Agent
-from simple_rl.agents.func_approx.ddpg.utils import compute_gradient_norm
 from simple_rl.agents.func_approx.dqn.model import *
 from simple_rl.agents.func_approx.dqn.replay_buffer import ReplayBuffer
-from simple_rl.agents.func_approx.exploration.PseudoCountExploration import DensityModel
-from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
 
 ## Hyperparameters
 BUFFER_SIZE = int(3e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
-LR = 1e-4  # learning rate
+LR = 1e-5  # learning rate
 UPDATE_EVERY = 1  # how often to update the network
 
 class DQNAgent(Agent):
@@ -73,12 +56,11 @@ class DQNAgent(Agent):
 
         Agent.__init__(self, name, range(action_size), GAMMA)
 
-    def act(self, state, train_mode=True):
+    def act(self, state):
         """
         Interface to the DQN agent: state can be output of env.step() and returned action can be input into next step().
         Args:
             state (np.array): numpy array state from Gym env
-            train_mode (bool): if training, use the internal epsilon. If evaluating, set epsilon to min epsilon
         Returns:
             action (int): integer representing the action to take in the Gym env
         """

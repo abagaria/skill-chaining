@@ -10,12 +10,12 @@ from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
 
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
-
+from simple_rl.tasks.gym.GymStateClass import GymState as State
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, global_value_learner,
-                 option_idx, gamma, goal_conditioning, target_salient_event=None, 
+                 option_idx, gamma, target_salient_event=None,
                  preprocessing=None):
         self.mdp = mdp
         self.name = name
@@ -27,7 +27,6 @@ class ModelBasedOption(object):
         self.global_init = global_init
         self.buffer_length = buffer_length
         self.preprocessing = preprocessing
-        self.goal_conditioning = goal_conditioning
         self.target_salient_event = target_salient_event
         self.global_value_learner = global_value_learner
 
@@ -40,8 +39,8 @@ class ModelBasedOption(object):
         self.num_executions = 0
         self.gestation_period = gestation_period
 
-        self.positive_examples = []
-        self.negative_examples = []
+        self.positive_examples = deque(maxlen=100)
+        self.negative_examples = deque(maxlen=100)
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
 
@@ -60,13 +59,13 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
 
     def _get_model_free_solver(self):
-        if self.goal_conditioning and not self.global_init:
+        if not self.global_init:
             return self.global_value_learner
 
         return DQNAgent(state_size=self.mdp.state_space_size(),
                         action_size=self.mdp.action_space_size(),
                         device=self.device,
-                        goal_conditioning=self.goal_conditioning,
+                        goal_conditioning=True,
                         pixel_observation=True,
                         name=f"DQN-Agent-{self.option_idx}")
 
@@ -107,16 +106,15 @@ class ModelBasedOption(object):
         # TODO find some better method
         return 0.1
 
-    def act(self, state, train_mode, goal=None):
+    def act(self, state, train_mode, goal):
         """ Epsilon-greedy action selection. """
 
-        if train_mode and random.random() < self._get_epsilon():
+        if train_mode and (random.random() < self._get_epsilon() or goal is None):
             return self.mdp.sample_random_action()
 
-        if goal:
-            augmented_state = self.get_augmented_state(state, goal)
-            return self.solver.act(augmented_state, train_mode=train_mode)
-        return self.solver.act(state, train_mode=train_mode)
+        assert isinstance(self.solver, DQNAgent), f"{type(self.solver)}"
+        augmented_state = self.get_augmented_state(state, goal)
+        return self.solver.act(augmented_state)
 
     def rollout(self, step_number, eval_mode=False):
         """ Main option control loop. """
@@ -130,15 +128,17 @@ class ModelBasedOption(object):
         option_transitions = []
 
         state = deepcopy(self.mdp.cur_state)
+        goal = self.get_goal_for_rollout()
+        goal_position = goal.get_position() if goal is not None else None
 
-        print(f"[Step: {step_number}] Rolling out {self.name} from {self.mdp.get_player_position()}")
+        print(f"[Step: {step_number}] Rolling out {self.name} from {self.mdp.get_player_position()} -> {goal_position}")
 
         self.num_executions += 1
 
-        while not self.is_term_true(state) and step_number < self.max_steps and num_steps < self.timeout and not state.is_terminal():
+        while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout and not state.is_terminal():
 
             # Control
-            action = self.act(state, not eval_mode)
+            action = self.act(state, not eval_mode, goal=goal)
             reward, next_state = self.mdp.execute_agent_action(action)
             
             # Logging
@@ -158,8 +158,8 @@ class ModelBasedOption(object):
 
         self.derive_positive_and_negative_examples(visited_states)
 
-        if not eval_mode:
-            self.experience_replay(option_transitions)
+        if not eval_mode and goal is not None:
+            self.update_value_function(option_transitions, reached_goal=state, pursued_goal=goal)
 
         # Always be refining your initiation classifier
         if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
@@ -167,14 +167,28 @@ class ModelBasedOption(object):
 
         return option_transitions, total_reward
 
-    def experience_replay(self, trajectory):
-        for state, action, reward, next_state in trajectory:
-            done = self.is_term_true(next_state)
-            subgoal_reward = +1. if done else -1.
+    # ------------------------------------------------------------
+    # Hindsight Experience Replay
+    # ------------------------------------------------------------
 
-            self.solver.step(state.features(), action, subgoal_reward, next_state.features(), done)
-            if not self.global_init:
-                self.global_value_learner.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+    def update_value_function(self, option_transitions, reached_goal, pursued_goal):
+        """ Update the goal-conditioned option value function. """
+
+        self.experience_replay(option_transitions, pursued_goal)
+        self.experience_replay(option_transitions, reached_goal)
+
+    def experience_replay(self, trajectory, goal_state):
+        assert isinstance(goal_state, State), f"{type(goal_state)}"
+
+        for state, action, reward, next_state in trajectory:
+            augmented_state = self.get_augmented_state(state, goal=goal_state)
+            augmented_next_state = self.get_augmented_state(next_state, goal=goal_state)
+            done = self.is_at_local_goal(next_state, goal_state)
+
+            reward_func = self.overall_mdp.sparse_gc_reward_function
+            reward, _ = reward_func(next_state, goal_state, info={})
+
+            self.solver.step(augmented_state, action, reward, augmented_next_state, done)
     
     def get_features_for_initiation_classifier(self, state):
         if self.preprocessing == "None":
@@ -191,35 +205,56 @@ class ModelBasedOption(object):
             raise RuntimeError(f"{self.preprocessing} not implemented!")
 
     # ------------------------------------------------------------
-    # Hindsight Experience Replay
-    # ------------------------------------------------------------
-
-    def initialize_value_function_with_global_value_function(self):
-        self.solver.policy_network.load_state_dict(self.global_value_learner.policy_network.state_dict())
-        self.solver.target_network.load_state_dict(self.global_value_learner.target_network.state_dict())
-
-    # ------------------------------------------------------------
     # Goal Conditioning
     # ------------------------------------------------------------
 
+    def extract_goal_dimensions(self, goal):
+        goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
+        assert goal_features.shape == (4, 84, 84), f"{goal_features.shape}"
+        return goal_features[-1, ...]
+
     def get_augmented_state(self, state, goal):
-        goal_image = goal.features()[-1,:,:]
+        assert goal is not None
+
+        expand = lambda x: x[None, ...]
+        goal_image = expand(self.extract_goal_dimensions(goal))
         return np.concatenate((state.features(), goal_image), axis=0)
 
     def is_at_local_goal(self, state, goal):
-        def is_close(pos1, pos2):
-            return abs(pos1[0] - pos2[0]) <= 5 and abs(pos1[1] - pos2[1]) <= 5
-        state_pos = state.get_position()
-        goal_pos = goal.get_position()
-        return is_close(state_pos, goal_pos)
+        """ Goal-conditioned termination condition. """
+
+        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, {})[1] if goal is not None else True
+        reached_term = self.is_term_true(state) or state.is_terminal()
+        return reached_goal and reached_term
+
+    def get_first_state_in_classifier(self, trajectory):
+        """ Extract the first state in the trajectory that is inside the initiation classifier. """
+
+        for state in trajectory:
+            if self.pessimistic_is_init_true(state):
+                return state
+        return None
+
+    def sample_from_initiation_region(self):
+        """ Sample from the pessimistic initiation classifier. """
+        num_tries = 0
+        sampled_state = None
+        while sampled_state is None and num_tries < 200:
+            num_tries = num_tries + 1
+            sampled_trajectory_idx = random.choice(range(len(self.positive_examples)))
+            sampled_trajectory = self.positive_examples[sampled_trajectory_idx]
+            sampled_state = self.get_first_state_in_classifier(sampled_trajectory)
+        assert isinstance(sampled_state, State)
+        return sampled_state
 
     def get_goal_for_rollout(self):
-        if not self.parent:
-            pass
-        num_positives = len(self.parent.positive_examples)
-        idx = random.randint(0, num_positives)
-        return self.parent.positive_examples[idx][0]
-
+        if self.parent is None and self.num_goal_hits > 0:
+            return random.choice(self.positive_examples)[0]
+        if self.parent is not None:
+            sampled_goal = self.parent.sample_from_initiation_region()
+            return sampled_goal
+        assert self.num_goal_hits == 0, self.num_goal_hits
+        return None
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
     # ------------------------------------------------------------
