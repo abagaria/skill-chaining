@@ -259,10 +259,12 @@ class DeepSkillGraphAgent(object):
         return accepted, num_tries
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
-        self.dsc_agent.global_option.solver.load_data()
-        self.dsc_agent.global_option.solver.train(epochs=epochs, batch_size=batch_size)
-        for option in self.dsc_agent.get_all_options():
-            option.solver.model = self.dsc_agent.global_option.solver.model
+        self.planning_agent.mpc.load_data()
+        self.planning_agent.mpc.train(epochs=epochs, batch_size=batch_size)
+
+        if self.dsc_agent.use_model:
+            for option in self.dsc_agent.get_all_options():
+                option.solver.model = self.dsc_agent.global_option.solver.model
 
     def generate_new_salient_event(self):
         num_tries = 0
@@ -351,7 +353,7 @@ class DeepSkillGraphAgent(object):
         state = deepcopy(self.mdp.cur_state)
         action = self.mdp.sample_random_action()
         reward, next_state = self.mdp.execute_agent_action(action)
-        self.dsc_agent.global_option.update_model(state, action, reward, next_state)
+        self.planning_agent.mpc.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
         return state, action, reward, next_state
 
     def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode, current_event=None):

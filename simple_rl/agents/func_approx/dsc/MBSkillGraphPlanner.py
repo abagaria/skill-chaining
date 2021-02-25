@@ -33,13 +33,26 @@ class SkillGraphPlanner(object):
         self.experiment_name = experiment_name
         self.seed = seed
 
-        self.mpc = self.chainer.global_option.solver
+        self.mpc = self._get_mpc()
 
         assert isinstance(self.mpc, MPC)
         assert isinstance(self.chainer, ModelBasedSkillChaining)
         assert isinstance(self.mdp, GoalDirectedMDP)
 
         self.plan_graph = PlanGraph()
+
+    def _get_mpc(self):
+        if self.chainer.use_model:
+            print(f"[Model-Based Controller] Using the global-option's solver as DSG's MPC.")
+            return self.chainer.global_option.solver
+
+        print(f"[Model-Free Controller] Creating a MPC for DSG.")
+        return MPC(mdp=self.mdp,
+                   state_size=self.mdp.state_space_size(),
+                   action_size=self.mdp.action_space_size(),
+                   dense_reward=self.chainer.global_option.dense_reward,
+                   device=self.chainer.device,
+                   multithread=self.chainer.global_option.multithread_mpc)
 
     # -----------------------------–––––––--------------
     # Control loop methods
