@@ -298,7 +298,7 @@ class ModelBasedOption(object):
         reached_parent = self.is_term_true(state)
         self.success_curve.append(reached_parent)
 
-        if reached_parent:
+        if reached_parent and not self.global_init:
             print(f"****** {self.name} execution successful ******")
             self.effect_set.append(state.features())
 

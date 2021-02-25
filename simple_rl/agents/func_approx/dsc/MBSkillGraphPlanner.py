@@ -285,12 +285,10 @@ class SkillGraphPlanner(object):
                                               goal=goal_salient_event.get_target_position(),
                                               max_steps=mpc_steps)
 
+        print("Checking if MPC revision needs to be rejected")
         reject = self.should_reject_mpc_revision(state, goal_salient_event)
 
-        visualize_mpc_rollout_and_graph_result(self, goal_salient_event.get_target_position(),
-                                               state_before_rollout, state, steps_taken, episode,
-                                               reject, self.experiment_name, True)
-
+        print("Returning from model-based extrapolation")
         if reject:
             if goal_salient_event in self.mdp.all_salient_events_ever:
                 self.mdp.all_salient_events_ever.remove(goal_salient_event)
@@ -587,8 +585,8 @@ class SkillGraphPlanner(object):
         if chain.should_complete_chain(newly_created_option):
             chain.set_chain_completed()
 
-        if chain.is_chain_completed():
-            visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
+        # if chain.is_chain_completed():
+        #     visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
 
     # -----------------------------–––––––--------------
     # Utility Functions
