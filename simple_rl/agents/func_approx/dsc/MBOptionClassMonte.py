@@ -39,8 +39,9 @@ class ModelBasedOption(object):
         self.num_executions = 0
         self.gestation_period = gestation_period
 
-        self.positive_examples = deque(maxlen=100)
-        self.negative_examples = deque(maxlen=100)
+        self.effect_set = deque(maxlen=100)
+        self.positive_examples = deque(maxlen=20)
+        self.negative_examples = deque(maxlen=60)
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
 
@@ -153,8 +154,9 @@ class ModelBasedOption(object):
         self.success_curve.append(self.is_term_true(state))
 
         if self.is_term_true(state):
-            print(f"{self.name} reached termination condition!")
+            print(f"{self.name} reached termination condition at position {state.get_position()}")
             self.num_goal_hits += 1
+            self.effect_set.append(state)
 
         self.derive_positive_and_negative_examples(visited_states)
 
@@ -191,12 +193,20 @@ class ModelBasedOption(object):
             self.solver.step(augmented_state, action, reward, augmented_next_state, done)
     
     def get_features_for_initiation_classifier(self, state):
+        def downsample(image):
+            return cv2.resize(image, (6, 6), interpolation=cv2.INTER_AREA)
+
         if self.preprocessing == "None":
             return state.features()[-1,:,:].flatten()
         elif self.preprocessing == "go-explore": # TODO scale range from 0-255 to 0-8?
             frame = state.features()[-1,10:,:]
-            downsampled = cv2.resize(frame, (6,6), interpolation=cv2.INTER_AREA)
+            downsampled = downsample(frame)
             return downsampled.flatten()
+        elif self.preprocessing == "go-explore-seq":
+            frames = state.features()
+            assert frames.shape[0] == 4, f"{frames.shape}"
+            downsampled_frames = np.array([downsample(frame).flatten() for frame in frames])
+            return downsampled_frames.flatten()
         elif self.preprocessing == "position":
             return state if isinstance(state, np.ndarray) else state.get_position()
         elif self.preprocessing == "dqn":
@@ -249,7 +259,7 @@ class ModelBasedOption(object):
 
     def get_goal_for_rollout(self):
         if self.parent is None and self.num_goal_hits > 0:
-            return random.choice(self.positive_examples)[0]
+            return random.choice(self.effect_set)
         if self.parent is not None:
             sampled_goal = self.parent.sample_from_initiation_region()
             return sampled_goal

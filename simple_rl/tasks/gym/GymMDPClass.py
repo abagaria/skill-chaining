@@ -60,6 +60,9 @@ class GymMDP(MDP):
     def falling(self, state):
         return int(self.getByte(state.ram, 'd8')) != 0
 
+    def is_skull_moving(self, state):
+        return int(self.getByte(state.ram, 'c3')) != 0
+
     def is_action_space_discrete(self):
         return hasattr(self.env.action_space, 'n')
 
@@ -69,12 +72,12 @@ class GymMDP(MDP):
     def action_space_size(self):
         return len(self.actions)
 
-    def sparse_gc_reward_function(self, state, goal, info={}):
+    def sparse_gc_reward_function(self, state, goal, info={}, tol=2):
         assert isinstance(state, GymState), f"{type(state)}"
         assert isinstance(goal, GymState), f"{type(goal)}"
 
         def is_close(pos1, pos2):
-            return abs(pos1[0] - pos2[0]) <= 5 and abs(pos1[1] - pos2[1]) <= 5
+            return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
 
         state_pos = state.get_position()
         goal_pos = goal.get_position()
@@ -131,8 +134,11 @@ class GymMDP(MDP):
 
     def reset(self):
         self.env.reset()
-        for _ in range(4): 
+        self.remove_skull()
+
+        for _ in range(4):
             obs, _, _, _ = self.env.step(0) # no-op to get agent onto ground
+
         ram = self.env.env.ale.getRAM()
         self.init_state = GymState(image=obs, position=self.get_player_position(), ram=ram, is_terminal=False)
         super(GymMDP, self).reset()
@@ -170,21 +176,35 @@ class GymMDP(MDP):
         state_ref = self.env.env.ale.cloneState()
         state = self.env.env.ale.encodeState(state_ref)
         self.env.env.ale.deleteState(state_ref)
-        
+
         state[331] = x
         state[335] = y
-        
+
         new_state_ref = self.env.env.ale.decodeState(state)
         self.env.env.ale.restoreState(new_state_ref)
         self.env.env.ale.deleteState(new_state_ref)
         self.execute_agent_action(0) # NO-OP action to update the RAM state
-    
+
+    def remove_skull(self):
+        print("Setting skull position")
+        state_ref = self.env.env.ale.cloneState()
+        state = self.env.env.ale.encodeState(state_ref)
+        self.env.env.ale.deleteState(state_ref)
+        
+        state[431] = 1
+        state[351] = 40
+
+        new_state_ref = self.env.env.ale.decodeState(state)
+        self.env.env.ale.restoreState(new_state_ref)
+        self.env.env.ale.deleteState(new_state_ref)
+        self.execute_agent_action(0) # NO-OP action to update the RAM state
+
     def saveImage(self, path):
         cv2.imwrite(f"{path}.png", self.cur_state.image[-1,:,:])
 
     def is_primitive_action(self, action):
         return action in self.actions
-    
+
     def sample_random_action(self):
         return random.choice(self.actions)
 
