@@ -83,7 +83,7 @@ class GymMDP(MDP):
         goal_pos = goal.get_position()
 
         done = is_close(state_pos, goal_pos)
-        reward = +0. if done else -1.
+        reward = +1. if done else 0.
 
         return reward, done
 
