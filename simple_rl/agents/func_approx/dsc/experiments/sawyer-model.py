@@ -13,7 +13,7 @@ def generate_data(mdp, epochs, num_positions, num_steps=1000, puck_interactions=
     states_p = []
     rewards = []
     for i in range(num_positions):
-        start_state = mdp.sample_state() if not puck_interactions else sample_arm_puck_touching_state(mdp)
+        start_state = mdp.sample_random_state() if not puck_interactions else sample_arm_puck_touching_state(mdp)
         print(f"[{i + 1}/{num_positions}] Generating validation data for {start_state}")
         for episode in range(epochs):
             mdp.reset_to_start_state(start_state)
@@ -49,7 +49,7 @@ def valid_puck_state(state):
 
 def sample_arm_puck_touching_state(mdp):
     while True:
-        state = mdp.sample_state()
+        state = mdp.sample_random_state()
         if is_touching(state):
             return state
 
@@ -81,7 +81,7 @@ def test(starts, goals, num_steps=1000):
         action = []
         mdp.set_goal(goal)
         for step in range(num_steps):
-            a = mpc.act(mdp.cur_state, goal, num_rollouts=20000, num_steps=10)
+            a = mpc.act(mdp.cur_state, goal)
             r,_ = mdp.execute_agent_action(a)
             reward.append(r)
             action.append(a)
@@ -155,16 +155,17 @@ def sample_complex_puck_start_goal_states(mdp):
         return low_hand_x <= hand_pos[0] <= high_hand_x and low_hand_y <= hand_pos[1] <= high_hand_y
 
     while True:
-        start, goal = mdp.sample_valid_goal(), mdp.sample_valid_goal()
+        start = mdp.sample_valid_goal()
+        goal = mdp.sample_valid_goal()
         puck_start = start[3:]
         puck_goal = goal[3:]
-        if np.linalg.norm(puck_start - puck_goal) < 0.4:
+        if np.linalg.norm(puck_start - puck_goal) < 0.15:
             continue
         puck_diff = scale(puck_start - puck_goal, .14)
         hand_start = puck_start + puck_diff
         if valid_arm_start(hand_start):
             start[:2] = hand_start
-            return start, goal
+            return start
 
 
 def calculate_puck_rewards(trajs, goals):
@@ -226,13 +227,13 @@ if __name__ == "__main__":
         val_rand_a, val_rand_b, val_rand_c, _ = generate_data(mdp, 1, 200, num_steps=200, puck_interactions=False)
         random_error = mpc.compute_validation_error(val_rand_a, val_rand_b, val_rand_c)
         plot_validation_error(random_error, 'validation_random_error.png')
-        plot_validation_error(random_error[:5], 'validation_random_error_truncated.png')
+        plot_validation_error(random_error[:15], 'validation_random_error_truncated.png')
         val_puck_a, val_puck_b, val_puck_c, _ = generate_data(mdp, 1, 200, num_steps=200, puck_interactions=True)
         puck_error = mpc.compute_validation_error(val_puck_a, val_puck_b, val_puck_c)
         plot_validation_error(puck_error, 'validation_puck_error.png')
-        plot_validation_error(puck_error[:5], 'validation_puck_error_truncated.png')
+        plot_validation_error(puck_error[:12], 'validation_puck_error_truncated.png')
 
-        # Test MPC trajectories
+                # Test MPC trajectories
         if GOAL_TYPE == 'hand_and_puck':
             goals, starts = [], []
             for _ in range(NUM_TRAJS):
@@ -243,6 +244,9 @@ if __name__ == "__main__":
             goals = [mdp.sample_valid_goal() for _ in range(NUM_TRAJS)]
             starts = [mdp.sample_valid_goal() for _ in range(NUM_TRAJS)]
 
+        mdp.reset()
+        goals = [mdp.goal_state for _ in range(NUM_TRAJS)]
+        starts = [mdp.cur_state.features() for _ in range(NUM_TRAJS)]
         trajs, rewards, actions = test(starts, goals, num_steps=200)
         puck_rewards = calculate_puck_rewards(trajs, goals)
         plot_traj_rewards(puck_rewards)

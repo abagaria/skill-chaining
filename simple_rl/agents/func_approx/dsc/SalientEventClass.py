@@ -6,7 +6,7 @@ import ipdb
 
 
 class SalientEvent(object):
-    def __init__(self, target_state, event_idx, tolerance=0.6, intersection_event=False, is_init_event=False):
+    def __init__(self, target_state, event_idx, tolerance=0.06, intersection_event=False, is_init_event=False):
         self.target_state = target_state
         self.event_idx = event_idx
         self.tolerance = tolerance
@@ -126,15 +126,16 @@ class SalientEvent(object):
         return distances.max()
 
     def is_init_true(self, state):
-        position = self._get_position(state)
-        target_position = self._get_position(self.target_state)
-        dist = np.linalg.norm(position - target_position)
+        puck_pos = self._get_position(state)[3:]
+        target_puck_pos = self._get_position(self.target_state)[3:]
+        dist = np.linalg.norm(puck_pos - target_puck_pos)
         return np.round(dist, 8) <= self.tolerance
 
     def batched_is_init_true(self, position_matrix):
         assert isinstance(position_matrix, np.ndarray), type(position_matrix)
         goal_position = self._get_position(self.target_state)
         distances = distance.cdist(position_matrix, goal_position[None, :])
+        ipdb.set_trace()
         in_goal_position = np.round(distances, 8) <= self.tolerance
         return in_goal_position.squeeze(1)
 
@@ -143,7 +144,7 @@ class SalientEvent(object):
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
+        position = state.features() if isinstance(state, State) else state
         assert isinstance(position, np.ndarray), type(position)
         return position
 

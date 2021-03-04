@@ -19,7 +19,7 @@ import ipdb
 class MPC:
     def __init__(self, mdp, state_size, action_size, dense_reward, device, multithread=False):
         assert isinstance(mdp, GoalDirectedMDP)
-
+        self.name = "mpc"
         self.mdp = mdp
         self.device = device
         self.state_size = state_size
@@ -46,7 +46,7 @@ class MPC:
         self.cost_log_counter = 0
 
     def load_data(self):
-        self.train_data = self._preprocess_data()
+        self.dataset = self._preprocess_data()
         self.model.set_standardization_vars(*self._get_standardization_vars())
 
     def train(self, epochs=100, batch_size=512):
@@ -72,7 +72,7 @@ class MPC:
         s = deepcopy(mdp.cur_state)
 
         while not mdp.sparse_gc_reward_function(s, goal, {})[1]:
-            action = self.act(s, goal, num_rollouts, num_steps)
+            action = self.act(s, goal, num_rollouts=num_rollouts, num_steps=num_steps)
         
             # execute action in mdp
             mdp.execute_agent_action(action)
@@ -93,7 +93,7 @@ class MPC:
         trajectory = [s]
 
         while not mdp.sparse_gc_reward_function(s, goal, {})[1]:
-            action = self.act(s, goal, num_rollouts, num_steps)
+            action = self.act(s, goal, num_rollouts=num_rollouts, num_steps=num_steps)
         
             # execute action in mdp
             mdp.execute_agent_action(action)
@@ -113,16 +113,12 @@ class MPC:
         if vf is None:
             return np.zeros((final_states.shape[0], ))
 
-        goal = goal[:2]
-
         assert isinstance(goal, np.ndarray), f"{type(goal)}"
-        assert goal.shape == (2,), f"Expected shape (2,), got {goal.shape}"
 
         # Repeat the same goal `num_rollouts` number of times
         num_rollouts = final_states.shape[0]
         goals = np.repeat([goal], num_rollouts, axis=0)
 
-        assert goals.shape == (num_rollouts, 2), f"{goals.shape}"
         assert final_states.shape[0] == goals.shape[0], "Need a goal for each state"
 
         # Query the option value function and discount it appropriately
@@ -144,7 +140,7 @@ class MPC:
         costs = -1. * rewards
         return costs
 
-    def simulate(self, s, goal, num_rollouts=14000, num_steps=7):
+    def simulate(self, s, goal, num_rollouts, num_steps):
         """ Perform N simulations of length H. """
         torch_actions = 2 * torch.rand((num_rollouts, num_steps, self.action_size), device=self.device) - 1
         torch_states = torch.tensor(s.features(), device=self.device).repeat(num_rollouts, 1)
@@ -160,7 +156,7 @@ class MPC:
 
                 prediction = self.model.predict_next_state(torch_states.float(), actions.float())
                 torch_states = prediction
-                pred[:,:,j] = prediction
+                pred[:, :, j] = prediction
 
             np_pred = pred.cpu().numpy()
             for j in range(num_steps):
@@ -169,7 +165,7 @@ class MPC:
             np_actions = torch_actions.cpu().numpy()
         return np_pred[:, :, num_steps - 1], np_actions, costs
 
-    def act(self, s, goal, vf=None, num_rollouts=14000, num_steps=7):
+    def act(self, s, goal, num_rollouts=14000, num_steps=7, vf=None):
         # sample actions for all steps
         final_states, actions, costs = self.simulate(s, goal, num_rollouts, num_steps)
 
@@ -180,8 +176,8 @@ class MPC:
         if vf is not None:
             cumulative_costs = self._add_terminal_costs(cumulative_costs, final_states, goal, num_steps, vf)
 
-        index = np.argmin(cumulative_costs) # retrieve action with least trajectory distance to goal
-        action = actions[index, 0, :] # grab action corresponding to least distance
+        index = np.argmin(cumulative_costs)  # retrieve action with least trajectory distance to goal
+        action = actions[index, 0, :]  # grab action corresponding to least distance
         return action
 
     def _add_terminal_costs(self, n_step_costs, final_states, goal, num_steps, vf):

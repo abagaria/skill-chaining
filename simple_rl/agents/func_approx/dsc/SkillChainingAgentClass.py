@@ -1012,7 +1012,7 @@ if __name__ == '__main__':
 	parser.add_argument("--use_warmup_phase", action="store_true", default=False)
 
 	args = parser.parse_args()
-
+	ipdb.set_trace()
 	if args.env == "point-reacher":
 		from simple_rl.tasks.point_reacher.PointReacherMDPClass import PointReacherMDP
 		overall_mdp = PointReacherMDP(seed=args.seed, dense_reward=args.dense_reward, render=args.render)

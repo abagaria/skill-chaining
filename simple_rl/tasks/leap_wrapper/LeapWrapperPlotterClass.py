@@ -21,9 +21,8 @@ class LeapWrapperPlotter(MDPPlotter):
         # arm starts with an initial z position of 0.12, but it goes to 0.07 very quickly.
         # As a result, Reacher might have to slightly adjust the x and y position to drop
         # the z position.
-        self.true_hand_start = (-0.007, 0.52)
-        self.effective_hand_start = (0.032, 0.409)
-        self.puck_start = (0., 0.6)
+        self.true_hand_start = mdp.env.init_hand_xyz[:2]
+        self.puck_start = mdp.env.init_puck_xy
         self.puck_goal = mdp.goal_state[3:]
 
         # bounds of possible endeff positions (smaller than possible puck positions)
@@ -33,8 +32,8 @@ class LeapWrapperPlotter(MDPPlotter):
 
         # Tolerance of being within goal state or salient events. This is used to plot the
         # radius of the goal and salient events
-        self.goal_tolerance = mdp.salient_tolerance
-        self.salient_tolerance = mdp.salient_tolerance
+        self.goal_tolerance = mdp.goal_tolerance
+        self.salient_tolerance = mdp.goal_tolerance
         self.puck_radius = mdp.env.puck_radius
 
         # only plot the overall mdp goal state if the task is not goal agnostic
@@ -51,7 +50,7 @@ class LeapWrapperPlotter(MDPPlotter):
         # Used to plot pcolormesh for value function and initiation set plots. This is costly
         # to compute, so do it once when initializing the plotter.
         self.puck_positions_to_plot = [(-0.14, 0.7), (-0.1, 0.6), (0, 0.75), (-0.14, 0.5), (0.05, 0.6), (0, 0.45)]
-        self.center_points, self.grid_boundaries = self._get_endeff_puck_grids()
+        self.center_points, self.grid_boundaries = self._get_endeff_puck_grids(step=0.05)
         self.arrow_points, self.arrow_mesh = self._get_arrow_points()
 
         # used when calculating average of value function when grouping by puck pos or endeff pos
@@ -171,7 +170,7 @@ class LeapWrapperPlotter(MDPPlotter):
 
             # get policy data from option solver
             arrow_points = self.arrow_points[i]
-            vectors = np.array([option.solver.act(arrow, evaluation_mode=True) for arrow in arrow_points])
+            vectors = np.array([option.solver.act(arrow) for arrow in arrow_points])
 
             # plot quiver diagram
             ax.quiver(self.arrow_mesh[0], self.arrow_mesh[1], vectors[:, 0], vectors[:, 1], headlength=4, headwidth=2.6)
@@ -190,33 +189,32 @@ class LeapWrapperPlotter(MDPPlotter):
         meshes = [np.meshgrid(arm_x, arm_y, arm_z, puck_x, puck_y) for (puck_x, puck_y) in self.puck_positions_to_plot]
         return [np.column_stack(list(map(np.ravel, mesh))) for mesh in meshes], np.array(meshes[0])
 
-    def get_value_function_values(self, solver):
+    def get_value_function_values(self, option, value_learner):
         CHUNK_SIZE = 250
+        num_chunks = int(np.ceil(self.center_points.shape[0] / CHUNK_SIZE))
+
+        #
+        goal = option.get_goal_for_rollout()[3:]
+        goals = np.broadcast_to(goal, (self.center_points.shape[0], 2))
+        augmented_states = np.concatenate((self.center_points, goals), 1)
 
         # Chunk up the inputs so as to conserve GPU memory
-        num_chunks = int(np.ceil(self.center_points.shape[0] / CHUNK_SIZE))
-        state_chunks = np.array_split(self.center_points, num_chunks, axis=0)
+        state_chunks = np.array_split(augmented_states, num_chunks, axis=0)
         values = np.zeros((self.center_points.shape[0],))
         current_idx = 0
-        actions = [[-1.0, 0.], [1.0, 0.], [0., -1.0], [0., 1.0]]
 
         # get values for each state
         for chunk_number, state_chunk in enumerate(state_chunks):
-            # To get from Q(s, a) to V(s), we take the argmax across actions. This is a continuous
-            # state space, so we are just taking the argmax across going left, right, up, or down.
             current_chunk_size = len(state_chunk)
-            repeated_states = np.repeat(state_chunk, len(actions), axis=0)
-            repeated_actions = np.tile(actions, (current_chunk_size, 1))
-            state_chunk = torch.from_numpy(repeated_states).float().to(solver.device)
-            action_chunk = torch.from_numpy(repeated_actions).float().to(solver.device)
+            torch_state_chunk = torch.from_numpy(state_chunk).float().to(value_learner.device)
+            value_chunk = np.squeeze(value_learner.get_values(state_chunk))
             # argmax across actions
-            chunk_values = np.amax(solver.get_qvalues(state_chunk, action_chunk).cpu().numpy().squeeze(1).reshape(-1, 4), axis=1)
-            values[current_idx:current_idx + current_chunk_size] = chunk_values
+            values[current_idx:current_idx + current_chunk_size] = value_chunk
             current_idx += current_chunk_size
 
         return values
 
-    def _plot_value_function(self, option, seed, episode):
+    def _plot_value_function(self, option, seed, episode, value_learner):
         """
         It is difficult to plot our state space because it is 5-D. This method
         makes two separate graphs to plot value function: one for puck position and
@@ -233,7 +231,7 @@ class LeapWrapperPlotter(MDPPlotter):
         """
         print(f"Plotting {option.name} value function")
         solver = option.solver
-        v = self.get_value_function_values(solver)
+        v = self.get_value_function_values(option, value_learner)
         endeff_z = self._average_groupby_puck_or_endeff_pos("endeff", v)
         puck_z = self._average_groupby_puck_or_endeff_pos("puck", v)
         vmin = min(np.amin(endeff_z), np.amin(puck_z))
@@ -260,11 +258,16 @@ class LeapWrapperPlotter(MDPPlotter):
         ax2.set_ylabel(self.axis_labels[4], size=14)
         self._plot_sawyer_features(ax2, option=option)
 
-        file_name = f"{solver.name}_value_function_seed_{seed}_episode_{episode}.png"
+        file_name = f"{option.name}_value_function_seed_{seed}_episode_{episode}.png"
         plt.savefig(os.path.join(self.path, "value_function_plots", file_name))
         plt.close()
 
     def _plot_initiation_sets(self, option, episode):
+        print(f"Plotting {option.name} initiation set")
+        self._plot_initiation_set(option, episode, "optimistic")
+        self._plot_initiation_set(option, episode, "pessimistic")
+
+    def _plot_initiation_set(self, option, episode, classifier_type):
         def _plot_trajectories(ax, title, x_idx, y_idx):
             positive_trajectories = option.positive_examples
             negative_trajectories = option.negative_examples
@@ -294,10 +297,13 @@ class LeapWrapperPlotter(MDPPlotter):
             ax.set_xlabel(x_label, size=14)
             ax.set_ylabel(y_label, size=14)
 
-        print(f"Plotting {option.name} initiation set")
+        if classifier_type == 'optimistic':
+            boolean_mesh = np.array([option.is_init_true(p) for p in self.center_points])
+        elif classifier_type == 'pessimistic':
+            boolean_mesh = option.pessimistic_classifier.decision_function(self.center_points) > 0
+        else:
+            raise NotImplementedError
 
-        # indices for end effector and puck
-        boolean_mesh = option.batched_is_init_true(self.center_points)
         endeff_inits = self._average_groupby_puck_or_endeff_pos("endeff", boolean_mesh)
         puck_inits = self._average_groupby_puck_or_endeff_pos("puck", boolean_mesh)
 
@@ -323,9 +329,10 @@ class LeapWrapperPlotter(MDPPlotter):
         self._add_legend(axs[1, 1], option)
 
         # save plot as png
-        file_name = f"{option.name}_episode_{episode}_{option.seed}.png"
+        file_name = f"{option.name}_{classifier_type}_episode_{episode}_{option.seed}.png"
         plt.savefig(os.path.join(self.path, "initiation_set_plots", file_name))
         plt.close()
+
 
     def _setup_plot(self, shape):
         GRAPH_WIDTH = 6
@@ -368,11 +375,11 @@ class LeapWrapperPlotter(MDPPlotter):
             ax.add_patch(puck_goal)
 
         # plot salient event that this option is targeting
-        if option is not None and option.target_salient_event is not None:
-            target_puck_pos = option.target_salient_event.get_target_position()
-            salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, alpha=0.3,
-                                       color=self.target_salient_event_color, label="target salient event")
-            ax.add_patch(salient_event)
+        # if option is not None and option.target_salient_event is not None:
+        #     target_puck_pos = option.target_salient_event.get_target_position()
+        #     salient_event = plt.Circle(target_puck_pos, self.salient_tolerance, alpha=0.3,
+        #                                color=self.target_salient_event_color, label="target salient event")
+        #     ax.add_patch(salient_event)
 
         if puck_pos is not None:
             puck = plt.Circle(puck_pos, self.puck_radius, alpha=0.3,
@@ -380,7 +387,6 @@ class LeapWrapperPlotter(MDPPlotter):
             ax.add_patch(puck)
 
         # plot the puck and endeff starting positions.
-        ax.scatter(self.effective_hand_start[0], self.effective_hand_start[1], color="k", label="effective endeff start", marker="x", s=180)
         ax.scatter(self.true_hand_start[0], self.true_hand_start[1], color="k", label="true endeff start", marker="+", s=180)
         ax.scatter(self.puck_start[0], self.puck_start[1], color="k", label="puck start", marker="*", s=400)
 
@@ -401,20 +407,18 @@ class LeapWrapperPlotter(MDPPlotter):
         """
         puck_start_marker = Line2D([], [], marker="*", linestyle="none", color="k",
                                    markersize=12, label="puck start")
-        effective_endeff_start_marker = Line2D([], [], marker="x", linestyle="none", color="k",
-                                               markersize=12, label="effective end effector start")
         true_endeff_start_marker = Line2D([], [], marker="+", linestyle="none", color="k",
                                           markersize=12, label="true end effector start")
-        handles = [puck_start_marker, effective_endeff_start_marker, true_endeff_start_marker]
+        handles = [puck_start_marker, true_endeff_start_marker]
 
         if not self.task_agnostic:
             puck_goal_marker = Line2D([], [], marker="o", linestyle="none", color=self.goal_color,
                                       markersize=12, label="puck goal")
             handles.append(puck_goal_marker)
-        if option is not None and option.target_salient_event is not None:
-            target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
-                                           markersize=12, color=self.target_salient_event_color)
-            handles.append(target_salient_marker)
+        # if option is not None and option.target_salient_event is not None:
+        #     target_salient_marker = Line2D([], [], marker="o", linestyle="none", label="target salient event",
+        #                                    markersize=12, color=self.target_salient_event_color)
+        #     handles.append(target_salient_marker)
 
         if include_puck:
             puck_marker = Line2D([], [], marker="o", linestyle="none", label="puck",

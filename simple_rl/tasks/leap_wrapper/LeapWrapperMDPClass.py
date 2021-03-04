@@ -8,7 +8,7 @@ import numpy as np
 import gym
 import multiworld
 from copy import deepcopy
-
+from simple_rl.mdp import State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.leap_wrapper.LeapWrapperStateClass import LeapWrapperState
 
@@ -23,11 +23,18 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.goal_tolerance = 0.06
         self.touch_threshold = 0.1
         self.orientation_threshold = 0.03
+        self.test_init_state = [0, 0.4, 0.07, 0, 0.6]
+        # init_state = [0, 0.4, 0.07, 0, 0.6]
 
         # Configure env
         multiworld.register_all_envs()
-        self.env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type=goal_type, dense_reward=dense_reward,
-                            goal_tolerance=self.goal_tolerance, task_agnostic=task_agnostic)
+        self.env = gym.make('SawyerPushAndReachArenaEnv-v0',
+                            goal_type=goal_type,
+                            dense_reward=dense_reward,
+                            goal_tolerance=self.goal_tolerance,
+                            task_agnostic=task_agnostic,
+                            init_hand_xyz=self.test_init_state[:3],
+                            init_puck_xy=self.test_init_state[3:])
         self.goal_state = self.env.get_goal()['state_desired_goal']
 
         # Sets the initial state
@@ -69,10 +76,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
         assert isinstance(action, np.ndarray), type(action)
         next_state_dict = self.env.step(action)
         self.next_state = self._get_state(next_state_dict)
+        if self._puck_outside_table(self.next_state[3:]):
+            return -100
         if self.dense_reward:
-            reward = self.dense_gc_reward_function(self.next_state, self.goal_state)
+            reward, done = self.dense_gc_reward_function(self.next_state, self.goal_state)
         else:
-            raise NotImplementedError
+            reward, done = self.sparse_gc_reward_function(self.next_state, self.goal_state)
         return reward
 
     def _transition_func(self, state, action):
@@ -81,11 +90,15 @@ class LeapWrapperMDP(GoalDirectedMDP):
 
     def _get_state(self, np_state):
         """ Convert observation dict from gym into a State object. """
-        done = self.is_goal_state(np_state)
         endeff_pos = np_state[:3]
         puck_pos = np_state[3:]
+        done = self.is_goal_state(np_state) or self._puck_outside_table(puck_pos)
         state = LeapWrapperState(endeff_pos, puck_pos, done)
         return state
+
+    def _puck_outside_table(self, puck_pos):
+        on_table = np.less(self.env.puck_low, puck_pos).all() and np.less(puck_pos, self.env.puck_high).all()
+        return not on_table
 
     def execute_agent_action(self, action, option_idx=None):
         reward, next_state = super(LeapWrapperMDP, self).execute_agent_action(action)
@@ -100,7 +113,7 @@ class LeapWrapperMDP(GoalDirectedMDP):
             return False
         if isinstance(state, LeapWrapperState):
             return state.is_terminal()
-        return self.distance_to_goal(state, self.goal_state) < self.goal_tolerance
+        return self.sparse_gc_reward_function(state, self.goal_state)[1]
 
     @staticmethod
     def state_space_size():
@@ -113,6 +126,13 @@ class LeapWrapperMDP(GoalDirectedMDP):
     @staticmethod
     def is_primitive_action(action):
         return -1. <= action.all() <= 1.
+
+    @ staticmethod
+    def get_position(state):
+        if state is not None:
+            position = state.features() if isinstance(state, State) else state
+            return position
+        return None
 
     def reset(self):
         init_state_array = self.env.reset()
@@ -131,12 +151,12 @@ class LeapWrapperMDP(GoalDirectedMDP):
         self.init_state = self._get_state(obs)
         super(LeapWrapperMDP, self).reset()
 
-    def sample_state(self):
+    def sample_random_state(self):
         return np.random.uniform(self.env.goal_low, self.env.goal_high)
 
     def sample_valid_goal(self):
         while True:
-            goal = self.sample_state()
+            goal = self.sample_random_state()
             hand_goal_xy = goal[:2]
             puck_goal_xy = goal[3:]
             dist = np.linalg.norm(hand_goal_xy - puck_goal_xy)
@@ -149,29 +169,46 @@ class LeapWrapperMDP(GoalDirectedMDP):
     def get_high_lims(self):
         return self.env.goal_high
 
-    def distance_to_goal(self, state, goal):
+    def distance_to_goal(self, state, goal, distance_type):
         np_state = np.array(state)
         np_goal = np.array(goal)
         curr_arm_pos = np_state[:2]
         curr_puck_pos = np_state[3:]
         goal_arm_pos = np_goal[:2]
         goal_puck_pos = np_goal[3:]
-        if self.goal_type == 'puck':
+        if distance_type == 'puck':
             return np.linalg.norm(curr_puck_pos - goal_puck_pos)
-        elif self.goal_type == 'hand':
-            return np.linalg.norm(curr_arm_pos - goal_arm_pos)
-        elif self.goal_type == 'hand_and_puck':
+        elif distance_type == 'hand':
+            distance = np.linalg.norm(curr_arm_pos - goal_arm_pos)
+            done = distance <= self.goal_tolerance
+            return distance, done
+        elif distance_type == 'hand_and_puck':
             touch_distance = np.linalg.norm(curr_puck_pos - curr_arm_pos)
             puck_distance = np.linalg.norm(curr_puck_pos - goal_puck_pos)
-            if puck_distance > self.goal_tolerance:
-                return puck_distance + touch_distance
-            return 0
+            return puck_distance + touch_distance
         else:
             raise NotImplementedError
 
-    def dense_gc_reward_function(self, state, goal):
-        distance = self.distance_to_goal(state, goal)
-        return -distance if distance > self.goal_tolerance else 0
+    def sparse_gc_reward_function(self, state, goal, info=None):
+        if self.goal_type == 'puck' or self.goal_type == 'hand_and_puck':
+            done = self.distance_to_goal(state, goal, 'puck') <= self.goal_tolerance
+            reward = 0 if done else -1
+            return reward, done
+        else:
+            raise NotImplementedError
+
+    def dense_gc_reward_function(self, state, goal, info=None):
+        if self.goal_type == 'puck':
+            distance = self.distance_to_goal(state, goal, 'puck')
+            done = distance <= self.goal_tolerance
+            reward = -distance if not done else 0
+        elif self.goal_type == 'hand_and_puck':
+            distance = self.distance_to_goal(state, goal, 'hand_and_puck')
+            done = self.distance_to_goal(state, goal, 'puck') <= self.goal_tolerance
+            reward = -distance if not done else 0
+        else:
+            raise NotImplementedError
+        return reward, done
 
     def batched_dense_gc_reward_function(self, states, goals):
         assert states.shape == goals.shape
@@ -198,9 +235,20 @@ class LeapWrapperMDP(GoalDirectedMDP):
         rewards[dones == 1] = 0.
         return rewards, dones
 
-    def sparse_gc_reward_function(self, states, goals):
-        raise NotImplementedError
-
+    def batched_sparse_gc_reward_function(self, states, goals):
+        curr_puck_pos = states[:, 3:]
+        goal_puck_pos = goals[:, 3:]
+        curr_arm_pos = states[:, :2]
+        goal_arm_pos = goals[:, :2]
+        if self.goal_type == 'puck' or self.goal_type == 'hand_and_puck':
+            distances = np.linalg.norm(curr_puck_pos - goal_puck_pos, axis=1)
+            dones = distances <= self.goal_tolerance
+            rewards = np.zeros_like(distances)
+            rewards[dones == 1] = +0.
+            rewards[dones == 0] = -1.
+            return rewards, dones
+        else:
+            raise NotImplementedError
 
 def get_endeff_pos(state):
     if isinstance(state, LeapWrapperState):

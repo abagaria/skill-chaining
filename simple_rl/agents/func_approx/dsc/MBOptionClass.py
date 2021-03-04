@@ -5,7 +5,8 @@ import itertools
 import numpy as np
 from copy import deepcopy
 from scipy.spatial import distance
-from thundersvm import OneClassSVM, SVC
+# from thundersvm import OneClassSVM, SVC
+from sklearn.svm import OneClassSVM, SVC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
@@ -53,13 +54,13 @@ class ModelBasedOption(object):
         use_output_norm = self.use_model
 
         if not self.use_global_vf or global_init:
-            self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                    action_dim=self.mdp.action_space_size(),
-                                    max_action=1.,
-                                    name=f"{name}-td3-agent",
-                                    device=self.device,
-                                    lr_c=lr_c, lr_a=lr_a,
-                                    use_output_normalization=use_output_norm)
+            self.value_learner = TD3(state_dim=self.mdp.state_space_size() + 2,
+                                     action_dim=self.mdp.action_space_size(),
+                                     max_action=1.,
+                                     name=f"{name}-td3-agent",
+                                     device=self.device,
+                                     lr_c=lr_c, lr_a=lr_a,
+                                     use_output_normalization=use_output_norm)
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
@@ -129,7 +130,7 @@ class ModelBasedOption(object):
     def is_init_true(self, state):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
-        
+
         if self.is_last_option and self.mdp.get_start_state_salient_event()(state):
             return True
 
@@ -163,7 +164,7 @@ class ModelBasedOption(object):
 
     def _get_epsilon(self):
         if self.use_model:
-            return 0.1
+            return 0
         if not self.dense_reward and self.num_goal_hits <= 3:
             return 0.8
         return 0.2
@@ -190,17 +191,16 @@ class ModelBasedOption(object):
 
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
-
         if self.parent is None and self.target_salient_event is not None:
             return self.target_salient_event.get_target_position()
 
-        sampled_goal = self.parent.sample_from_initiation_region_fast_and_epsilon()
+        sampled_goal = self.parent.sample_from_initiation_region_fast()
         assert sampled_goal is not None
 
         if isinstance(sampled_goal, np.ndarray):
             return sampled_goal.squeeze()
 
-        return self.extract_goal_dimensions(sampled_goal)
+        return sampled_goal.features()
 
     def rollout(self, step_number, rollout_goal=None, eval_mode=False):
         """ Main option control loop. """
@@ -226,7 +226,7 @@ class ModelBasedOption(object):
             action = self.act(state, goal)
             reward, next_state = self.mdp.execute_agent_action(action)
 
-            if self.use_model:
+            if self.use_model and not eval_mode:
                 self.update_model(state, action, reward, next_state)
 
             # Logging
@@ -246,8 +246,8 @@ class ModelBasedOption(object):
 
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
-                                    pursued_goal=goal,
-                                    reached_goal=self.extract_goal_dimensions(state))
+                                       pursued_goal=goal,
+                                       reached_goal=state.features())
 
         self.derive_positive_and_negative_examples(visited_states)
 
@@ -255,7 +255,7 @@ class ModelBasedOption(object):
         if not self.global_init and not eval_mode:
             self.fit_initiation_classifier()
 
-        return option_transitions, total_reward
+        return option_transitions, total_reward, goal
 
     # ------------------------------------------------------------
     # Hindsight Experience Replay
@@ -277,6 +277,9 @@ class ModelBasedOption(object):
         goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
         if "ant" in self.mdp.env_name:
             return goal_features[:2]
+        elif "sawyer" in self.mdp.env_name:
+            goal_dims = goal_features[3:]
+            return goal_dims
         raise NotImplementedError(f"{self.mdp.env_name}")
 
     def get_augmented_state(self, state, goal):
@@ -350,7 +353,9 @@ class ModelBasedOption(object):
 
     def sample_from_initiation_region_fast_and_epsilon(self):
         """ Sample from the pessimistic initiation classifier. """
+
         def compile_states(s):
+            # TODO: Need to fix this
             pos0 = self.mdp.get_position(s)
             pos1 = np.copy(pos0)
             pos1[0] -= self.target_salient_event.tolerance
@@ -404,14 +409,15 @@ class ModelBasedOption(object):
     def does_model_rollout_reach_goal(self, state):
         sampled_goal = self.get_goal_for_rollout()
         final_states, actions, costs = self.solver.simulate(state, sampled_goal, num_rollouts=14000, num_steps=self.timeout)
-        farthest_position = final_states[:, :2].max(axis=0)
+        farthest_position = final_states[:, :2].max(axis=0)  # TODO: Fix this by removing :2
+        ipdb.set_trace()
         return self.is_term_true(farthest_position)
 
     def fit_initiation_classifier(self):
         if len(self.negative_examples) > 0 and len(self.positive_examples) > 0:
-            self.train_two_class_classifier()
+            self.train_two_class_classifier(nu=0.7)  # TODO: Go back to nu=0.1
         elif len(self.positive_examples) > 0:
-            self.train_one_class_svm()
+            self.train_one_class_svm(nu=0.7)
 
     def construct_feature_matrix(self, examples):
         states = list(itertools.chain.from_iterable(examples))
@@ -423,7 +429,7 @@ class ModelBasedOption(object):
         self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
         self.pessimistic_classifier.fit(positive_feature_matrix)
 
-        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10.)
+        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu / 10.)
         self.optimistic_classifier.fit(positive_feature_matrix)
 
     def train_two_class_classifier(self, nu=0.1):
@@ -436,9 +442,9 @@ class ModelBasedOption(object):
         Y = np.concatenate((positive_labels, negative_labels))
 
         if negative_feature_matrix.shape[0] >= 10:  # TODO: Implement gamma="auto" for thundersvm
-            kwargs = {"kernel": "rbf", "gamma": "auto", "class_weight": "balanced"}
+            kwargs = {"kernel": "rbf", "gamma": "scale", "class_weight": "balanced"}
         else:
-            kwargs = {"kernel": "rbf", "gamma": "auto"}
+            kwargs = {"kernel": "rbf", "gamma": "scale"}
 
         self.optimistic_classifier = SVC(**kwargs)
         self.optimistic_classifier.fit(X, Y)
@@ -447,7 +453,7 @@ class ModelBasedOption(object):
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="scale")
             self.pessimistic_classifier.fit(positive_training_examples)
 
     # ------------------------------------------------------------
