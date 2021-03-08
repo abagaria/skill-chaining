@@ -27,7 +27,8 @@ class GymMDP(MDP):
         self.env_name = env_name
 
         if pixel_observation:
-            self.env = FrameStack(AtariPreprocessing(gym.make(env_name)), num_stack=4)
+            self.env = make_atari("MontezumaRevengeNoFrameskip-v4")
+            self.env = wrap_deepmind(self.env, episode_life=False, clip_rewards=False, frame_stack=True)
         else:
             self.env = gym.make(env_name)
 
@@ -46,7 +47,8 @@ class GymMDP(MDP):
         #                      (138,192), (139,192), (130,192), (133,173), (133,162), (133,151), (133,148), (123,148),
         #                      (114,148), (99, 148), (75, 148), (62, 148), (50, 148), (38, 148), (25, 148), (20, 148),
         #                      (21, 152), (21, 164), (21, 177), (21, 192), (10, 192)]
-        self.spawn_states = [(77, 235), (130, 192), (123, 148), (20, 148), (21, 192), (114,148), (99, 148), (75, 148), (62, 148), (50, 148), (38, 148), (25, 148)]
+        self.spawn_states = [(77, 235), (130, 192), (123, 148), (20, 148), (21, 192), (114,148), (99, 148), (62, 148), (50, 148), (38, 148), (25, 148)]
+        # self.spawn_states = [(99, 148)]  # Just to the right of the skull (when fixed)
 
         MDP.__init__(self, range(self.env.action_space.n), self._transition_func, self._reward_func,
                      init_state=GymState(image=init_obs, position=self.get_player_position(), ram=self.env.env.ale.getRAM()))
@@ -103,24 +105,18 @@ class GymMDP(MDP):
         if self.render:
             self.env.render()
 
-        if "Monte" in self.env_name:
-            position = self.get_player_position()
-            goal_cond = int(self.getByte(ram, 'c1')) != 0
-            is_terminal = goal_cond or self.game_over
-            reward = +1. if goal_cond else -1.
-        else:
-            is_terminal = self.term_func(obs, reward) if self.term_func is not None else done
+        position = self.get_player_position()
+        goal_cond = int(self.getByte(ram, 'c1')) != 0  # TODO: Restore for key
+        # goal_cond = position[0] <= 62 and position[1] <= 148  # Position just to the left of the skull
+        is_terminal = goal_cond or self.game_over
+
+        # reward = -1. if self.game_over else reward  # Negative rewards for death
+        reward = +1. if goal_cond else reward
+        reward = np.sign(reward)  # Reward clipping
 
         self.next_state = GymState(image=obs, position=position, ram=ram, is_terminal=is_terminal)
 
-        if self.clip_rewards:
-            if reward < 0:
-                return -1.
-            if reward > 0:
-                return 1.
-            return 0.
-        else:
-            return reward
+        return reward
 
     def _transition_func(self, state, action):
         '''
@@ -171,6 +167,11 @@ class GymMDP(MDP):
         x = int(self.getByte(ram, 'aa'))
         y = int(self.getByte(ram, 'ab'))
         return x, y
+
+    @staticmethod
+    def get_skull_position(ram):
+        skull_x = int(GymMDP.getByte(ram, 'af')) + 33
+        return skull_x
 
     def set_player_position(self, x, y):
         state_ref = self.env.env.ale.cloneState()
