@@ -1,2 +1,6 @@
 {
+    "git.ignoreLimitWarning": true,
+    "python.pythonPath": "/home/abagaria/anaconda3/envs/pfrl/bin/python",
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true
 }
