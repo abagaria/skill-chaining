@@ -74,7 +74,7 @@ class GymMDP(MDP):
     def action_space_size(self):
         return len(self.actions)
 
-    def sparse_gc_reward_function(self, state, goal, info={}, tol=2):
+    def sparse_gc_reward_function(self, state, goal, info={}, tol=2):  # TODO
         assert isinstance(state, GymState), f"{type(state)}"
         assert isinstance(goal, GymState), f"{type(goal)}"
 
@@ -84,8 +84,11 @@ class GymMDP(MDP):
         state_pos = state.get_position()
         goal_pos = goal.get_position()
 
-        done = is_close(state_pos, goal_pos)
-        reward = +1. if done else 0.
+        reached = self.has_key(state) #is_close(state_pos, goal_pos) or self.has_key(state)
+        death = self.get_player_lives(state.ram) != 5
+
+        done = reached or death
+        reward = +1. if reached and not death else 0.
 
         return reward, done
 
