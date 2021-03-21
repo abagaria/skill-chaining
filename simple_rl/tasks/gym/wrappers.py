@@ -268,6 +268,9 @@ class LazyFrames(object):
         if dtype is not None:
             out = out.astype(dtype)
         return out
+    
+    def get_frame(self, i):
+        return self._frames[i]
 
 
 class FlickerFrame(gym.ObservationWrapper):

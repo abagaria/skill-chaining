@@ -9,14 +9,17 @@ from collections import deque
 from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
 
+from simple_rl.agents.func_approx.rainbow.RainbowAgentClass import RainbowAgent
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.tasks.gym.GymStateClass import GymState as State
+from simple_rl.tasks.gym.wrappers import LazyFrames
+
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, global_value_learner,
                  option_idx, gamma, target_salient_event=None,
-                 preprocessing=None):
+                 preprocessing=None, solver_type="rainbow"):
         self.mdp = mdp
         self.name = name
         self.gamma = gamma
@@ -24,6 +27,7 @@ class ModelBasedOption(object):
         self.device = device
         self.timeout = timeout
         self.max_steps = max_steps
+        self.solver_type = solver_type
         self.global_init = global_init
         self.buffer_length = buffer_length
         self.preprocessing = preprocessing
@@ -63,12 +67,22 @@ class ModelBasedOption(object):
         if not self.global_init:
             return self.global_value_learner
 
-        return DQNAgent(state_size=self.mdp.state_space_size(),
-                        action_size=self.mdp.action_space_size(),
-                        device=self.device,
-                        goal_conditioning=True,
-                        pixel_observation=True,
-                        name=f"DQN-Agent-{self.option_idx}")
+        assert self.solver_type in ("rainbow", "dqn"), self.solver_type
+        
+        if self.solver_type == "dqn":
+            return DQNAgent(state_size=self.mdp.state_space_size(),
+                            action_size=self.mdp.action_space_size(),
+                            device=self.device,
+                            goal_conditioning=True,
+                            pixel_observation=True,
+                            name=f"DQN-Agent-{self.option_idx}")
+
+        return RainbowAgent(obs_size=self.mdp.state_space_size(),
+                            n_actions=self.mdp.action_space_size(),  
+                            random_action_func=self.mdp.sample_random_action,
+                            pixel_observation=True,
+                            goal_conditioning=True,
+                            device_id=0)
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -110,10 +124,10 @@ class ModelBasedOption(object):
     def act(self, state, train_mode, goal):
         """ Epsilon-greedy action selection. """
 
-        if train_mode and (random.random() < self._get_epsilon() or goal is None):
+        if goal is None:  # Assuming that the agent will internally also do exploration
             return self.mdp.sample_random_action()
 
-        assert isinstance(self.solver, DQNAgent), f"{type(self.solver)}"
+        assert isinstance(self.solver, (DQNAgent, RainbowAgent)), f"{type(self.solver)}"
         augmented_state = self.get_augmented_state(state, goal)
         return self.solver.act(augmented_state)
 
@@ -209,7 +223,7 @@ class ModelBasedOption(object):
             return downsampled_frames.flatten()
         elif self.preprocessing == "position":
             return state if isinstance(state, np.ndarray) else state.get_position()
-        elif self.preprocessing == "dqn":
+        elif self.preprocessing == "dqn":  # TODO: Write this function for Rainbow
             return self.solver.feature_extract(state.features())[0]
         else:
             raise RuntimeError(f"{self.preprocessing} not implemented!")
@@ -219,16 +233,24 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
 
     def extract_goal_dimensions(self, goal):
-        goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
-        assert goal_features.shape == (4, 84, 84), f"{goal_features.shape}"
-        return goal_features[-1, ...]
+        goal_features = goal if isinstance(goal, LazyFrames) else goal.features()
+        
+        assert isinstance(goal_features, LazyFrames), f"{type(goal_features)}"
+        goal_frame = goal_features.get_frame(-1)
+        return goal_frame
 
     def get_augmented_state(self, state, goal):
-        assert goal is not None
+        assert isinstance(state, State), f"{type(state)}"
+        assert isinstance(goal, State), f"{type(goal)}"
 
-        expand = lambda x: x[None, ...]
-        goal_image = expand(self.extract_goal_dimensions(goal))
-        return np.concatenate((state.features(), goal_image), axis=0)
+        obs_frames = state.features()._frames
+        goal_image = self.extract_goal_dimensions(goal)
+        augmented_frames = obs_frames + [goal_image]
+
+        assert len(augmented_frames) == 5, len(augmented_frames)
+        assert len(obs_frames) == 4, len(obs_frames)
+
+        return LazyFrames(frames=augmented_frames, stack_axis=0)
 
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
@@ -265,6 +287,7 @@ class ModelBasedOption(object):
             return sampled_goal
         assert self.num_goal_hits == 0, self.num_goal_hits
         return None
+
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
     # ------------------------------------------------------------
