@@ -91,6 +91,7 @@ class OnlineModelBasedSkillChaining(object):
 
     def dsc_rollout(self, num_steps):
         step_number = 0
+        total_reward = 0
         
         while step_number < num_steps and not self.mdp.cur_state.is_terminal():
             state = deepcopy(self.mdp.cur_state)            
@@ -101,27 +102,40 @@ class OnlineModelBasedSkillChaining(object):
             if len(transitions) == 0:
                 break
 
+            total_reward += reward
             step_number += len(transitions)
             
             self.manage_chain_after_rollout(selected_option)
 
-        return step_number
+        return step_number, total_reward
 
-    def run_loop(self, num_episodes, num_steps, start_episode=0):
-        per_episode_durations = []
-        last_10_durations = deque(maxlen=10)
+    def run_loop(self, num_steps, start_step=0):
+        episode = 0
+        
+        episode_length = 0
+        episode_reward = 0
+        per_episode_rewards = []
+        step_number = start_step
 
-        for episode in range(start_episode, start_episode + num_episodes):
+        while step_number < start_step+num_steps:
             self.reset(episode)
 
-            step = self.dsc_rollout(num_steps)
+            step, reward = self.dsc_rollout(num_steps)
 
-            last_10_durations.append(step)
-            per_episode_durations.append(step)
-            self.log_status(episode, last_10_durations)
-            self.log_success_metrics(episode)
+            episode_length += step
+            step_number += step
+            episode_reward += reward
 
-        return per_episode_durations
+            if self.mdp.cur_state.is_terminal():
+                print(f"Episode: {episode} \t Step Number: {step_number} \t Episode length = {episode_length} \t Reward = {episode_reward}")
+                episode += 1
+                per_episode_rewards.append(episode_reward)
+                episode_length = 0
+                episode_reward = 0
+                
+                self.log_success_metrics(episode)
+
+        return per_episode_rewards
 
     def log_success_metrics(self, episode):
         individual_option_data = {option.name: option.get_option_success_rate() for option in self.chain}
@@ -296,8 +310,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gestation_period", type=int, default=3)
     parser.add_argument("--buffer_length", type=int, default=50)
-    parser.add_argument("--episodes", type=int, default=150)
-    parser.add_argument("--steps", type=int, default=1000)
+    parser.add_argument("--steps", type=int, default=int(2e6))
     parser.add_argument("--evaluation_frequency", type=int, default=10)
     parser.add_argument("--logging_frequency", type=int, default=1000)
     parser.add_argument("--diverse_starts", action="store_true", default=False)
@@ -329,7 +342,7 @@ if __name__ == "__main__":
     create_log_dir(f"value_function_plots/{args.experiment_name}")
 
     start_time = time.time()
-    durations = exp.run_loop(args.episodes, args.steps)
+    durations = exp.run_loop(args.steps)
     history = exp.collect_data() # TODO remove after experimentation with init sets
     end_time = time.time()
 

@@ -79,12 +79,14 @@ class GymMDP(MDP):
         assert isinstance(goal, GymState), f"{type(goal)}"
 
         def is_close(pos1, pos2):
+            if info["root_option"]:
+                return False
             return abs(pos1[0] - pos2[0]) <= tol and abs(pos1[1] - pos2[1]) <= tol
 
         state_pos = state.get_position()
         goal_pos = goal.get_position()
 
-        reached = self.has_key(state) #is_close(state_pos, goal_pos) or self.has_key(state)
+        reached = is_close(state_pos, goal_pos) or self.has_key(state)
         death = self.get_player_lives(state.ram) != 5
 
         done = reached or death

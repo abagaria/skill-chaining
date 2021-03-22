@@ -10,6 +10,7 @@ from scipy.spatial import distance
 from thundersvm import OneClassSVM, SVC
 
 from simple_rl.agents.func_approx.rainbow.RainbowAgentClass import RainbowAgent
+from simple_rl.agents.func_approx.ppo.PPOAgentClass import PPOAgent
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 from simple_rl.tasks.gym.GymStateClass import GymState as State
 from simple_rl.tasks.gym.wrappers import LazyFrames
@@ -19,7 +20,7 @@ class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, global_value_learner,
                  option_idx, gamma, target_salient_event=None,
-                 preprocessing=None, solver_type="rainbow"):
+                 preprocessing=None, solver_type="ppo"):
         self.mdp = mdp
         self.name = name
         self.gamma = gamma
@@ -67,7 +68,7 @@ class ModelBasedOption(object):
         if not self.global_init:
             return self.global_value_learner
 
-        assert self.solver_type in ("rainbow", "dqn"), self.solver_type
+        assert self.solver_type in ("rainbow", "dqn", "ppo"), self.solver_type
         
         if self.solver_type == "dqn":
             return DQNAgent(state_size=self.mdp.state_space_size(),
@@ -76,6 +77,11 @@ class ModelBasedOption(object):
                             goal_conditioning=True,
                             pixel_observation=True,
                             name=f"DQN-Agent-{self.option_idx}")
+        
+        if self.solver_type == "ppo":
+            return PPOAgent(obs_n_channels=5,  # 4 for the state and 1 for the goal
+                            n_actions=self.mdp.action_space_size(),
+                            device_id=0)
 
         return RainbowAgent(obs_size=self.mdp.state_space_size(),
                             n_actions=self.mdp.action_space_size(),  
@@ -122,12 +128,12 @@ class ModelBasedOption(object):
         return 0.1
 
     def act(self, state, train_mode, goal):
-        """ Epsilon-greedy action selection. """
+        """ Goal-conditioned action selection. """
 
         if goal is None:  # Assuming that the agent will internally also do exploration
             return self.mdp.sample_random_action()
 
-        assert isinstance(self.solver, (DQNAgent, RainbowAgent)), f"{type(self.solver)}"
+        assert isinstance(self.solver, (DQNAgent, RainbowAgent, PPOAgent)), f"{type(self.solver)}"
         augmented_state = self.get_augmented_state(state, goal)
         return self.solver.act(augmented_state)
 
@@ -155,6 +161,10 @@ class ModelBasedOption(object):
             # Control
             action = self.act(state, not eval_mode, goal=goal)
             reward, next_state = self.mdp.execute_agent_action(action)
+
+            # Update PPO
+            if self.solver_type == "ppo" and goal is not None:
+                self.update_ppo(next_state, goal)
             
             # Logging
             num_steps += 1
@@ -174,7 +184,7 @@ class ModelBasedOption(object):
 
         self.derive_positive_and_negative_examples(visited_states)
 
-        if not eval_mode and goal is not None:
+        if not eval_mode and goal is not None and self.solver_type != "ppo":
             self.update_value_function(option_transitions, reached_goal=state, pursued_goal=goal)
 
         # Always be refining your initiation classifier
@@ -184,8 +194,20 @@ class ModelBasedOption(object):
         return option_transitions, total_reward
 
     # ------------------------------------------------------------
-    # Hindsight Experience Replay
+    # Experience Replay
     # ------------------------------------------------------------
+
+    def update_ppo(self, next_state, goal):
+        assert isinstance(next_state, State), f"{type(next_state)}"
+        assert isinstance(goal, State), f"{type(goal)}"
+
+        augmented_next_obs = self.get_augmented_state(next_state, goal)
+        done = self.is_at_local_goal(next_state, goal)
+
+        reward_func = self.overall_mdp.sparse_gc_reward_function
+        reward, _ = reward_func(next_state, goal, info={"root_option": self.parent is None})
+
+        self.solver.agent.observe(augmented_next_obs, reward, done, reset=False)
 
     def update_value_function(self, option_transitions, reached_goal, pursued_goal):
         """ Update the goal-conditioned option value function. """
@@ -255,7 +277,7 @@ class ModelBasedOption(object):
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
 
-        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, {})[1] if goal is not None else True
+        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, {'root_option': self.parent is None})[1] if goal is not None else True
         reached_term = self.is_term_true(state) or state.is_terminal()
         return reached_goal and reached_term
 
@@ -276,15 +298,15 @@ class ModelBasedOption(object):
             sampled_trajectory_idx = random.choice(range(len(self.positive_examples)))
             sampled_trajectory = self.positive_examples[sampled_trajectory_idx]
             sampled_state = self.get_first_state_in_classifier(sampled_trajectory)
-        assert isinstance(sampled_state, State)
         return sampled_state
 
     def get_goal_for_rollout(self):
-        if self.parent is None and self.num_goal_hits > 0:
-            return random.choice(self.effect_set)
         if self.parent is not None:
             sampled_goal = self.parent.sample_from_initiation_region()
-            return sampled_goal
+            if sampled_goal is not None:
+                return sampled_goal
+        if self.num_goal_hits > 0:
+            return random.choice(self.effect_set)
         assert self.num_goal_hits == 0, self.num_goal_hits
         return None
 
