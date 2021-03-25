@@ -10,12 +10,12 @@ from copy import deepcopy
 from collections import deque
 from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
-
+from simple_rl.tasks.ant_reacher.AntReacherMDPClass import AntReacherMDP
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
 
 class OnlineModelBasedSkillChaining(object):
-    def __init__(self, max_steps, stronger_baseline,
+    def __init__(self, mdp, max_steps, stronger_baseline,
                  use_diverse_starts, use_dense_rewards, use_optimal_sampler, lr_c, lr_a,
                  experiment_name, device, logging_freq, evaluation_freq, seed):
         
@@ -31,7 +31,7 @@ class OnlineModelBasedSkillChaining(object):
         self.logging_freq = logging_freq
         self.evaluation_freq = evaluation_freq
 
-        self.mdp = D4RLAntMazeMDP("large", seed=seed)
+        self.mdp = mdp
         
         self.agent = TD3(state_dim=self.mdp.state_space_size()+2,
                                     action_dim=self.mdp.action_space_size(),
@@ -65,7 +65,7 @@ class OnlineModelBasedSkillChaining(object):
 
             self.agent.step(augmented_state, action, reward, augmented_next_state, global_done)
 
-    def her_rollout(self, steps, eval_mode=False):        
+    def her_rollout(self, steps, eval_mode=False):
         trajectory = []
         step_number = 0
         state = deepcopy(self.mdp.cur_state)
@@ -89,7 +89,9 @@ class OnlineModelBasedSkillChaining(object):
             
             step_number += 1
 
-        self.experience_replay(trajectory, self.goal)
+        if len(trajectory) > 0:
+            self.experience_replay(trajectory, self.goal)
+            self.experience_replay(trajectory, trajectory[-1][-1].position)
 
         return step_number
     
@@ -173,6 +175,7 @@ def test_agent(exp, num_experiments, num_steps, start, goal):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--environment", type=str, help="environment (ie umaze, medium, large, or reacher)")
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--device", type=str, help="cpu/cuda:0/cuda:1")
     parser.add_argument("--seed", type=int, help="Random seed")
@@ -189,7 +192,19 @@ if __name__ == "__main__":
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
     args = parser.parse_args()
 
-    exp = OnlineModelBasedSkillChaining(experiment_name=args.experiment_name,
+    if args.environment == "umaze":
+        mdp = D4RLAntMazeMDP("umaze", seed=args.seed)
+    elif args.environment == "medium":
+        mdp = D4RLAntMazeMDP("medium", seed=args.seed)
+    elif args.environment == "large":
+        mdp = D4RLAntMazeMDP("large", seed=args.seed)
+    elif args.environment == "reacher":
+        mdp = AntReacherMDP(seed=args.seed)
+    else:
+        raise RuntimeError("Environment not supported!")
+
+    exp = OnlineModelBasedSkillChaining(mdp=mdp,
+                                        experiment_name=args.experiment_name,
                                         device=torch.device(args.device),
                                         max_steps=args.steps,
                                         use_diverse_starts=args.use_diverse_starts,
@@ -209,7 +224,7 @@ if __name__ == "__main__":
     durations = exp.run_loop(args.episodes, args.steps)
     end_time = time.time()
 
-    positions = pickle.load(open("large-start-goal.pkl", "rb"))
+    positions = pickle.load(open("ant-reacher-start-goal.pkl", "rb"))
     results = {}
     for key in positions.keys():
         start, goal = positions[key]['start'], positions[key]['goal']

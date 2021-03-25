@@ -116,6 +116,7 @@ class GymMDP(MDP):
 
     def reset(self):
         self.env.reset()
+        self.remove_skull()
         for _ in range(4): 
             obs, _, _, _ = self.env.step(0) # no-op to get agent onto ground
         ram = self.env.env.ale.getRAM()
@@ -158,6 +159,19 @@ class GymMDP(MDP):
         
         state[331] = x
         state[335] = y
+        
+        new_state_ref = self.env.env.ale.decodeState(state)
+        self.env.env.ale.restoreState(new_state_ref)
+        self.env.env.ale.deleteState(new_state_ref)
+        self.execute_agent_action(0) # NO-OP action to update the RAM state
+
+    def remove_skull(self):
+        state_ref = self.env.env.ale.cloneState()
+        state = self.env.env.ale.encodeState(state_ref)
+        self.env.env.ale.deleteState(state_ref)
+        
+        state[351] = 40
+        state[431] = 1
         
         new_state_ref = self.env.env.ale.decodeState(state)
         self.env.env.ale.restoreState(new_state_ref)

@@ -54,43 +54,6 @@ class OnlineModelBasedSkillChaining(object):
                 return option
         return self.global_option
 
-    def collect_data(self):
-        def random_rollout(num_steps):
-            step_number = 0
-            self.mdp.reset()
-            while step_number < num_steps and not self.mdp.cur_state.is_terminal():
-                state = deepcopy(self.mdp.cur_state)      
-                history.append(state)
-                action = self.mdp.sample_random_action()
-                self.mdp.execute_agent_action(action)
-                step_number += 1
-        
-        history = deque(maxlen=10000)
-        for _ in range(1000):
-            random_rollout(100)     
-
-        return history  
-
-    def collect_full_data(self):
-        def helper(num_steps):
-            step_number = 0
-            while step_number < num_steps and not self.mdp.cur_state.is_terminal():
-                state = deepcopy(self.mdp.cur_state)   
-                history.append(state)         
-                selected_option = self.act(state)
-                transitions, reward = selected_option.rollout(step_number=step_number, eval_mode=True)
-                if len(transitions) == 0:
-                    break
-                step_number += len(transitions)
-            return step_number
-        
-        history = deque(maxlen=10000)
-        for i in range(100):
-            print(f"Episode {i}")
-            self.reset(i)
-            helper(1000)
-        return history
-
     def dsc_rollout(self, num_steps):
         step_number = 0
         
@@ -98,7 +61,7 @@ class OnlineModelBasedSkillChaining(object):
             state = deepcopy(self.mdp.cur_state)            
             selected_option = self.act(state)
 
-            transitions, reward = selected_option.rollout(step_number=step_number)
+            transitions, _ = selected_option.rollout(step_number=step_number)
 
             if len(transitions) == 0:
                 break
@@ -163,6 +126,7 @@ class OnlineModelBasedSkillChaining(object):
                 executed_option.solver.replay_buffer.clear()
                 print(f"{executed_option.name} replay buffer has been cleared!")
         
+        # TODO eventually remove
         if self.clear_replay_buffer:
             if executed_option.num_goal_hits % 150 == 0:
                 executed_option.solver.replay_buffer.clear()
@@ -192,7 +156,11 @@ class OnlineModelBasedSkillChaining(object):
 
             """Plot value function"""
             for option in self.chain:
-                make_chunked_value_function_plot(option.solver, episode, self.seed, self.experiment_name, buffer)
+                if not self.goal_conditioning:
+                    make_chunked_value_function_plot(option.solver, episode, self.seed, self.experiment_name, buffer)
+                else:
+                    goal = option.get_goal_for_rollout()
+                    make_chunked_goal_conditioned_value_function_plot(option.solver, goal, episode, self.seed, self.experiment_name, state_buffer=buffer, option_idx=option.option_idx)
 
             """Plot init sets"""
             random.shuffle(buffer)
@@ -252,15 +220,16 @@ def create_log_dir(experiment_name):
 def test_agent(exp, num_experiments, num_steps):
     def rollout():
         step_number = 0
-            
+        indiv_traj = []
         while step_number < num_steps and not exp.mdp.cur_state.is_terminal():
             state = deepcopy(exp.mdp.cur_state)
             selected_option = exp.act(state)
             transitions, _ = selected_option.rollout(step_number=step_number, eval_mode=True)
             if len(transitions) == 0:
                 break
-            traj.append((selected_option.name, transitions))
+            indiv_traj.append((selected_option.name, transitions))
             step_number += len(transitions)
+        traj.append(indiv_traj)
         return step_number, exp.mdp.is_goal_state(exp.mdp.cur_state)
 
     success = 0
@@ -303,6 +272,49 @@ def filter_traj(trajectory):
             traj.append(next_state[-1,:,:])
     return traj
 
+def create_frames(traj):
+    import cv2
+    for i, state in enumerate(traj):
+        cv2.imwrite(f"monte-video/test-{i}.png", state)
+    return "success"
+
+def collect_data(self):
+    def random_rollout(num_steps):
+        step_number = 0
+        self.mdp.reset()
+        while step_number < num_steps and not self.mdp.cur_state.is_terminal():
+            state = deepcopy(self.mdp.cur_state)      
+            history.append(state)
+            action = self.mdp.sample_random_action()
+            self.mdp.execute_agent_action(action)
+            step_number += 1
+    
+    history = deque(maxlen=10000)
+    for _ in range(1000):
+        random_rollout(100)     
+
+    return history  
+
+def collect_full_data(self):
+    def helper(num_steps):
+        step_number = 0
+        while step_number < num_steps and not self.mdp.cur_state.is_terminal():
+            state = deepcopy(self.mdp.cur_state)   
+            history.append(state)         
+            selected_option = self.act(state)
+            transitions, reward = selected_option.rollout(step_number=step_number, eval_mode=True)
+            if len(transitions) == 0:
+                break
+            step_number += len(transitions)
+        return step_number
+    
+    history = deque(maxlen=10000)
+    for i in range(100):
+        print(f"Episode {i}")
+        self.reset(i)
+        helper(1000)
+    return history
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
@@ -317,7 +329,7 @@ if __name__ == "__main__":
     parser.add_argument("--clear_replay_buffer", action="store_true", default=False)
     parser.add_argument("--diverse_starts", action="store_true", default=False)
     parser.add_argument("--preprocessing", type=str, help="go-explore/position")
-    parser.add_argument("--svm_gamma", type=str, help="auto/scale")
+    parser.add_argument("--svm_gamma", type=str, help="auto/scale") # scale for position, auto for images
     parser.add_argument("--goal_conditioning", action="store_true", default=False)
 
     args = parser.parse_args()
@@ -347,7 +359,7 @@ if __name__ == "__main__":
 
     start_time = time.time()
     durations = exp.run_loop(args.episodes, args.steps)
-    history = exp.collect_data() # TODO remove after experimentation with init sets
+    # history = collect_data(exp) # TODO remove after experimentation with init sets
     end_time = time.time()
 
     print("TIME: ", end_time - start_time)

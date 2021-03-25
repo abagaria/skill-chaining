@@ -149,9 +149,12 @@ def plot_initiation_distribution(option, mdp, episode, experiment_name, chunk_si
     plt.savefig(f"initiation_set_plots/{experiment_name}/{option.name}_initiation_distribution_{episode}.png")
     plt.close()
 
-def render_state(state, filename="monte.png"):
+def render_state(state, renderAll=False):
     import cv2
-    cv2.imwrite(filename, state.features()[-1,:,:])
+    cv2.imwrite("monte_1.png", state.features()[0,:,:])
+    cv2.imwrite("monte_2.png", state.features()[1,:,:])
+    cv2.imwrite("monte_3.png", state.features()[3,:,:])
+    cv2.imwrite("monte_4.png", state.features()[-1,:,:])
 
 def get_states(state_buffer, goal):
     def get_augmented_state(state, goal):

@@ -29,11 +29,11 @@ from simple_rl.agents.func_approx.exploration.PseudoCountExploration import Dens
 from simple_rl.agents.func_approx.exploration.DiscreteCountExploration import CountBasedDensityModel
 
 ## Hyperparameters
-BUFFER_SIZE = int(3e5)  # replay buffer size
+BUFFER_SIZE = int(3e4)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
-LR = 1e-4  # learning rate
+LR = 3e-5  # learning rate
 UPDATE_EVERY = 1  # how often to update the network
 
 class DQNAgent(Agent):
@@ -54,7 +54,7 @@ class DQNAgent(Agent):
 
         # Q-Network
         if pixel_observation:
-            in_channels = 5 if goal_conditioning else 4
+            in_channels = 8 if goal_conditioning else 4
             self.policy_network = ConvQNetwork(in_channels=in_channels, n_actions=action_size).to(self.device)
             self.target_network = ConvQNetwork(in_channels=in_channels, n_actions=action_size).to(self.device)
         else:

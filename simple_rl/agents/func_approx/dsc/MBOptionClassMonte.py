@@ -40,15 +40,16 @@ class ModelBasedOption(object):
         self.num_executions = 0
         self.gestation_period = gestation_period
 
-        self.positive_examples = []
-        self.negative_examples = []
+        self.positive_examples = deque(maxlen=500)
+        self.negative_examples = deque(maxlen=500)
+        self.effect_set = deque(maxlen=20)
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
 
         print(f"Using model-free controller for {name}")
 
         self.children = []
-        self.success_curve = []
+        # self.success_curve = []
 
         self.global_value_learner = global_value_learner
         self.solver = self._get_model_free_solver()
@@ -116,6 +117,7 @@ class ModelBasedOption(object):
         if goal:
             augmented_state = self.get_augmented_state(state, goal)
             return self.solver.act(augmented_state, train_mode=train_mode)
+
         return self.solver.act(state, train_mode=train_mode)
 
     def rollout(self, step_number, eval_mode=False):
@@ -130,15 +132,35 @@ class ModelBasedOption(object):
         option_transitions = []
 
         state = deepcopy(self.mdp.cur_state)
+        goal = None if not self.goal_conditioning else self.get_goal_for_rollout()            
 
         print(f"[Step: {step_number}] Rolling out {self.name} from {self.mdp.get_player_position()}")
 
         self.num_executions += 1
 
-        while not self.is_term_true(state) and step_number < self.max_steps and num_steps < self.timeout and not state.is_terminal():
+        """ option was just created"""
+        if len(self.positive_examples) == 0:
+            while not self.is_term_true(state) and step_number < self.max_steps and num_steps < self.timeout and not state.is_terminal():
+                # Control
+                action = self.mdp.sample_random_action()
+                reward, next_state = self.mdp.execute_agent_action(action)
+                
+                # Logging
+                num_steps += 1
+                step_number += 1
+                total_reward += reward
+                visited_states.append(state)
+                option_transitions.append((state, action, reward, next_state))
+                state = deepcopy(self.mdp.cur_state)
 
+            visited_states.append(state)
+            # self.success_curve.append(self.is_term_true(state))
+            self.derive_positive_examples(visited_states)
+            return option_transitions, None
+
+        while not self.is_term_true(state) and step_number < self.max_steps and num_steps < self.timeout and not state.is_terminal():
             # Control
-            action = self.act(state, not eval_mode)
+            action = self.act(state, not eval_mode, goal=goal)
             reward, next_state = self.mdp.execute_agent_action(action)
             
             # Logging
@@ -150,7 +172,7 @@ class ModelBasedOption(object):
             state = deepcopy(self.mdp.cur_state)
 
         visited_states.append(state)
-        self.success_curve.append(self.is_term_true(state))
+        # self.success_curve.append(self.is_term_true(state))
 
         if self.is_term_true(state):
             print(f"{self.name} reached termination condition!")
@@ -159,23 +181,39 @@ class ModelBasedOption(object):
         self.derive_positive_and_negative_examples(visited_states)
 
         if not eval_mode:
-            self.experience_replay(option_transitions)
+            if not self.goal_conditioning:
+                self.experience_replay(option_transitions)
+            else:
+                # Hindsight Experience Replay
+                if not self.is_term_true(state):
+                    self.experience_replay(option_transitions, goal=goal, reward_for_last_goal=False)
+                else:
+                    self.effect_set.append(state)
+                    # self.experience_replay(option_transitions, goal=goal, reward_for_last_goal=True)
+                self.experience_replay(option_transitions, goal=state, reward_for_last_goal=True)
 
         # Always be refining your initiation classifier
-        if not self.global_init and not eval_mode and self.get_training_phase() != "gestation":
+        if not self.global_init and not eval_mode:
             self.fit_initiation_classifier()
 
         return option_transitions, total_reward
 
-    def experience_replay(self, trajectory):
+    def experience_replay(self, trajectory, goal=None, reward_for_last_goal=False):
+        cnt = -1
         for state, action, reward, next_state in trajectory:
-            done = self.is_term_true(next_state)
-            subgoal_reward = +1. if done else -1.
+            cnt += 1
+            if reward_for_last_goal:
+                done = (cnt == len(trajectory) - 1)
+                subgoal_reward = +10. if done else 0.
+            else:
+                done = self.is_term_true(next_state)
+                subgoal_reward = +10. if done else 0.
 
-            self.solver.step(state.features(), action, subgoal_reward, next_state.features(), done)
-            if not self.global_init:
-                self.global_value_learner.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
-    
+            if not goal:
+                self.solver.step(state.features(), action, subgoal_reward, next_state.features(), done)
+            else:
+                self.solver.step(self.get_augmented_state(state, goal), action, subgoal_reward, self.get_augmented_state(next_state, goal), done)
+            
     def get_features_for_initiation_classifier(self, state):
         if self.preprocessing == "None":
             return state.features()[-1,:,:].flatten()
@@ -191,48 +229,62 @@ class ModelBasedOption(object):
             raise RuntimeError(f"{self.preprocessing} not implemented!")
 
     # ------------------------------------------------------------
-    # Hindsight Experience Replay
-    # ------------------------------------------------------------
-
-    def initialize_value_function_with_global_value_function(self):
-        self.solver.policy_network.load_state_dict(self.global_value_learner.policy_network.state_dict())
-        self.solver.target_network.load_state_dict(self.global_value_learner.target_network.state_dict())
-
-    # ------------------------------------------------------------
     # Goal Conditioning
     # ------------------------------------------------------------
 
     def get_augmented_state(self, state, goal):
-        goal_image = goal.features()[-1,:,:]
-        return np.concatenate((state.features(), goal_image), axis=0)
-
-    def is_at_local_goal(self, state, goal):
-        def is_close(pos1, pos2):
-            return abs(pos1[0] - pos2[0]) <= 5 and abs(pos1[1] - pos2[1]) <= 5
-        state_pos = state.get_position()
-        goal_pos = goal.get_position()
-        return is_close(state_pos, goal_pos)
+        # goal_image = np.expand_dims(goal.features()[-1,:,:], axis=0)
+        return np.concatenate((state.features(), goal.features()), axis=0)
 
     def get_goal_for_rollout(self):
-        if not self.parent:
-            pass
+        if self.parent is None:
+            if len(self.positive_examples) == 0:
+                return None
+            return self.positive_examples[0][-1]
+
+        if len(self.effect_set) > 0:
+            goals = list(self.effect_set)
+            features = np.array([self.get_features_for_initiation_classifier(goal) for goal in goals])
+            predictions = self.parent.pessimistic_classifier.predict(features) == 1
+            indices = np.argwhere(predictions == True)
+            if len(indices) > 0:
+                i = random.randint(0,len(indices)-1)
+                return goals[indices[i][0]]
+            else:
+                print("*** GOAL OUTSIDE OF INIT SET, RESAMPLING ***")
+
         num_positives = len(self.parent.positive_examples)
-        idx = random.randint(0, num_positives)
-        return self.parent.positive_examples[idx][0]
+        idxs = list(range(0, num_positives))
+        random.shuffle(idxs)
+        for idx in idxs:
+            trajectory = self.parent.positive_examples[idx]
+            features = np.array([self.get_features_for_initiation_classifier(state) for state in trajectory])
+            predictions = self.parent.pessimistic_classifier.predict(features) == 1
+            indices = np.argwhere(predictions == True)
+            if len(indices) > 0:
+                return trajectory[indices[0][0]]
+        raise Exception("Suitable goal for rollout not found!")
 
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
     # ------------------------------------------------------------
+
+    def derive_positive_examples(self, visited_states):
+        final_state = visited_states[-1]
+
+        if self.is_term_true(final_state):
+            positive_states = visited_states[-self.buffer_length:]
+            self.positive_examples.append(positive_states)
 
     def derive_positive_and_negative_examples(self, visited_states):
         start_state = visited_states[0]
         final_state = visited_states[-1]
 
         if self.is_term_true(final_state):
-            positive_states = [start_state] + visited_states[-self.buffer_length:]
+            positive_states = visited_states[-self.buffer_length:]
             self.positive_examples.append(positive_states)
         else:
-            negative_examples = [start_state] + visited_states[-self.buffer_length:]
+            negative_examples = visited_states[-self.buffer_length:]
             self.negative_examples.append(negative_examples)
 
     def fit_initiation_classifier(self):
@@ -302,10 +354,10 @@ class ModelBasedOption(object):
             return self.num_goal_hits / self.num_executions
         return 1.
 
-    def get_success_rate(self):
-        if len(self.success_curve) == 0:
-            return 0.
-        return np.mean(self.success_curve)
+    # def get_success_rate(self):
+    #     if len(self.success_curve) == 0:
+    #         return 0.
+    #     return np.mean(self.success_curve)
 
     def __str__(self):
         return self.name
