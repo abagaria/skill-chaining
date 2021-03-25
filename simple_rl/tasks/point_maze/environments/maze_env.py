@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 import math
 import numpy as np
 import gym
-import pdb
+import ipdb
 import random
 from scipy.spatial import distance
 
@@ -498,6 +498,21 @@ class MazeEnv(gym.Env):
     for i in range(len(structure)):
       for j in range(len(structure[0])):
         if structure[i][j] == 1:
+          minx = j * size_scaling - size_scaling * 0.5 - self._init_torso_x
+          maxx = j * size_scaling + size_scaling * 0.5 - self._init_torso_x
+          miny = i * size_scaling - size_scaling * 0.5 - self._init_torso_y
+          maxy = i * size_scaling + size_scaling * 0.5 - self._init_torso_y
+          if minx <= x <= maxx and miny <= y <= maxy:
+            return True
+    return False
+
+  def _is_in_collision_with_block(self, pos):
+    x, y = pos
+    structure = self.MAZE_STRUCTURE
+    size_scaling = self.MAZE_SIZE_SCALING
+    for i in range(len(structure)):
+      for j in range(len(structure[0])):
+        if structure[i][j] == 14:  # TODO: Hardcoded for Move.XY
           minx = j * size_scaling - size_scaling * 0.5 - self._init_torso_x
           maxx = j * size_scaling + size_scaling * 0.5 - self._init_torso_x
           miny = i * size_scaling - size_scaling * 0.5 - self._init_torso_y
