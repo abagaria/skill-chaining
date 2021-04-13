@@ -256,7 +256,7 @@ class SkillGraphPlanner(object):
     def _get_goal_vertices_for_rollout(self, state, goal_salient_event):
         # Revise the goal_salient_event if it cannot be reached from the current state
         if not self.plan_graph.does_path_exist(state, goal_salient_event):
-            choose_among_events = not goal_salient_event.use_position
+            choose_among_events = not goal_salient_event.use_position  # TODO: Remove eventually
             closest_vertex_pair = self.choose_closest_source_target_vertex_pair(state, goal_salient_event, choose_among_events)
             if closest_vertex_pair is not None:
                 planner_goal_vertex, dsc_goal_vertex = closest_vertex_pair
