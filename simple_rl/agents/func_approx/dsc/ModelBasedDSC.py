@@ -56,7 +56,7 @@ class ModelBasedSkillChaining(object):
         if len(chains) == 0:
             for chain in self.chains:
                 for option in chain.options:
-                    if len(option.effect_set) > 0 and option.is_in_effect_set(goal) and chain not in chains:
+                    if len(option.effect_set) > 0 and option.is_term_true(goal) and chain not in chains:
                         chains.append(chain)
         return chains
 
