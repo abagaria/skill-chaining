@@ -125,38 +125,6 @@ class GoalDirectedMDP(MDP):
     def get_start_state_salient_event(self):
         return self.start_state_salient_event
 
-    def satisfy_target_event(self, chains):
-        """
-        Once a salient event has both forward and backward options related to it,
-        we no longer need to maintain it as a target_event. This function will find
-        the salient event that corresponds to the input state and will remove that
-        event from the list of target_events. Additionally, we have to ensure that
-        the chain corresponding to `option` is "completed".
-
-        A target event is satisfied when all chains targeting it are completed.
-
-        Args:
-            chains (list)
-
-        Returns:
-
-        """
-        for salient_event in self.get_current_target_events():  # type: SalientEvent
-            satisfied_salience = self.should_remove_salient_event_from_mdp(salient_event, chains)
-            if satisfied_salience and (salient_event in self.current_salient_events):
-                self.current_salient_events.remove(salient_event)
-
-    @staticmethod
-    def should_remove_salient_event_from_mdp(salient_event, chains):
-        incoming_chains = [chain for chain in chains if chain.target_salient_event == salient_event]
-        outgoing_chains = [chain for chain in chains if chain.init_salient_event == salient_event]
-
-        event_chains = incoming_chains + outgoing_chains
-        event_chains_completed = all([chain.is_chain_completed() for chain in event_chains])
-        satisfied = len(incoming_chains) > 0 and len(outgoing_chains) and event_chains_completed
-
-        return satisfied
-
     def get_current_goal(self):
         return self.get_position(self.goal_state)
 
@@ -182,3 +150,8 @@ class GoalDirectedMDP(MDP):
             position = state.position if isinstance(state, State) else state[:2]
             return position
         return None
+    
+    @staticmethod
+    def batched_get_position(state_matrix):
+        assert isinstance(state_matrix, np.ndarray)
+        return state_matrix[:, :2]
