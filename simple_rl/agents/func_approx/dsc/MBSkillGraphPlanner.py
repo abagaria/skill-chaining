@@ -11,7 +11,6 @@ from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
-from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
 
 class SkillGraphPlanner(object):
@@ -33,26 +32,10 @@ class SkillGraphPlanner(object):
         self.experiment_name = experiment_name
         self.seed = seed
 
-        self.mpc = self._get_mpc()
-
-        assert isinstance(self.mpc, MPC)
         assert isinstance(self.chainer, ModelBasedSkillChaining)
         assert isinstance(self.mdp, GoalDirectedMDP)
 
         self.plan_graph = PlanGraph()
-
-    def _get_mpc(self):
-        if self.chainer.use_model:
-            print(f"[Model-Based Controller] Using the global-option's solver as DSG's MPC.")
-            return self.chainer.global_option.solver
-
-        print(f"[Model-Free Controller] Creating a MPC for DSG.")
-        return MPC(mdp=self.mdp,
-                   state_size=self.mdp.state_space_size(),
-                   action_size=self.mdp.action_space_size(),
-                   dense_reward=self.chainer.global_option.dense_reward,
-                   device=self.chainer.device,
-                   multithread=self.chainer.global_option.multithread_mpc)
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -120,7 +103,7 @@ class SkillGraphPlanner(object):
         option_trajectory = []
 
         poo_goal = self.sample_from_vertex(goal_vertex)
-        should_terminate = lambda s, o, inside, outside, step: inside(s, o) or outside(s, o) or step >= self.chainer.max_steps
+        should_terminate = lambda s, o, inside, outside, step: inside(s, o) or outside(s, o) or step >= self.chainer.max_steps or s.is_terminal()
         inside_predicate = lambda s, o: goal_vertex(s) if isinstance(goal_vertex, SalientEvent) else goal_vertex.is_term_true(s)
         outside_predicate = lambda s, o: goal_salient_event(s)
 
@@ -154,8 +137,16 @@ class SkillGraphPlanner(object):
         return step_number
 
     def run_sub_loop(self, state, goal_vertex, step, goal_salient_event, episode, eval_mode):
-        should_terminate = lambda s, step_number: goal_salient_event(s) or step_number >= self.chainer.max_steps
-        planner_condition = lambda s, g: self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g)
+
+        def should_terminate(s, step_number):
+            if goal_salient_event is not None and goal_salient_event.target_state == (14, 201):
+                return goal_salient_event(s) or step_number >= self.chainer.max_steps or s.is_terminal() or self.mdp.has_key(s)
+            return goal_salient_event(s) or step_number >= self.chainer.max_steps or s.is_terminal()
+
+        def planner_condition(s, g):
+            if isinstance(g, SalientEvent) and g.target_state == (14, 201):
+                return self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g) and not self.mdp.has_key(s)
+            return self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g)
 
         if planner_condition(state, goal_vertex) and not should_terminate(state, step):
             print(f"[Planner] Rolling out from {state.position} targeting {goal_vertex}")
@@ -191,141 +182,6 @@ class SkillGraphPlanner(object):
 
         return step, goal_salient_event(state)
 
-    def get_test_time_subgoals(self, start_state_event, goal_salient_event):
-        """
-        When the start event has no descendants, we can do better than relying on the policy over options
-        targeting the goal-salient-event. More specifically, we first find the best vertex that will take
-        us to the goal-salient-event, and *then* find the best vertex in the graph that we can achieve from
-        the start-state-salient-event.
-
-        Args:
-            start_state_event (SalientEvent)
-            goal_salient_event (SalientEvent)
-
-        Returns:
-            beta1 (SalientEvent)
-            beta2 (Salient Event)
-        """
-        # Choose sub-goals from among salient events because Skill-Chains from arbitrary vertices not supported yet
-        filtering_condition = lambda v: isinstance(v, SalientEvent)
-
-        # Pick the target node that is closest to the goal-salient-event
-        num_ancestors = len(self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event))
-        src_vertices = self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event) if num_ancestors > 0 \
-                         else self.plan_graph.plan_graph.nodes
-        src_vertices = [v for v in src_vertices if filtering_condition(v)]
-        pair2 = self.get_closest_pair_of_vertices(src_vertices, [goal_salient_event])
-        beta2 = pair2[0] if pair2 is not None else goal_salient_event
-
-        # Pick an ancestor of beta2 that is closest to the start-state-salient-event
-        dest_vertices = self.plan_graph.get_nodes_that_reach_target_node(beta2)
-        dest_vertices = [v for v in dest_vertices if filtering_condition(v) and v != start_state_event]
-        pair1 = self.get_closest_pair_of_vertices([start_state_event], dest_vertices)
-        beta1 = pair1[1] if pair1 is not None else start_state_event
-
-        return beta1, beta2
-
-    def test_loop(self, *, state, start_state_event, goal_salient_event, episode, step):
-        num_descendants = len(self.plan_graph.get_reachable_nodes_from_source_state(state))
-
-        if num_descendants == 0:
-            beta1, beta2 = self.get_test_time_subgoals(start_state_event, goal_salient_event)
-            state, step = self.run_sub_loop(state, beta1, step, goal_salient_event, episode, eval_mode=True)
-            state, step = self.run_sub_loop(state, beta2, step, goal_salient_event, episode, eval_mode=True)
-            state, step = self.run_sub_loop(state, goal_salient_event, step, goal_salient_event, episode, eval_mode=True)
-            return step, state
-
-        step, success = self.run_loop(state=state,
-                                      goal_salient_event=goal_salient_event,
-                                      episode=episode, step=step, eval_mode=True)
-
-        return step, self.mdp.cur_state
-
-    def salient_event_discovery_run_loop(self, goal_salient_event, episode):
-        assert not goal_salient_event.revised_by_mpc
-        assert isinstance(goal_salient_event, SalientEvent)
-        assert isinstance(episode, int)
-        assert not goal_salient_event.revised_by_mpc
-
-        step = 0
-        state = deepcopy(self.mdp.cur_state)
-        planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
-        print(f"[Salient-Event-Discovery] Planner goal: {planner_goal_vertex}; Goal: {goal_salient_event}")
-
-        if planner_goal_vertex != goal_salient_event:
-            state, step = self.run_sub_loop(state, planner_goal_vertex, 0, goal_salient_event, episode, eval_mode=False)
-
-        if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
-            state, steps_taken, accepted = self.model_based_extrapolation(goal_salient_event, episode)
-            return state, step + steps_taken, accepted
-
-        return state, step, False
-
-    def model_based_extrapolation(self, goal_salient_event, episode):
-        """
-        Use a learned dynamics model + MPC to move in the direction of the randomly sampled goal state.
-
-        Args:
-            goal_salient_event (SalientEvent)
-            episode (int): current episode
-
-        Returns:
-            state (State): state at the end of the MPC rollout
-            steps_taken (int): how many steps the MPC took in the environment
-            accepted (bool): whether the revised salient event was rejected or not
-        """
-        assert not goal_salient_event.revised_by_mpc
-
-        state_before_rollout = deepcopy(self.mdp.cur_state)
-        print(f"Performing model-based extrapolation from {state_before_rollout.position} to {goal_salient_event}")
-
-        mpc_steps = 100
-        state, steps_taken = self.mpc.rollout(mdp=self.mdp,
-                                              num_rollouts=14000, num_steps=7,
-                                              goal=goal_salient_event.get_target_position(),
-                                              max_steps=mpc_steps)
-
-        print("Checking if MPC revision needs to be rejected")
-        reject = self.should_reject_mpc_revision(state, goal_salient_event)
-
-        print("Returning from model-based extrapolation")
-        if reject:
-            if goal_salient_event in self.mdp.all_salient_events_ever:
-                self.mdp.all_salient_events_ever.remove(goal_salient_event)
-            return state, steps_taken, False
-
-        goal_salient_event.target_state = state.position
-        goal_salient_event._initialize_trigger_points()
-        goal_salient_event.revised_by_mpc = True
-
-        return state, steps_taken, True
-
-    def should_reject_mpc_revision(self, state, goal_salient_event):
-        def satisfies_existing_event(s):
-            events = self.mdp.get_all_target_events_ever()
-            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
-            return any([event(s) for event in events])
-
-        def close_to_existing_event(s):
-            """ The new event should not be too close to start-state or any other event. """
-            events = self.mdp.get_all_target_events_ever()
-            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
-            events += [self.mdp.get_start_state_salient_event()]
-            distances = [event.distance_to_effect_set([s]) for event in events]
-            distance_threshold = 2.5 * goal_salient_event.tolerance
-            return any([distance < distance_threshold for distance in distances])
-
-        def satisfies_start_event(s):
-            return self.mdp.get_start_state_salient_event()(s)
-
-        def inside_completed_option(s):
-            return any([o.pessimistic_is_init_true(s) or o.is_in_effect_set(s) for o in self.chainer.mature_options])
-
-        return satisfies_start_event(state) or \
-               satisfies_existing_event(state) or \
-               inside_completed_option(state) or \
-               close_to_existing_event(state)
-
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
     # -----------------------------–––––––--------------
@@ -334,13 +190,15 @@ class SkillGraphPlanner(object):
         state = deepcopy(self.mdp.cur_state)
         dsc_goal_state = self.sample_from_vertex(dsc_goal_vertex)
         dsc_run_loop_budget = self.chainer.max_steps - num_steps
-        dsc_interrupt_handle = lambda s: self.is_state_inside_vertex(s, dsc_goal_vertex) or goal_salient_event(s)
+        dsc_interrupt_handle = lambda s: self.is_state_inside_vertex(s, dsc_goal_vertex) \
+                                         or goal_salient_event(s) \
+                                         or s.is_terminal()
 
         if dsc_interrupt_handle(state):
             print(f"Not rolling out DSC because {state.position} triggered interrupt handle")
             return state, num_steps
 
-        print(f"Rolling out DSC for {dsc_run_loop_budget} steps with goal vertex {dsc_goal_vertex} and goal state {dsc_goal_state}")
+        print(f"Rolling out DSC for {dsc_run_loop_budget} steps with goal vertex {dsc_goal_vertex} and goal state {dsc_goal_state.position}")
 
         # Deliberately did not add `eval_mode` to the DSC rollout b/c we usually do this when we
         # want to fall off the graph, and it is always good to do some exploration when outside the graph
@@ -398,7 +256,8 @@ class SkillGraphPlanner(object):
     def _get_goal_vertices_for_rollout(self, state, goal_salient_event):
         # Revise the goal_salient_event if it cannot be reached from the current state
         if not self.plan_graph.does_path_exist(state, goal_salient_event):
-            closest_vertex_pair = self.choose_closest_source_target_vertex_pair(state, goal_salient_event, False)
+            choose_among_events = not goal_salient_event.use_position
+            closest_vertex_pair = self.choose_closest_source_target_vertex_pair(state, goal_salient_event, choose_among_events)
             if closest_vertex_pair is not None:
                 planner_goal_vertex, dsc_goal_vertex = closest_vertex_pair
                 print(f"Revised planner goal vertex to {planner_goal_vertex} and dsc goal vertex to {dsc_goal_vertex}")
@@ -672,33 +531,36 @@ class SkillGraphPlanner(object):
 
         if isinstance(vertex, ModelBasedOption):
             return vertex.get_goal_for_rollout()
-        if vertex.get_target_position() is not None:
-            return vertex.get_target_position()
-        return random.sample(vertex.trigger_points, k=1)[0]
+        return random.choice(vertex.trigger_points)
 
-    def find_nearest_option(self, state, options):
+    def find_nearest_vertex(self, state, options):
         if len(options) > 0:
             distances = [(option, option.distance_to_state(state)) for option in options]
-            nearest_option = sorted(distances, key=lambda x: x[1])[0][0]  # type: ModelBasedOption
-            return nearest_option
+            nearest_vertex = sorted(distances, key=lambda x: x[1])[0][0]  # type: ModelBasedOption
+            return nearest_vertex
 
     def pick_subgoal_for_global_option(self, state, goal_vertex):
         assert isinstance(goal_vertex, (ModelBasedOption, SalientEvent))
 
         options = self.plan_graph.get_nodes_that_reach_target_node(goal_vertex)
         options = [option for option in options if not option.pessimistic_is_init_true(state)]
-        nearest_option = self.find_nearest_option(state, options)
+        nearest_vertex = self.find_nearest_vertex(state, options)
 
-        if nearest_option is not None:
+        if nearest_vertex is not None:
             sampled_goal = None
             num_tries = 0
             while sampled_goal is None and num_tries < 10:
-                sampled_goal = nearest_option.sample_from_initiation_region_fast_and_epsilon()
+
+                if isinstance(nearest_vertex, ModelBasedOption):
+                    sampled_goal = nearest_vertex.sample_from_initiation_region_fast()
+                else:
+                    assert isinstance(nearest_vertex, SalientEvent), nearest_vertex
+                    sampled_goal = random.choice(nearest_vertex.trigger_points)
 
                 if isinstance(sampled_goal, np.ndarray):
                     return sampled_goal.squeeze()
 
-                sampled_goal = self.mdp.get_position(sampled_goal)
+                # sampled_goal = self.mdp.get_position(sampled_goal)
                 if self.mdp.sparse_gc_reward_function(state, sampled_goal, info={})[1]:
                     sampled_goal = None
                 num_tries += 1
