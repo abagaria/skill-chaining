@@ -75,8 +75,8 @@ def get_grid_states(mdp):
     ss = []
     x_low_lim, y_low_lim = mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim, 1):
-        for y in np.arange(y_low_lim, y_high_lim, 1):
+    for x in np.arange(x_low_lim, x_high_lim, 10):
+        for y in np.arange(y_low_lim, y_high_lim, 10):
             ss.append(np.array((x, y)))
     return ss
 
@@ -85,8 +85,8 @@ def get_initiation_set_values(option):
     values = []
     x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
-    for x in np.arange(x_low_lim, x_high_lim, 1):
-        for y in np.arange(y_low_lim, y_high_lim, 1):
+    for x in np.arange(x_low_lim, x_high_lim, 10):
+        for y in np.arange(y_low_lim, y_high_lim, 10):
             values.append(option.is_init_true(np.array((x, y))))
 
     return values
@@ -838,3 +838,7 @@ def visualize_mpc_train_data_distribution(mdp, states, episode, experiment_name)
 
     plt.savefig(f"value_function_plots/{experiment_name}/mpc_train_data_episode_{episode}.png")
     plt.close()
+
+def render_state(state, path="monte"):
+    import cv2
+    return cv2.imwrite(f"{path}.png", np.array(state.image)[-1, ...])
