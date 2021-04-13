@@ -2,6 +2,7 @@ import ipdb
 import numpy as np
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.tasks.gym.GymMDPClass import GymMDP
 from simple_rl.mdp.StateClass import State
 
 
@@ -29,6 +30,8 @@ class SkillChain(object):
         self._init_ancestors = []
         self._is_deemed_completed = False
         self.completing_vertex = None
+
+        self.max_num_options = 4
 
     def __eq__(self, other):
         return self.chain_id == other.chain_id
@@ -85,8 +88,7 @@ class SkillChain(object):
 
         if option.get_training_phase() == "initiation_done":
             if len(event.trigger_points) > 0:  # Be careful: all([]) = True
-                state_matrix = SkillChain.get_position_matrix(event.trigger_points)
-                inits = option.pessimistic_batched_is_init_true(state_matrix)
+                inits = option.pessimistic_batched_is_init_true(event.trigger_points)
                 is_intersecting = inits.all()
                 return is_intersecting
             return option.is_init_true(event.target_state)
@@ -100,18 +102,23 @@ class SkillChain(object):
 
         if option.get_training_phase() == "initiation_done":
             effect_set = option.effect_set  # list of states
-            effect_set_matrix = SkillChain.get_position_matrix(effect_set)
-            inits = event.batched_is_init_true(effect_set_matrix)
+            inits = event.batched_is_init_true(effect_set)
             return inits.all()
         return False
 
     def should_expand_initiation_classifier(self, option):
         assert isinstance(option, ModelBasedOption), f"{type(option)}"
 
+        # Hack: For the first skill-chain, we limit the number of options to 4
+        trained_options = [o for o in self.options if o.get_training_phase() == 'initiation_done']
+        if self.chain_id == 1 and len(trained_options) > self.max_num_options:
+            return True
+
         if len(self.init_salient_event.trigger_points) > 0:
             return any([option.is_init_true(s) for s in self.init_salient_event.trigger_points])
         if self.init_salient_event.get_target_position() is not None:
             return option.is_init_true(self.init_salient_event.get_target_position())
+        
         return False
 
     def should_complete_chain(self, option):
@@ -137,7 +144,7 @@ class SkillChain(object):
 
         # TODO: Can't check for intersection with start event for backward chains - can we cap by num_skills?
         trained_options = [option for option in self.options if option.get_training_phase() == 'initiation_done']
-        return len(trained_options) > 5
+        return len(trained_options) > self.max_num_options
 
     def is_chain_completed(self):
         """
@@ -174,12 +181,4 @@ class SkillChain(object):
 
     @staticmethod
     def _get_position(state):
-        position = state.position if isinstance(state, State) else state[:2]
-        assert isinstance(position, np.ndarray), type(position)
-        return position
-
-    @staticmethod
-    def get_position_matrix(states):
-        to_position = lambda s: s.position if isinstance(s, State) else s[:2]
-        positions = [to_position(state) for state in states]
-        return np.array(positions)
+        return GymMDP.get_position(state)
