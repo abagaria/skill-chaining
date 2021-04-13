@@ -1,3 +1,4 @@
+import cv2
 import ipdb
 import torch
 import random
@@ -6,16 +7,21 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 from scipy.spatial import distance
-from thundersvm import OneClassSVM, SVC
+# from thundersvm import OneClassSVM, SVC
+from sklearn.svm import OneClassSVM, SVC
+
+from simple_rl.mdp.StateClass import State
+from simple_rl.tasks.gym.wrappers import LazyFrames
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
+from simple_rl.agents.func_approx.ppo.PPOAgentClass import PPOAgent
 
 
 class ModelBasedOption(object):
     def __init__(self, *, name, parent, mdp, global_solver, global_value_learner, buffer_length, global_init,
                  gestation_period, timeout, max_steps, device, use_vf, use_model, dense_reward,
-                 option_idx, chain_id, lr_c=3e-4, lr_a=3e-4, max_num_children=2,
-                 target_salient_event=None, init_salient_event=None, path_to_model="", multithread_mpc=False):
+                 option_idx, chain_id, preprocessing="position", lr_c=3e-4, lr_a=3e-4, max_num_children=2,
+                 solver_type="ppo", target_salient_event=None, init_salient_event=None, path_to_model="", multithread_mpc=False):
         self.mdp = mdp
         self.name = name
         self.lr_c = lr_c
@@ -23,6 +29,8 @@ class ModelBasedOption(object):
         self.parent = parent
         self.device = device
         self.use_vf = use_vf
+        self.solver_type = solver_type
+        self.preprocessing = preprocessing
         self.global_solver = global_solver
         self.use_global_vf = use_vf
         self.timeout = timeout
@@ -48,6 +56,7 @@ class ModelBasedOption(object):
 
         self.positive_examples = deque(maxlen=100)
         self.negative_examples = deque(maxlen=100)
+
         self.optimistic_classifier = None
         self.pessimistic_classifier = None
         self.last_episode_term_triggered = -1
@@ -60,19 +69,12 @@ class ModelBasedOption(object):
         # In the model-free setting, the output norm doesn't seem to work
         # But it seems to stabilize off policy value function learning
         # Therefore, only use output norm if we are using MPC for action selection
-        use_output_norm = self.use_model
-
+        self.use_output_norm = self.use_model
         self.value_learner = None
 
         if use_vf and (not self.use_global_vf or global_init):
-            print(f"Initializing VF with lra={lr_a}, lrc={lr_c} and output-norm={use_output_norm}")
-            self.value_learner = TD3(state_dim=self.mdp.state_space_size()+2,
-                                    action_dim=self.mdp.action_space_size(),
-                                    max_action=1.,
-                                    name=f"{name}-td3-agent",
-                                    device=self.device,
-                                    lr_c=lr_c, lr_a=lr_a,
-                                    use_output_normalization=use_output_norm)
+            print(f"Initializing VF with lra={lr_a}, lrc={lr_c} and output-norm={self.use_output_norm}")
+            self.value_learner = self._get_model_free_solver()
 
         self.global_value_learner = global_value_learner if not self.global_init else None  # type: TD3
 
@@ -113,22 +115,24 @@ class ModelBasedOption(object):
         return self.global_solver
 
     def _get_model_free_solver(self):
-        assert not self.use_model
-        assert self.use_vf
-
-        # Global option creates its own VF solver
-        if self.global_init:
-            assert self.value_learner is not None
-            return self.value_learner
-
-        # Local option either uses the global VF..
-        if self.use_global_vf:
-            assert self.global_value_learner is not None
+        if not self.global_init:
             return self.global_value_learner
 
-        # .. or uses its own local VF as solver
-        assert self.value_learner is not None
-        return self.value_learner
+        assert self.solver_type in ("td3", "ppo"), self.solver_type
+
+        if self.solver_type == "td3":
+            return TD3(state_dim=self.mdp.state_space_size()+self.overall_mdp.goal_space_size(),
+                                    action_dim=self.mdp.action_space_size(),
+                                    max_action=1.,
+                                    name=f"{self.name}-td3-agent",
+                                    device=self.device,
+                                    lr_c=self.lr_c, lr_a=self.lr_a,
+                                    use_output_normalization=self.use_output_norm)
+        
+        if self.solver_type == "ppo":
+            return PPOAgent(obs_n_channels=5,  # 4 for the state and 1 for the goal
+                            n_actions=self.mdp.action_space_size(),
+                            device_id=0)
 
     # ------------------------------------------------------------
     # Learning Phase Methods
@@ -143,7 +147,7 @@ class ModelBasedOption(object):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
 
-        features = self.mdp.get_position(state)
+        features = self.get_features_for_initiation_classifier(state)
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
@@ -159,22 +163,23 @@ class ModelBasedOption(object):
         if self.global_init or self.get_training_phase() == "gestation":
             return True
 
-        features = self.mdp.get_position(state)
+        assert isinstance(state, State), f"{type(state)}"
+        features = self.get_features_for_initiation_classifier(state)
         expansion_clf_decision = self.expansion_classifier(features) if self.expansion_classifier else False
         return self.pessimistic_classifier.predict([features])[0] == 1 or expansion_clf_decision
 
-    def batched_is_init_true(self, state_matrix):
+    def batched_is_init_true(self, state_matrix):  # TODO: Incorporate expansion and pessimistic classifiers
         if self.global_init or self.get_training_phase() == "gestation":
             return np.ones((state_matrix.shape[0]))
 
-        position_matrix = state_matrix[:, :2]
+        position_matrix = self.mdp.batched_get_position(state_matrix)
         return self.optimistic_classifier.predict(position_matrix) == 1
 
     def pessimistic_batched_is_init_true(self, state_matrix):
         if self.global_init or self.get_training_phase() == "gestation":
             return np.ones((state_matrix.shape[0]))
 
-        position_matrix = state_matrix[:, :2]
+        position_matrix = self.mdp.batched_get_position(state_matrix)
         defaults = np.zeros((position_matrix.shape[0],))
         expansion_clf_decision = self.expansion_classifier(position_matrix) if self.expansion_classifier else defaults
         return np.logical_or(self.pessimistic_classifier.predict(position_matrix) == 1, expansion_clf_decision)
@@ -183,7 +188,7 @@ class ModelBasedOption(object):
         if self.parent is None:
             return self.target_salient_event(state_matrix)
 
-        position_matrix = state_matrix[:, :2]
+        position_matrix = self.mdp.batched_get_position(state_matrix)
         return self.parent.pessimistic_classifier.predict(position_matrix) == 1
 
     def is_in_effect_set(self, state):
@@ -209,9 +214,17 @@ class ModelBasedOption(object):
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
 
-        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, {})[1]
+        info = {}
+
+        if self.target_salient_event is not None:
+            targets_key = self.target_salient_event.target_state == (14, 201)
+            info = {'targets_key': targets_key}
+
+        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, info)[1]
         reached_term = self.is_term_true(state) or state.is_terminal()
-        return reached_goal and reached_term
+        reached_key = 'targets_key' in info and info['targets_key'] and reached_goal
+
+        return reached_goal and (reached_term or reached_key)
 
     # ------------------------------------------------------------
     # Control Loop Methods
@@ -227,7 +240,7 @@ class ModelBasedOption(object):
     def act(self, state, goal):
         """ Epsilon-greedy action selection. """
 
-        if random.random() < self._get_epsilon():
+        if goal is None:
             return self.mdp.sample_random_action()
 
         if self.use_model:
@@ -235,9 +248,8 @@ class ModelBasedOption(object):
             vf = self.value_function if self.use_vf else None
             return self.solver.act(state, goal, vf=vf)
 
-        assert isinstance(self.solver, TD3), f"{type(self.solver)}"
         augmented_state = self.get_augmented_state(state, goal)
-        return self.solver.act(augmented_state, evaluation_mode=False)
+        return self.solver.act(augmented_state)
 
     def update_model(self, state, action, reward, next_state):
         """ Learning update for option model/actor/critic. """
@@ -247,16 +259,19 @@ class ModelBasedOption(object):
     def get_goal_for_rollout(self):
         """ Sample goal to pursue for option rollout. """
 
-        if self.parent is None and self.target_salient_event is not None:
-            return self.target_salient_event.get_target_position()
+        if self.parent is not None:
+            sampled_goal = self.parent.sample_from_initiation_region()
+            if sampled_goal is not None:
+                return sampled_goal
+        
+        if self.num_goal_hits > 0:
+            return random.choice(self.effect_set)
 
-        sampled_goal = self.parent.sample_from_initiation_region_fast_and_epsilon()
-        assert sampled_goal is not None
-
-        if isinstance(sampled_goal, np.ndarray):
-            return sampled_goal.squeeze()
-
-        return self.extract_goal_dimensions(sampled_goal)
+        if self.parent is None and len(self.target_salient_event.trigger_points) > 0:
+            return random.choice(self.target_salient_event.trigger_points)
+        
+        assert self.num_goal_hits == 0, self.num_goal_hits
+        return None
 
     def rollout(self, episode, step_number, rollout_goal=None, eval_mode=False):
         """ Main option control loop. """
@@ -273,18 +288,23 @@ class ModelBasedOption(object):
         state = deepcopy(self.mdp.cur_state)
         goal = self.get_goal_for_rollout() if rollout_goal is None else rollout_goal
 
-        print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal}")
+        print(f"[Step: {step_number}] Rolling out {self.name}, from {state.position} targeting {goal.position}")
 
         self.num_executions += 1
 
-        while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout:
+        while not self.is_at_local_goal(state, goal) and step_number < self.max_steps and num_steps < self.timeout and not state.is_terminal():
 
             # Control
             action = self.act(state, goal)
             reward, next_state = self.mdp.execute_agent_action(action)
 
+            # Update Model
             if self.use_model:
                 self.update_model(state, action, reward, next_state)
+
+            # Update PPO
+            if self.solver_type == "ppo" and goal is not None:
+                self.update_ppo(next_state, goal)
 
             # Logging
             num_steps += 1
@@ -300,13 +320,13 @@ class ModelBasedOption(object):
 
         if reached_parent and not self.global_init:
             print(f"****** {self.name} execution successful ******")
-            self.effect_set.append(state.features())
+            self.effect_set.append(state)
 
         if reached_parent and self.last_episode_term_triggered != episode:
             self.num_goal_hits += 1
             self.last_episode_term_triggered = episode
 
-        if self.use_vf and not eval_mode:
+        if self.use_vf and not eval_mode and self.solver_type != "ppo":
             self.update_value_function(option_transitions,
                                     pursued_goal=goal,
                                     reached_goal=self.extract_goal_dimensions(state))
@@ -323,6 +343,24 @@ class ModelBasedOption(object):
     # Hindsight Experience Replay
     # ------------------------------------------------------------
 
+    def update_ppo(self, next_state, goal):
+        assert isinstance(next_state, State), f"{type(next_state)}"
+        assert isinstance(goal, State), f"{type(goal)}"
+
+        augmented_next_obs = self.get_augmented_state(next_state, goal)
+        done = self.is_at_local_goal(next_state, goal)
+
+        info = {}
+        if self.target_salient_event is not None:
+            targets_key = self.target_salient_event.target_state == (14, 201)
+            info = {"targets_key": targets_key}
+
+        reward_func = self.overall_mdp.sparse_gc_reward_function
+        reward, _ = reward_func(next_state, goal, info=info)
+
+        self.solver.agent.observe(augmented_next_obs, reward, done, reset=False)
+
+
     def update_value_function(self, option_transitions, reached_goal, pursued_goal):
         """ Update the goal-conditioned option value function. """
 
@@ -336,16 +374,25 @@ class ModelBasedOption(object):
         self.value_learner.target_critic.load_state_dict(self.global_value_learner.target_critic.state_dict())
 
     def extract_goal_dimensions(self, goal):
-        goal_features = goal if isinstance(goal, np.ndarray) else goal.features()
-        if "ant" in self.mdp.env_name:
-            return goal_features[:2]
-        raise NotImplementedError(f"{self.mdp.env_name}")
+        goal_features = goal if isinstance(goal, LazyFrames) else goal.features()
+        
+        assert isinstance(goal_features, LazyFrames), f"{type(goal_features)}"
+        goal_frame = goal_features.get_frame(-1)
+        return goal_frame
 
     def get_augmented_state(self, state, goal):
-        assert goal is not None and isinstance(goal, np.ndarray)
+        assert isinstance(state, State), f"{type(state)}"
+        assert isinstance(goal, State), f"{type(goal)}"
 
-        goal_position = self.extract_goal_dimensions(goal)
-        return np.concatenate((state.features(), goal_position))
+        obs_frames = state.features()._frames
+        goal_image = self.extract_goal_dimensions(goal)
+        augmented_frames = obs_frames + [goal_image]
+
+        assert len(augmented_frames) == 5, len(augmented_frames)
+        assert len(obs_frames) == 4, len(obs_frames)
+
+        return LazyFrames(frames=augmented_frames, stack_axis=0)
+
 
     def experience_replay(self, trajectory, goal_state):
         for state, action, reward, next_state in trajectory:
@@ -374,7 +421,7 @@ class ModelBasedOption(object):
         if len(goals.shape) == 1:
             goals = goals[None, ...]
 
-        goal_positions = goals[:, :2]
+        goal_positions = goals[:, :self.mdp.goal_space_size()]
         augmented_states = np.concatenate((states, goal_positions), axis=1)
         augmented_states = torch.as_tensor(augmented_states).float().to(self.device)
 
@@ -388,6 +435,13 @@ class ModelBasedOption(object):
     # ------------------------------------------------------------
     # Learning Initiation Classifiers
     # ------------------------------------------------------------
+
+    @staticmethod
+    def get_gamma(gamma, feature_matrix):
+        if gamma == "scale":
+            num_features = feature_matrix.shape[1]
+            return 1.0 / (num_features * feature_matrix.var())
+        return gamma
 
     @staticmethod
     def is_between(x1, x2, x3):
@@ -414,6 +468,9 @@ class ModelBasedOption(object):
         if not length_condition:
             return False
 
+        if "monte" in self.mdp.env_name.lower():
+            return True
+
         position_buffer = [self.overall_mdp.get_position(state) for state in state_buffer]
         points_in_between = get_points_in_between(self.init_salient_event.get_target_position(),
                                                   self.target_salient_event.get_target_position(),
@@ -430,6 +487,9 @@ class ModelBasedOption(object):
             if classifier(state):
                 return state
         return None
+
+    def sample_from_initiation_region(self):  # TODO
+        return self.sample_from_initiation_region_fast()
 
     def sample_from_initiation_region_fast(self):
         """ Sample from the pessimistic initiation classifier. """
@@ -518,10 +578,12 @@ class ModelBasedOption(object):
         X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
         Y = np.concatenate((positive_labels, negative_labels))
 
+        gamma = self.get_gamma("scale", X)
+
         if negative_feature_matrix.shape[0] >= 10:  # TODO: Implement gamma="auto" for thundersvm
-            kwargs = {"kernel": "rbf", "gamma": "auto", "class_weight": "balanced"}
+            kwargs = {"kernel": "rbf", "gamma": gamma, "class_weight": "balanced"}
         else:
-            kwargs = {"kernel": "rbf", "gamma": "auto"}
+            kwargs = {"kernel": "rbf", "gamma": gamma}
 
         self.optimistic_classifier = SVC(**kwargs)
         self.optimistic_classifier.fit(X, Y)
@@ -530,8 +592,30 @@ class ModelBasedOption(object):
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma=gamma)
             self.pessimistic_classifier.fit(positive_training_examples)
+
+    def get_features_for_initiation_classifier(self, state):
+        def downsample(image):
+            return cv2.resize(image, (6, 6), interpolation=cv2.INTER_AREA)
+
+        if self.preprocessing == "None":
+            return state.features()[-1,:,:].flatten()
+        elif self.preprocessing == "go-explore": # TODO scale range from 0-255 to 0-8?
+            frame = state.features()[-1,10:,:]
+            downsampled = downsample(frame)
+            return downsampled.flatten()
+        elif self.preprocessing == "go-explore-seq":
+            frames = state.features()
+            assert frames.shape[0] == 4, f"{frames.shape}"
+            downsampled_frames = np.array([downsample(frame).flatten() for frame in frames])
+            return downsampled_frames.flatten()
+        elif self.preprocessing == "position":
+            return state if isinstance(state, np.ndarray) else state.get_position()
+        elif self.preprocessing == "dqn":  # TODO: Write this function for Rainbow
+            return self.solver.feature_extract(state.features())[0]
+        else:
+            raise RuntimeError(f"{self.preprocessing} not implemented!")
 
     def is_eligible_for_off_policy_triggers(self):
         eligible_phase = False  # self.get_training_phase() != "initiation_done"
@@ -574,9 +658,8 @@ class ModelBasedOption(object):
     def get_effective_effect_set(self):
         """ Return the subset of the effect set still in the termination region. """
 
-        goals = np.vstack([self.mdp.get_position(goal) for goal in self.effect_set])
-        termination_predictions = self.batched_is_term_true(goals)
-        return goals[termination_predictions==1]
+        positive_goal_states = [state for state in self.effect_set if self.is_term_true(state)]
+        return positive_goal_states
 
     def get_states_inside_pessimistic_classifier_region(self):
         point_array = self.construct_feature_matrix(self.positive_examples)
