@@ -42,7 +42,7 @@ class SalientEvent(object):
         """
         if isinstance(states, State):
             return self.is_init_true(states)
-        if len(states.shape) == 1:
+        if isinstance(states, np.ndarray) and len(states.shape) == 1:
             return self.is_init_true(states)
         return self.batched_is_init_true(states)
 
@@ -95,10 +95,10 @@ class SalientEvent(object):
         return self.point_to_set_distance(point1, other.trigger_points)
 
     def _emd_based_distance(self, e2):
-        g = e2.trigger_points[0].features()
+        g = random.choice(e2.trigger_points).features()
         s = random.choice(self.trigger_points).features()
         d = self.emd_between_images(self.extract(s), self.extract(g))
-        return d
+        return abs(d)  # Making sure that the distance is positive
 
     def distance_to_state(self, state):
         return self.distance_to_effect_set([state])
