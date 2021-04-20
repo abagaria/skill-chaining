@@ -165,7 +165,7 @@ class ModelBasedOption(object):
 
         assert isinstance(state, State), f"{type(state)}"
         features = self.get_features_for_initiation_classifier(state)
-        expansion_clf_decision = self.expansion_classifier(features) if self.expansion_classifier else False
+        expansion_clf_decision = self.expansion_classifier(state) if self.expansion_classifier else False
         return self.pessimistic_classifier.predict([features])[0] == 1 or expansion_clf_decision
 
     def batched_is_init_true(self, state_matrix):  # TODO: Incorporate expansion and pessimistic classifiers
@@ -181,7 +181,7 @@ class ModelBasedOption(object):
 
         position_matrix = self.mdp.batched_get_position(state_matrix)
         defaults = np.zeros((position_matrix.shape[0],))
-        expansion_clf_decision = self.expansion_classifier(position_matrix) if self.expansion_classifier else defaults
+        expansion_clf_decision = self.expansion_classifier(state_matrix) if self.expansion_classifier else defaults
         return np.logical_or(self.pessimistic_classifier.predict(position_matrix) == 1, expansion_clf_decision)
 
     def batched_is_term_true(self, state_matrix):
@@ -217,7 +217,7 @@ class ModelBasedOption(object):
         info = {}
 
         if self.target_salient_event is not None:
-            targets_key = self.target_salient_event.target_state == (14, 201)
+            targets_key = self.target_salient_event.target_state is None # TODO: This event no longer has a target_state
             info = {'targets_key': targets_key}
 
         reached_goal = self.mdp.sparse_gc_reward_function(state, goal, info)[1]
@@ -326,6 +326,9 @@ class ModelBasedOption(object):
             self.num_goal_hits += 1
             self.last_episode_term_triggered = episode
 
+        if self.target_salient_event is not None and self.target_salient_event(state):
+            self.target_salient_event.trigger_points.append(state)
+
         if self.use_vf and not eval_mode and self.solver_type != "ppo":
             self.update_value_function(option_transitions,
                                     pursued_goal=goal,
@@ -352,7 +355,7 @@ class ModelBasedOption(object):
 
         info = {}
         if self.target_salient_event is not None:
-            targets_key = self.target_salient_event.target_state == (14, 201)
+            targets_key = self.target_salient_event.target_state is None
             info = {"targets_key": targets_key}
 
         reward_func = self.overall_mdp.sparse_gc_reward_function
