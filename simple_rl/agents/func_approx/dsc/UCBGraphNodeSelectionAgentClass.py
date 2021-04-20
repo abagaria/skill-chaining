@@ -1,5 +1,6 @@
 import ipdb
 import random
+import itertools
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
@@ -9,35 +10,36 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 
 
-class UCBActionSelectionAgent(object):
-    """ Goal directed Option selection when the goal-state lies outside the skill graph. """
+class UCBNodeSelectionAgent(object):
+    """ Goal directed node selection when trying to connect sub-graphs in the skill-graph. """
 
-    def __init__(self, goal_state, options, events, chains):
+    def __init__(self, root_event, descendant_events, target_events, alpha=0.1):
         """
 
         Args:
-            goal_state (State or np.ndarray)
-            options (list): List of options in the known part of the graph
-            events (list): List of salient events in the known part of the graph
-            chains (list): List of skill-chains in the MDP
+           root_event (SalientEvent): event corresponding to current sub-graph
+           descendant_events (list): list of salient events reachable from the root_event
+           target_events (list): list of events not currently reachable from the root_event 
+           alpha (float)
+
         """
-        assert isinstance(goal_state, (State, np.ndarray)), goal_state
-        assert all([option.get_training_phase() == "initiation_done" for option in options])
-        assert not any([option.name == "global_option" for option in options]), options
+        assert isinstance(root_event, SalientEvent), f"{type(root_event)}"
+        assert root_event not in target_events, root_event
 
-        print(f"Creating bandit targeting {goal_state} with options {options} and events {events}")
+        print(f"Creating bandit from {root_event} targetting {target_events}")
 
-        self.options = options
-        self.chains = chains
-        self.events = events
-        self.goal_state = goal_state
+        self.root_event = root_event
+        self.target_events = target_events
+        self.descendant_events = descendant_events
 
-        # Mapping from option to a floating number representing the fraction of
-        # times we have been able to jump off that option to reach the `self.goal_state`
-        self.monte_carlo_estimates = defaultdict(float)
+        # Sum of EMDs between all u, v pairs in the graph
+        self.norm_distance = self.determine_normalization_factor() if len(target_events) > 0 else 1.
 
-        # Mapping from option to an integer representing the number of times
-        # we have jumped off the graph from that option's initiation set
+        # Mapping from node-pair (descendant-ancestor pair) to a floating number representing the 
+        # value of jumping from one node to the other
+        self.q_table = {}  # TODO: Need to initialize with a defaultdict
+
+        # Mapping from node pair to the number of times we have tried it
         self.node_visitation_counts = defaultdict(int)
 
         # The total number of times we have executed *any* option by querying
@@ -45,44 +47,93 @@ class UCBActionSelectionAgent(object):
         self.total_executions = 0
 
         # Trade-off between exploration and exploitation
-        self.trade_off_constant = np.sqrt(2)
-        self.max_bonus = 1000.
+        self.trade_off_constant = np.sqrt(2)  # TODO: Set this based on how many updates we expect before connecting two events.
+        self.max_bonus = 1.
+
+        # Q-value learning rate
+        self.alpha = alpha
+        
+        # Debug
+        self.log = {}
 
     def __str__(self):
-        return f"Bandit algorithm targeting {str(self.goal_state)}"
+        return f"Bandit rooted at {str(self.root_event)}"
 
     def __repr__(self):
         return str(self)
 
-    def add_candidate_option(self, option):
-        """
-        If a new option is added to the graph, we want the UCB agent to be able
-        to select that new option as the one that the DSG agent should jump off from.
+    def init_q(self, node):
+        assert isinstance(node, tuple), node
+        assert isinstance(node[0], SalientEvent), type(node[0])
+        assert isinstance(node[1], SalientEvent), type(node[1])
+        
+        assert self.norm_distance > 0, self.norm_distance
 
-        Args:
-            option (Option)
+        src_node, dest_node = node[0], node[1]
+        return -src_node.distance_to_other_event(dest_node) / self.norm_distance
 
-        """
-        assert option.get_training_phase() == "initiation_done"
-        if option not in self.options:
-            self.options.append(option)
-            print(f"Adding {option} to the list of options for {self}. Now my options are {self.options}")
+    def determine_normalization_factor(self):
+        src_nodes = self._get_src_nodes()
+        all_nodes = src_nodes + self.target_events
+        all_node_pairs = itertools.combinations(all_nodes, 2)
+        distances = [src.distance_to_other_event(dest) for src, dest in all_node_pairs]
+        distance_sum = sum(distances)
 
-    def add_candidate_event(self, salient_event):
-        if salient_event not in self.events:
-            self.events.append(salient_event)
-            print(f"Adding {salient_event} to the list of options for {self}. Now my events are {self.events}")
+        print(f"Summed distance between nodes in {self} = {distance_sum}")
+        return distance_sum
+
+    def add_descendant_event(self, salient_event):
+        """ Add a newly added `salient_event` if there is a path to it from the `root_event`. """
+        assert isinstance(salient_event, SalientEvent), f"{type(salient_event)}"
+
+        if salient_event not in self.descendant_events:
+            self.descendant_events.append(salient_event)
+            print(f"Adding {salient_event} to the list of descedants for {self}. Now my descendants are {self.descendant_events}")
+
+            self.norm_distance = self.determine_normalization_factor()
+
+    def add_target_event(self, salient_event):
+        """ Add a newly added `salient_event` if there is no path to it from the `root_event`. """
+        assert isinstance(salient_event, SalientEvent), f"{type(salient_event)}"
+        assert salient_event not in self.descendant_events, salient_event
+        assert salient_event != self.root_event, salient_event
+        
+        if salient_event not in self.target_events:
+            self.target_events.append(salient_event)
+            print(f"Adding {salient_event} to the list of targets for {self}. Now my target nodes are {self.target_events}")
+
+            self.norm_distance = self.determine_normalization_factor()
+
+    def remove_descendant(self, salient_event):
+        """ Remove the event from the list of descendants if there is no longer a path from the root to that event. """
+        assert isinstance(salient_event, SalientEvent), f"{type(salient_event)}"
+
+        if salient_event in self.descendant_events:
+            self.descendant_events.remove(salient_event)
+            print(f"Removing {salient_event} from list of descendants for {self}. Now descendants are {self.descendant_events}")
+
+            self.norm_distance = self.determine_normalization_factor()
+
+    def remove_target(self, salient_event):
+        """ Remove the event from the list of targets if there is a path from the root to that event now. """
+        assert isinstance(salient_event, SalientEvent), f"{type(salient_event)}"
+
+        if salient_event in self.target_events:
+            self.target_events.remove(salient_event)
+            print(f"Removing {salient_event} from list of targets for {self}. Now targets are {self.target_events}")
+
+            self.norm_distance = self.determine_normalization_factor()
 
     def act(self):
         """
-        Given the goal state, the available options in the skill-graph and the number of
-        times each option has been executed, choose the option whose initiation set to jump
-        off from.
+        Choose the best node u to jump off the current sub-graph from. 
+        Choose the best node v to target in some other unconnected sub-graph.
 
         Returns:
-            selected_option (Option or SalientEvent)
+            src_node (SalientEvent): node to jump off from
+            dest_node (SalientEvent): node to jump on to
         """
-        # Only consider the option nodes that are in the known part of the graph
+        # Get all feasible (u, v) pairs of nodes
         candidate_nodes = self._get_candidate_nodes()
 
         if len(candidate_nodes) > 0:
@@ -102,24 +153,61 @@ class UCBActionSelectionAgent(object):
                 best_node_idx = random.choice(best_node_idx)
 
             # Otherwise, pick the node with the highest value
-            assert isinstance(best_node_idx, int), best_node_idx
+            assert isinstance(best_node_idx, (int, np.int64)), best_node_idx
             return candidate_nodes[best_node_idx]
 
         return None
 
-
-    def update(self, node, success):
+    def update(self, src_node, dest_node, success):
         """
-        Given that we jumped off the graph from `node` in the MDP, update the visitation statistics.
+        Given that we jumped off the graph from `src_node` targetting `dest_node`, update 
+        the visitation counts and the Q-table. 
+
         Args:
-            node (Option or Salient Event)
+            src_node (SalientEvent)
+            dest_node (SalientEvent)
             success (bool)
-
         """
-        self.node_visitation_counts[node] += 1
-        self.total_executions += 1
+        assert isinstance(src_node, SalientEvent), f"{type(src_node)}"
+        assert isinstance(dest_node, SalientEvent), f"{type(dest_node)}"
+        assert isinstance(success, bool), f"{type(success)}"
 
-        self.monte_carlo_estimates[node] += (float(success) / self.node_visitation_counts[node])
+        key = (src_node, dest_node)
+        self.total_executions += 1
+        self.node_visitation_counts[key] += 1
+
+        reward = 0. if success else -1.
+        prediction = self.get_q(key)
+        error = reward - prediction
+        self.q_table[key] = prediction + (self.alpha * error)
+
+        self._log_progress(key, reward, success)
+
+    def _log_progress(self, key, reward, success):
+        """ Log progress of the UCB agent after every update() call. """ 
+
+        if key not in self.log:
+            self.log[key] = {}
+            self.log[key]["average_rewards"] = []
+            self.log[key]["q_values"] = []
+            self.log[key]["successes"] = []
+        
+        self.log[key]["successes"].append(success)
+        self.log[key]["q_values"].append(self.q_table[key])
+        self.log[key]["average_rewards"].append(reward / self.node_visitation_counts[key])
+        
+    def get_q(self, node):
+        """ Fetch the q-value of a node if it is in the table. 
+        If it is not in the table, consult the init q-function and it. """
+        assert isinstance(node, tuple)
+        assert isinstance(node[0], SalientEvent)
+        assert isinstance(node[1], SalientEvent)
+
+        if node in self.q_table:
+            return self.q_table[node]
+        v = self.init_q(node)
+        self.q_table[node] = v
+        return v
 
     def _get_node_bonus(self, node):
         """
@@ -127,11 +215,16 @@ class UCBActionSelectionAgent(object):
         exploration bonus associated with executing `option` to get to goal
         `state`.
         Args:
-            node (Option or SalientEvent)
+            node (tuple)
 
         Returns:
             bonus (float)
         """
+        assert isinstance(node, tuple), node
+        assert len(node) == 2, len(node)
+        assert isinstance(node[0], SalientEvent), f"{type(node[0])}"
+        assert isinstance(node[1], SalientEvent), f"{type(node[1])}"
+        
         num_executions = self.node_visitation_counts[node]
 
         if num_executions == 0:
@@ -142,35 +235,24 @@ class UCBActionSelectionAgent(object):
         return bonus
 
     def _get_node_value(self, node):
-        mc_value = self.monte_carlo_estimates[node]
+        """" Get the UCB value of the input `node`. """
+
+        value = self.get_q(node)
         bonus = self._get_node_bonus(node)
-        augmented_value = mc_value + (self.trade_off_constant * bonus)
+        augmented_value = value + (self.trade_off_constant * bonus)
+        print(f"Value of {node} is {augmented_value}")
         return augmented_value
 
-    def _filter_candidate_options(self):
-        """ Given the full set of candidate options, we only want to pick those that are part of a complete chain. """
-        filtered_options = []
-        for option in self.options:  # type: Option
-            chain = self.chains[option.chain_id - 1]  # type: SkillChain
-            if chain.is_chain_completed(self.chains):
-                filtered_options.append(option)
-        return filtered_options
-
-    def _filter_candidate_events(self):
-        """ Given the full set of candidate events in the MDP, we only want to pick those that have
-            some chains targeting it. """
-        def _is_chain_eligible(skill_chain, salient):
-            return skill_chain.target_salient_event == salient and not skill_chain.is_backward_chain
-
-        filtered_events = []
-        for event in self.events:  # type: SalientEvent
-            targeting_chains = [chain for chain in self.chains if _is_chain_eligible(chain, event)]
-            if any([chain.is_chain_completed() for chain in targeting_chains]):
-                filtered_events.append(event)
-        return filtered_events
-
     def _get_candidate_nodes(self):
-        candidate_options = self._filter_candidate_options()
-        candidate_events = self._filter_candidate_events()
-        candidate_nodes = candidate_options + candidate_events
-        return candidate_nodes
+        """ Return all the u, v pairs where u is the set of events in the 
+        current sub-graph and v is the set of events in all unconnected 
+        sub-graphs. """
+
+        nodes = []
+        for src in self._get_src_nodes():
+            for dest in self.target_events:
+                nodes.append((src, dest))
+        return nodes
+
+    def _get_src_nodes(self):
+        return [self.root_event] + self.descendant_events
