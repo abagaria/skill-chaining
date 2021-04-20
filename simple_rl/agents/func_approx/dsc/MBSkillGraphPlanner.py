@@ -9,6 +9,7 @@ from simple_rl.agents.func_approx.dsc.ModelBasedDSC import ModelBasedSkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
+from simple_rl.agents.func_approx.dsc.UCBGraphNodeSelectionAgentClass import UCBNodeSelectionAgent
 from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 
@@ -31,6 +32,14 @@ class SkillGraphPlanner(object):
         self.use_vf = use_vf
         self.experiment_name = experiment_name
         self.seed = seed
+
+        # UCB node selection agent rooted at the start state 
+        init_ucb = UCBNodeSelectionAgent(self.mdp.get_start_state_salient_event(),
+                                         descendant_events=[],
+                                         target_events=[])
+        self.ucb_selectors = {  # Mapping from salient events to UCB agents
+            self.mdp.get_start_state_salient_event(): init_ucb
+        }
 
         assert isinstance(self.chainer, ModelBasedSkillChaining)
         assert isinstance(self.mdp, GoalDirectedMDP)
@@ -139,12 +148,12 @@ class SkillGraphPlanner(object):
     def run_sub_loop(self, state, goal_vertex, step, goal_salient_event, episode, eval_mode):
 
         def should_terminate(s, step_number):
-            if goal_salient_event is not None and goal_salient_event.target_state == (14, 201):
+            if goal_salient_event is not None and goal_salient_event.target_state is None:
                 return goal_salient_event(s) or step_number >= self.chainer.max_steps or s.is_terminal() or self.mdp.has_key(s)
             return goal_salient_event(s) or step_number >= self.chainer.max_steps or s.is_terminal()
 
         def planner_condition(s, g):
-            if isinstance(g, SalientEvent) and g.target_state == (14, 201):
+            if isinstance(g, SalientEvent) and g.target_state is None:
                 return self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g) and not self.mdp.has_key(s)
             return self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g)
 
@@ -166,14 +175,14 @@ class SkillGraphPlanner(object):
 
         return state, step
 
-    def run_loop(self, *, state, goal_salient_event, episode, step, eval_mode):
+    def run_loop(self, *, state, planner_goal_vertex, dsc_goal_vertex, goal_salient_event, episode, step, eval_mode):
         assert isinstance(state, State)
         assert isinstance(goal_salient_event, SalientEvent)
         assert isinstance(episode, int)
         assert isinstance(step, int)
         assert isinstance(eval_mode, bool)
 
-        planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
+        # planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 
         state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
@@ -446,6 +455,31 @@ class SkillGraphPlanner(object):
 
         # if chain.is_chain_completed():
         #     visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
+        for event in self.ucb_selectors:
+            selector = self.ucb_selectors[event]
+            self._update_node_selector(selector)
+
+    def _update_node_selector(self, node_selector):
+        assert isinstance(node_selector, UCBNodeSelectionAgent)
+
+        events = self.mdp.all_salient_events_ever + [self.mdp.get_start_state_salient_event()]
+        
+        for event in events:
+            if event not in node_selector.descendant_events and \
+                self.plan_graph.does_path_exist_between_nodes(node_selector.root_event, event):
+                node_selector.add_descendant_event(event)
+
+            if event in node_selector.descendant_events and \
+                not self.plan_graph.does_path_exist_between_nodes(node_selector.root_event, event):
+                node_selector.remove_descendant(event)
+
+            if event not in node_selector.target_events and node_selector.root_event != event and \
+                not self.plan_graph.does_path_exist_between_nodes(node_selector.root_event, event):
+                node_selector.add_target_event(event)
+
+            if event in node_selector.target_events and \
+                self.plan_graph.does_path_exist_between_nodes(node_selector.root_event, event):
+                node_selector.remove_target(event)
 
     # -----------------------------–––––––--------------
     # Utility Functions
