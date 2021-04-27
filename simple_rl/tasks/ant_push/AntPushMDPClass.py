@@ -1,15 +1,16 @@
+import ipdb
 import random
 import numpy as np
 from copy import deepcopy
 
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.tasks.point_maze.environments.ant_maze_env import AntMazeEnv
-from simple_rl.tasks.ant_reacher.AntReacherStateClass import AntReacherState
+from simple_rl.tasks.ant_push.AntPushStateClass import AntPushState
 
 
 class AntPushMDP(GoalDirectedMDP):
     def __init__(self, goal_state=np.array((0, 13)), seed=0, render=False):
-        self.env_name = "ant-four-rooms"
+        self.env_name = "ant-push"
         self.seed = seed
         self.render = render
 
@@ -66,9 +67,14 @@ class AntPushMDP(GoalDirectedMDP):
     def _get_state(self, observation, done):
         """ Convert np obs array from gym into a State object. """
         obs = np.copy(observation)
+        ipdb.set_trace()
         position = obs[:2]
-        others = obs[2:]
-        state = AntReacherState(position, others, done)
+        block_position = obs[3:5]
+
+        # Concatenate the ant's z-pos to the other state variables
+        others = np.array([obs[2]] + obs[5:].tolist())
+        
+        state = AntPushState(position, block_position, others, done)
         return state
 
     def state_space_size(self):
@@ -105,20 +111,20 @@ class AntPushMDP(GoalDirectedMDP):
     def get_x_y_high_lims(self):
         return self.xlims[1], self.ylims[1]
 
-    def in_collision(self, point0):
+    def in_collision(self, point0, collision_tol=0.5):
         def get_n_copies(x, n):
             return [x.copy() for _ in range(n)]
         point1, point2, point3, point4, point5, point6, point7, point8 = get_n_copies(point0, 8)
-        point1[0] += 1.
-        point2[0] -= 1.
-        point3[1] += 1.
-        point4[1] += 1.
+        point1[0] += collision_tol
+        point2[0] -= collision_tol
+        point3[1] += collision_tol
+        point4[1] += collision_tol
 
         # Diagonal points
-        point5[0] += 1.; point5[1] += 1.
-        point6[0] += 1.; point6[1] -= 1.
-        point7[0] -= 1.; point7[1] += 1.
-        point8[0] -= 1.; point8[1] -= 1.
+        point5[0] += collision_tol; point5[1] += collision_tol
+        point6[0] += collision_tol; point6[1] -= collision_tol
+        point7[0] -= collision_tol; point7[1] += collision_tol
+        point8[0] -= collision_tol; point8[1] -= collision_tol
 
         points = (point0, point1, point2, point3, point4, point5, point6, point7, point8)
         for point in points:
@@ -138,3 +144,4 @@ class AntPushMDP(GoalDirectedMDP):
     def sample_random_action(self):
         size = (self.action_space_size(),)
         return np.random.uniform(-1., 1., size=size)
+
