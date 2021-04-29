@@ -11,13 +11,14 @@ from collections import deque
 
 class SalientEvent(object):
     def __init__(self, target_state, event_idx, predicate=None, tolerance=2.,
-                 use_position=False, is_init_event=False):
+                 use_position=False, is_init_event=False, is_key_event=False):
         self.predicate = predicate
         self.target_state = target_state
         self.event_idx = event_idx
         self.tolerance = tolerance
         self.use_position = use_position
         self.is_init_event = is_init_event
+        self.is_key_event = is_key_event
 
         # This is the union of the effect set of all the options targeting this salient event
         self.trigger_points = deque(maxlen=50)

@@ -1,4 +1,5 @@
 # Python imports.
+import itertools
 import pdb
 import numpy as np
 import scipy.interpolate
@@ -17,9 +18,11 @@ import os
 import ipdb
 from mpl_toolkits.mplot3d import Axes3D
 import math
+import random
 
 # Other imports.
 from simple_rl.mdp.StateClass import State
+from simple_rl.tasks.gym.GymStateClass import GymState
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dqn.DQNAgentClass import DQNAgent
 
@@ -77,7 +80,12 @@ def get_grid_states(mdp):
     x_high_lim, y_high_lim = mdp.get_x_y_high_lims()
     for x in np.arange(x_low_lim, x_high_lim, 10):
         for y in np.arange(y_low_lim, y_high_lim, 10):
-            ss.append(np.array((x, y)))
+            position = (x, y)
+            state = GymState(image=np.zeros((4, 84, 84)),
+                             position=position,
+                             ram=None,
+                             is_terminal=False)
+            ss.append(state)
     return ss
 
 
@@ -87,7 +95,12 @@ def get_initiation_set_values(option):
     x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
     for x in np.arange(x_low_lim, x_high_lim, 10):
         for y in np.arange(y_low_lim, y_high_lim, 10):
-            values.append(option.is_init_true(np.array((x, y))))
+            position = (x, y)
+            state = GymState(image=np.zeros((4, 84, 84)),
+                             position=position,
+                             ram=None,
+                             is_terminal=False)
+            values.append(option.is_init_true(state))
 
     return values
 
@@ -173,8 +186,8 @@ def plot_two_class_classifier(option, episode, experiment_name, plot_examples=Tr
     states = get_grid_states(option.overall_mdp)
     values = get_initiation_set_values(option)
 
-    x = np.array([state[0] for state in states])
-    y = np.array([state[1] for state in states])
+    x = np.array([state.position[0] for state in states])
+    y = np.array([state.position[1] for state in states])
     xi, yi = np.linspace(x.min(), x.max(), 1000), np.linspace(y.min(), y.max(), 1000)
     xx, yy = np.meshgrid(xi, yi)
     rbf = scipy.interpolate.Rbf(x, y, values, function="linear")
@@ -842,3 +855,30 @@ def visualize_mpc_train_data_distribution(mdp, states, episode, experiment_name)
 def render_state(state, path="monte"):
     import cv2
     return cv2.imwrite(f"{path}.png", np.array(state.image)[-1, ...])
+
+def get_all_states(chainer):
+    states = []
+    for option in chainer.mature_options+chainer.new_options:
+        p = list(itertools.chain.from_iterable(option.positive_examples))
+        n = list(itertools.chain.from_iterable(option.negative_examples))
+        s = p + n
+        states += s
+    return states
+
+def get_goals(events):
+    return [random.choice(event.trigger_points) for event in events]
+
+def visualize_value_function(agent, states, events, episode, experiment_name):
+    plt.figure(figsize=(16, 10))
+    goals = get_goals(events)
+    for i, goal in enumerate(goals):
+        augmented_states = [agent.get_augmented_state(s, goal) for s in states]
+        values = agent.get_batched_qvalues(augmented_states)
+        x = [s.position[0] for s in states]
+        y = [s.position[1] for s in states]
+        plt.subplot(len(goals), 1, i+1)
+        plt.scatter(x, y, c=values.cpu().numpy())
+        plt.title(f"Goal = {goal.position}")
+        plt.colorbar()
+    plt.savefig(f"value_function_plots/{experiment_name}/gc_vf_episode_{episode}.png")
+    plt.close()

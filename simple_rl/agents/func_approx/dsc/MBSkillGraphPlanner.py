@@ -148,13 +148,9 @@ class SkillGraphPlanner(object):
     def run_sub_loop(self, state, goal_vertex, step, goal_salient_event, episode, eval_mode):
 
         def should_terminate(s, step_number):
-            if goal_salient_event is not None and goal_salient_event.target_state is None:
-                return goal_salient_event(s) or step_number >= self.chainer.max_steps or s.is_terminal() or self.mdp.has_key(s)
             return goal_salient_event(s) or step_number >= self.chainer.max_steps or s.is_terminal()
 
         def planner_condition(s, g):
-            if isinstance(g, SalientEvent) and g.target_state is None:
-                return self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g) and not self.mdp.has_key(s)
             return self.plan_graph.does_path_exist(s, g) and not self.is_state_inside_vertex(s, g)
 
         if planner_condition(state, goal_vertex) and not should_terminate(state, step):
@@ -175,7 +171,7 @@ class SkillGraphPlanner(object):
 
         return state, step
 
-    def run_loop(self, *, state, planner_goal_vertex, dsc_goal_vertex, goal_salient_event, episode, step, eval_mode):
+    def run_loop(self, *, state, current_salient_event, planner_goal_vertex, dsc_goal_vertex, goal_salient_event, episode, step, eval_mode):
         assert isinstance(state, State)
         assert isinstance(goal_salient_event, SalientEvent)
         assert isinstance(episode, int)
@@ -185,11 +181,17 @@ class SkillGraphPlanner(object):
         # planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
         print(f"Planner goal: {planner_goal_vertex}, DSC goal: {dsc_goal_vertex} and Goal: {goal_salient_event}")
 
-        state, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
-        state, step = self.run_sub_loop(state, dsc_goal_vertex, step, goal_salient_event, episode, eval_mode)
-        state, step = self.run_sub_loop(state, goal_salient_event, step, goal_salient_event, episode, eval_mode)
+        state1, step = self.run_sub_loop(state, planner_goal_vertex, step, goal_salient_event, episode, eval_mode)
+        state2, step = self.run_sub_loop(state1, dsc_goal_vertex, step, goal_salient_event, episode, eval_mode)
+        state3, step = self.run_sub_loop(state2, goal_salient_event, step, goal_salient_event, episode, eval_mode)
 
-        return step, goal_salient_event(state)
+        if planner_goal_vertex(state1):
+            success = dsc_goal_vertex(state2) or goal_salient_event(state3)
+            self.ucb_selectors[current_salient_event].update(src_node=planner_goal_vertex,
+                                                             dest_node=dsc_goal_vertex,
+                                                             success=bool(success))
+
+        return step, goal_salient_event(state3)
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops

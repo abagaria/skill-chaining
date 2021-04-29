@@ -43,9 +43,36 @@ class GymMDP(GoalDirectedMDP):
         init_obs = self.env.reset()
         self.game_over = False
 
+        self.key_location = (14, 201)
+        self.left_door_location = (20, 235)
+        self.right_door_location = (130, 235)
+
         self.spawn_states = [(77, 235), (130, 192), (123, 148), (20, 148), (21, 192), (114,148), (99, 148), (62, 148), (50, 148), (38, 148), (25, 148)]
-        self.candidate_salient_positions = [(123, 148), (20, 148), (14, 201)]
+
+        # Hard-coded salient events
+        self.candidate_salient_positions = [(123, 148), (20, 148), self.key_location] #, self.left_door_location, self.right_door_location]
+
         self.init_state = GymState(image=init_obs, position=self.get_player_position(), ram=self.env.env.ale.getRAM())
+
+        self.key_locations = [(9, 192),
+                            (9, 195),
+                            (10, 192),
+                            (12, 205),
+                            (13, 205),
+                            (14, 203),
+                            (14, 205),
+                            (14, 208),
+                            (15, 205),
+                            (16, 192),
+                            (16, 205),
+                            (16, 207),
+                            (17, 201),
+                            (17, 203),
+                            (17, 205),
+                            (17, 207),
+                            (18, 205),
+                            (18, 207),
+                            (24, 209)]
 
         GoalDirectedMDP.__init__(self,
                                  range(self.env.action_space.n),
@@ -54,6 +81,8 @@ class GymMDP(GoalDirectedMDP):
                                  self.init_state,
                                  salient_positions=[],
                                  task_agnostic=True, goal_state=None, goal_tolerance=2)
+
+        self.num_lives = self.get_player_lives(self.cur_state.ram)
 
     def is_goal_state(self, state):
         return self.has_key(state) and not self.is_dead(state.ram)
@@ -77,6 +106,13 @@ class GymMDP(GoalDirectedMDP):
         return len(self.actions)
 
     def sparse_gc_reward_function(self, state, goal, info={}, tol=2):  # TODO
+        """
+        Reward = +1 if s=g and s is not death state.
+        Rules for is_terminal() flag:
+        1. s=g
+        2. if g is the start-state: game-over()
+        3. else loss-of-life()
+        """
         assert isinstance(state, GymState), f"{type(state)}"
         assert isinstance(goal, GymState), f"{type(goal)}"
 
@@ -87,12 +123,13 @@ class GymMDP(GoalDirectedMDP):
         goal_pos = goal.get_position()
 
         key_cond = "targets_key" in info and info["targets_key"] and self.has_key(state)
-
         reached = is_close(state_pos, goal_pos) or key_cond
-        death = self.get_player_lives(state.ram) != 5
+
+        # You should be allowed to die if you are targeting the start-state salient event
+        death = self.is_dead(state.ram)
 
         done = reached or death
-        reward = +1. if reached and not death else 0.
+        reward = +10. if reached and not death else 0.
 
         return reward, done
 
@@ -104,26 +141,33 @@ class GymMDP(GoalDirectedMDP):
         Returns
             (float)
         '''
-        obs, reward, done, info = self.env.step(action)
+        
+        reward = self._step(state, action)
+
+        self.num_lives = self.get_player_lives(self.next_state.ram)
+
+        return reward
+
+    def _step(self, state, action):
+        obs, reward, _, _ = self.env.step(action)
         ram = self.env.env.ale.getRAM()
 
-        self.game_over = self.get_player_lives(ram) != 5
+        self.game_over =  self.is_dead(state.ram)
 
         if self.render:
             self.env.render()
 
         position = self.get_player_position()
-        goal_cond = int(self.getByte(ram, 'c1')) != 0
-        # goal_cond = position[0] <= 62 and position[1] <= 148  # Position just to the left of the skull
-        is_terminal = self.game_over  # or goal_cond TODO: Restore for the MDP that terminates at the key
-
-        # reward = -1. if self.game_over else reward  # Negative rewards for death
-        reward = +1. if goal_cond else reward
         reward = np.sign(reward)  # Reward clipping
-
-        self.next_state = GymState(image=obs, position=position, ram=ram, is_terminal=is_terminal)
-
+        
+        self.next_state = GymState(image=obs, position=position, ram=ram, is_terminal=self.game_over)
         return reward
+
+    def _is_game_over(self, ram):
+        return self.get_player_lives(ram) == 0
+
+    def _lost_life(self, state):
+        return self.get_player_lives(state.ram) < self.num_lives 
 
     def _transition_func(self, state, action):
         '''
@@ -166,7 +210,7 @@ class GymMDP(GoalDirectedMDP):
     def get_player_lives(self, ram):
         return int(self.getByte(ram, 'ba'))
 
-    def is_dead(self, ram):
+    def is_dead(self, ram): # TODO: Modify
         return int(self.getByte(ram, 'ba')) != 5
 
     def get_player_position(self):

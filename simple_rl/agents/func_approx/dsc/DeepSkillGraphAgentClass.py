@@ -132,9 +132,26 @@ class DeepSkillGraphAgent(object):
         if self.current_event_idx < len(self.mdp.candidate_salient_positions):
             salient_position = self.mdp.candidate_salient_positions[self.current_event_idx]
 
-            if salient_position == (14, 201):
+            if salient_position == self.mdp.key_location:
                 predicate = lambda s: self.mdp.has_key(s) and s.position in self.mdp.key_locations
                 goal_salient_event = SalientEvent(target_state=None,
+                                                  predicate=predicate,
+                                                  event_idx=self.current_event_idx+1,
+                                                  tolerance=2.,
+                                                  is_key_event=True)
+            elif salient_position == self.mdp.left_door_location:
+                predicate = lambda s: self.mdp.has_key(s) and \
+                                        s.position[0] <= self.mdp.left_door_location[0] and \
+                                        s.position[1] >= self.mdp.left_door_location[1]
+                goal_salient_event = SalientEvent(target_state=None, 
+                                                  predicate=predicate,
+                                                  event_idx=self.current_event_idx+1,
+                                                  tolerance=2.)
+            elif salient_position == self.mdp.right_door_location:
+                predicate = lambda s: self.mdp.has_key(s) and \
+                                        s.position[0] >= self.mdp.right_door_location[0] and \
+                                        s.position[1] >= self.mdp.right_door_location[1]
+                goal_salient_event = SalientEvent(target_state=None, 
                                                   predicate=predicate,
                                                   event_idx=self.current_event_idx+1,
                                                   tolerance=2.)
@@ -236,16 +253,13 @@ class DeepSkillGraphAgent(object):
                                                        closest_event_pair=selected_pair)
 
                     step_number, success = self.planning_agent.run_loop(state=state,
+                                                                        current_salient_event=current_salient_event,
                                                                         planner_goal_vertex=selected_pair[0],
                                                                         dsc_goal_vertex=selected_pair[1],
                                                                         goal_salient_event=goal_salient_event,
                                                                         episode=episode,
                                                                         step=step_number,
                                                                         eval_mode=False)
-
-                    self.planning_agent.ucb_selectors[current_salient_event].update(src_node=selected_pair[0],
-                                                                                    dest_node=selected_pair[1],
-                                                                                    success=bool(success))
 
                 state = deepcopy(self.mdp.cur_state)
 
@@ -260,19 +274,12 @@ class DeepSkillGraphAgent(object):
                     self.planning_agent.add_potential_edges(option)
                 print(f"Took {time.time() - t0}s to add potential edges")
 
-            if episode > 0 and episode % 50 == 0 and self.plot_gc_value_functions:
-                assert goal_salient_event is not None
-                make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,
-                                                                  goal_salient_event.get_target_position(),
-                                                                  episode, self.seed, self.experiment_name)
+            if episode > 0 and episode % 100 == 0 and self.plot_gc_value_functions:
+                ppo = self.dsc_agent.global_option.solver
+                states = get_all_states(self.dsc_agent)
+                events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
 
-            if episode > 0 and episode % 500 == 0:
-                option_num_executions = [o.num_executions for o in self.planning_agent.plan_graph.option_nodes]
-                option_success_rates = [o.get_success_rate() for o in planner.plan_graph.option_nodes]
-                plt.scatter(option_num_executions, option_success_rates)
-                plt.title(f"Episode: {episode}")
-                plt.savefig(f"{self.experiment_name}/option-success-rates-episode-{episode}.png")
-                plt.close()
+                visualize_value_function(ppo, states, events, episode, self.experiment_name)
 
         return successes
 
@@ -373,7 +380,7 @@ if __name__ == "__main__":
     parser.add_argument("--env", type=str, help="name of gym environment", default="Pendulum-v0")
     parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
     parser.add_argument("--episodes", type=int, help="# episodes", default=200)
-    parser.add_argument("--steps", type=int, help="# steps", default=1000)
+    parser.add_argument("--steps", type=int, help="# steps", default=100000)
     parser.add_argument("--subgoal_reward", type=float, help="SkillChaining subgoal reward", default=0.)
     parser.add_argument("--render", action="store_true", help="Render the mdp env", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", help="Use dense/sparse rewards", default=False)

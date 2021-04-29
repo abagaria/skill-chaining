@@ -68,6 +68,7 @@ class ModelBasedSkillChaining(object):
                     subgoal = option.get_goal_for_rollout()
                     if not option.is_at_local_goal(state, subgoal):
                         return option, subgoal
+        # ipdb.set_trace()
         return self.global_option, goal
 
     # ------------------------------------------------------------

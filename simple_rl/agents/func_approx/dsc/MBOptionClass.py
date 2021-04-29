@@ -154,8 +154,15 @@ class ModelBasedOption(object):
         if self.global_init:
             return True
 
+        # TODO: Add a lost life condition
+        if self.mdp.falling(state) or self.mdp._is_game_over(state.ram) or self.mdp.is_dead(state.ram):
+            return False
+
         if self.parent is None:
             return self.target_salient_event(state)
+
+        if self.target_salient_event.is_key_event:
+            return self.target_salient_event(state) or self.parent.pessimistic_is_init_true(state)
 
         return self.parent.pessimistic_is_init_true(state)
 
@@ -214,17 +221,16 @@ class ModelBasedOption(object):
     def is_at_local_goal(self, state, goal):
         """ Goal-conditioned termination condition. """
 
-        info = {}
+        return self.local_reward_function(state, goal)[1]
 
-        if self.target_salient_event is not None:
-            targets_key = self.target_salient_event.target_state is None # TODO: This event no longer has a target_state
-            info = {'targets_key': targets_key}
+    def local_reward_function(self, state, goal):
+        """ Goal-conditioned option reward function. """ 
+        
+        info = {'targets_key': self.target_salient_event and self.target_salient_event.is_key_event}
+        reward, done = self.mdp.sparse_gc_reward_function(state, goal, info)
+        is_terminal = self.is_term_true(state) and done
 
-        reached_goal = self.mdp.sparse_gc_reward_function(state, goal, info)[1]
-        reached_term = self.is_term_true(state) or state.is_terminal()
-        reached_key = 'targets_key' in info and info['targets_key'] and reached_goal
-
-        return reached_goal and (reached_term or reached_key)
+        return reward, is_terminal
 
     # ------------------------------------------------------------
     # Control Loop Methods
@@ -351,18 +357,8 @@ class ModelBasedOption(object):
         assert isinstance(goal, State), f"{type(goal)}"
 
         augmented_next_obs = self.get_augmented_state(next_state, goal)
-        done = self.is_at_local_goal(next_state, goal)
-
-        info = {}
-        if self.target_salient_event is not None:
-            targets_key = self.target_salient_event.target_state is None
-            info = {"targets_key": targets_key}
-
-        reward_func = self.overall_mdp.sparse_gc_reward_function
-        reward, _ = reward_func(next_state, goal, info=info)
-
+        reward, done = self.local_reward_function(next_state, goal)
         self.solver.agent.observe(augmented_next_obs, reward, done, reset=False)
-
 
     def update_value_function(self, option_transitions, reached_goal, pursued_goal):
         """ Update the goal-conditioned option value function. """
