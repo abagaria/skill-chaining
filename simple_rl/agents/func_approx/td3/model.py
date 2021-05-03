@@ -1,5 +1,7 @@
 import torch
+import numpy as np
 import torch.nn as nn
+from torch.nn import init
 import torch.nn.functional as F
 
 
@@ -68,3 +70,93 @@ class Critic(nn.Module):
         q1 = self.l3(q1)
         return q1
 
+
+class DualHeadCritic(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(DualHeadCritic, self).__init__()
+
+        self.feature_extractor = nn.Sequential(
+            nn.Linear(state_dim + action_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+        )
+
+        self.q1_external = nn.Sequential(
+            self.feature_extractor,
+            nn.Linear(256, 1)
+        )
+
+        self.q1_internal = nn.Sequential(
+            self.feature_extractor,
+            nn.Linear(256, 1)
+        )
+
+        self.q2_external = nn.Sequential(
+            self.feature_extractor,
+            nn.Linear(256, 1)
+        )
+
+        self.q2_internal = nn.Sequential(
+            self.feature_extractor,
+            nn.Linear(256, 1)
+        )
+
+    def forward(self, state, action):
+        sa = torch.cat([state, action], 1)
+
+        q1_E = self.q1_external(sa)
+        q1_I = self.q1_internal(sa)
+
+        q2_E = self.q2_external(sa)
+        q2_I = self.q2_internal(sa)
+        
+        return q1_E, q1_I, q2_E, q2_I
+
+    def Q1(self, state, action):
+        sa = torch.cat([state, action], 1)
+
+        q1_E = self.q1_external(sa)
+        q1_I = self.q1_internal(sa)
+
+        return q1_E + q1_I
+
+
+class RNDModel(nn.Module):
+    """ RND model architecture when used in conjunction with TD3. """
+
+    def __init__(self, input_size):
+        super(RNDModel, self).__init__()
+        self.input_size = input_size
+
+        self.predictor = nn.Sequential(
+            nn.Linear(input_size, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128)
+        )
+
+        self.target = nn.Sequential(
+            nn.Linear(input_size, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128)
+        )
+
+        # Random orthogonal initialization
+        for p in self.modules():
+            if isinstance(p, (nn.Linear, nn.Conv2d)):
+                init.orthogonal_(p.weight, np.sqrt(2))
+                p.bias.data.zero_()
+
+        # No back-prop through the target network
+        for p in self.target.parameters():
+            p.requires_grad = False
+
+    def forward(self, next_obs):
+        target_feature = self.target(next_obs)
+        predict_feature = self.predictor(next_obs)
+
+        return predict_feature, target_feature
