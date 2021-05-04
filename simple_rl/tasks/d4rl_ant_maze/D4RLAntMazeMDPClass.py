@@ -9,7 +9,7 @@ from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeStateClass import D4RLAntMazeState
 
 
 class D4RLAntMazeMDP(GoalDirectedMDP):
-    def __init__(self, maze_size, goal_state=None, use_hard_coded_events=False, seed=0, render=False):
+    def __init__(self, maze_size, goal_state=None, dense_reward=False, use_hard_coded_events=False, seed=0, render=False):
         assert maze_size in ("umaze", "medium", "large"), maze_size
         self.env_name = 'antmaze-umaze-v0' if maze_size == "umaze" else f"antmaze-{maze_size}-play-v0"
         self.use_hard_coded_events = use_hard_coded_events
@@ -18,6 +18,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
 
         self.render = render
         self.seed = seed
+        self.dense_reward = dense_reward
 
         random.seed(seed)
         np.random.seed(seed)
@@ -40,6 +41,7 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
                                  self._transition_func,
                                  self._reward_func, self.init_state,
                                  salient_positions, task_agnostic=goal_state is None,
+                                 dense_reward=dense_reward,
                                  goal_state=goal_state, goal_tolerance=0.6)
 
     def _reward_func(self, state, action):
@@ -51,6 +53,8 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
         if self.task_agnostic:  # No reward function => no rewards and no terminations
             reward = 0.
             is_terminal = False
+        elif self.dense_reward:
+            reward, is_terminal = self.dense_gc_reward_function(next_state, self.get_current_goal(), {})
         else:
             reward, is_terminal = self.sparse_gc_reward_function(next_state, self.get_current_goal(), {}) # TODO info
 

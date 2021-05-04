@@ -306,6 +306,9 @@ class ModelBasedOption(object):
             self.num_goal_hits += 1
             self.last_episode_term_triggered = episode
 
+        if reached_parent and self.parent is None and self.target_salient_event is not None:
+            self.target_salient_event.trigger_points.append(state)
+
         if self.use_vf and not eval_mode:
             self.update_value_function(option_transitions,
                                     pursued_goal=goal,

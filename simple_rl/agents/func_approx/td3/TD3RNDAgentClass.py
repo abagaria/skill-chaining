@@ -79,13 +79,6 @@ class TD3(object):
 
         self.total_it = 0
 
-    def get_features_for_rnd(self, state):
-        if len(state.shape) == 1:
-            return state[:self.rnd_state_dim]
-        if len(state.shape) == 2:
-            return state[:, :self.rnd_state_dim]
-        ipdb.set_trace()
-
     def act(self, state, evaluation_mode=False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         selected_action = self.actor(state)
@@ -224,7 +217,18 @@ class TD3(object):
             q_values = self.get_qvalues(states, actions)
         return q_values.cpu().numpy()
 
+    def get_features_for_rnd(self, state):
+        """ Feature extractor for the exploration module. """
+
+        if len(state.shape) == 1:
+            return state[:self.rnd_state_dim]
+        if len(state.shape) == 2:
+            return state[:, :self.rnd_state_dim]
+        ipdb.set_trace()
+
     def get_augmented_state(self, state, reward):
+        """ Feature extractor for the policy learning module. """
+
         state_features = state.features()
         if self.augment_with_rewards:
             reward_features = np.array([reward])
@@ -251,28 +255,28 @@ def pre_train(agent, mdp, episodes, steps, experiment_name):
     print(f"Ending pre-train with mean {agent.obs_rms.mean} and variance {agent.obs_rms.var}")
 
 
-def train(agent, mdp, episodes, steps, experiment_name):  # TODO: Warmstart the observation normalizer
+def train(agent, mdp, episodes, steps, experiment_name, starting_episode=0):
     per_episode_scores = []
     per_episode_durations = []
     per_episode_intrinsic_rewards = []
     
-    for episode in range(episodes):
+    for episode in range(starting_episode, starting_episode+episodes):
         mdp.reset()
         
         state = deepcopy(mdp.init_state)
-        reward = 0.
+        intrinsic_reward = 0.
         
         score = 0.
         intrinsic_score = 0.
 
         for step in range(steps):
 
-            augmented_state = agent.get_augmented_state(state, reward)
+            augmented_state = agent.get_augmented_state(state, intrinsic_reward)
             action = agent.act(augmented_state)
             
             reward, next_state = mdp.execute_agent_action(action)
             intrinsic_reward = agent.get_intrinsic_reward(next_state.features())
-            augmented_next_state = agent.get_augmented_state(next_state, reward)
+            augmented_next_state = agent.get_augmented_state(next_state, intrinsic_reward)
 
             agent.step(augmented_state, action, intrinsic_reward, reward, augmented_next_state, next_state.is_terminal())
             
@@ -307,7 +311,6 @@ def train(agent, mdp, episodes, steps, experiment_name):  # TODO: Warmstart the 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
-    parser.add_argument("--dense_reward", type=bool, help="Whether to use dense/sparse rewards", default=False)
     parser.add_argument("--env", type=str, help="name of gym environment", default="point-env")
     parser.add_argument("--render", type=bool, help="render environment training", default=False)
     parser.add_argument("--episodes", type=int, help="number of training episodes", default=200)
@@ -315,6 +318,10 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--augment_with_rewards", action="store_true", default=False)
     parser.add_argument("--use_obs_normalization", action="store_true", default=False)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--use_extrinsic_rewards", action="store_true", default=False)
+    parser.add_argument("--dense_reward", action="store_true", default=False)
+
     args = parser.parse_args()
 
     log_dir = create_log_dir(args.experiment_name)
@@ -324,7 +331,12 @@ if __name__ == "__main__":
     create_log_dir("value_function_plots/{}".format(args.experiment_name))
     create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
 
-    mdp = D4RLAntMazeMDP(maze_size="umaze", seed=0, render=False)
+    goal_state = np.array((0, 8)) if args.use_extrinsic_rewards else None
+    mdp = D4RLAntMazeMDP(seed=args.seed,
+                         maze_size="umaze",
+                         render=args.render,
+                         goal_state=goal_state,
+                         dense_reward=args.dense_reward)
     
     agent = TD3(mdp.state_space_size(),
                 mdp.action_space_size(),
