@@ -852,7 +852,7 @@ def visualize_mpc_train_data_distribution(mdp, states, episode, experiment_name)
     plt.savefig(f"value_function_plots/{experiment_name}/mpc_train_data_episode_{episode}.png")
     plt.close()
 
-def render_state(state, path="monte"):
+def     state, path="monte"):
     import cv2
     return cv2.imwrite(f"{path}.png", np.array(state.image)[-1, ...])
 
