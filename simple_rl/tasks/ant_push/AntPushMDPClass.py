@@ -67,7 +67,6 @@ class AntPushMDP(GoalDirectedMDP):
     def _get_state(self, observation, done):
         """ Convert np obs array from gym into a State object. """
         obs = np.copy(observation)
-        ipdb.set_trace()
         position = obs[:2]
         block_position = obs[3:5]
 
@@ -76,6 +75,16 @@ class AntPushMDP(GoalDirectedMDP):
         
         state = AntPushState(position, block_position, others, done)
         return state
+
+    @staticmethod
+    def _get_observation_from_state(state):
+        
+        position = state.position
+        block_pos = state.block_position
+        others = state.others
+
+        obs = position.tolist() + [others[0]] + block_pos.tolist() + others[1:].tolist()
+        return np.array(obs)
 
     def state_space_size(self):
         return self.env.observation_space.shape[0]
@@ -145,3 +154,6 @@ class AntPushMDP(GoalDirectedMDP):
         size = (self.action_space_size(),)
         return np.random.uniform(-1., 1., size=size)
 
+    @staticmethod
+    def get_block_xy_lims():
+        return (-2, 2)

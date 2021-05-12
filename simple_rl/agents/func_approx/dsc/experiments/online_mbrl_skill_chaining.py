@@ -10,9 +10,11 @@ from functools import reduce
 from collections import deque
 from simple_rl.agents.func_approx.dsc.experiments.utils import *
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
+from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoalSelector
+
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
 from simple_rl.tasks.ant_four_rooms.AntFourRoomsMDPClass import AntFourRoomsMDP
-from simple_rl.agents.func_approx.dsc.SubgoalSelectionClass import OptimalSubgoalSelector
+from simple_rl.tasks.ant_push.AntPushMDPClass import AntPushMDP
 
 
 class OnlineModelBasedSkillChaining(object):
@@ -49,8 +51,7 @@ class OnlineModelBasedSkillChaining(object):
         self.buffer_length = buffer_length
         self.gestation_period = gestation_period
 
-        goal_state = np.array((0, 8)) if maze_type == "umaze" else np.array((20, 20))
-        self.mdp = mdp #D4RLAntMazeMDP(maze_type, goal_state=goal_state, seed=seed)
+        self.mdp = mdp
         self.target_salient_event = self.mdp.get_original_target_events()[0]
 
         self.global_option = self.create_global_model_based_option()
@@ -177,7 +178,7 @@ class OnlineModelBasedSkillChaining(object):
 
     def contains_init_state(self):
         for option in self.mature_options:
-            if option.is_init_true(np.array([0,0])):  # TODO: Get test-time start state automatically
+            if option.is_init_true(np.array([0, 0, 6, 0.75])):  # TODO: Get test-time start state automatically 
                 return True
         return False
 
@@ -372,6 +373,7 @@ if __name__ == "__main__":
     parser.add_argument("--clear_option_buffers", action="store_true", default=False)
     parser.add_argument("--lr_c", type=float, help="critic learning rate")
     parser.add_argument("--lr_a", type=float, help="actor learning rate")
+    parser.add_argument("--render", action="store_true", default=False)
     args = parser.parse_args()
 
     assert args.use_model or args.use_value_function
@@ -388,6 +390,8 @@ if __name__ == "__main__":
         mdp = D4RLAntMazeMDP("medium", goal_state=np.array((20, 20)))
     elif args.environment == "4-room":
         mdp = AntFourRoomsMDP(goal_state=np.array((12, 12)), seed=args.seed)
+    elif args.environment == "push":
+        mdp = AntPushMDP(goal_state=np.array((0, 13)), seed=args.seed, render=args.render)
     else:
         raise RuntimeError("Environment not supported!")
 

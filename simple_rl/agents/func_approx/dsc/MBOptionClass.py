@@ -140,6 +140,10 @@ class ModelBasedOption(object):
             return True
 
         features = self.extract_features_for_initiation_classifier(state)
+        
+        assert isinstance(features, np.ndarray)
+        assert features.shape == (4,)
+
         return self.optimistic_classifier.predict([features])[0] == 1 or self.pessimistic_is_init_true(state)
 
     def is_term_true(self, state):
@@ -154,6 +158,10 @@ class ModelBasedOption(object):
             return True
 
         features = self.extract_features_for_initiation_classifier(state)
+        
+        assert isinstance(features, np.ndarray)
+        assert features.shape == (4,)
+
         return self.pessimistic_classifier.predict([features])[0] == 1
 
     def is_at_local_goal(self, state, goal):
@@ -424,6 +432,13 @@ class ModelBasedOption(object):
         positions = [self.extract_features_for_initiation_classifier(state) for state in states]
         return np.array(positions)
 
+    @staticmethod
+    def get_gamma(gamma, feature_matrix):
+        if gamma == "scale":
+            num_features = feature_matrix.shape[1]
+            return 1.0 / (num_features * feature_matrix.var())
+        return gamma
+
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
         self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
@@ -441,10 +456,12 @@ class ModelBasedOption(object):
         X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
         Y = np.concatenate((positive_labels, negative_labels))
 
+        gamma = self.get_gamma("scale", X)
+
         if negative_feature_matrix.shape[0] >= 10:  # TODO: Implement gamma="auto" for thundersvm
-            kwargs = {"kernel": "rbf", "gamma": "auto", "class_weight": "balanced"}
+            kwargs = {"kernel": "rbf", "gamma": gamma, "class_weight": "balanced"}
         else:
-            kwargs = {"kernel": "rbf", "gamma": "auto"}
+            kwargs = {"kernel": "rbf", "gamma": gamma}
 
         self.optimistic_classifier = SVC(**kwargs)
         self.optimistic_classifier.fit(X, Y)
@@ -453,7 +470,8 @@ class ModelBasedOption(object):
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+            gamma = self.get_gamma("scale", positive_training_examples)
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma=gamma)
             self.pessimistic_classifier.fit(positive_training_examples)
 
     # ------------------------------------------------------------
