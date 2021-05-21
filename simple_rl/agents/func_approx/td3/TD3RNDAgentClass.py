@@ -33,7 +33,7 @@ class TD3(object):
             lr_c=3e-4, lr_a=3e-4, lr_rnd=1e-4,
             device=torch.device("cuda"),
             name="Global-TD3-Agent",
-            augment_with_rewards=True,
+            augment_with_rewards=False,
             use_obs_normalization=False
     ):
 
@@ -184,8 +184,8 @@ class TD3(object):
             next_obs = torch.FloatTensor(self.get_features_for_rnd(next_obs)).to(self.device)
 
         with torch.no_grad():
-            target_features = agent.rnd.target(next_obs)
-            predicted_features = agent.rnd.predictor(next_obs)
+            target_features = self.rnd.target(next_obs)
+            predicted_features = self.rnd.predictor(next_obs)
             r_int = (target_features - predicted_features).pow(2).sum(1)
         return r_int
 

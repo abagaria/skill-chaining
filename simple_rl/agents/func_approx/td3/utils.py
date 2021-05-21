@@ -156,7 +156,7 @@ def chunked_inference(func, data, device=torch.device("cuda"), chunk_size=1000):
 def visualize_next_state_intrinsic_reward_heat_map(solver, mdp, episode, experiment_name=""):
     t0 = time.time()
     next_states = [experience[-2] for experience in solver.replay_buffer]
-    intrinsic_rewards = np.array([experience[2] for experience in solver.replay_buffer])
+    intrinsic_rewards = np.array([experience[2] for experience in solver.replay_buffer]).clip(-np.inf, 10.)
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
 
