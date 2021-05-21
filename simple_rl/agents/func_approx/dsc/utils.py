@@ -49,7 +49,7 @@ class Experience(object):
 # Plotting utils
 # ---------------
 
-def plot_trajectory(trajectory, color='k', marker="o"):
+def plot_trajectory(trajectory, experiment_name, episode, color='k'):
     for i, state in enumerate(trajectory):
         if isinstance(state, State):
             x = state.position[0]
@@ -58,10 +58,10 @@ def plot_trajectory(trajectory, color='k', marker="o"):
             x = state[0]
             y = state[1]
 
-        if marker == "x":
-            plt.scatter(x, y, c=color, s=100, marker=marker)
-        else:
-            plt.scatter(x, y, c=color, alpha=float(i) / len(trajectory), marker=marker)
+        plt.scatter(x, y, c=color, alpha=float(i) / len(trajectory))
+
+    plt.savefig(f"value_function_plots/{experiment_name}/rnd_rollout_episode_{episode}.png")
+    plt.close()
 
 def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
     possible_colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',

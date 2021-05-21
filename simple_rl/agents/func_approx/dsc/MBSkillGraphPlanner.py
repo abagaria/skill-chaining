@@ -9,8 +9,9 @@ from simple_rl.agents.func_approx.dsc.ModelBasedDSC import ModelBasedSkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
-from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result
+from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result, plot_trajectory
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
+from simple_rl.agents.func_approx.td3.TD3RNDAgentClass import TD3
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 
 
@@ -34,25 +35,37 @@ class SkillGraphPlanner(object):
         self.seed = seed
 
         self.mpc = self._get_mpc()
+        self.exploration_agent = self._get_exploration_agent()        
 
-        assert isinstance(self.mpc, MPC)
         assert isinstance(self.chainer, ModelBasedSkillChaining)
         assert isinstance(self.mdp, GoalDirectedMDP)
 
         self.plan_graph = PlanGraph()
 
+    def _get_exploration_agent(self):
+        return TD3(state_dim=self.mdp.state_space_size(),
+                   action_dim=self.mdp.action_space_size(),
+                   max_action=1.,
+                   name="td3-rnd-exploration-agent",
+                   device=self.chainer.device,
+                   augment_with_rewards=False,
+                   use_obs_normalization=False
+                   )
+
     def _get_mpc(self):
         if self.chainer.use_model:
             print(f"[Model-Based Controller] Using the global-option's solver as DSG's MPC.")
             return self.chainer.global_option.solver
-
+        
         print(f"[Model-Free Controller] Creating a MPC for DSG.")
         return MPC(mdp=self.mdp,
                    state_size=self.mdp.state_space_size(),
                    action_size=self.mdp.action_space_size(),
                    dense_reward=self.chainer.global_option.dense_reward,
                    device=self.chainer.device,
-                   multithread=self.chainer.global_option.multithread_mpc)
+                   multithread_mpc=self.multithread_mpc
+        )
+
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -256,7 +269,7 @@ class SkillGraphPlanner(object):
             state, step = self.run_sub_loop(state, planner_goal_vertex, 0, goal_salient_event, episode, eval_mode=False)
 
         if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
-            state, steps_taken, accepted = self.model_based_extrapolation(goal_salient_event, episode)
+            state, steps_taken, accepted = self.model_free_extrapolation(goal_salient_event, episode, step)
             return state, step + steps_taken, accepted
 
         return state, step, False
@@ -300,6 +313,61 @@ class SkillGraphPlanner(object):
 
         return state, steps_taken, True
 
+    def model_free_extrapolation(self, goal_salient_event, episode, step_number):
+        """ Single episodic rollout of the exploration policy to extend the graph. """
+
+        transitions = []
+        intrinsic_reward = 0.
+        step_budget = max(200, self.chainer.max_steps - step_number)
+        state = deepcopy(self.mdp.cur_state)
+
+        print(f"Performing model-free extrapolation from {state.position} for {step_budget} steps")
+
+        for step in range(self.chainer.max_steps):
+            augmented_state = self.exploration_agent.get_augmented_state(state, intrinsic_reward)
+            action = self.exploration_agent.act(augmented_state)
+            reward, next_state = self.mdp.execute_agent_action(action)
+            intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
+            augmented_next_state = self.exploration_agent.get_augmented_state(next_state, intrinsic_reward)
+            
+            # [RND] Done flag is always false for the intrinsic value function
+            self.exploration_agent.step(augmented_state, action, intrinsic_reward, reward, augmented_next_state, False)
+
+            transitions.append((state, action, intrinsic_reward, next_state))
+            state = next_state
+            
+            if state.is_terminal():
+                break
+        
+        target_state = self.create_target_state(transitions)
+        reject = self.should_reject_mpc_revision(target_state, goal_salient_event)
+        print(f"Is {goal_salient_event} with target state {target_state} rejected: {reject}")
+        
+        plot_trajectory([transition[-1] for transition in transitions], self.experiment_name, episode)
+
+        if reject:
+            if goal_salient_event in self.mdp.all_salient_events_ever:
+                self.mdp.all_salient_events_ever.remove(goal_salient_event)
+            return state, len(transitions), False
+
+        goal_salient_event.target_state = state.position
+        goal_salient_event._initialize_trigger_points()
+        goal_salient_event.revised_by_mpc = True
+
+        return target_state, len(transitions), True
+
+    def create_target_state(self, transitions):
+        best_state = None
+        max_intrinsic_reward = -np.inf
+
+        for state, action, intrinsic_reward, next_state in transitions:
+            
+            if intrinsic_reward > max_intrinsic_reward:
+                best_state = next_state
+                max_intrinsic_reward = intrinsic_reward
+
+        return best_state
+
     def should_reject_mpc_revision(self, state, goal_salient_event):
         def satisfies_existing_event(s):
             events = self.mdp.get_all_target_events_ever()
@@ -321,7 +389,9 @@ class SkillGraphPlanner(object):
         def inside_completed_option(s):
             return any([o.pessimistic_is_init_true(s) or o.is_in_effect_set(s) for o in self.chainer.mature_options])
 
-        return satisfies_start_event(state) or \
+        return state is None or \
+               goal_salient_event is None or \
+               satisfies_start_event(state) or \
                satisfies_existing_event(state) or \
                inside_completed_option(state) or \
                close_to_existing_event(state)
