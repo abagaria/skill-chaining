@@ -9,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.ModelBasedDSC import ModelBasedSkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
-from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result, plot_trajectory
+from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result, plot_trajectory, visualize_graph_nodes_with_expansion_probabilities
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 from simple_rl.agents.func_approx.td3.TD3RNDAgentClass import TD3
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
@@ -678,6 +678,7 @@ class SkillGraphPlanner(object):
 
         if chain.is_chain_completed():
             visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
+            visualize_graph_nodes_with_expansion_probabilities(self, episode, self.chainer.experiment_name, self.chainer.seed)
 
     # -----------------------------–––––––--------------
     # Utility Functions

@@ -523,6 +523,63 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
+def visualize_graph_nodes_with_expansion_probabilities(planner, episode, experiment_name, seed, background_img_fname="ant_maze_big_domain"):
+    def _get_node_probability(e, normalizing_factor):
+        score = e.compute_intrinsic_reward_score(planner.exploration_agent)
+        return score / normalizing_factor
+
+    def _get_node_probability_normalization_factor():
+        """ Sum up the selection scores of all the nodes in the graph. """
+        descendants = planner.plan_graph.get_reachable_nodes_from_source_state(planner.mdp.init_state)
+        scores = np.array([node.compute_intrinsic_reward_score(planner.exploration_agent) for node in descendants])
+        return scores.sum()
+
+    def _get_representative_point(node):
+        if isinstance(node, SalientEvent):
+            return _get_event_representative_point(node)
+        return _get_option_representative_point(node)
+
+    def _get_event_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.get_target_position()
+        trigger_positions = [event._get_position(s) for s in event.trigger_points]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
+
+    def _get_option_representative_point(option):
+        effect_positions = np.array([planner.mdp.get_position(state) for state in option.effect_set])
+        return np.median(effect_positions, axis=0)
+
+    norm = _get_node_probability_normalization_factor()
+    nodes = list(set(planner.plan_graph.get_reachable_nodes_from_source_state(planner.mdp.init_state)))
+
+    points = [_get_representative_point(n) for n in nodes]
+    x_coords = [point[0] for point in points]
+    y_coords = [point[1] for point in points]
+    probabilities = [_get_node_probability(n, norm) for n in nodes]
+
+    plt.scatter(x_coords, y_coords, c=probabilities)
+    plt.colorbar()
+    plt.xticks([])
+    plt.yticks([])
+
+    x_low_lim, y_low_lim = planner.mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = planner.mdp.get_x_y_high_lims()
+
+    filename = os.path.join(os.getcwd(), f"{background_img_fname}.png")
+    if os.path.isfile(filename):
+        background_image = imageio.imread(filename)
+        plt.imshow(background_image, zorder=0, alpha=0.5, extent=[x_low_lim, x_high_lim, y_low_lim, y_high_lim])
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    prefix = "event_node_prob_graph"
+    plt.savefig(f"value_function_plots/{experiment_name}/{prefix}_episode_{episode}_seed_{seed}.png")
+    plt.close()
+
+
 def visualize_graph(planner, episode, experiment_name, seed, use_target_states=True, background_img_fname="ant_maze_big_domain"):
     def _get_representative_point(event):
         assert isinstance(event, SalientEvent)
