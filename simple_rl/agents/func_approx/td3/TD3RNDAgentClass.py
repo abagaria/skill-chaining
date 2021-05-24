@@ -98,6 +98,11 @@ class TD3(object):
         self.reward_rms.update(np.array([intrinsic_reward]))
         return intrinsic_reward
 
+    def batched_get_intrinsic_reward(self, states):
+        assert isinstance(states, (np.ndarray, torch.tensor)), type(states)
+        intrinsic_reward = self._compute_intrinsic_reward(states).mean().item()
+        return intrinsic_reward
+
     def step(self, state, action, intrinsic_reward, extrinsic_reward, next_state, is_terminal):
         self.replay_buffer.add(state, action, intrinsic_reward, extrinsic_reward, next_state, is_terminal)
 

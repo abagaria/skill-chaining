@@ -59,6 +59,12 @@ class SalientEvent(object):
     def __hash__(self):
         return hash(self.event_idx)
 
+    def compute_intrinsic_reward_score(self, exploration_agent):
+
+        effect_set = np.array([state.features() for state in self.trigger_points[1:]])
+        intrinsic_reward = exploration_agent.batched_get_intrinsic_reward(effect_set)
+        return intrinsic_reward
+
     def is_subset(self, other_event):
         """ I am a subset of `other_event` if all my trigger points are inside `other_event`. """
         assert isinstance(other_event, SalientEvent)

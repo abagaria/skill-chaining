@@ -615,6 +615,15 @@ class ModelBasedOption(object):
         return np.median(np.abs(distances))
 
     # ------------------------------------------------------------
+    # RND functions
+    # ------------------------------------------------------------
+
+    def compute_intrinsic_reward_score(self, exploration_agent):
+        effect_set = np.array(list(self.effect_set))
+        intrinsic_reward = exploration_agent.batched_get_intrinsic_reward(effect_set)
+        return intrinsic_reward
+
+    # ------------------------------------------------------------
     # Convenience functions
     # ------------------------------------------------------------
 

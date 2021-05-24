@@ -262,7 +262,8 @@ class SkillGraphPlanner(object):
 
         step = 0
         state = deepcopy(self.mdp.cur_state)
-        planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
+        # planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
+        planner_goal_vertex, dsc_goal_vertex = self._rnd_get_node_to_expand(state, goal_salient_event), goal_salient_event 
         print(f"[Salient-Event-Discovery] Planner goal: {planner_goal_vertex}; Goal: {goal_salient_event}")
 
         if planner_goal_vertex != goal_salient_event:
@@ -475,6 +476,26 @@ class SkillGraphPlanner(object):
                 return planner_goal_vertex, dsc_goal_vertex
         return goal_salient_event, goal_salient_event
 
+    def _rnd_get_node_to_expand(self, state, goal_salient_event):
+        """ Given current `state`, use the RND intrinsic reward to find the graph node to expand. """
+        
+        descendants = list(set(self.plan_graph.get_reachable_nodes_from_source_state(state)))
+
+        if len(descendants) > 0:
+            scores = np.array([node.compute_intrinsic_reward_score(self.exploration_agent) for node in descendants])  # TODO
+            probabilities = scores / scores.sum()
+
+            assert all(probabilities.tolist()) <= 1., probabilities
+            np.testing.assert_almost_equal(probabilities.sum(), 1., err_msg=f"{probabilities}")
+            
+            sampled_node = np.random.choice(descendants, size=1, p=probabilities)[0]
+
+            print(f"Descendants: {descendants} | Probs: {probabilities} | Chose: {sampled_node}")
+
+            return sampled_node
+        
+        return goal_salient_event
+
     # -----------------------------–––––––--------------
     # Maintaining the graph
     # -----------------------------–––––––--------------
@@ -655,8 +676,8 @@ class SkillGraphPlanner(object):
         if chain.should_complete_chain(newly_created_option):
             chain.set_chain_completed()
 
-        # if chain.is_chain_completed():
-        #     visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
+        if chain.is_chain_completed():
+            visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
 
     # -----------------------------–––––––--------------
     # Utility Functions
