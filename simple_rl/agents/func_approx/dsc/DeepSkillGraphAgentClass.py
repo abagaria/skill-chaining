@@ -246,17 +246,47 @@ class DeepSkillGraphAgent(object):
         while not accepted and num_tries < num_tries_allowed:
             num_tries += 1
             self.reset(current_episode)
-            goal_salient_event, reject = self.generate_new_salient_event()
+            
+            target_state, step = self.planning_agent.salient_event_discovery_run_loop(current_episode)
 
-            if goal_salient_event is not None and not reject:
-                state, step, accepted = self.planning_agent.salient_event_discovery_run_loop(goal_salient_event,
-                                                                                             current_episode)
-                print(f"[Salient-Event-Discovery] Try # {num_tries}, final-state: {state.position}, step #{step}, accepted={accepted}")
+            goal_salient_event = self.generate_new_salient_event(target_state)
+            rejected = self.should_reject_mpc_revision(target_state, goal_salient_event)
+            accepted = not rejected
+
+            print(f"[Salient-Event-Discovery] Try # {num_tries}, final-state: {target_state.position}, step #{step}, accepted={accepted}")
 
         if accepted:
             self.add_salient_event(goal_salient_event)
 
         return accepted, num_tries
+
+    def should_reject_mpc_revision(self, state, goal_salient_event):
+        def satisfies_existing_event(s):
+            events = self.mdp.get_all_target_events_ever()
+            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
+            return any([event(s) for event in events])
+
+        def close_to_existing_event(s):
+            """ The new event should not be too close to start-state or any other event. """
+            events = self.mdp.get_all_target_events_ever()
+            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
+            events += [self.mdp.get_start_state_salient_event()]
+            distances = [event.distance_to_effect_set([s]) for event in events]
+            distance_threshold = 2.5 * goal_salient_event.tolerance
+            return any([distance < distance_threshold for distance in distances])
+
+        def satisfies_start_event(s):
+            return self.mdp.get_start_state_salient_event()(s)
+
+        def inside_completed_option(s):
+            return any([o.pessimistic_is_init_true(s) or o.is_in_effect_set(s) for o in self.dsc_agent.mature_options])
+
+        return state is None or \
+               goal_salient_event is None or \
+               satisfies_start_event(state) or \
+               satisfies_existing_event(state) or \
+               inside_completed_option(state) or \
+               close_to_existing_event(state)
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
         self.planning_agent.mpc.load_data()
@@ -266,22 +296,10 @@ class DeepSkillGraphAgent(object):
             for option in self.dsc_agent.get_all_options():
                 option.solver.model = self.dsc_agent.global_option.solver.model
 
-    def generate_new_salient_event(self):
-        num_tries = 0
-        reject = True
-        salient_event = None
-
-        while reject and num_tries < 50:
-            num_tries += 1
-            event_idx = len(self.mdp.all_salient_events_ever) + 1
-            target_state = self.mdp.sample_random_state()[:2]
-            salient_event = SalientEvent(target_state, event_idx)
-
-            reject = self.should_reject_discovered_salient_event(salient_event)
-
-            print(f"Generated {salient_event}; Rejected: {reject}")
-
-        return salient_event, reject
+    def generate_new_salient_event(self, target_state):
+        event_idx = len(self.mdp.all_salient_events_ever) + 1
+        salient_event = SalientEvent(target_state, event_idx)
+        return salient_event
 
     def add_salient_event(self, salient_event):
         print(f"[DSG Agent] Accepted {salient_event} (revised = {salient_event.revised_by_mpc})")
@@ -320,19 +338,6 @@ class DeepSkillGraphAgent(object):
             return False
 
         return shortest_paths.has_path(graph, str(vertex1), str(vertex2))
-
-    def should_reject_discovered_salient_event(self, salient_event):
-        """
-        Reject the discovered salient event if it is the same as an old one or inside the initiation set of an option.
-
-        Args:
-            salient_event (SalientEvent)
-
-        Returns:
-            should_reject (bool)
-        """
-        return self.planning_agent.should_reject_mpc_revision(state=salient_event.target_state,
-                                                              goal_salient_event=salient_event)
 
     def should_generate_new_salient_events(self, episode):
         if episode < self.num_warmup_episodes:

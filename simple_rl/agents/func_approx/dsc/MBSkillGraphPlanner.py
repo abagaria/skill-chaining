@@ -124,10 +124,12 @@ class SkillGraphPlanner(object):
         """ Control loop that drives the agent from `state` to `goal_vertex` or times out. """
         assert isinstance(state, State)
         assert isinstance(goal_vertex, (SalientEvent, ModelBasedOption))
-        assert isinstance(goal_salient_event, SalientEvent)
         assert isinstance(episode_number, int)
         assert isinstance(step_number, int)
         assert isinstance(eval_mode, bool)
+
+        # Note: I removed an assertion that goal_salient_event be a SalientEvent b/c in the absence of 
+        #       a state sampler, goal_vertex and goal_salient_event are the same node and they could both be options
 
         episodic_trajectory = []
         option_trajectory = []
@@ -254,67 +256,26 @@ class SkillGraphPlanner(object):
 
         return step, self.mdp.cur_state
 
-    def salient_event_discovery_run_loop(self, goal_salient_event, episode):
-        assert not goal_salient_event.revised_by_mpc
-        assert isinstance(goal_salient_event, SalientEvent)
+    def salient_event_discovery_run_loop(self, episode):
         assert isinstance(episode, int)
-        assert not goal_salient_event.revised_by_mpc
 
         step = 0
         state = deepcopy(self.mdp.cur_state)
-        # planner_goal_vertex, dsc_goal_vertex = self._get_goal_vertices_for_rollout(state, goal_salient_event)
-        planner_goal_vertex, dsc_goal_vertex = self._rnd_get_node_to_expand(state, goal_salient_event), goal_salient_event 
-        print(f"[Salient-Event-Discovery] Planner goal: {planner_goal_vertex}; Goal: {goal_salient_event}")
+        planner_goal_vertex = self._rnd_get_node_to_expand(state)
+        print(f"[Salient-Event-Discovery] Planner goal: {planner_goal_vertex}")
 
-        if planner_goal_vertex != goal_salient_event:
-            state, step = self.run_sub_loop(state, planner_goal_vertex, 0, goal_salient_event, episode, eval_mode=False)
+        # Run loop to get to the planner-goal-vertex
+        if not planner_goal_vertex(state):
+            state, step = self.run_sub_loop(state, planner_goal_vertex, 0, planner_goal_vertex, episode, eval_mode=False)
 
+        # Run loop that does exploration outside the graph
         if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
-            state, steps_taken, accepted = self.model_free_extrapolation(goal_salient_event, episode, step)
-            return state, step + steps_taken, accepted
+            state, steps_taken = self.model_free_extrapolation(episode, step)
+            return state, step + steps_taken
 
-        return state, step, False
+        return state, step
 
-    def model_based_extrapolation(self, goal_salient_event, episode):
-        """
-        Use a learned dynamics model + MPC to move in the direction of the randomly sampled goal state.
-
-        Args:
-            goal_salient_event (SalientEvent)
-            episode (int): current episode
-
-        Returns:
-            state (State): state at the end of the MPC rollout
-            steps_taken (int): how many steps the MPC took in the environment
-            accepted (bool): whether the revised salient event was rejected or not
-        """
-        assert not goal_salient_event.revised_by_mpc
-
-        state_before_rollout = deepcopy(self.mdp.cur_state)
-        print(f"Performing model-based extrapolation from {state_before_rollout.position} to {goal_salient_event}")
-
-        mpc_steps = 100
-        state, steps_taken = self.mpc.rollout(mdp=self.mdp,
-                                              num_rollouts=14000, num_steps=7,
-                                              goal=goal_salient_event.get_target_position(),
-                                              max_steps=mpc_steps)
-
-        print("Checking if MPC revision needs to be rejected")
-        reject = self.should_reject_mpc_revision(state, goal_salient_event)
-
-        print("Returning from model-based extrapolation")
-        if reject:
-            if goal_salient_event in self.mdp.all_salient_events_ever:
-                self.mdp.all_salient_events_ever.remove(goal_salient_event)
-            return state, steps_taken, False
-
-        goal_salient_event.target_state = state.position
-        goal_salient_event._initialize_trigger_points()
-        goal_salient_event.revised_by_mpc = True
-
-        return state, steps_taken, True
-
-    def model_free_extrapolation(self, goal_salient_event, episode, step_number):
+    def model_free_extrapolation(self, episode, step_number):
         """ Single episodic rollout of the exploration policy to extend the graph. """
 
         transitions = []
@@ -341,21 +302,7 @@ class SkillGraphPlanner(object):
                 break
         
         target_state = self.create_target_state(transitions)
-        reject = self.should_reject_mpc_revision(target_state, goal_salient_event)
-        print(f"Is {goal_salient_event} with target state {target_state} rejected: {reject}")
-        
-        plot_trajectory([transition[-1] for transition in transitions], self.experiment_name, episode)
-
-        if reject:
-            if goal_salient_event in self.mdp.all_salient_events_ever:
-                self.mdp.all_salient_events_ever.remove(goal_salient_event)
-            return state, len(transitions), False
-
-        goal_salient_event.target_state = state.position
-        goal_salient_event._initialize_trigger_points()
-        goal_salient_event.revised_by_mpc = True
-
-        return target_state, len(transitions), True
+        return target_state, len(transitions)
 
     def create_target_state(self, transitions):
         best_state = None
@@ -368,34 +315,6 @@ class SkillGraphPlanner(object):
                 max_intrinsic_reward = intrinsic_reward
 
         return best_state
-
-    def should_reject_mpc_revision(self, state, goal_salient_event):
-        def satisfies_existing_event(s):
-            events = self.mdp.get_all_target_events_ever()
-            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
-            return any([event(s) for event in events])
-
-        def close_to_existing_event(s):
-            """ The new event should not be too close to start-state or any other event. """
-            events = self.mdp.get_all_target_events_ever()
-            events = [event for event in events if event.revised_by_mpc and event != goal_salient_event]
-            events += [self.mdp.get_start_state_salient_event()]
-            distances = [event.distance_to_effect_set([s]) for event in events]
-            distance_threshold = 2.5 * goal_salient_event.tolerance
-            return any([distance < distance_threshold for distance in distances])
-
-        def satisfies_start_event(s):
-            return self.mdp.get_start_state_salient_event()(s)
-
-        def inside_completed_option(s):
-            return any([o.pessimistic_is_init_true(s) or o.is_in_effect_set(s) for o in self.chainer.mature_options])
-
-        return state is None or \
-               goal_salient_event is None or \
-               satisfies_start_event(state) or \
-               satisfies_existing_event(state) or \
-               inside_completed_option(state) or \
-               close_to_existing_event(state)
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
@@ -476,7 +395,7 @@ class SkillGraphPlanner(object):
                 return planner_goal_vertex, dsc_goal_vertex
         return goal_salient_event, goal_salient_event
 
-    def _rnd_get_node_to_expand(self, state, goal_salient_event):
+    def _rnd_get_node_to_expand(self, state):
         """ Given current `state`, use the RND intrinsic reward to find the graph node to expand. """
         
         descendants = list(set(self.plan_graph.get_reachable_nodes_from_source_state(state)))
@@ -494,7 +413,8 @@ class SkillGraphPlanner(object):
 
             return sampled_node
         
-        return goal_salient_event
+        assert len(descendants) == 0, descendants
+        return self.mdp.get_start_state_salient_event()
 
     # -----------------------------–––––––--------------
     # Maintaining the graph

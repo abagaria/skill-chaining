@@ -172,7 +172,7 @@ class SalientEvent(object):
         return positions
 
     def __repr__(self):
-        return f"SalientEvent targeting {self.target_state}"
+        return f"SalientEvent targeting {self.get_target_position()}"
 
 
 class LearnedSalientEvent(SalientEvent):
