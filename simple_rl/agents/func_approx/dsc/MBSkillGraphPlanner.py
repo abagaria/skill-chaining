@@ -56,16 +56,6 @@ class SkillGraphPlanner(object):
         if self.chainer.use_model:
             print(f"[Model-Based Controller] Using the global-option's solver as DSG's MPC.")
             return self.chainer.global_option.solver
-        
-        print(f"[Model-Free Controller] Creating a MPC for DSG.")
-        return MPC(mdp=self.mdp,
-                   state_size=self.mdp.state_space_size(),
-                   action_size=self.mdp.action_space_size(),
-                   dense_reward=self.chainer.global_option.dense_reward,
-                   device=self.chainer.device,
-                   multithread_mpc=self.multithread_mpc
-        )
-
 
     # -----------------------------–––––––--------------
     # Control loop methods
@@ -604,23 +594,26 @@ class SkillGraphPlanner(object):
     # Utility Functions
     # -----------------------------–––––––--------------
 
-    @staticmethod
-    def get_closest_pair_of_vertices(src_vertices, dest_vertices):
+    def get_closest_pair_of_vertices(self, src_vertices, dest_vertices):
         closest_pair = None
         min_distance = np.inf
 
         for source in src_vertices:  # type: SalientEvent or ModelBasedOption
             for target in dest_vertices:  # type: SalientEvent or ModelBasedOption
                 if source != target:  # TODO: Why are we getting repeats?
-                    distance = SkillGraphPlanner.distance_between_vertices(source, target)
+                    distance = self.distance_between_vertices(source, target)
                     if distance < min_distance:
                         min_distance = distance
                         closest_pair = source, target
 
         return closest_pair
 
-    @staticmethod
-    def distance_between_vertices(v1, v2):
+    def distance_between_vertices(self, v1, v2):
+        if self.use_vf:
+            return self.vf_based_distance_between_vertices(v1, v2)
+        return self.norm_based_distance_between_vertices(v1, v2)
+
+    def norm_based_distance_between_vertices(self, v1, v2):
         if isinstance(v1, SalientEvent) and isinstance(v2, SalientEvent):
             return v1.distance_to_other_event(v2)
         if isinstance(v1, SalientEvent) and isinstance(v2, ModelBasedOption):
@@ -630,6 +623,44 @@ class SkillGraphPlanner(object):
         if isinstance(v1, ModelBasedOption) and isinstance(v2, ModelBasedOption):
             return SalientEvent.set_to_set_distance(v1.effect_set, v2.effect_set)
         raise NotImplementedError(f"{type(v1), type(v2)}")
+
+    def vf_based_distance_between_vertices(self, v1, v2):
+        def _extract(state):
+            return state if isinstance(state, np.ndarray) else state.features()
+
+        def _filter(x):
+            y = map(_extract, x)
+            return [s for s in y if isinstance(s, np.ndarray) and s.shape[0] == self.mdp.state_space_size()]
+
+        def _add_init_state(x):
+            x.append(self.mdp.init_state.features())
+            return x
+
+        def value(state, goals, vf):
+            states = np.repeat(state[None, ...], len(goals),  axis=0)
+            assert states.shape == goals.shape, f"{states.shape, goals.shape}"
+            values = vf(states, goals)
+            values[values > 0] = 0
+            return values.mean()
+
+        assert isinstance(v1, (ModelBasedOption, SalientEvent)), f"{type(v1)}"
+        assert isinstance(v2, (ModelBasedOption, SalientEvent)), f"{type(v2)}"
+
+        vf = self.chainer.global_option.value_function
+        e1 = _filter(v1.get_effective_effect_set()) if isinstance(v1, ModelBasedOption) else _filter(v1.trigger_points)
+        e2 = _filter(v2.get_effective_effect_set()) if isinstance(v2, ModelBasedOption) else _filter(v2.trigger_points)
+
+        if isinstance(v1, SalientEvent) and v1(self.mdp.init_state):
+            e1 = _add_init_state(e1)
+
+        if isinstance(v2, SalientEvent) and v2(self.mdp.init_state):
+            e2 = _add_init_state(e2)
+
+        if len(e1) > 0 and len(e2) > 0:
+            e2 = np.vstack(e2)
+            values = [value(state, e2, vf) for state in e1]
+            return -np.mean(values)
+        return np.inf
 
     @staticmethod
     def is_state_inside_vertex(state, vertex):

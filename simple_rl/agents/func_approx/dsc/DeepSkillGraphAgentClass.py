@@ -241,7 +241,9 @@ class DeepSkillGraphAgent(object):
         accepted = False
 
         epochs = 50 if current_episode <= self.num_warmup_episodes else 5
-        self.learn_dynamics_model(epochs=epochs)
+        
+        if self.dsc_agent.use_model:
+            self.learn_dynamics_model(epochs=epochs)
 
         while not accepted and num_tries < num_tries_allowed:
             num_tries += 1
@@ -358,7 +360,8 @@ class DeepSkillGraphAgent(object):
         state = deepcopy(self.mdp.cur_state)
         action = self.mdp.sample_random_action()
         reward, next_state = self.mdp.execute_agent_action(action)
-        self.planning_agent.mpc.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+        if self.dsc_agent.use_model:
+            self.planning_agent.mpc.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
         return state, action, reward, next_state
 
     def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode, current_event=None):

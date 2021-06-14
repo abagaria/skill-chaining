@@ -28,7 +28,7 @@ class GoalDirectedMDP(MDP):
         done = np.linalg.norm(curr_pos - goal_pos) <= self.goal_tolerance
         time_limit_truncated = info.get('TimeLimit.truncated', False)
         is_terminal = done and not time_limit_truncated
-        reward = +100. if is_terminal else -1.
+        reward = +0. if is_terminal else -1.
         return reward, is_terminal
 
     def dense_gc_reward_function(self, state, goal, info={}):
@@ -38,7 +38,7 @@ class GoalDirectedMDP(MDP):
         distance_to_goal = np.linalg.norm(curr_pos - goal_pos)
         done = distance_to_goal <= self.goal_tolerance
         is_terminal = done and not time_limit_truncated
-        reward = +100. if is_terminal else -distance_to_goal / 13.
+        reward = +0. if is_terminal else -distance_to_goal
         return reward, is_terminal
 
     def batched_sparse_gc_reward_function(self, states, goals):
