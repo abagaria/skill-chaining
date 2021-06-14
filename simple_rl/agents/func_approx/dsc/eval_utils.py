@@ -37,6 +37,11 @@ def create_test_event(dsg_agent, goal_state):
     #     sorted_known_options = sorted(known_options, key=lambda o: len(o.effect_set), reverse=True)
     #     return sorted_known_options[0]
 
+    # Add target position to event's trigger points to enable VF based distance calculation
+    s0 = np.zeros((dsg_agent.mdp.get_state_space_size(),))
+    s0[:2] = test_event.get_target_position()
+    test_event.trigger_points.append(s0)
+
     return test_event
 
 

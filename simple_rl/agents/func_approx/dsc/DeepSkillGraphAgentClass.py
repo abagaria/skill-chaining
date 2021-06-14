@@ -212,6 +212,11 @@ class DeepSkillGraphAgent(object):
             event_idx = [event.event_idx for event in mdp_events + graph_events]
             start_state_event = SalientEvent(target_state=state.position, event_idx=max(event_idx)+1)
 
+            # Add target position to event's trigger points to enable VF based distance calculation
+            s0 = np.zeros((self.mdp.get_state_space_size(),))
+            s0[:2] = start_state_event.get_target_position()
+            start_state_event.trigger_points.append(s0)
+
         if num_descendants == 0:
             self.create_skill_chains_from_outside_graph(state, start_state_event, test_event)
         else:
