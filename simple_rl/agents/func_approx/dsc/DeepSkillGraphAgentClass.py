@@ -213,7 +213,7 @@ class DeepSkillGraphAgent(object):
             start_state_event = SalientEvent(target_state=state.position, event_idx=max(event_idx)+1)
 
             # Add target position to event's trigger points to enable VF based distance calculation
-            s0 = np.zeros((self.mdp.get_state_space_size(),))
+            s0 = np.zeros((self.mdp.state_space_size(),))
             s0[:2] = start_state_event.get_target_position()
             start_state_event.trigger_points.append(s0)
 

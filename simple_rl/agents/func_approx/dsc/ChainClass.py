@@ -109,9 +109,9 @@ class SkillChain(object):
         assert isinstance(option, ModelBasedOption), f"{type(option)}"
 
         if len(self.init_salient_event.trigger_points) > 0:
-            return any([option.is_init_true(s) for s in self.init_salient_event.trigger_points])
+            return any([option.pessimistic_is_init_true(s) for s in self.init_salient_event.trigger_points])
         if self.init_salient_event.get_target_position() is not None:
-            return option.is_init_true(self.init_salient_event.get_target_position())
+            return option.pessimistic_is_init_true(self.init_salient_event.get_target_position())
         return False
 
     def should_complete_chain(self, option):
