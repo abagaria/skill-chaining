@@ -586,9 +586,9 @@ class SkillGraphPlanner(object):
         if chain.should_complete_chain(newly_created_option):
             chain.set_chain_completed()
 
-        if chain.is_chain_completed():
-            visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
-            visualize_graph_nodes_with_expansion_probabilities(self, episode, self.chainer.experiment_name, self.chainer.seed)
+        # if chain.is_chain_completed():
+            #visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
+            #visualize_graph_nodes_with_expansion_probabilities(self, episode, self.chainer.experiment_name, self.chainer.seed)
 
     # -----------------------------–––––––--------------
     # Utility Functions
@@ -636,12 +636,18 @@ class SkillGraphPlanner(object):
             x.append(self.mdp.init_state.features())
             return x
 
-        def value(state, goals, vf):
-            states = np.repeat(state[None, ...], len(goals),  axis=0)
+        def batched_value(states, goals, vf):
             assert states.shape == goals.shape, f"{states.shape, goals.shape}"
             values = vf(states, goals)
             values[values > 0] = 0
             return values.mean()
+
+        def value(state, goals, vf):
+            states = np.repeat(state[None, ...], len(goals),  axis=0)
+            return batched_value(states, goals, vf) 
+
+        def sample(A, num_rows):
+            return A[np.random.randint(A.shape[0], size=num_rows), :]
 
         assert isinstance(v1, (ModelBasedOption, SalientEvent)), f"{type(v1)}"
         assert isinstance(v2, (ModelBasedOption, SalientEvent)), f"{type(v2)}"
@@ -656,10 +662,20 @@ class SkillGraphPlanner(object):
         if isinstance(v2, SalientEvent) and v2(self.mdp.init_state):
             e2 = _add_init_state(e2)
 
-        if len(e1) > 0 and len(e2) > 0:
+        if len(e1) > 0 and len(e2) > 0 and len(e1) < 32:
             e2 = np.vstack(e2)
             values = [value(state, e2, vf) for state in e1]
             return -np.mean(values)
+        elif len(e1) > 0 and len(e2) > 0:
+            e1 = np.vstack(e1)
+            e2 = np.vstack(e2)
+            l0 = min(len(e1), len(e2))
+            e1 = sample(e1, num_rows=l0)
+            e2 = sample(e2, num_rows=l0)
+            values = batched_value(e1, e2, vf)
+            estimated_distance = -np.mean(values)
+            return estimated_distance
+
         return np.inf
 
     @staticmethod
