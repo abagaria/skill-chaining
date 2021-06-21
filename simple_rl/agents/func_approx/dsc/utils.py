@@ -524,13 +524,15 @@ def plot_effect_sets(options):
     plt.show()
 
 def visualize_graph_nodes_with_expansion_probabilities(planner, episode, experiment_name, seed, background_img_fname="ant_maze_big_domain"):
+    def _get_candidate_nodes():
+        return planner.get_candidate_nodes_for_exapansion()
+
     def _get_node_probability(e, normalizing_factor):
         score = e.compute_intrinsic_reward_score(planner.exploration_agent)
         return score / normalizing_factor
 
-    def _get_node_probability_normalization_factor():
+    def _get_node_probability_normalization_factor(descendants):
         """ Sum up the selection scores of all the nodes in the graph. """
-        descendants = planner.plan_graph.get_reachable_nodes_from_source_state(planner.mdp.init_state)
         scores = np.array([node.compute_intrinsic_reward_score(planner.exploration_agent) for node in descendants])
         return scores.sum()
 
@@ -551,8 +553,8 @@ def visualize_graph_nodes_with_expansion_probabilities(planner, episode, experim
         effect_positions = np.array([planner.mdp.get_position(state) for state in option.effect_set])
         return np.median(effect_positions, axis=0)
 
-    norm = _get_node_probability_normalization_factor()
-    nodes = list(set(planner.plan_graph.get_reachable_nodes_from_source_state(planner.mdp.init_state)))
+    nodes = _get_candidate_nodes()
+    norm = _get_node_probability_normalization_factor(nodes)
 
     points = [_get_representative_point(n) for n in nodes]
     x_coords = [point[0] for point in points]

@@ -385,13 +385,27 @@ class SkillGraphPlanner(object):
                 return planner_goal_vertex, dsc_goal_vertex
         return goal_salient_event, goal_salient_event
 
+    def get_candidate_nodes_for_exapansion(self, k=10):
+        """ Return the nodes with the Top-K expansion scores. """
+        
+        descendants = list(set(self.plan_graph.get_reachable_nodes_from_source_state(self.mdp.init_state)))
+
+        if len(descendants) > k:
+            scores = [node.compute_intrinsic_reward_score(planner.exploration_agent) for node in descendants]
+            pairs = [(des, score) for des, score in zip(descendants, scores)]
+            sorted_pairs = sorted(pairs, key=lambda x: x[1], reverse=True)
+            sorted_descendants = [pair[0] for pair in  sorted_pairs]
+            return sorted_descendants[:k]
+
+        return descendants
+
     def _rnd_get_node_to_expand(self, state):
         """ Given current `state`, use the RND intrinsic reward to find the graph node to expand. """
         
-        descendants = list(set(self.plan_graph.get_reachable_nodes_from_source_state(state)))
+        descendants = self.get_candidate_nodes_for_exapansion()
 
         if len(descendants) > 0:
-            scores = np.array([node.compute_intrinsic_reward_score(self.exploration_agent) for node in descendants])  # TODO
+            scores = np.array([node.compute_intrinsic_reward_score(self.exploration_agent) for node in descendants])
             probabilities = scores / scores.sum()
 
             assert all(probabilities.tolist()) <= 1., probabilities
