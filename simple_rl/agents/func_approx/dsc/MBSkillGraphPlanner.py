@@ -391,7 +391,7 @@ class SkillGraphPlanner(object):
         descendants = list(set(self.plan_graph.get_reachable_nodes_from_source_state(self.mdp.init_state)))
 
         if len(descendants) > k:
-            scores = [node.compute_intrinsic_reward_score(planner.exploration_agent) for node in descendants]
+            scores = [node.compute_intrinsic_reward_score(self.exploration_agent) for node in descendants]
             pairs = [(des, score) for des, score in zip(descendants, scores)]
             sorted_pairs = sorted(pairs, key=lambda x: x[1], reverse=True)
             sorted_descendants = [pair[0] for pair in  sorted_pairs]
