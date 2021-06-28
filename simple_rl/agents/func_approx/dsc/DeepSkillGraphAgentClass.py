@@ -247,7 +247,7 @@ class DeepSkillGraphAgent(object):
 
         epochs = 50 if current_episode <= self.num_warmup_episodes else 5
         
-        if self.dsc_agent.use_model:
+        if self.dsc_agent.use_model or self.planning_agent.extrapolator == "model-based":
             self.learn_dynamics_model(epochs=epochs)
 
         while not accepted and num_tries < num_tries_allowed:
@@ -296,12 +296,17 @@ class DeepSkillGraphAgent(object):
                close_to_existing_event(state)
 
     def learn_dynamics_model(self, epochs=50, batch_size=1024):
-        self.planning_agent.mpc.load_data()
-        self.planning_agent.mpc.train(epochs=epochs, batch_size=batch_size)
 
         if self.dsc_agent.use_model:
+            self.planning_agent.mpc.load_data()
+            self.planning_agent.mpc.train(epochs=epochs, batch_size=batch_size)
+            
             for option in self.dsc_agent.get_all_options():
                 option.solver.model = self.dsc_agent.global_option.solver.model
+
+        if self.planning_agent.extrapolator == "model-based":
+            self.planning_agent.exploration_agent.load_data()
+            self.planning_agent.exploration_agent.train(epochs=epochs, batch_size=batch_size)
 
     def generate_new_salient_event(self, target_state):
         event_idx = len(self.mdp.all_salient_events_ever) + 1
@@ -367,6 +372,8 @@ class DeepSkillGraphAgent(object):
         reward, next_state = self.mdp.execute_agent_action(action)
         if self.dsc_agent.use_model:
             self.planning_agent.mpc.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+        if self.planning_agent.extrapolator == "model-based":
+            self.planning_agent.exploration_agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
         return state, action, reward, next_state
 
     def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode, current_event=None):
@@ -448,6 +455,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_model", action="store_true", default=False)
     parser.add_argument("--use_vf", action="store_true", default=False)
     parser.add_argument("--multithread_mpc", action="store_true", default=False)
+    parser.add_argument("--extrapolator", type=str, default="model-based")
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -520,7 +528,8 @@ if __name__ == "__main__":
                                 chainer=chainer,
                                 experiment_name=args.experiment_name,
                                 seed=args.seed,
-                                use_vf=args.use_vf)
+                                use_vf=args.use_vf,
+                                extrapolator=args.extrapolator)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
                                     dsc_agent=chainer,
@@ -529,4 +538,5 @@ if __name__ == "__main__":
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     plot_gc_value_functions=args.plot_gc_value_functions)
+
     num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)

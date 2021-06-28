@@ -13,10 +13,11 @@ from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mp
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 from simple_rl.agents.func_approx.td3.TD3RNDAgentClass import TD3
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
+from simple_rl.agents.func_approx.dsc.dynamics.mpc_rnd import MPCRND
 
 
 class SkillGraphPlanner(object):
-    def __init__(self, *, mdp, chainer, use_vf, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, use_vf, extrapolator, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -31,26 +32,35 @@ class SkillGraphPlanner(object):
         self.mdp = mdp
         self.chainer = chainer  # type: ModelBasedSkillChaining
         self.use_vf = use_vf
+        self.extrapolator = extrapolator
         self.experiment_name = experiment_name
         self.seed = seed
 
         self.mpc = self._get_mpc()
-        self.exploration_agent = self._get_exploration_agent()        
+        self.exploration_agent = self._get_exploration_agent()
 
         assert isinstance(self.chainer, ModelBasedSkillChaining)
         assert isinstance(self.mdp, GoalDirectedMDP)
+        assert extrapolator in ("model-free", "model-based"), extrapolator
 
         self.plan_graph = PlanGraph()
 
     def _get_exploration_agent(self):
-        return TD3(state_dim=self.mdp.state_space_size(),
-                   action_dim=self.mdp.action_space_size(),
-                   max_action=1.,
-                   name="td3-rnd-exploration-agent",
-                   device=self.chainer.device,
-                   augment_with_rewards=False,
-                   use_obs_normalization=False
-                   )
+        if self.extrapolator == "model-free":
+            return TD3(state_dim=self.mdp.state_space_size(),
+                    action_dim=self.mdp.action_space_size(),
+                    max_action=1.,
+                    name="td3-rnd-exploration-agent",
+                    device=self.chainer.device,
+                    augment_with_rewards=False,
+                    use_obs_normalization=False
+                    )
+
+        return MPCRND(mdp=self.mdp,
+                      state_size=self.mdp.state_space_size(),
+                      action_size=self.mdp.action_space_size(),
+                      device=self.chainer.device,
+                      multithread=self.chainer.global_option.multithread_mpc)
 
     def _get_mpc(self):
         if self.chainer.use_model:
@@ -260,7 +270,8 @@ class SkillGraphPlanner(object):
 
         # Run loop that does exploration outside the graph
         if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
-            state, steps_taken = self.model_free_extrapolation(episode, step)
+            extrapolation_func = self.model_free_extrapolation(episode, step) if self.extrapolator == "model-free" else self.model_based_extrapolation
+            state, steps_taken = extrapolation_func(episode, step)
             return state, step + steps_taken
 
         return state, step
@@ -291,6 +302,30 @@ class SkillGraphPlanner(object):
             if state.is_terminal():
                 break
         
+        target_state = self.create_target_state(transitions)
+        return target_state, len(transitions)
+
+    def model_based_extrapolation(self, episode, step_number):
+        transitions = []
+        step_budget = min(100, self.chainer.max_steps - step_number)
+        state = deepcopy(self.mdp.cur_state)
+
+        print(f"Performing model-based extrapolation from {state.position} for {step_budget} steps")
+
+        for step in range(self.chainer.max_steps):
+            action = self.exploration_agent.act(state)
+            reward, next_state = self.mdp.execute_agent_action(action)
+            intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
+            transitions.append((state, action, intrinsic_reward, next_state))
+            state = next_state
+
+            if state.is_terminal():
+                break
+
+        # Update RND intrinsic reward function
+        for state, action, intrinsic_reward, next_statae in transitions:
+            self.exploration_agent.step(state.features(), action, intrinsic_reward, next_state.features(), next_state.is_terminal())
+
         target_state = self.create_target_state(transitions)
         return target_state, len(transitions)
 
@@ -600,9 +635,9 @@ class SkillGraphPlanner(object):
         if chain.should_complete_chain(newly_created_option):
             chain.set_chain_completed()
 
-        # if chain.is_chain_completed():
+        if chain.is_chain_completed():
             #visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
-            #visualize_graph_nodes_with_expansion_probabilities(self, episode, self.chainer.experiment_name, self.chainer.seed)
+            visualize_graph_nodes_with_expansion_probabilities(self, episode, self.chainer.experiment_name, self.chainer.seed, k=np.inf)
 
     # -----------------------------–––––––--------------
     # Utility Functions

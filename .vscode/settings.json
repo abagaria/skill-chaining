@@ -1,3 +1,4 @@
 {
-    "python.pythonPath": "/home/abagaria/anaconda3/envs/cenv/bin/python"
+    "python.pythonPath": "/home/abagaria/anaconda3/envs/cenv/bin/python",
+    "git.ignoreLimitWarning": true
 }

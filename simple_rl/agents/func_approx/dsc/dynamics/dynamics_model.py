@@ -25,7 +25,8 @@ class DynamicsModel(nn.Module):
         return self.model(cat)
     
     def predict_next_state(self, state, action):
-        pred = self.forward(state, action)
+        with torch.no_grad():
+            pred = self.forward(state, action)
         return (pred * self.std_z) + self.mean_z + state
     
     def set_standardization_vars(self, mean_x, mean_y, mean_z, std_x, std_y, std_z):

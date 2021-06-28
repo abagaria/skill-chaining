@@ -1,5 +1,7 @@
 # Python imports.
 import pdb
+import random
+
 import numpy as np
 import scipy.interpolate
 import matplotlib
@@ -523,9 +525,9 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
-def visualize_graph_nodes_with_expansion_probabilities(planner, episode, experiment_name, seed, background_img_fname="ant_maze_big_domain"):
+def visualize_graph_nodes_with_expansion_probabilities(planner, episode, experiment_name, seed, k=10, background_img_fname="ant_maze_big_domain"):
     def _get_candidate_nodes():
-        return planner.get_candidate_nodes_for_exapansion()
+        return planner.get_candidate_nodes_for_exapansion(k=k)
 
     def _get_node_probability(e, normalizing_factor):
         score = e.compute_intrinsic_reward_score(planner.exploration_agent)
@@ -896,4 +898,56 @@ def visualize_mpc_train_data_distribution(mdp, states, episode, experiment_name)
     plt.title("Data Distribution for {} points".format(len(states)))
 
     plt.savefig(f"value_function_plots/{experiment_name}/mpc_train_data_episode_{episode}.png")
+    plt.close()
+
+def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, experiment_name, seed):
+    def _get_candidate_nodes():
+        return planner.get_candidate_nodes_for_exapansion(k=np.inf)
+
+    def _get_node_score(n):
+        state_set = list(n.trigger_points)[1:] if isinstance(n, SalientEvent) else n.effect_set
+        states = random.sample(state_set, k=10)
+        score = np.mean([value_function(planner.exploration_agent, state) for state in states])
+        return score
+
+    def _get_node_probability(score, normalizing_factor):
+        return score / normalizing_factor
+
+    def _get_representative_point(node):
+        if isinstance(node, SalientEvent):
+            return _get_event_representative_point(node)
+        return _get_option_representative_point(node)
+
+    def _get_event_representative_point(event):
+        assert isinstance(event, SalientEvent)
+        if event.get_target_position() is not None:
+            return event.get_target_position()
+        trigger_positions = [event._get_position(s) for s in event.trigger_points]
+        trigger_positions = np.array(trigger_positions)
+        return trigger_positions.mean(axis=0)
+
+    def _get_option_representative_point(option):
+        effect_positions = np.array([planner.mdp.get_position(state) for state in option.effect_set])
+        return np.median(effect_positions, axis=0)
+
+    nodes = _get_candidate_nodes()
+    scores = [_get_node_score(n) for n in nodes]
+    norm = sum(scores)
+
+    points = [_get_representative_point(n) for n in nodes]
+    x_coords = [point[0] for point in points]
+    y_coords = [point[1] for point in points]
+    probabilities = [_get_node_probability(i, norm) for i in range(len(nodes))]
+
+    plt.scatter(x_coords, y_coords, c=probabilities)
+    plt.colorbar()
+
+    x_low_lim, y_low_lim = planner.mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = planner.mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    prefix = "event_node_prob_graph"
+    plt.savefig(f"value_function_plots/{experiment_name}/{prefix}_episode_{episode}_seed_{seed}.png")
     plt.close()
