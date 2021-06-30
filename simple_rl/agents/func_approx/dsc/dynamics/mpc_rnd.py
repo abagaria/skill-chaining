@@ -118,9 +118,10 @@ class MPCRND:
         """ Compute the value of `state` via simulation rollouts. """
 
         _, costs = self.simulate(state, num_rollouts, num_steps)
+        rewards = -1. * costs
         gammas = np.power(self.gamma * np.ones(num_steps), np.arange(0, num_steps))
-        cumulative_costs = np.sum(costs * gammas, axis=1)
-        return cumulative_costs.mean()
+        cumulative_rewards = np.sum(rewards * gammas, axis=1)
+        return cumulative_rewards.mean()
 
     def _preprocess_data(self):
         states = self.replay_buffer.obs_buf[:self.replay_buffer.size, :]
@@ -216,12 +217,14 @@ class MPCRND:
             batch = self.replay_buffer.sample_batch(batch_size)
             next_states = torch.FloatTensor(batch["obs2"]).to(self.device)
 
-            predict_next_state_feature, target_next_state_feature = self.rnd(next_states)
-            rnd_loss = F.mse_loss(predict_next_state_feature, target_next_state_feature.detach())
+            self.rnd_update_step(next_states)
 
-            self.rnd_optimizer.zero_grad()
-            rnd_loss.backward()
-            self.rnd_optimizer.step()
+    def rnd_update_step(self, next_states):
+        predict_next_state_feature, target_next_state_feature = self.rnd(next_states)
+        rnd_loss = F.mse_loss(predict_next_state_feature, target_next_state_feature.detach())
+        self.rnd_optimizer.zero_grad()
+        rnd_loss.backward()
+        self.rnd_optimizer.step()
 
 class RolloutDataset(Dataset):
     def __init__(self, states, actions, states_p):

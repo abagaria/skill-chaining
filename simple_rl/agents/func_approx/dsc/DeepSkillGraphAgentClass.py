@@ -246,6 +246,8 @@ class DeepSkillGraphAgent(object):
         accepted = False
 
         epochs = 50 if current_episode <= self.num_warmup_episodes else 5
+
+        self.random_rollout()
         
         if self.dsc_agent.use_model or self.planning_agent.extrapolator == "model-based":
             self.learn_dynamics_model(epochs=epochs)
@@ -370,11 +372,22 @@ class DeepSkillGraphAgent(object):
         state = deepcopy(self.mdp.cur_state)
         action = self.mdp.sample_random_action()
         reward, next_state = self.mdp.execute_agent_action(action)
+        transition = state.features(), action, reward, next_state.features(), next_state.is_terminal()
         if self.dsc_agent.use_model:
-            self.planning_agent.mpc.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+            self.planning_agent.mpc.step(*transition)
         if self.planning_agent.extrapolator == "model-based":
-            self.planning_agent.exploration_agent.step(state.features(), action, reward, next_state.features(), next_state.is_terminal())
+            self.planning_agent.exploration_agent.step(*transition)
         return state, action, reward, next_state
+
+    def random_rollout(self):
+        self.mdp.reset()
+        states = []
+        for _ in range(self.dsc_agent.max_steps):
+            s, a, r, sp = self.take_random_action()
+            states.append(sp.features())
+        states = np.array(states)
+        states = torch.as_tensor(states, dtype=torch.float32).to(self.planning_agent.exploration_agent.device)
+        self.planning_agent.exploration_agent.rnd_update_step(states)
 
     def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode, current_event=None):
         current_salient_event = self._get_current_salient_event(state) if current_event is None else current_event

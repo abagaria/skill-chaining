@@ -9,7 +9,7 @@ from simple_rl.agents.func_approx.dsc.ModelBasedDSC import ModelBasedSkillChaini
 from simple_rl.agents.func_approx.dsc.ChainClass import SkillChain
 from simple_rl.agents.func_approx.dsc.MBOptionClass import ModelBasedOption
 from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
-from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result, plot_trajectory, visualize_graph_nodes_with_expansion_probabilities
+from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result, plot_trajectory, visualize_graph_nodes_with_expansion_probabilities, visualize_graph_nodes_with_vf_expansion_probabilities
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 from simple_rl.agents.func_approx.td3.TD3RNDAgentClass import TD3
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
@@ -266,7 +266,12 @@ class SkillGraphPlanner(object):
 
         # Run loop to get to the planner-goal-vertex
         if not planner_goal_vertex(state):
-            state, step = self.run_sub_loop(state, planner_goal_vertex, 0, planner_goal_vertex, episode, eval_mode=False)
+            step, success = self.run_loop(state=state,
+                                          goal_salient_event=planner_goal_vertex,
+                                          episode=episode,
+                                          step=step,
+                                          eval_mode=False)
+            state = deepcopy(self.mdp.cur_state)
 
         # Run loop that does exploration outside the graph
         if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
@@ -307,7 +312,8 @@ class SkillGraphPlanner(object):
 
     def model_based_extrapolation(self, episode, step_number):
         transitions = []
-        step_budget = min(100, self.chainer.max_steps - step_number)
+        min_step = 100 if episode < 200 else 200
+        step_budget = min(min_step, self.chainer.max_steps - step_number)
         state = deepcopy(self.mdp.cur_state)
 
         print(f"Performing model-based extrapolation from {state.position} for {step_budget} steps")
@@ -323,8 +329,7 @@ class SkillGraphPlanner(object):
                 break
 
         # Update RND intrinsic reward function
-        for state, action, intrinsic_reward, next_statae in transitions:
-            self.exploration_agent.step(state.features(), action, intrinsic_reward, next_state.features(), next_state.is_terminal())
+        self.update_exploration_agent(transitions, False)
 
         target_state = self.create_target_state(transitions)
         return target_state, len(transitions)
@@ -340,6 +345,12 @@ class SkillGraphPlanner(object):
                 max_intrinsic_reward = intrinsic_reward
 
         return best_state
+
+    def update_exploration_agent(self, transitions, recompute_int_rewards):
+        for state, action, intrinsic_reward, next_state in transitions:
+            if recompute_int_rewards:
+                intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
+            self.exploration_agent.step(state.features(), action, intrinsic_reward, next_state.features(), next_state.is_terminal())
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
@@ -402,6 +413,10 @@ class SkillGraphPlanner(object):
         # Modify the edge weight associated with the executed option
         self.modify_edge_weight(executed_option=option, final_state=state_after_rollout)
 
+        # Update the RND exploration agent
+        if self.extrapolator == "model-based":
+            self.update_exploration_agent(option_transitions, True)
+
         return step + len(option_transitions), option_transitions
 
     def manage_options_learned_during_rollout(self, newly_created_options, episode):
@@ -420,13 +435,22 @@ class SkillGraphPlanner(object):
                 return planner_goal_vertex, dsc_goal_vertex
         return goal_salient_event, goal_salient_event
 
+    def compute_intrinsic_reward_score(self, node):
+        assert isinstance(node, (SalientEvent, ModelBasedOption)), node
+        assert self.extrapolator == "model-based", self.extrapolator
+
+        state_set = list(node.trigger_points)[1:] if isinstance(node, SalientEvent) else node.effect_set
+        states = random.sample(state_set, k=min(len(state_set), 10))
+        scores = [self.exploration_agent.value_function(s) for s in states]
+        return np.mean(scores)
+
     def get_candidate_nodes_for_exapansion(self, k=10):
         """ Return the nodes with the Top-K expansion scores. """
         
-        descendants = list(set(self.plan_graph.get_reachable_nodes_from_source_state(self.mdp.init_state)))
+        descendants = list(set(self.plan_graph.salient_nodes))
 
         if len(descendants) > k:
-            scores = [node.compute_intrinsic_reward_score(self.exploration_agent) for node in descendants]
+            scores = [self.compute_intrinsic_reward_score(n) for n in descendants]
             pairs = [(des, score) for des, score in zip(descendants, scores)]
             sorted_pairs = sorted(pairs, key=lambda x: x[1], reverse=True)
             sorted_descendants = [pair[0] for pair in  sorted_pairs]
@@ -440,7 +464,7 @@ class SkillGraphPlanner(object):
         descendants = self.get_candidate_nodes_for_exapansion()
 
         if len(descendants) > 0:
-            scores = np.array([node.compute_intrinsic_reward_score(self.exploration_agent) for node in descendants])
+            scores = np.array([self.compute_intrinsic_reward_score(n) for n in descendants])
             probabilities = scores / scores.sum()
 
             assert all(probabilities.tolist()) <= 1., probabilities
@@ -637,7 +661,7 @@ class SkillGraphPlanner(object):
 
         if chain.is_chain_completed():
             #visualize_graph(self, episode, self.chainer.experiment_name, self.chainer.seed, True)
-            visualize_graph_nodes_with_expansion_probabilities(self, episode, self.chainer.experiment_name, self.chainer.seed, k=np.inf)
+            visualize_graph_nodes_with_vf_expansion_probabilities(self, episode, self.chainer.experiment_name, self.chainer.seed)
 
     # -----------------------------–––––––--------------
     # Utility Functions

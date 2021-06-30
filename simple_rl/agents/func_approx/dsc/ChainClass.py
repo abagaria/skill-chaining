@@ -64,6 +64,11 @@ class SkillChain(object):
         return not self.is_chain_completed()
 
     @staticmethod
+    def edge_condition(inits):
+        assert isinstance(inits, np.ndarray)
+        return inits.mean() > 0.6
+
+    @staticmethod
     def should_exist_edge_between_options(my_option, other_option):
         """ Should there exist an edge from option1 -> option2? """
         assert isinstance(my_option, ModelBasedOption)
@@ -73,7 +78,7 @@ class SkillChain(object):
             effect_set_matrix = my_option.get_effective_effect_set()
             if len(effect_set_matrix) > 0:
                 inits = other_option.pessimistic_batched_is_init_true(effect_set_matrix)
-                is_intersecting = inits.all()
+                is_intersecting = SkillChain.edge_condition(inits)
                 return is_intersecting
         return False
 
@@ -87,7 +92,7 @@ class SkillChain(object):
             if len(event.trigger_points) > 0:  # Be careful: all([]) = True
                 state_matrix = SkillChain.get_position_matrix(event.trigger_points)
                 inits = option.pessimistic_batched_is_init_true(state_matrix)
-                is_intersecting = inits.all()
+                is_intersecting = SkillChain.edge_condition(inits)
                 return is_intersecting
             return option.is_init_true(event.target_state)
         return False
@@ -102,7 +107,7 @@ class SkillChain(object):
             effect_set = option.effect_set  # list of states
             effect_set_matrix = SkillChain.get_position_matrix(effect_set)
             inits = event.batched_is_init_true(effect_set_matrix)
-            return inits.all()
+            return SkillChain.edge_condition(inits)
         return False
 
     def should_expand_initiation_classifier(self, option):

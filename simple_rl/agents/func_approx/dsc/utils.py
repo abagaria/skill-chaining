@@ -905,10 +905,7 @@ def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, expe
         return planner.get_candidate_nodes_for_exapansion(k=np.inf)
 
     def _get_node_score(n):
-        state_set = list(n.trigger_points)[1:] if isinstance(n, SalientEvent) else n.effect_set
-        states = random.sample(state_set, k=10)
-        score = np.mean([value_function(planner.exploration_agent, state) for state in states])
-        return score
+        return planner.compute_intrinsic_reward_score(n)
 
     def _get_node_probability(score, normalizing_factor):
         return score / normalizing_factor
