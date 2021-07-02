@@ -255,27 +255,25 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
     plt.savefig("value_function_plots/{}/DQN_SMDP_Updates.png".format(experiment_name))
     plt.close()
 
-def visualize_next_state_reward_heat_map(option, episode=None, experiment_name=""):
-    solver = option.solver
-    next_states = [experience[3] for experience in solver.replay_buffer]
-    rewards = np.array([experience[2] for experience in solver.replay_buffer])
+def visualize_next_state_reward_heat_map(solver, overall_mdp, episode=None, experiment_name=""):
+    next_states = solver.replay_buffer.obs2_buf
+    rewards = solver.replay_buffer.rew_buf
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
 
-    plt.scatter(x, y, None, c=rewards.squeeze(), cmap=plt.cm.coolwarm)
+    plt.scatter(x, y, None, c=rewards.squeeze())
     plt.colorbar()
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("Replay Buffer Reward Heat Map")
 
-    x_low_lim, y_low_lim = option.overall_mdp.get_x_y_low_lims()
-    x_high_lim, y_high_lim = option.overall_mdp.get_x_y_high_lims()
+    x_low_lim, y_low_lim = overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = overall_mdp.get_x_y_high_lims()
 
     plt.xlim((x_low_lim, x_high_lim))
     plt.ylim((y_low_lim, y_high_lim))
 
-    name = option.name if episode is None else option.name + "_{}_{}".format(experiment_name, episode)
-    plt.savefig("value_function_plots/{}/{}_replay_buffer_reward_map.png".format(experiment_name, name))
+    plt.savefig(f"value_function_plots/{experiment_name}/rnd_reward_map.png")
     plt.close()
 
 
@@ -397,6 +395,37 @@ def make_chunked_value_function_plot(solver, episode, seed, experiment_name, chu
     plt.close()
 
     return qvalues.max()
+
+def visualize_mpc_next_state_value_distribution(mpc, state, episode, seed, experiment_name):
+    num_steps = 7
+
+    def simulate(self, s, num_rollouts=14000):
+        """ Perform N simulations of length H. """
+
+        torch_actions = 2 * torch.rand((num_rollouts, num_steps, self.action_size), device=self.device) - 1
+        features = s if isinstance(s, np.ndarray) else s.features()
+        torch_states = torch.tensor(features, device=self.device).repeat(num_rollouts, 1)
+        costs = torch.zeros((num_rollouts, num_steps))
+
+        for j in range(num_steps):
+            actions = torch_actions[:, j, :]
+            torch_states = self.model.predict_next_state(torch_states.float(), actions.float())
+            costs[:, j] = self._get_costs(torch_states)
+
+        return torch_states.cpu().numpy(), costs.cpu().numpy()
+
+    next_states, undiscounted_costs = simulate(mpc, state)
+    gammas = np.power(mpc.gamma * np.ones(num_steps), np.arange(0, num_steps))
+    cumulative_rewards = -np.sum(undiscounted_costs * gammas, axis=1)
+    
+    x = [sp[0] for sp in next_states]
+    y = [sp[1] for sp in next_states]
+
+    plt.scatter(x, y, c=cumulative_rewards)
+    plt.colorbar()          
+    plt.scatter(state[0], state[1], marker="x", s=200)
+    plt.savefig(f"value_function_plots/{experiment_name}/mpc_next_state_dist_{seed}.png")
+    plt.close()
 
 
 def make_chunked_goal_conditioned_value_function_plot(solver, goal, episode, seed, experiment_name, chunk_size=1000, replay_buffer=None):
