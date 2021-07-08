@@ -61,7 +61,7 @@ class TD3(object):
         self.reward_rms = RunningMeanStd()
         self.obs_rms = RunningMeanStd(shape=(1, self.rnd_state_dim))
 
-        self.replay_buffer = ReplayBuffer(self.td3_state_dim, action_dim, device=device)
+        self.replay_buffer = ReplayBuffer(self.td3_state_dim, action_dim, device=device, max_size=int(1e7))
 
         self.max_action = max_action
         self.action_dim = action_dim
@@ -239,6 +239,9 @@ class TD3(object):
             reward_features = np.array([reward])
             state_features = np.concatenate((state_features, reward_features), axis=0)
         return state_features
+
+    def value_function(self, states):
+        return self.get_values(states)
 
 
 def pre_train(agent, mdp, episodes, steps, experiment_name):

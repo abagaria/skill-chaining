@@ -3,6 +3,7 @@ import random
 import itertools
 import numpy as np
 from copy import deepcopy
+from scipy.special import softmax
 from simple_rl.mdp.StateClass import State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.dsc.ModelBasedDSC import ModelBasedSkillChaining
@@ -12,6 +13,7 @@ from simple_rl.agents.func_approx.dsc.SalientEventClass import SalientEvent
 from simple_rl.agents.func_approx.dsc.utils import visualize_graph, visualize_mpc_rollout_and_graph_result, plot_trajectory, visualize_graph_nodes_with_expansion_probabilities, visualize_graph_nodes_with_vf_expansion_probabilities
 from simple_rl.agents.func_approx.dsc.PlanGraphClass import PlanGraph
 from simple_rl.agents.func_approx.td3.TD3RNDAgentClass import TD3
+from simple_rl.agents.func_approx.td3.utils import make_chunked_value_function_plot
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc_rnd import MPCRND
 
@@ -53,7 +55,8 @@ class SkillGraphPlanner(object):
                     name="td3-rnd-exploration-agent",
                     device=self.chainer.device,
                     augment_with_rewards=False,
-                    use_obs_normalization=False
+                    use_obs_normalization=False,
+                    use_off_policy_correction=False
                     )
 
         return MPCRND(mdp=self.mdp,
@@ -275,7 +278,7 @@ class SkillGraphPlanner(object):
 
         # Run loop that does exploration outside the graph
         if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
-            extrapolation_func = self.model_free_extrapolation(episode, step) if self.extrapolator == "model-free" else self.model_based_extrapolation
+            extrapolation_func = self.model_free_extrapolation if self.extrapolator == "model-free" else self.model_based_extrapolation
             state, steps_taken = extrapolation_func(episode, step)
             return state, step + steps_taken
 
@@ -306,7 +309,9 @@ class SkillGraphPlanner(object):
             
             if state.is_terminal():
                 break
-        
+
+        plot_trajectory([t[-1] for t in transitions], self.experiment_name, episode, color=[t[-2] for t in transitions])
+        make_chunked_value_function_plot(self.exploration_agent, episode, self.experiment_name)
         target_state = self.create_target_state(transitions)
         return target_state, len(transitions)
 
@@ -350,7 +355,7 @@ class SkillGraphPlanner(object):
         for state, action, intrinsic_reward, next_state in transitions:
             if recompute_int_rewards:
                 intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
-            self.exploration_agent.step(state.features(), action, intrinsic_reward, next_state.features(), next_state.is_terminal())
+            self.exploration_agent.step(state.features(), action, intrinsic_reward, 0, next_state.features(), next_state.is_terminal())
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
@@ -437,38 +442,36 @@ class SkillGraphPlanner(object):
 
     def compute_intrinsic_reward_score(self, node):
         assert isinstance(node, (SalientEvent, ModelBasedOption)), node
-        assert self.extrapolator == "model-based", self.extrapolator
 
         state_set = list(node.trigger_points)[1:] if isinstance(node, SalientEvent) else node.effect_set
-        states = random.sample(state_set, k=min(len(state_set), 10))
-        scores = [self.exploration_agent.value_function(s) for s in states]
+
+        if len(state_set) == 0:
+            return -np.inf
+
+        if self.extrapolator == "model-free":
+            states = np.array([s.features() if isinstance(s, State) else s for s in state_set])
+            scores = self.exploration_agent.value_function(states)
+        else:
+            states = random.sample(state_set, k=min(len(state_set), 10))
+            scores = [self.exploration_agent.value_function(s) for s in states]
         return np.mean(scores)
 
     def get_candidate_nodes_for_exapansion(self, k=10):
         """ Return the nodes with the Top-K expansion scores. """
-        
-        descendants = list(set(self.plan_graph.salient_nodes))
-
-        if len(descendants) > k:
-            scores = [self.compute_intrinsic_reward_score(n) for n in descendants]
-            pairs = [(des, score) for des, score in zip(descendants, scores)]
-            sorted_pairs = sorted(pairs, key=lambda x: x[1], reverse=True)
-            sorted_descendants = [pair[0] for pair in  sorted_pairs]
-            return sorted_descendants[:k]
-
+        descendants = list(set(self.mdp.get_all_target_events_ever()))
         return descendants
 
-    def _rnd_get_node_to_expand(self, state):
+    def _rnd_get_node_to_expand(self, state, temperature=0.75):
         """ Given current `state`, use the RND intrinsic reward to find the graph node to expand. """
         
         descendants = self.get_candidate_nodes_for_exapansion()
 
         if len(descendants) > 0:
             scores = np.array([self.compute_intrinsic_reward_score(n) for n in descendants])
-            probabilities = scores / scores.sum()
+            probabilities = softmax(scores / temperature)
 
             assert all(probabilities.tolist()) <= 1., probabilities
-            np.testing.assert_almost_equal(probabilities.sum(), 1., err_msg=f"{probabilities}")
+            np.testing.assert_almost_equal(probabilities.sum(), 1., err_msg=f"{probabilities}", decimal=3)
             
             sampled_node = np.random.choice(descendants, size=1, p=probabilities)[0]
 

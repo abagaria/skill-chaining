@@ -247,7 +247,6 @@ class DeepSkillGraphAgent(object):
 
         epochs = 50 if current_episode <= self.num_warmup_episodes else 5
 
-        self.random_rollout()
         
         if self.dsc_agent.use_model or self.planning_agent.extrapolator == "model-based":
             self.learn_dynamics_model(epochs=epochs)

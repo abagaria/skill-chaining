@@ -52,17 +52,12 @@ class Experience(object):
 # ---------------
 
 def plot_trajectory(trajectory, experiment_name, episode, color='k'):
-    for i, state in enumerate(trajectory):
-        if isinstance(state, State):
-            x = state.position[0]
-            y = state.position[1]
-        else:
-            x = state[0]
-            y = state[1]
-
-        plt.scatter(x, y, c=color, alpha=float(i) / len(trajectory))
-
-    plt.savefig(f"value_function_plots/{experiment_name}/rnd_rollout_episode_{episode}.png")
+    pos = [s.features()[:2] if isinstance(s, State) else s[:2] for s in trajectory]
+    x = [p[0] for p in pos]; y = [p[1] for p in pos]
+    plt.scatter(x, y, c=color)
+    plt.colorbar()
+    fname = f"value_function_plots/{experiment_name}/rnd_rollout_episode_{episode}_{random.randint(0, 100)}.png"
+    plt.savefig(fname)
     plt.close()
 
 def plot_all_trajectories_in_initiation_data(initiation_data, marker="o"):
