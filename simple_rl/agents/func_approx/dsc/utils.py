@@ -251,8 +251,8 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
     plt.close()
 
 def visualize_next_state_reward_heat_map(solver, overall_mdp, episode=None, experiment_name=""):
-    next_states = solver.replay_buffer.obs2_buf
-    rewards = solver.replay_buffer.rew_buf
+    next_states = solver.replay_buffer.next_state
+    rewards = solver.replay_buffer.intrinsic_reward
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
 
@@ -268,7 +268,7 @@ def visualize_next_state_reward_heat_map(solver, overall_mdp, episode=None, expe
     plt.xlim((x_low_lim, x_high_lim))
     plt.ylim((y_low_lim, y_high_lim))
 
-    plt.savefig(f"value_function_plots/{experiment_name}/rnd_reward_map.png")
+    plt.savefig(f"value_function_plots/{experiment_name}/rnd_reward_map_episode_{episode}.png")
     plt.close()
 
 
@@ -549,9 +549,9 @@ def plot_effect_sets(options):
         sns.kdeplot(x, y, shade=True)
     plt.show()
 
-def visualize_graph_nodes_with_expansion_probabilities(planner, episode, experiment_name, seed, k=10, background_img_fname="ant_maze_big_domain"):
+def visualize_graph_nodes_with_expansion_probabilities(planner, episode, experiment_name, seed, background_img_fname="ant_maze_big_domain"):
     def _get_candidate_nodes():
-        return planner.get_candidate_nodes_for_exapansion(k=k)
+        return planner.get_candidate_nodes_for_expansion()
 
     def _get_node_probability(e, normalizing_factor):
         score = e.compute_intrinsic_reward_score(planner.exploration_agent)
@@ -926,7 +926,7 @@ def visualize_mpc_train_data_distribution(mdp, states, episode, experiment_name)
 
 def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, experiment_name, seed):
     def _get_candidate_nodes():
-        return planner.get_candidate_nodes_for_exapansion(k=np.inf)
+        return planner.get_candidate_nodes_for_expansion()
 
     def _get_node_score(n):
         return planner.compute_intrinsic_reward_score(n)

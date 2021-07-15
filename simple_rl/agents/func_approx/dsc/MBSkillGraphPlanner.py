@@ -1,9 +1,11 @@
 import ipdb
+import torch
 import random
 import itertools
 import numpy as np
 from copy import deepcopy
 from scipy.special import softmax
+from scipy.spatial.distance import cdist
 from simple_rl.mdp.StateClass import State
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.dsc.ModelBasedDSC import ModelBasedSkillChaining
@@ -56,7 +58,6 @@ class SkillGraphPlanner(object):
                     device=self.chainer.device,
                     augment_with_rewards=False,
                     use_obs_normalization=False,
-                    use_off_policy_correction=False
                     )
 
         return MPCRND(mdp=self.mdp,
@@ -264,7 +265,7 @@ class SkillGraphPlanner(object):
 
         step = 0
         state = deepcopy(self.mdp.cur_state)
-        planner_goal_vertex = self._rnd_get_node_to_expand(state)
+        planner_goal_vertex = self.get_node_to_expand(state)
         print(f"[Salient-Event-Discovery] Planner goal: {planner_goal_vertex}")
 
         # Run loop to get to the planner-goal-vertex
@@ -292,7 +293,10 @@ class SkillGraphPlanner(object):
         step_budget = max(200, self.chainer.max_steps - step_number)
         state = deepcopy(self.mdp.cur_state)
 
-        print(f"Performing model-free extrapolation from {state.position} for {step_budget} steps")
+        events = self.mdp.all_salient_events_ever + [self.mdp.get_start_state_salient_event()]
+        starting_nodes = [event for event in events if event(state)]
+
+        print(f"Performing model-free extrapolation from {state.position} and {starting_nodes} for {step_budget} steps")
 
         for step in range(self.chainer.max_steps):
             augmented_state = self.exploration_agent.get_augmented_state(state, intrinsic_reward)
@@ -302,7 +306,8 @@ class SkillGraphPlanner(object):
             augmented_next_state = self.exploration_agent.get_augmented_state(next_state, intrinsic_reward)
             
             # [RND] Done flag is always false for the intrinsic value function
-            self.exploration_agent.step(augmented_state, action, intrinsic_reward, reward, augmented_next_state, False)
+            # [RND] Setting the extrinsic reward to zero to only engage the intrinsic value head of RND value function
+            self.exploration_agent.step(augmented_state, action, intrinsic_reward, 0., augmented_next_state, False)
 
             transitions.append((state, action, intrinsic_reward, next_state))
             state = next_state
@@ -312,7 +317,10 @@ class SkillGraphPlanner(object):
 
         plot_trajectory([t[-1] for t in transitions], self.experiment_name, episode, color=[t[-2] for t in transitions])
         make_chunked_value_function_plot(self.exploration_agent, episode, self.experiment_name)
+
         target_state = self.create_target_state(transitions)
+        self._update_nodes_with_monte_carlo_exploration_return(starting_nodes, transitions)
+
         return target_state, len(transitions)
 
     def model_based_extrapolation(self, episode, step_number):
@@ -350,6 +358,15 @@ class SkillGraphPlanner(object):
                 max_intrinsic_reward = intrinsic_reward
 
         return best_state
+
+    @staticmethod
+    def _update_nodes_with_monte_carlo_exploration_return(nodes, transitions):
+        """ After the exploration rollout, update the MC returns of the nodes exploration started from. """
+
+        for node in nodes:
+            node.expansion_count += 1
+            mean_intrinsic_reward = np.mean([transition[2] for transition in transitions])
+            node.exploration_returns.append(mean_intrinsic_reward)
 
     def update_exploration_agent(self, transitions, recompute_int_rewards):
         for state, action, intrinsic_reward, next_state in transitions:
@@ -443,44 +460,145 @@ class SkillGraphPlanner(object):
     def compute_intrinsic_reward_score(self, node):
         assert isinstance(node, (SalientEvent, ModelBasedOption)), node
 
-        state_set = list(node.trigger_points)[1:] if isinstance(node, SalientEvent) else node.effect_set
-
-        if len(state_set) == 0:
-            return -np.inf
+        state_set = list(node.trigger_points) if isinstance(node, SalientEvent) else node.effect_set
 
         if self.extrapolator == "model-free":
-            states = np.array([s.features() if isinstance(s, State) else s for s in state_set])
+            states = [s.features() if isinstance(s, State) else s for s in state_set]
+            states = np.array([s for s in states if s.shape == (self.mdp.state_space_size(),)])
             scores = self.exploration_agent.value_function(states)
         else:
             states = random.sample(state_set, k=min(len(state_set), 10))
+            states = np.array([s for s in states if s.shape == (self.mdp.state_space_size(),)])
             scores = [self.exploration_agent.value_function(s) for s in states]
         return np.mean(scores)
 
-    def get_candidate_nodes_for_exapansion(self, k=10):
+    def get_candidate_nodes_for_expansion(self):
         """ Return the nodes with the Top-K expansion scores. """
         descendants = list(set(self.mdp.get_all_target_events_ever()))
         return descendants
 
-    def _rnd_get_node_to_expand(self, state, temperature=0.75):
+    def get_node_to_expand(self, state, temperature=1.):
         """ Given current `state`, use the RND intrinsic reward to find the graph node to expand. """
         
-        descendants = self.get_candidate_nodes_for_exapansion()
+        descendants = self.get_candidate_nodes_for_expansion()
 
         if len(descendants) > 0:
-            scores = np.array([self.compute_intrinsic_reward_score(n) for n in descendants])
-            probabilities = softmax(scores / temperature)
-
-            assert all(probabilities.tolist()) <= 1., probabilities
-            np.testing.assert_almost_equal(probabilities.sum(), 1., err_msg=f"{probabilities}", decimal=3)
-            
-            sampled_node = np.random.choice(descendants, size=1, p=probabilities)[0]
-
-            print(f"Descendants: {descendants} | Probs: {probabilities} | Chose: {sampled_node}")
-
+            print(f"Nodes: {descendants}")
+            rnd_scores = self.get_rnd_scores(descendants)
+            distance_scores = self.get_graph_distance_scores(descendants)
+            count_scores = self.get_count_based_scores(descendants)
+            scores = self.combine_scores(rnd_scores, distance_scores, count_scores)
+            sampled_node = self.score_based_node_selection(descendants, scores, temperature=temperature)
             return sampled_node
         
         assert len(descendants) == 0, descendants
         return self.mdp.get_start_state_salient_event()
+
+    def get_rnd_scores(self, nodes, rnd_version="monte-carlo"):
+        """ Get the normalized RND value function score for each input node. """
+        assert rnd_version in ("none", "monte-carlo", "vf"), rnd_version
+
+        if rnd_version == "monte-carlo":
+            means = np.array([np.mean(n.exploration_returns) if len(n.exploration_returns) > 0 else 0. for n in nodes])
+            return means / means.max()
+
+        if rnd_version == "vf":
+            scores = np.array([self.compute_intrinsic_reward_score(n) for n in nodes])
+            return scores / scores.max()
+
+        assert rnd_version == "none", rnd_version
+        return np.zeros((len(nodes),))
+
+    def get_graph_distance_scores(self, nodes):
+        """ Bias the search for expansion nodes based on how far away (on the graph) nodes are to the start node. """
+
+        def _get_path_length(len_dict, node):
+            if node in len_dict:
+                return len_dict[node]
+            return np.inf
+
+        if self.mdp.get_start_state_salient_event() not in self.plan_graph.plan_graph.nodes:
+            return np.zeros((len(nodes),))
+
+        path_lengths = self.plan_graph.get_shortest_path_lengths(use_edge_weights=False,
+                                                                 source_node=self.mdp.get_start_state_salient_event())
+
+        distances = np.array([_get_path_length(path_lengths, n) for n in nodes])  # Expect this to be 1-100ish
+        non_inf_distances = distances[np.isfinite(distances)]
+
+        if len(non_inf_distances) == 0:
+            return np.zeros((len(nodes),))
+
+        max_distance = non_inf_distances.max()  # exclude inf in the max computation
+
+        distances[distances == np.inf] = max_distance + 1.
+        max_distance = distances.max()  # Recompute the max with no infinities; this is for the normalization factor
+
+        normalization_factor = max_distance if max_distance > 0. else 1e-6
+        normalized_distances = distances / normalization_factor
+
+        if any([d == np.inf for d in normalized_distances]):
+            ipdb.set_trace()
+
+        return normalized_distances
+
+    @staticmethod
+    def get_count_based_scores(nodes):
+        """ UCB style count-based bonus to encourage trying different nodes for expansion. """
+
+        def _compute_score_bonus(node):
+            assert isinstance(node, SalientEvent), "NotImplemented for Options yet"
+            return 1. / np.sqrt(node.expansion_count + 1e-3)
+
+        return np.array([_compute_score_bonus(n) for n in nodes])
+
+    @staticmethod
+    def combine_scores(rnd_scores, dist_scores, count_scores):
+        assert isinstance(rnd_scores, np.ndarray)
+        assert isinstance(dist_scores, np.ndarray)
+        assert isinstance(count_scores, np.ndarray)
+        assert rnd_scores.all() <= 1., rnd_scores
+        assert dist_scores.all() <= 1., dist_scores
+        assert count_scores.all() <= 1., count_scores
+
+        rnd_coefficient = 1.
+        distance_coefficient = 0.1
+        count_coefficient = np.sqrt(2.)
+
+        print(f"[Coef: {rnd_coefficient}] RND scores: {rnd_scores}")
+        print(f"[Coef: {distance_coefficient}] Distance scores: {dist_scores}")
+        print(f"[Coef: {count_coefficient}] Count scores: {count_scores}")
+
+        return (rnd_coefficient * rnd_scores) + \
+               (distance_coefficient * dist_scores) + \
+               (count_coefficient * count_scores)
+
+    def score_based_node_selection(self, nodes, scores, temperature, choice_type="deterministic"):
+        assert temperature > 0., temperature
+        assert isinstance(nodes, list), nodes
+        assert isinstance(scores, np.ndarray), scores
+        assert choice_type in ("deterministic", "stochastic"), choice_type
+
+        if choice_type == "deterministic":
+            return self._deterministic_pick_node(nodes, scores)
+        return self._stochastic_pick_node(nodes, scores, temperature)
+
+    @staticmethod
+    def _deterministic_pick_node(nodes, scores):
+        idx = np.argmax(scores)
+        node = nodes[random.choice(idx) if isinstance(idx, np.ndarray) else idx]
+        return node
+
+    @staticmethod
+    def _stochastic_pick_node(nodes, scores, temperature=1.):
+        probabilities = softmax(scores / temperature)
+
+        assert all(probabilities.tolist()) <= 1., probabilities
+        np.testing.assert_almost_equal(probabilities.sum(), 1., err_msg=f"{probabilities}", decimal=3)
+
+        sampled_node = np.random.choice(nodes, size=1, p=probabilities)[0]
+        print(f"[Temp={temperature}] | Descendants: {nodes} | Probs: {probabilities} | Chose: {sampled_node}")
+        return sampled_node
 
     # -----------------------------–––––––--------------
     # Maintaining the graph
@@ -683,6 +801,41 @@ class SkillGraphPlanner(object):
                         closest_pair = source, target
 
         return closest_pair
+
+    def batched_get_closest_pair_of_vertices(self, src_vertices, dest_vertices):  # TODO: Single sample and multi-sample
+        pass
+
+    def single_sample_vf_based_distances(self, src_vertices, dest_vertices):  # TODO: Test
+        def sample(vertex):
+            effect = vertex.trigger_points if isinstance(vertex, SalientEvent) else vertex.effect_set
+            states = [s.features() if not isinstance(s, np.ndarray) else s for s in effect]
+            states = [s for s in states if s.shape == (self.mdp.state_space_size(),)]
+            return random.choice(states)
+
+        def chunked_cdist(points1, points2, chunk_size):
+            distance_matrix = np.zeros((points1.shape[0], points2.shape[0]))
+
+            current_idx = 0
+            num_chunks = int(np.ceil(points1.shape[0] / chunk_size))
+            chunks = np.array_split(points1, num_chunks, axis=0)
+
+            for chunk_number, point_chunk in enumerate(chunks):
+                point_chunk = torch.from_numpy(point_chunk).float().to(self.chainer.device)
+                chunk_distances = cdist(point_chunk, points2, self.chainer.global_option.value_function)
+
+                current_chunk_size = len(point_chunk)
+                assert chunk_distances.shape[1] == len(points2), f"{chunk_distances.shape, len(points2)}"
+
+                distance_matrix[current_idx:current_idx+current_chunk_size, :] = chunk_distances
+                current_idx += current_chunk_size
+
+            assert distance_matrix.shape == (points1.shape[0], points2.shape[0]), distance_matrix.shape
+            return distance_matrix
+
+        src_points = np.array([sample(v) for v in src_vertices])
+        dest_points = np.array([sample(v) for v in dest_vertices])
+        per_point_distance_matrix = chunked_cdist(src_points, dest_points, chunk_size=10)
+        return per_point_distance_matrix
 
     def distance_between_vertices(self, v1, v2):
         if self.use_vf:

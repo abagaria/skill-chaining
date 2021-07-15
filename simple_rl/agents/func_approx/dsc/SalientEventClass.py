@@ -21,6 +21,9 @@ class SalientEvent(object):
 
         self.revised_by_mpc = False
 
+        self.expansion_count = 0
+        self.exploration_returns = deque(maxlen=100)
+
         assert isinstance(event_idx, int)
         assert isinstance(tolerance, float)
 
@@ -174,7 +177,9 @@ class SalientEvent(object):
         return positions
 
     def __repr__(self):
-        return f"SalientEvent targeting {self.get_target_position()}"
+        target_position = self.get_target_position()
+        rounded_target_position = np.round(target_position, decimals=2)
+        return f"SalientEvent targeting {rounded_target_position}"
 
 
 class LearnedSalientEvent(SalientEvent):

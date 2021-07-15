@@ -89,6 +89,12 @@ class PlanGraph(object):
             return nx.algorithms.dag.ancestors(self.plan_graph, target_node)
         return []
 
+    def get_shortest_path_lengths(self, source_node, use_edge_weights):
+        """ Get the shortest path lengths from src to all reachable nodes in the plan graph. """
+        if use_edge_weights:
+            return nx.single_source_dijkstra_path_length(self.plan_graph, source_node)
+        return nx.single_source_shortest_path_length(self.plan_graph, source_node)
+
     # ----------------------------------------------------------------------------
     # Private Methods
     # ----------------------------------------------------------------------------
