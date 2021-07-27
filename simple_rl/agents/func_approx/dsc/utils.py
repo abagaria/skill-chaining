@@ -251,8 +251,9 @@ def visualize_smdp_updates(global_solver, experiment_name=""):
     plt.close()
 
 def visualize_next_state_reward_heat_map(solver, overall_mdp, episode=None, experiment_name=""):
-    next_states = solver.replay_buffer.next_state
-    rewards = solver.replay_buffer.intrinsic_reward
+    # TODO: Generalize for model-free extrapolator as well
+    next_states = solver.replay_buffer.obs2_buf
+    rewards = solver.replay_buffer.rew_buf
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
 
@@ -925,15 +926,6 @@ def visualize_mpc_train_data_distribution(mdp, states, episode, experiment_name)
     plt.close()
 
 def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, experiment_name, seed):
-    def _get_candidate_nodes():
-        return planner.get_candidate_nodes_for_expansion()
-
-    def _get_node_score(n):
-        return planner.compute_intrinsic_reward_score(n)
-
-    def _get_node_probability(score, normalizing_factor):
-        return score / normalizing_factor
-
     def _get_representative_point(node):
         if isinstance(node, SalientEvent):
             return _get_event_representative_point(node)
@@ -951,24 +943,47 @@ def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, expe
         effect_positions = np.array([planner.mdp.get_position(state) for state in option.effect_set])
         return np.median(effect_positions, axis=0)
 
-    nodes = _get_candidate_nodes()
-    scores = [_get_node_score(n) for n in nodes]
-    norm = sum(scores)
+    nodes = planner.get_candidate_nodes_for_expansion()
+    rnd_scores = planner.get_rnd_scores(nodes)
+    distance_scores = planner.get_graph_distance_scores(nodes)
+    count_scores = planner.get_count_based_scores(nodes)
+    combined_scores = planner.combine_scores(rnd_scores, distance_scores, count_scores)
 
     points = [_get_representative_point(n) for n in nodes]
     x_coords = [point[0] for point in points]
     y_coords = [point[1] for point in points]
-    probabilities = [_get_node_probability(i, norm) for i in range(len(nodes))]
-
-    plt.scatter(x_coords, y_coords, c=probabilities)
-    plt.colorbar()
 
     x_low_lim, y_low_lim = planner.mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = planner.mdp.get_x_y_high_lims()
 
+    plt.figure(figsize=(10.0, 8.0))
+    plt.subplot(2, 2, 1)
+    plt.scatter(x_coords, y_coords, c=rnd_scores)
+    plt.colorbar()
+    plt.title("RND Scores")
     plt.xlim((x_low_lim, x_high_lim))
     plt.ylim((y_low_lim, y_high_lim))
 
-    prefix = "event_node_prob_graph"
-    plt.savefig(f"value_function_plots/{experiment_name}/{prefix}_episode_{episode}_seed_{seed}.png")
+    plt.subplot(2, 2, 2)
+    plt.scatter(x_coords, y_coords, c=np.log(count_scores))
+    plt.title("Count Scores")
+    plt.colorbar()
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    plt.subplot(2, 2, 3)
+    plt.scatter(x_coords, y_coords, c=distance_scores)
+    plt.colorbar()
+    plt.title("Graph Distance Scores")
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    plt.subplot(2, 2, 4)
+    plt.scatter(x_coords, y_coords, c=np.log(combined_scores))
+    plt.colorbar()
+    plt.title("Combined Scores")
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    plt.savefig(f"value_function_plots/{experiment_name}/event_node_prob_graph_episode_{episode}_seed_{seed}.png")
     plt.close()

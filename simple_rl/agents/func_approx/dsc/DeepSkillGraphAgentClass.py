@@ -70,6 +70,8 @@ class DeepSkillGraphAgent(object):
         descendant_events = self.planning_agent.plan_graph.get_reachable_nodes_from_source_state(state)
         descendant_events += current_events
 
+        descendant_events = list(set(descendant_events))
+
         if not all([isinstance(e, (SalientEvent, ModelBasedOption)) for e in descendant_events]):
             ipdb.set_trace()
 
@@ -362,9 +364,9 @@ class DeepSkillGraphAgent(object):
 
     def generate_candidate_salient_events(self, state):
         """ Return the events that we are currently NOT in and to whom there is no path on the graph. """
-        connected = lambda s, e: self.planning_agent.plan_graph.does_path_exist(s, e)
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
-        unconnected_events = [event for event in events if not connected(state, event) and not event(state)]
+        events = [event for event in events if not event(state)]
+        unconnected_events = self.planning_agent.plan_graph.get_unconnected_nodes(state, events)
         return unconnected_events
 
     def take_random_action(self):

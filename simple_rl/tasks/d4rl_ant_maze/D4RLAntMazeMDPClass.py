@@ -44,6 +44,9 @@ class D4RLAntMazeMDP(GoalDirectedMDP):
                                  dense_reward=dense_reward,
                                  goal_state=goal_state, goal_tolerance=0.6)
 
+        if len(self.get_start_state_salient_event().trigger_points) < 2:
+            self.get_start_state_salient_event().trigger_points.append(self.init_state)
+
     def _reward_func(self, state, action):
         next_state, _, done, info = self.env.step(action)
 

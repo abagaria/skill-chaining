@@ -1,4 +1,5 @@
 import os
+import ipdb
 import pickle
 
 import torch
@@ -6,17 +7,15 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
+from tqdm import tqdm
 from copy import deepcopy
 from torch.optim import Adam
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from simple_rl.agents.func_approx.dsc.dynamics.dynamics_model import DynamicsModel
 from simple_rl.agents.func_approx.dsc.dynamics.replay_buffer import ReplayBuffer
-from simple_rl.agents.func_approx.td3.model import RNDModel
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
-
-from tqdm import tqdm
-import ipdb
+from simple_rl.agents.func_approx.rnd.RNDRewardLearner import RND
 
 
 class MPCRND:
@@ -43,8 +42,11 @@ class MPCRND:
             self.workers = 0
 
         # RND Parameters
-        self.rnd = RNDModel(self.state_size).to(device)
-        self.rnd_optimizer = torch.optim.Adam(self.rnd.parameters(), lr=1e-3)
+        self.rnd = RND(state_size,
+                       lr=1e-3,
+                       n_epochs=1,
+                       batch_size=1000,
+                       device=device)
 
     def load_data(self):
         self.dataset = self._preprocess_data()
@@ -112,7 +114,7 @@ class MPCRND:
 
     def step(self, state, action, reward, next_state, done):
         self.replay_buffer.store(state, action, reward, next_state, done)
-        self.rnd_update()
+        self.rnd.update(next_state)
 
     def value_function(self, state, num_rollouts=14000, num_steps=7):
         """ Compute the value of `state` via simulation rollouts. """
@@ -177,7 +179,7 @@ class MPCRND:
     # ------------------------------------------------------------
 
     def _get_costs(self, states):
-        rewards = self._compute_intrinsic_reward(states)
+        rewards = self.rnd.get_reward(states)
         costs = -1. * rewards
 
         assert states.shape[1] == self.mdp.state_space_size(), f"{states.shape}"
@@ -190,41 +192,14 @@ class MPCRND:
         """ Intrinsic reward computation for a single input state. """
 
         normalized_next_state = next_state[None, ...]
-        intrinsic_reward = self._compute_intrinsic_reward(normalized_next_state).item()
+        intrinsic_reward = self.rnd.get_reward(normalized_next_state).item()
         return intrinsic_reward
 
     def batched_get_intrinsic_reward(self, states):
         assert isinstance(states, (np.ndarray, torch.tensor)), type(states)
-        intrinsic_reward = self._compute_intrinsic_reward(states).mean().item()
+        intrinsic_reward = self.rnd.get_reward(states).mean().item()
         return intrinsic_reward
 
-    def _compute_intrinsic_reward(self, next_obs):
-        """ Given a batch of observations, return the intrinsic reward associated with it. """
-
-        if isinstance(next_obs, np.ndarray):
-            next_obs = torch.FloatTensor(next_obs).to(self.device)
-
-        with torch.no_grad():
-            target_features = self.rnd.target(next_obs)
-            predicted_features = self.rnd.predictor(next_obs)
-            r_int = (target_features - predicted_features).pow(2).sum(1)
-        return r_int
-
-    def rnd_update(self, batch_size=128):
-        """ Perform an RND update on the un-normalized states. """
-
-        if self.replay_buffer.size > batch_size:
-            batch = self.replay_buffer.sample_batch(batch_size)
-            next_states = torch.FloatTensor(batch["obs2"]).to(self.device)
-
-            self.rnd_update_step(next_states)
-
-    def rnd_update_step(self, next_states):
-        predict_next_state_feature, target_next_state_feature = self.rnd(next_states)
-        rnd_loss = F.mse_loss(predict_next_state_feature, target_next_state_feature.detach())
-        self.rnd_optimizer.zero_grad()
-        rnd_loss.backward()
-        self.rnd_optimizer.step()
 
 class RolloutDataset(Dataset):
     def __init__(self, states, actions, states_p):

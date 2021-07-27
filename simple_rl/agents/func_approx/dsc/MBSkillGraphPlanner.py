@@ -91,12 +91,16 @@ class SkillGraphPlanner(object):
             closest_target (SalientEvent or Option)
         """
         candidate_vertices_to_fall_from = self.plan_graph.get_reachable_nodes_from_source_state(state)
+        candidate_vertices_to_fall_from = list(candidate_vertices_to_fall_from) + self.get_corresponding_events(state)
         candidate_vertices_to_jump_to = self.plan_graph.get_nodes_that_reach_target_node(goal_salient_event)
         candidate_vertices_to_jump_to = list(candidate_vertices_to_jump_to) + [goal_salient_event]
 
         if choose_among_events:
             candidate_vertices_to_fall_from = [v for v in candidate_vertices_to_fall_from if isinstance(v, SalientEvent)]
             candidate_vertices_to_jump_to = [v for v in candidate_vertices_to_jump_to if isinstance(v, SalientEvent)]
+
+        candidate_vertices_to_fall_from = list(set(candidate_vertices_to_fall_from))
+        candidate_vertices_to_jump_to = list(set(candidate_vertices_to_jump_to))
 
         return self.get_closest_pair_of_vertices(candidate_vertices_to_fall_from, candidate_vertices_to_jump_to)
 
@@ -315,7 +319,6 @@ class SkillGraphPlanner(object):
             if state.is_terminal():
                 break
 
-        plot_trajectory([t[-1] for t in transitions], self.experiment_name, episode, color=[t[-2] for t in transitions])
         make_chunked_value_function_plot(self.exploration_agent, episode, self.experiment_name)
 
         target_state = self.create_target_state(transitions)
@@ -325,14 +328,17 @@ class SkillGraphPlanner(object):
 
     def model_based_extrapolation(self, episode, step_number):
         transitions = []
-        min_step = 100 if episode < 200 else 200
+        min_step = max(100, (episode // 100) * 100)
         step_budget = min(min_step, self.chainer.max_steps - step_number)
         state = deepcopy(self.mdp.cur_state)
 
-        print(f"Performing model-based extrapolation from {state.position} for {step_budget} steps")
+        events = self.mdp.all_salient_events_ever + [self.mdp.get_start_state_salient_event()]
+        starting_nodes = [event for event in events if event(state)]
+
+        print(f"Performing model-based extrapolation from {state.position} from {starting_nodes} for {step_budget} steps")
 
         for step in range(self.chainer.max_steps):
-            action = self.exploration_agent.act(state)
+            action = self.exploration_agent.act(state, num_steps=21)  # Trying a longer horizon for action selection
             reward, next_state = self.mdp.execute_agent_action(action)
             intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
             transitions.append((state, action, intrinsic_reward, next_state))
@@ -343,6 +349,7 @@ class SkillGraphPlanner(object):
 
         # Update RND intrinsic reward function
         self.update_exploration_agent(transitions, False)
+        self._update_nodes_with_monte_carlo_exploration_return(starting_nodes, transitions)
 
         target_state = self.create_target_state(transitions)
         return target_state, len(transitions)
@@ -372,7 +379,7 @@ class SkillGraphPlanner(object):
         for state, action, intrinsic_reward, next_state in transitions:
             if recompute_int_rewards:
                 intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
-            self.exploration_agent.step(state.features(), action, intrinsic_reward, 0, next_state.features(), next_state.is_terminal())
+            self.exploration_agent.step(state.features(), action, intrinsic_reward, next_state.features(), next_state.is_terminal())
 
     # -----------------------------–––––––--------------
     # Managing DSC Control Loops
@@ -468,6 +475,7 @@ class SkillGraphPlanner(object):
             scores = self.exploration_agent.value_function(states)
         else:
             states = random.sample(state_set, k=min(len(state_set), 10))
+            states = [s.features() if isinstance(s, State) else s for s in states]
             states = np.array([s for s in states if s.shape == (self.mdp.state_space_size(),)])
             scores = [self.exploration_agent.value_function(s) for s in states]
         return np.mean(scores)
@@ -788,22 +796,37 @@ class SkillGraphPlanner(object):
     # Utility Functions
     # -----------------------------–––––––--------------
 
+    def get_corresponding_events(self, state):
+        events = [self.mdp.get_start_state_salient_event()] + self.mdp.all_salient_events_ever
+        current = [event for event in events if event(state)]
+        return current
+
+    # def get_closest_pair_of_vertices(self, src_vertices, dest_vertices):
+    #     closest_pair = None
+    #     min_distance = np.inf
+    #
+    #     for source in src_vertices:  # type: SalientEvent or ModelBasedOption
+    #         for target in dest_vertices:  # type: SalientEvent or ModelBasedOption
+    #             if source != target:  # TODO: Why are we getting repeats?
+    #                 distance = self.distance_between_vertices(source, target)
+    #                 if distance < min_distance:
+    #                     min_distance = distance
+    #                     closest_pair = source, target
+    #
+    #     return closest_pair
+
     def get_closest_pair_of_vertices(self, src_vertices, dest_vertices):
-        closest_pair = None
-        min_distance = np.inf
+        def sample(A, num_rows):
+            return A[np.random.randint(A.shape[0], size=num_rows), :].squeeze()
 
-        for source in src_vertices:  # type: SalientEvent or ModelBasedOption
-            for target in dest_vertices:  # type: SalientEvent or ModelBasedOption
-                if source != target:  # TODO: Why are we getting repeats?
-                    distance = self.distance_between_vertices(source, target)
-                    if distance < min_distance:
-                        min_distance = distance
-                        closest_pair = source, target
+        if len(src_vertices) > 0 and len(dest_vertices) > 0:
+            distance_matrix = self.single_sample_vf_based_distances(src_vertices, dest_vertices)
+            min_array = np.argwhere(distance_matrix == np.min(distance_matrix)).squeeze()
 
-        return closest_pair
+            if len(min_array.shape) > 1 and min_array.shape[0] > 1:
+                min_array = sample(min_array, 1)
 
-    def batched_get_closest_pair_of_vertices(self, src_vertices, dest_vertices):  # TODO: Single sample and multi-sample
-        pass
+            return src_vertices[min_array[0]], dest_vertices[min_array[1]]
 
     def single_sample_vf_based_distances(self, src_vertices, dest_vertices):  # TODO: Test
         def sample(vertex):
@@ -812,29 +835,54 @@ class SkillGraphPlanner(object):
             states = [s for s in states if s.shape == (self.mdp.state_space_size(),)]
             return random.choice(states)
 
-        def chunked_cdist(points1, points2, chunk_size):
-            distance_matrix = np.zeros((points1.shape[0], points2.shape[0]))
+        def batched_pairwise_distances(points1, points2, vf):
+            distance_matrix = np.zeros((len(points1), len(points2)))
 
+            for i, point in enumerate(points1):
+                x = np.repeat(point[None, ...], len(points2), axis=0)
+                with torch.no_grad():
+                    distance_matrix[i, :] = -vf(x, points2).squeeze()
+
+            return distance_matrix
+
+        def fully_batched_pairwise_distances(points1, points2, vf):
+            N = len(points1)
+            M = len(points2)
+            D = points1.shape[1]
+
+            # Expand points1 to have shape (N, M, D)
+            expanded_points1 = points1[:, np.newaxis, :]
+            expanded_points1 = np.repeat(expanded_points1, M, axis=1)
+            expanded_points1 = expanded_points1.reshape((-1, D))
+            assert expanded_points1.shape == (N * M, D), expanded_points1.shape
+
+            # Expand points2 to have shape (N, M, D)
+            expanded_points2 = points2[np.newaxis, :, :]
+            expanded_points2 = np.repeat(expanded_points2, N, axis=0)
+            expanded_points2 = expanded_points2.reshape((-1, D))
+            assert expanded_points2.shape == (N * M, D), expanded_points2.shape
+
+            # Chunked inference
             current_idx = 0
-            num_chunks = int(np.ceil(points1.shape[0] / chunk_size))
-            chunks = np.array_split(points1, num_chunks, axis=0)
+            chunk_size = 2000
+            distances = np.zeros((N * M,))
+            num_chunks = int(np.ceil(expanded_points1.shape[0] / chunk_size))
+            p1_chunks = np.array_split(expanded_points1, num_chunks, axis=0)
+            p2_chunks = np.array_split(expanded_points2, num_chunks, axis=0)
 
-            for chunk_number, point_chunk in enumerate(chunks):
-                point_chunk = torch.from_numpy(point_chunk).float().to(self.chainer.device)
-                chunk_distances = cdist(point_chunk, points2, self.chainer.global_option.value_function)
-
-                current_chunk_size = len(point_chunk)
-                assert chunk_distances.shape[1] == len(points2), f"{chunk_distances.shape, len(points2)}"
-
-                distance_matrix[current_idx:current_idx+current_chunk_size, :] = chunk_distances
+            for p1, p2 in zip(p1_chunks, p2_chunks):
+                assert len(p1) == len(p2), f"{len(p1), len(p2)}"
+                current_chunk_size = len(p1)
+                distances[current_idx:current_idx+current_chunk_size] = -vf(p1, p2).squeeze()
                 current_idx += current_chunk_size
 
-            assert distance_matrix.shape == (points1.shape[0], points2.shape[0]), distance_matrix.shape
+            assert distances.shape == (N * M,), distances.shape
+            distance_matrix = distances.reshape((N, M))
             return distance_matrix
 
         src_points = np.array([sample(v) for v in src_vertices])
         dest_points = np.array([sample(v) for v in dest_vertices])
-        per_point_distance_matrix = chunked_cdist(src_points, dest_points, chunk_size=10)
+        per_point_distance_matrix = fully_batched_pairwise_distances(src_points, dest_points, self.chainer.global_option.value_function)
         return per_point_distance_matrix
 
     def distance_between_vertices(self, v1, v2):

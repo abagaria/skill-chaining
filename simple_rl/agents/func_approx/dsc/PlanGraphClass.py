@@ -51,6 +51,21 @@ class PlanGraph(object):
         does_exists = [self.does_path_exist_between_nodes(start, node) for start in start_nodes]
         return any(does_exists)
 
+    def get_unconnected_nodes(self, state, nodes):
+        """ Return the nodes for which there is no path from `state`. """
+        assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
+        assert isinstance(nodes, list), f"{type(nodes)}"
+
+        unconnected_nodes = []
+        start_nodes = self._get_available_options(state)
+
+        for goal_node in nodes:
+            for start_node in start_nodes:
+                if not self.does_path_exist_between_nodes(start_node, goal_node):
+                    unconnected_nodes.append(goal_node)
+
+        return unconnected_nodes
+
     def get_path_to_execute(self, start_state, goal_node):
         assert isinstance(start_state, (State, np.ndarray))
         assert self._is_option_or_event_type(goal_node)
