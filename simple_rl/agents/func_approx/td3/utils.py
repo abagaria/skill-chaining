@@ -133,7 +133,7 @@ def make_chunked_value_function_plot(solver, episode, experiment_name, chunk_siz
     return qvalues_intrinsic.max(), qvalues_extrinsic.max()
 
 def chunked_inference(func, data, device=torch.device("cuda"), chunk_size=1000):
-    """ Apply and aggregate func on chunked vertions of data. """
+    """ Apply and aggregate func on chunked versions of data. """
 
     num_chunks = int(np.ceil(data.shape[0] / chunk_size))
 
@@ -180,8 +180,8 @@ def visualize_next_state_intrinsic_reward_heat_map(solver, mdp, episode, experim
 
 def visualize_intrinsic_rewards_on_offline_dataset(solver, mdp, episode, experiment_name):
     t0 = time.time()
-    next_states = solver.get_features_for_rnd(mdp.dataset)
-    r_int = chunked_inference(solver._compute_intrinsic_reward, next_states)
+    next_states = mdp.dataset
+    r_int = chunked_inference(solver.get_reward, next_states)
     x = [state[0] for state in next_states]
     y = [state[1] for state in next_states]
 
