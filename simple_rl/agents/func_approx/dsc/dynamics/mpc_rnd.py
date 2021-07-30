@@ -42,11 +42,13 @@ class MPCRND:
             self.workers = 0
 
         # RND Parameters
-        self.rnd = RND(state_size,
-                       lr=1e-3,
-                       n_epochs=1,
-                       batch_size=1000,
-                       device=device)
+        self.rnd = RND(mdp.state_space_size(),
+                         lr=1e-4,
+                         n_epochs=1,
+                         batch_size=64,
+                         device=device,
+                         update_interval=2048,
+                         use_reward_norm=True)
 
     def load_data(self):
         self.dataset = self._preprocess_data()

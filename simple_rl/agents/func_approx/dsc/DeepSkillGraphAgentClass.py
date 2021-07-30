@@ -1,6 +1,7 @@
 import ipdb
 import argparse
 import random
+import itertools
 import networkx as nx
 from copy import deepcopy
 from collections import defaultdict
@@ -134,67 +135,15 @@ class DeepSkillGraphAgent(object):
             return self._randomly_select_salient_event(state, events)
 
     def dsg_run_loop(self, episodes, num_steps, starting_episode=0):
-        successes = []
+        episode = starting_episode
 
-        for episode in range(starting_episode, starting_episode+episodes):
+        if episode <= self.num_warmup_episodes:
+            self.warmup_loop(num_episodes=self.num_warmup_episodes)
+            episode = self.num_warmup_episodes
 
-            if self.should_generate_new_salient_events(episode):
-                accepted, num_tries = self.dsg_event_discovery_loop(episode, num_tries_allowed=10, num_steps=num_steps)
-                print(f"[Salient-Event-Discovery] Event discovery accepted={accepted} after {num_tries} tries")
-                continue
-
-            step_number = 0
-            random_episodic_trajectory = []
-            self.reset(episode, start_state=None)
-
-            state = deepcopy(self.mdp.cur_state)
-
-            while step_number < num_steps:
-                goal_salient_event = self.select_goal_salient_event(state)
-
-                if goal_salient_event is None:
-                    random_transition = self.take_random_action()
-                    step_number += 1
-                    success = False
-                    random_episodic_trajectory.append(random_transition)
-                else:
-
-                    self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode=False)
-
-                    step_number, success = self.planning_agent.run_loop(state=state,
-                                                                        goal_salient_event=goal_salient_event,
-                                                                        episode=episode,
-                                                                        step=step_number,
-                                                                        eval_mode=False)
-
-                state = deepcopy(self.mdp.cur_state)
-
-                if success:
-                    print(f"[DeepSkillGraphAgentClass] successfully reached {goal_salient_event}")
-
-                successes.append(success)
-
-            if episode > 0 and episode % 10 == 0:
-                t0 = time.time()
-                for option in self.planning_agent.plan_graph.option_nodes:
-                    self.planning_agent.add_potential_edges(option)
-                print(f"Took {time.time() - t0}s to add potential edges")
-
-            if episode > 0 and episode % 50 == 0 and self.plot_gc_value_functions:
-                assert goal_salient_event is not None
-                make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,
-                                                                  goal_salient_event.get_target_position(),
-                                                                  episode, self.seed, self.experiment_name)
-
-            if episode > 0 and episode % 500 == 0:
-                option_num_executions = [o.num_executions for o in self.planning_agent.plan_graph.option_nodes]
-                option_success_rates = [o.get_success_rate() for o in planner.plan_graph.option_nodes]
-                plt.scatter(option_num_executions, option_success_rates)
-                plt.title(f"Episode: {episode}")
-                plt.savefig(f"{self.experiment_name}/option-success-rates-episode-{episode}.png")
-                plt.close()
-
-        return successes
+        while episode < starting_episode + episodes:
+            episode = self.dsg_event_discovery_loop(episode, num_tries_allowed=10, num_expansions_per_node=5)
+            episode = self.dsg_graph_consolidation_loop(episode, num_episodes=25, num_steps=num_steps)
 
     def dsg_test_loop(self, episodes, test_event, start_state=None):
         assert isinstance(episodes, int), f"{type(episodes)}"
@@ -239,36 +188,88 @@ class DeepSkillGraphAgent(object):
 
         return successes, final_states
 
-    def dsg_event_discovery_loop(self, current_episode, num_tries_allowed, num_steps):
+    def dsg_event_discovery_loop(self, current_episode, num_tries_allowed, num_expansions_per_node):
         assert isinstance(current_episode, int)
         assert isinstance(num_tries_allowed, int)
-        assert isinstance(num_steps, int)
 
-        num_tries = 0
-        accepted = False
-
-        epochs = 50 if current_episode <= self.num_warmup_episodes else 5
-
-        
         if self.dsc_agent.use_model or self.planning_agent.extrapolator == "model-based":
-            self.learn_dynamics_model(epochs=epochs)
+            self.learn_dynamics_model(epochs=5)
 
-        while not accepted and num_tries < num_tries_allowed:
-            num_tries += 1
-            self.reset(current_episode)
-            
-            target_state, step = self.planning_agent.salient_event_discovery_run_loop(current_episode)
+        for i in range(num_tries_allowed):
+            extrapolation_trajectories = []
+            planner_goal_vertex = self.planning_agent.get_node_to_expand()
+            print(f"[Salient-Event-Discovery] Planner goal: {planner_goal_vertex}")
 
+            for j in range(num_expansions_per_node):  # Try to expand chosen node for 10 episodes
+                self.reset(current_episode)
+                trajectory = self.planning_agent.salient_event_discovery_run_loop(planner_goal_vertex, current_episode)
+                extrapolation_trajectories.append(trajectory)
+                current_episode += 1
+
+            flattened_transitions = list(itertools.chain.from_iterable(extrapolation_trajectories))
+            target_state = self.planning_agent.create_target_state(flattened_transitions)
             goal_salient_event = self.generate_new_salient_event(target_state)
             rejected = self.should_reject_mpc_revision(target_state, goal_salient_event)
             accepted = not rejected
 
-            print(f"[Salient-Event-Discovery] Try # {num_tries}, final-state: {target_state.position}, step #{step}, accepted={accepted}")
+            print(f"[Salient-Event-Discovery] Episode {current_episode}, target-state: {target_state.position}, accepted={accepted}")
 
-        if accepted:
-            self.add_salient_event(goal_salient_event)
+            if accepted:
+                self.add_salient_event(goal_salient_event)
+                return current_episode
 
-        return accepted, num_tries
+        return current_episode
+
+    def warmup_loop(self, num_episodes):
+        """ Warm up period: we do random rollouts for a small number of episodes. """
+
+        for episode in range(num_episodes):
+            self.random_rollout(episode)
+
+        if self.dsc_agent.use_model or self.planning_agent.extrapolator == "model-based":
+            self.learn_dynamics_model(epochs=50)
+
+    def dsg_graph_consolidation_loop(self, starting_episode, num_episodes, num_steps):
+        for episode in range(starting_episode, starting_episode+num_episodes):
+
+            step_number = 0
+            self.reset(episode, start_state=None)
+            state = deepcopy(self.mdp.cur_state)
+
+            while step_number < num_steps:
+                goal_salient_event = self.select_goal_salient_event(state)
+
+                if goal_salient_event is None:
+                    self.take_random_action()
+                    step_number += 1
+                    success = False
+                else:
+
+                    self.create_skill_chains_if_needed(state, goal_salient_event, eval_mode=False)
+
+                    step_number, success = self.planning_agent.run_loop(state=state,
+                                                                        goal_salient_event=goal_salient_event,
+                                                                        episode=episode,
+                                                                        step=step_number,
+                                                                        eval_mode=False)
+
+                state = deepcopy(self.mdp.cur_state)
+
+                if success:
+                    print(f"[DeepSkillGraphAgentClass] successfully reached {goal_salient_event}")
+
+            if episode > 0 and episode % 10 == 0:
+                t0 = time.time()
+                for option in self.planning_agent.plan_graph.option_nodes:
+                    self.planning_agent.add_potential_edges(option)
+                print(f"Took {time.time() - t0}s to add potential edges")
+
+            if episode > 0 and episode % 100 == 0 and self.plot_gc_value_functions:
+                assert goal_salient_event is not None
+                make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,
+                                                                  goal_salient_event.get_target_position(),
+                                                                  episode, self.seed, self.experiment_name)
+        return episode
 
     def should_reject_mpc_revision(self, state, goal_salient_event):
         def satisfies_existing_event(s):
@@ -380,15 +381,10 @@ class DeepSkillGraphAgent(object):
             self.planning_agent.exploration_agent.step(*transition)
         return state, action, reward, next_state
 
-    def random_rollout(self):
-        self.mdp.reset()
-        states = []
+    def random_rollout(self, episode):
+        self.reset(episode)
         for _ in range(self.dsc_agent.max_steps):
-            s, a, r, sp = self.take_random_action()
-            states.append(sp.features())
-        states = np.array(states)
-        states = torch.as_tensor(states, dtype=torch.float32).to(self.planning_agent.exploration_agent.device)
-        self.planning_agent.exploration_agent.rnd_update_step(states)
+            self.take_random_action()
 
     def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode, current_event=None):
         current_salient_event = self._get_current_salient_event(state) if current_event is None else current_event
@@ -553,4 +549,4 @@ if __name__ == "__main__":
                                     seed=args.seed,
                                     plot_gc_value_functions=args.plot_gc_value_functions)
 
-    num_successes = dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)
+    dsg_agent.dsg_run_loop(episodes=args.episodes, num_steps=args.steps)
