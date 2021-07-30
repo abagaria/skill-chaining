@@ -454,13 +454,11 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, help="Random seed for this run (default=0)", default=0)
     parser.add_argument("--episodes", type=int, help="# episodes", default=200)
     parser.add_argument("--steps", type=int, help="# steps", default=1000)
-    parser.add_argument("--subgoal_reward", type=float, help="SkillChaining subgoal reward", default=0.)
     parser.add_argument("--render", type=bool, help="Render the mdp env", default=False)
     parser.add_argument("--use_dense_rewards", action="store_true", help="Use dense/sparse rewards", default=False)
     parser.add_argument("--gestation_period", type=int, help="Number of subgoal hits to learn an option", default=5)
     parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=50)
     parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50)
-    parser.add_argument("--plot_rejected_events", action="store_true", default=False)
     parser.add_argument("--plot_gc_value_functions", action="store_true", default=False)
     parser.add_argument("--use_model", action="store_true", default=False)
     parser.add_argument("--use_vf", action="store_true", default=False)
@@ -524,8 +522,6 @@ if __name__ == "__main__":
     create_log_dir("initiation_set_plots")
     create_log_dir("value_function_plots/{}".format(args.experiment_name))
     create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
-
-    print("Training skill chaining agent from scratch with a subgoal reward {}".format(args.subgoal_reward))
     print("MDP InitState = ", overall_mdp.init_state)
 
     chainer = ModelBasedSkillChaining(mdp=overall_mdp, max_steps=args.steps, use_vf=args.use_vf,
