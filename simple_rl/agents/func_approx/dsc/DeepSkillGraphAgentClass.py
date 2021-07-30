@@ -192,7 +192,7 @@ class DeepSkillGraphAgent(object):
         assert isinstance(current_episode, int)
         assert isinstance(num_tries_allowed, int)
 
-        if self.dsc_agent.use_model or self.planning_agent.extrapolator == "model-based":
+        if (self.dsc_agent.use_model or self.planning_agent.extrapolator == "model-based") and current_episode > self.num_warmup_episodes:
             self.learn_dynamics_model(epochs=5)
 
         for i in range(num_tries_allowed):
