@@ -48,15 +48,15 @@ class RND:
 
     def update_reward_rms(self, episodic_rewards):
         """ Compute the mean, std and len of the rewards and update the reward_rms with it. """
-        assert self.use_reward_norm
-        assert len(episodic_rewards) > 0
-
         # TODO: Discount the rewards with their time indices (in RND torch implementation)
-        mean = np.mean(episodic_rewards)
-        std = np.std(episodic_rewards)
-        size = len(episodic_rewards)
+        assert self.use_reward_norm, f"use_reward_norm={self.use_reward_norm}"
 
-        self.reward_rms.update_from_moments(mean, std ** 2, size)
+        if len(episodic_rewards) > 0:
+            mean = np.mean(episodic_rewards)
+            std = np.std(episodic_rewards)
+            size = len(episodic_rewards)
+
+            self.reward_rms.update_from_moments(mean, std ** 2, size)
 
     def update(self, state):
         """ Add the new agent state to the memory. When the memory is full, train RND and reset the memory."""

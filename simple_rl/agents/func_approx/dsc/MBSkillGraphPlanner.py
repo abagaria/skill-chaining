@@ -18,10 +18,11 @@ from simple_rl.agents.func_approx.td3.TD3RNDAgentClass import TD3
 from simple_rl.agents.func_approx.td3.utils import make_chunked_value_function_plot
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc_rnd import MPCRND
+from simple_rl.agents.func_approx.ppo.PPOAgentClass import PPOAgent, make_chunked_vf_plot
 
 
 class SkillGraphPlanner(object):
-    def __init__(self, *, mdp, chainer, use_vf, extrapolator, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, use_vf, extrapolator, rnd_version, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -49,16 +50,15 @@ class SkillGraphPlanner(object):
 
         self.plan_graph = PlanGraph()
 
+        self.rnd_version = rnd_version
+
     def _get_exploration_agent(self):
         if self.extrapolator == "model-free":
-            return TD3(state_dim=self.mdp.state_space_size(),
-                    action_dim=self.mdp.action_space_size(),
-                    max_action=1.,
-                    name="td3-rnd-exploration-agent",
-                    device=self.chainer.device,
-                    augment_with_rewards=False,
-                    use_obs_normalization=False,
-                    )
+            return PPOAgent(obs_size=self.mdp.state_space_size(),
+                            action_size=self.mdp.action_space_size(),
+                            maintain_replay_buffer=True,
+                            use_rnd_for_exploration=True,
+                            lr=1e-4)
 
         return MPCRND(mdp=self.mdp,
                       state_size=self.mdp.state_space_size(),
@@ -266,6 +266,13 @@ class SkillGraphPlanner(object):
 
     def salient_event_discovery_run_loop(self, planner_goal_vertex, episode):
         """ Single episode rollout of graph extrapolation. """
+
+        def _get_intrinsic_reward(s):
+            return self.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
+
+        def _features(s):
+            return s.features().astype(np.float32, copy=False)
+
         step = 0
         state = deepcopy(self.mdp.cur_state)
 
@@ -279,23 +286,27 @@ class SkillGraphPlanner(object):
             state = deepcopy(self.mdp.cur_state)
 
         # Run loop that does exploration outside the graph
-        if planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state):
+        if step < self.chainer.max_steps and (planner_goal_vertex(state) or self.mdp.get_start_state_salient_event()(state)):
             extrapolation_func = self.model_free_extrapolation if self.extrapolator == "model-free" else self.model_based_extrapolation
-            transitions = extrapolation_func(episode, step)
-            
-            if len(transitions) > 0:
-                return transitions
+            best_sr_pair = extrapolation_func(episode, step)
+            return best_sr_pair
 
-        # TODO: transitions only needs state and intrinsic reward
-        intrinsic_reward = self.exploration_agent.get_intrinsic_reward(state.features())
-        nominal_transition = (state, self.mdp.sample_random_action(), intrinsic_reward, state)
-        return [nominal_transition]
+        intrinsic_reward = _get_intrinsic_reward(state)
+        nominal_sr_pair = (state, intrinsic_reward)
+        return nominal_sr_pair
 
     def model_free_extrapolation(self, episode, step_number):
         """ Single episodic rollout of the exploration policy to extend the graph. """
 
+        def _get_intrinsic_reward(s):
+            return self.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
+
+        def _features(s):
+            return s.features().astype(np.float32, copy=False)
+
         transitions = []
-        intrinsic_reward = 0.
+        state_reward_pairs = []
+
         step_budget = max(200, self.chainer.max_steps - step_number)
         state = deepcopy(self.mdp.cur_state)
 
@@ -305,36 +316,38 @@ class SkillGraphPlanner(object):
         print(f"Performing model-free extrapolation from {state.position} and {starting_nodes} for {step_budget} steps")
 
         for step in range(step_budget):
-            augmented_state = self.exploration_agent.get_augmented_state(state, intrinsic_reward)
-            action = self.exploration_agent.act(augmented_state)
+            action = self.exploration_agent.act(_features(state))
             reward, next_state = self.mdp.execute_agent_action(action)
-            intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
-            augmented_next_state = self.exploration_agent.get_augmented_state(next_state, intrinsic_reward)
+            intrinsic_reward = _get_intrinsic_reward(next_state)
             
             # [RND] Done flag is always false for the intrinsic value function
             # [RND] Setting the extrinsic reward to zero to only engage the intrinsic value head of RND value function
-            self.exploration_agent.step(augmented_state, action, intrinsic_reward, 0., augmented_next_state, False)
+            self.exploration_agent.step(_features(state), action, intrinsic_reward, _features(next_state), False)
 
+            state_reward_pairs.append((next_state, intrinsic_reward))
             transitions.append((state, action, intrinsic_reward, next_state))
             state = next_state
             
             if state.is_terminal():
                 break
 
-        make_chunked_value_function_plot(self.exploration_agent, episode, self.experiment_name)
-        
-        if len(transitions) > 0:
-            self._update_nodes_with_monte_carlo_exploration_return(starting_nodes, transitions)
-            episodic_rewards = [transition[2] for transition in transitions]
-            self.exploration_agent.rnd.update_reward_rms(episodic_rewards)
+        print("Plotting exploration value function..")
+        max_int = make_chunked_vf_plot(self.exploration_agent, self.experiment_name, episode)
+        print(f"Max intrinsic value: {max_int}")
 
-        return transitions
+        self._update_nodes_with_monte_carlo_exploration_return(starting_nodes, transitions)
+        episodic_rewards = [transition[2] for transition in transitions]
+        self.exploration_agent.rnd.update_reward_rms(episodic_rewards)
+
+        best_sr_pair = self.create_target_state(state_reward_pairs)
+
+        return best_sr_pair
 
     def model_based_extrapolation(self, episode, step_number):
         transitions = []
+        state_reward_pairs = []
         min_step = max(100, (episode // 100) * 100)
         step_budget = min(min_step, self.chainer.max_steps - step_number)
-        step_budget = max(0, step_budget)
         state = deepcopy(self.mdp.cur_state)
 
         events = self.mdp.all_salient_events_ever + [self.mdp.get_start_state_salient_event()]
@@ -346,29 +359,31 @@ class SkillGraphPlanner(object):
             action = self.exploration_agent.act(state)  # Trying a longer horizon for action selection
             reward, next_state = self.mdp.execute_agent_action(action)
             intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
+            state_reward_pairs.append((next_state, intrinsic_reward))
             transitions.append((state, action, intrinsic_reward, next_state))
             state = next_state
 
             if state.is_terminal():
                 break
-        
-        if len(transitions) > 0:
-            self.update_exploration_agent(transitions, False)
-            self._update_nodes_with_monte_carlo_exploration_return(starting_nodes, transitions)
 
-        return transitions
+        self.update_exploration_agent(transitions, False)
+        self._update_nodes_with_monte_carlo_exploration_return(starting_nodes, transitions)
 
-    def create_target_state(self, transitions):
+        best_sr_pair = self.create_target_state(state_reward_pairs)
+
+        return best_sr_pair
+
+    def create_target_state(self, state_reward_pairs):
         best_state = None
         max_intrinsic_reward = -np.inf
 
-        for state, action, intrinsic_reward, next_state in transitions:
+        for state, intrinsic_reward in state_reward_pairs:
             
             if intrinsic_reward > max_intrinsic_reward:
-                best_state = next_state
+                best_state = state
                 max_intrinsic_reward = intrinsic_reward
 
-        return best_state
+        return best_state, max_intrinsic_reward
 
     @staticmethod
     def _update_nodes_with_monte_carlo_exploration_return(nodes, transitions):
@@ -475,6 +490,9 @@ class SkillGraphPlanner(object):
     def compute_intrinsic_reward_score(self, node):
         assert isinstance(node, (SalientEvent, ModelBasedOption)), node
 
+        def _features(s):
+            return s.features().astype(np.float32, copy=False)
+
         state_set = list(node.trigger_points) if isinstance(node, SalientEvent) else node.effect_set
 
         if self.extrapolator == "model-free":
@@ -483,7 +501,7 @@ class SkillGraphPlanner(object):
             scores = self.exploration_agent.value_function(states)
         else:
             states = random.sample(state_set, k=min(len(state_set), 10))
-            states = [s.features() if isinstance(s, State) else s for s in states]
+            states = [_features(s) if isinstance(s, State) else s for s in states]
             states = np.array([s for s in states if s.shape == (self.mdp.state_space_size(),)])
             scores = [self.exploration_agent.value_function(s) for s in states]
         return np.mean(scores)
@@ -510,19 +528,19 @@ class SkillGraphPlanner(object):
         assert len(descendants) == 0, descendants
         return self.mdp.get_start_state_salient_event()
 
-    def get_rnd_scores(self, nodes, rnd_version="monte-carlo"):
+    def get_rnd_scores(self, nodes):
         """ Get the normalized RND value function score for each input node. """
-        assert rnd_version in ("none", "monte-carlo", "vf"), rnd_version
+        assert self.rnd_version in ("none", "monte-carlo", "vf"), self.rnd_version
 
-        if rnd_version == "monte-carlo":
+        if self.rnd_version == "monte-carlo":
             means = np.array([np.mean(n.exploration_returns) if len(n.exploration_returns) > 0 else 0. for n in nodes])
             return means / means.max()
 
-        if rnd_version == "vf":
+        if self.rnd_version == "vf":
             scores = np.array([self.compute_intrinsic_reward_score(n) for n in nodes])
             return scores / scores.max()
 
-        assert rnd_version == "none", rnd_version
+        assert self.rnd_version == "none", self.rnd_version
         return np.zeros((len(nodes),))
 
     def get_graph_distance_scores(self, nodes):
@@ -558,13 +576,15 @@ class SkillGraphPlanner(object):
 
         return normalized_distances
 
-    @staticmethod
-    def get_count_based_scores(nodes):
+    def get_count_based_scores(self, nodes):
         """ UCB style count-based bonus to encourage trying different nodes for expansion. """
 
         def _compute_score_bonus(node):
             assert isinstance(node, SalientEvent), "NotImplemented for Options yet"
             return 1. / np.sqrt(node.expansion_count + 1e-3)
+
+        if self.rnd_version == "vf":
+            return np.zeros((len(nodes),))
 
         return np.array([_compute_score_bonus(n) for n in nodes])
 

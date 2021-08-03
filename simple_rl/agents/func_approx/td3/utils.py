@@ -140,13 +140,13 @@ def chunked_inference(func, data, device=torch.device("cuda"), chunk_size=1000):
     if num_chunks == 0:
         return 0.
 
+    current_idx = 0
     chunks = np.array_split(data, num_chunks, axis=0)
     values = np.zeros((data.shape[0],))
-    current_idx = 0
 
     for data_chunk in chunks:
         data_chunk = torch.from_numpy(data_chunk).float().to(device)
-        value_chunk = func(data_chunk).cpu().numpy()
+        value_chunk = func(data_chunk)
         current_chunk_size = len(data_chunk)
         values[current_idx:current_idx + current_chunk_size] = value_chunk
         current_idx += current_chunk_size

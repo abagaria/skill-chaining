@@ -59,6 +59,10 @@ class PlanGraph(object):
         unconnected_nodes = []
         start_nodes = self._get_available_options(state)
 
+        # If there are no options from the current state, all nodes are unconnected
+        if len(start_nodes) == 0:
+            return nodes
+
         for goal_node in nodes:
             for start_node in start_nodes:
                 if not self.does_path_exist_between_nodes(start_node, goal_node):

@@ -202,12 +202,11 @@ class DeepSkillGraphAgent(object):
 
             for j in range(num_expansions_per_node):  # Try to expand chosen node for 10 episodes
                 self.reset(current_episode)
-                trajectory = self.planning_agent.salient_event_discovery_run_loop(planner_goal_vertex, current_episode)
-                extrapolation_trajectories.append(trajectory)
+                best_sr_pair = self.planning_agent.salient_event_discovery_run_loop(planner_goal_vertex, current_episode)
+                extrapolation_trajectories.append(best_sr_pair)
                 current_episode += 1
 
-            flattened_transitions = list(itertools.chain.from_iterable(extrapolation_trajectories))
-            target_state = self.planning_agent.create_target_state(flattened_transitions)
+            target_state, _ = self.planning_agent.create_target_state(extrapolation_trajectories)
             goal_salient_event = self.generate_new_salient_event(target_state)
             rejected = self.should_reject_mpc_revision(target_state, goal_salient_event)
             accepted = not rejected
@@ -264,8 +263,7 @@ class DeepSkillGraphAgent(object):
                     self.planning_agent.add_potential_edges(option)
                 print(f"Took {time.time() - t0}s to add potential edges")
 
-            if episode > 0 and episode % 100 == 0 and self.plot_gc_value_functions:
-                assert goal_salient_event is not None
+            if episode > 0 and episode % 100 == 0 and self.plot_gc_value_functions and goal_salient_event is not None:
                 make_chunked_goal_conditioned_value_function_plot(self.dsc_agent.global_option.solver,
                                                                   goal_salient_event.get_target_position(),
                                                                   episode, self.seed, self.experiment_name)
@@ -382,9 +380,21 @@ class DeepSkillGraphAgent(object):
         return state, action, reward, next_state
 
     def random_rollout(self, episode):
+        transitions = []
         self.reset(episode)
         for _ in range(self.dsc_agent.max_steps):
-            self.take_random_action()
+            transition = self.take_random_action()
+            transitions.append(transition)
+        self.warm_start_exploration_agent(transitions)
+
+    def warm_start_exploration_agent(self, transitions):
+        def _get_intrinsic_reward(s):
+            return self.planning_agent.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
+
+        next_states = [trans[-1] for trans in transitions]
+        rewards = [_get_intrinsic_reward(sp) for sp in next_states]
+        self.planning_agent.exploration_agent.rnd.update_reward_rms(rewards)
+        print(f"RND Reward Variance: {self.planning_agent.exploration_agent.rnd.reward_rms.var}")
 
     def create_skill_chains_if_needed(self, state, goal_salient_event, eval_mode, current_event=None):
         current_salient_event = self._get_current_salient_event(state) if current_event is None else current_event
@@ -464,6 +474,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_vf", action="store_true", default=False)
     parser.add_argument("--multithread_mpc", action="store_true", default=False)
     parser.add_argument("--extrapolator", type=str, default="model-based")
+    parser.add_argument("--rnd_version", type=str, default="vf", help="How to compute RND expansion scores")
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -535,6 +546,7 @@ if __name__ == "__main__":
                                 experiment_name=args.experiment_name,
                                 seed=args.seed,
                                 use_vf=args.use_vf,
+                                rnd_version=args.rnd_version,
                                 extrapolator=args.extrapolator)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
