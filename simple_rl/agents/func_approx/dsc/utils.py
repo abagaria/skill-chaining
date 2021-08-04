@@ -987,3 +987,47 @@ def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, expe
 
     plt.savefig(f"value_function_plots/{experiment_name}/event_node_prob_graph_episode_{episode}_seed_{seed}.png")
     plt.close()
+
+def chunked_inference(func, data, device=torch.device("cuda"), chunk_size=1000):
+    """ Apply and aggregate func on chunked versions of data. """
+
+    num_chunks = int(np.ceil(data.shape[0] / chunk_size))
+
+    if num_chunks == 0:
+        return 0.
+
+    current_idx = 0
+    chunks = np.array_split(data, num_chunks, axis=0)
+    values = np.zeros((data.shape[0],))
+
+    for data_chunk in chunks:
+        data_chunk = torch.from_numpy(data_chunk).float().to(device)
+        value_chunk = func(data_chunk).cpu().numpy()
+        current_chunk_size = len(data_chunk)
+        values[current_idx:current_idx + current_chunk_size] = value_chunk
+        current_idx += current_chunk_size
+
+    return values
+
+def make_chunked_intrinsic_reward_plot(solver, overall_mdp, episode=None, experiment_name=""):
+    next_states = solver.replay_buffer.next_state
+    rewards = chunked_inference(solver.rnd.get_reward, next_states)
+    x = np.array([state[0] for state in next_states])
+    y = np.array([state[1] for state in next_states])
+
+    plt.scatter(x, y, None, c=rewards.squeeze())
+    plt.colorbar()
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.title("Replay Buffer Reward Heat Map")
+
+    x_low_lim, y_low_lim = overall_mdp.get_x_y_low_lims()
+    x_high_lim, y_high_lim = overall_mdp.get_x_y_high_lims()
+
+    plt.xlim((x_low_lim, x_high_lim))
+    plt.ylim((y_low_lim, y_high_lim))
+
+    plt.savefig(f"value_function_plots/{experiment_name}/rnd_reward_map_episode_{episode}.png")
+    plt.close()
+
+    return rewards.max()

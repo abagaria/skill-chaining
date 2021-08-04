@@ -145,6 +145,8 @@ class DeepSkillGraphAgent(object):
             episode = self.dsg_event_discovery_loop(episode, num_tries_allowed=10, num_expansions_per_node=5)
             episode = self.dsg_graph_consolidation_loop(episode, num_episodes=25, num_steps=num_steps)
 
+            print(make_chunked_intrinsic_reward_plot(self.planning_agent.exploration_agent, self.mdp, episode, self.experiment_name))
+
     def dsg_test_loop(self, episodes, test_event, start_state=None):
         assert isinstance(episodes, int), f"{type(episodes)}"
         assert isinstance(test_event, SalientEvent), test_event

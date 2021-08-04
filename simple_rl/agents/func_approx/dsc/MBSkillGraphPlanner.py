@@ -498,7 +498,8 @@ class SkillGraphPlanner(object):
         if self.extrapolator == "model-free":
             states = [s.features() if isinstance(s, State) else s for s in state_set]
             states = np.array([s for s in states if s.shape == (self.mdp.state_space_size(),)])
-            scores = self.exploration_agent.value_function(states)
+            # scores = self.exploration_agent.value_function(states)
+            scores = self.exploration_agent.rnd.get_reward(states).cpu().numpy()  # TODO
         else:
             states = random.sample(state_set, k=min(len(state_set), 10))
             states = [_features(s) if isinstance(s, State) else s for s in states]
