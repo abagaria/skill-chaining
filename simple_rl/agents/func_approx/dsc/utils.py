@@ -1010,7 +1010,10 @@ def chunked_inference(func, data, device=torch.device("cuda"), chunk_size=1000):
     return values
 
 def make_chunked_intrinsic_reward_plot(solver, overall_mdp, episode=None, experiment_name=""):
-    next_states = solver.replay_buffer.next_state
+    if hasattr(solver.replay_buffer, "next_state"):
+        next_states = solver.replay_buffer.next_state
+    else:
+        next_states = solver.replay_buffer.obs2_buf
     rewards = chunked_inference(solver.rnd.get_reward, next_states)
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
