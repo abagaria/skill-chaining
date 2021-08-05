@@ -1014,7 +1014,7 @@ def make_chunked_intrinsic_reward_plot(solver, overall_mdp, episode=None, experi
         next_states = solver.replay_buffer.next_state
     else:
         next_states = solver.replay_buffer.obs2_buf
-    rewards = chunked_inference(solver.rnd.get_reward, next_states)
+    rewards = chunked_inference(solver.rnd.get_reward, next_states, device=solver.device)
     x = np.array([state[0] for state in next_states])
     y = np.array([state[1] for state in next_states])
 
