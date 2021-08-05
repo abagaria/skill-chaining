@@ -22,7 +22,7 @@ class SalientEvent(object):
         self.revised_by_mpc = False
 
         self.expansion_count = 0
-        self.exploration_returns = deque(maxlen=100)
+        self.exploration_returns = deque(maxlen=20)
 
         assert isinstance(event_idx, int)
         assert isinstance(tolerance, float)

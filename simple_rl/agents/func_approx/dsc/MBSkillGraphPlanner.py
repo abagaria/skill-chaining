@@ -51,6 +51,7 @@ class SkillGraphPlanner(object):
         self.plan_graph = PlanGraph()
 
         self.rnd_version = rnd_version
+        self.make_off_policy_updates = False
 
     def _get_exploration_agent(self):
         if self.extrapolator == "model-free":
@@ -356,7 +357,7 @@ class SkillGraphPlanner(object):
         print(f"Performing model-based extrapolation from {state.position} from {starting_nodes} for {step_budget} steps")
 
         for step in range(step_budget):
-            action = self.exploration_agent.act(state)  # Trying a longer horizon for action selection
+            action = self.exploration_agent.act(state, num_rollouts=7000, num_steps=14)
             reward, next_state = self.mdp.execute_agent_action(action)
             intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
             state_reward_pairs.append((next_state, intrinsic_reward))
@@ -466,7 +467,7 @@ class SkillGraphPlanner(object):
         self.modify_edge_weight(executed_option=option, final_state=state_after_rollout)
 
         # Update the RND exploration agent
-        if self.extrapolator == "model-based":
+        if self.extrapolator == "model-based" and self.make_off_policy_updates:
             self.update_exploration_agent(option_transitions, True)
 
         return step + len(option_transitions), option_transitions
