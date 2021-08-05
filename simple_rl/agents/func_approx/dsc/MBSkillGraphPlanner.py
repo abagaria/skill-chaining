@@ -862,12 +862,17 @@ class SkillGraphPlanner(object):
 
             return src_vertices[min_array[0]], dest_vertices[min_array[1]]
 
-    def single_sample_vf_based_distances(self, src_vertices, dest_vertices):  # TODO: Test
+    def single_sample_vf_based_distances(self, src_vertices, dest_vertices, use_vf=False):  # TODO: Test
         def sample(vertex):
             effect = vertex.trigger_points if isinstance(vertex, SalientEvent) else vertex.effect_set
             states = [s.features() if not isinstance(s, np.ndarray) else s for s in effect]
             states = [s for s in states if s.shape == (self.mdp.state_space_size(),)]
             return random.choice(states)
+
+        def euclidean_pairwise_distances(points1, points2, vf):
+            XA = points1[:, :2]
+            XB = points2[:, :2]
+            return cdist(XA, XB)
 
         def batched_pairwise_distances(points1, points2, vf):
             distance_matrix = np.zeros((len(points1), len(points2)))
@@ -916,7 +921,8 @@ class SkillGraphPlanner(object):
 
         src_points = np.array([sample(v) for v in src_vertices])
         dest_points = np.array([sample(v) for v in dest_vertices])
-        per_point_distance_matrix = fully_batched_pairwise_distances(src_points, dest_points, self.chainer.global_option.value_function)
+        f = fully_batched_pairwise_distances if use_vf else euclidean_pairwise_distances
+        per_point_distance_matrix = f(src_points, dest_points, self.chainer.global_option.value_function)
         return per_point_distance_matrix
 
     def distance_between_vertices(self, v1, v2):
