@@ -143,7 +143,7 @@ class DeepSkillGraphAgent(object):
 
         while episode < starting_episode + episodes:
             episode = self.dsg_event_discovery_loop(episode, num_tries_allowed=10, num_expansions_per_node=5)
-            episode = self.dsg_graph_consolidation_loop(episode, num_episodes=25, num_steps=num_steps)
+            episode = self.dsg_graph_consolidation_loop(episode, num_episodes=50, num_steps=num_steps)
 
             print(make_chunked_intrinsic_reward_plot(self.planning_agent.exploration_agent, self.mdp, episode, self.experiment_name))
 
@@ -368,7 +368,7 @@ class DeepSkillGraphAgent(object):
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
         events = [event for event in events if not event(state)]
         unconnected_events = self.planning_agent.plan_graph.get_unconnected_nodes(state, events)
-        return unconnected_events
+        return list(set(unconnected_events))
 
     def take_random_action(self):
         state = deepcopy(self.mdp.cur_state)

@@ -508,10 +508,14 @@ class SkillGraphPlanner(object):
             scores = [self.exploration_agent.value_function(s) for s in states]
         return np.mean(scores)
 
-    def get_candidate_nodes_for_expansion(self):
-        """ Return the nodes with the Top-K expansion scores. """
-        descendants = list(set(self.mdp.get_all_target_events_ever()))
-        return descendants
+    def get_candidate_nodes_for_expansion(self, min_number_of_points=3):
+        """ There are two possibilities: First, we only consider nodes to which there is a path, but that is too
+         conservative. Second, we consider all the events ever discovered, but that could be too aggressive since
+         we may not have enough data to correctly estimate its closest node in the graph. Therefore, we try to be
+         aggressive, but temper it with the requirement that we have seen that event a small number of times. """
+        nodes = list(set(self.mdp.get_all_target_events_ever()))
+        nodes_with_enough_data = [node for node in nodes if len(node.trigger_points) >= min_number_of_points]
+        return nodes_with_enough_data
 
     def get_node_to_expand(self, temperature=1.):
         """ Given current `state`, use the RND intrinsic reward to find the graph node to expand. """
