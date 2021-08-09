@@ -965,7 +965,7 @@ def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, expe
     plt.ylim((y_low_lim, y_high_lim))
 
     plt.subplot(2, 2, 2)
-    plt.scatter(x_coords, y_coords, c=np.log(count_scores))
+    plt.scatter(x_coords, y_coords, c=count_scores)
     plt.title("Count Scores")
     plt.colorbar()
     plt.xlim((x_low_lim, x_high_lim))
@@ -979,7 +979,7 @@ def visualize_graph_nodes_with_vf_expansion_probabilities(planner, episode, expe
     plt.ylim((y_low_lim, y_high_lim))
 
     plt.subplot(2, 2, 4)
-    plt.scatter(x_coords, y_coords, c=np.log(combined_scores))
+    plt.scatter(x_coords, y_coords, c=combined_scores)
     plt.colorbar()
     plt.title("Combined Scores")
     plt.xlim((x_low_lim, x_high_lim))
