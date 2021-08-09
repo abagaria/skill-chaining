@@ -6,7 +6,7 @@ import numpy as np
 from copy import deepcopy
 from collections import deque
 from scipy.spatial import distance
-from thundersvm import OneClassSVM, SVC
+from sklearn.svm import OneClassSVM, SVC
 from simple_rl.agents.func_approx.dsc.dynamics.mpc import MPC
 from simple_rl.agents.func_approx.td3.TD3AgentClass import TD3
 
