@@ -16,7 +16,7 @@ from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 
 
 class DeepSkillGraphAgent(object):
-    def __init__(self, mdp, dsc_agent, planning_agent, salient_event_freq,
+    def __init__(self, mdp, dsc_agent, planning_agent,
                  experiment_name, seed, plot_gc_value_functions):
         """
         This agent will interleave planning with the `planning_agent` and chaining with
@@ -25,7 +25,6 @@ class DeepSkillGraphAgent(object):
             mdp (GoalDirectedMDP)
             dsc_agent (ModelBasedSkillChaining)
             planning_agent (SkillGraphPlanner)
-            salient_event_freq (int)
             experiment_name (str)
             seed (int)
             plot_gc_value_functions (bool)
@@ -33,10 +32,8 @@ class DeepSkillGraphAgent(object):
         self.mdp = mdp
         self.dsc_agent = dsc_agent
         self.planning_agent = planning_agent
-        self.salient_event_freq = salient_event_freq
         self.experiment_name = experiment_name
         self.seed = seed
-        self.salient_event_freq = salient_event_freq
         self.plot_gc_value_functions = plot_gc_value_functions
 
         assert isinstance(self.dsc_agent, ModelBasedSkillChaining)
@@ -143,9 +140,12 @@ class DeepSkillGraphAgent(object):
 
         while episode < starting_episode + episodes:
             episode = self.dsg_event_discovery_loop(episode, num_tries_allowed=10, num_expansions_per_node=5)
-            episode = self.dsg_graph_consolidation_loop(episode, num_episodes=50, num_steps=num_steps)
 
-            print(make_chunked_intrinsic_reward_plot(self.planning_agent.exploration_agent, self.mdp, episode, self.experiment_name))
+            if len(self.mdp.all_salient_events_ever) > 0:
+                episode = self.dsg_graph_consolidation_loop(episode, num_episodes=50, num_steps=num_steps)
+
+            print(make_chunked_intrinsic_reward_plot(self.planning_agent.exploration_agent,
+                                                     self.mdp, episode, self.experiment_name))
 
     def dsg_test_loop(self, episodes, test_event, start_state=None):
         assert isinstance(episodes, int), f"{type(episodes)}"
@@ -169,6 +169,8 @@ class DeepSkillGraphAgent(object):
             s0 = np.zeros((self.mdp.state_space_size(),))
             s0[:2] = start_state_event.get_target_position()
             start_state_event.trigger_points.append(s0)
+
+            self.add_salient_event(start_state_event)
 
         if num_descendants == 0:
             self.create_skill_chains_from_outside_graph(state, start_state_event, test_event)
@@ -208,7 +210,7 @@ class DeepSkillGraphAgent(object):
                 extrapolation_trajectories.append(best_sr_pair)
                 current_episode += 1
 
-            target_state, _ = self.planning_agent.create_target_state(extrapolation_trajectories)
+            target_state, _ = self.planning_agent.create_target_state(extrapolation_trajectories, recompute=True)
             goal_salient_event = self.generate_new_salient_event(target_state)
             rejected = self.should_reject_mpc_revision(target_state, goal_salient_event)
             accepted = not rejected
@@ -355,14 +357,6 @@ class DeepSkillGraphAgent(object):
 
         return shortest_paths.has_path(graph, str(vertex1), str(vertex2))
 
-    def should_generate_new_salient_events(self, episode):
-        if episode < self.num_warmup_episodes:
-            return False
-        elif episode == self.num_warmup_episodes:
-            return True
-
-        return episode > 0 and episode % self.salient_event_freq == 0
-
     def generate_candidate_salient_events(self, state):
         """ Return the events that we are currently NOT in and to whom there is no path on the graph. """
         events = self.mdp.get_all_target_events_ever() + [self.mdp.get_start_state_salient_event()]
@@ -470,13 +464,13 @@ if __name__ == "__main__":
     parser.add_argument("--use_dense_rewards", action="store_true", help="Use dense/sparse rewards", default=False)
     parser.add_argument("--gestation_period", type=int, help="Number of subgoal hits to learn an option", default=5)
     parser.add_argument("--buffer_len", type=int, help="buffer size used by option to create init sets", default=50)
-    parser.add_argument("--salient_event_freq", type=int, help="Create a salient event every salient_event_freq episodes", default=50)
     parser.add_argument("--plot_gc_value_functions", action="store_true", default=False)
     parser.add_argument("--use_model", action="store_true", default=False)
     parser.add_argument("--use_vf", action="store_true", default=False)
     parser.add_argument("--multithread_mpc", action="store_true", default=False)
     parser.add_argument("--extrapolator", type=str, default="model-based")
     parser.add_argument("--rnd_version", type=str, default="vf", help="How to compute RND expansion scores")
+    parser.add_argument("--use_vf_distances", action="store_true", default=False, help="Use VF for nearest node choice")
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -549,12 +543,12 @@ if __name__ == "__main__":
                                 seed=args.seed,
                                 use_vf=args.use_vf,
                                 rnd_version=args.rnd_version,
-                                extrapolator=args.extrapolator)
+                                extrapolator=args.extrapolator,
+                                use_vf_distances=args.use_vf_distances)
 
     dsg_agent = DeepSkillGraphAgent(mdp=overall_mdp,
                                     dsc_agent=chainer,
                                     planning_agent=planner,
-                                    salient_event_freq=args.salient_event_freq,
                                     experiment_name=args.experiment_name,
                                     seed=args.seed,
                                     plot_gc_value_functions=args.plot_gc_value_functions)

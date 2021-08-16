@@ -22,7 +22,7 @@ from simple_rl.agents.func_approx.ppo.PPOAgentClass import PPOAgent, make_chunke
 
 
 class SkillGraphPlanner(object):
-    def __init__(self, *, mdp, chainer, use_vf, extrapolator, rnd_version, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, use_vf, use_vf_distances, extrapolator, rnd_version, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -39,6 +39,7 @@ class SkillGraphPlanner(object):
         self.use_vf = use_vf
         self.extrapolator = extrapolator
         self.experiment_name = experiment_name
+        self.use_vf_distances = use_vf_distances
         self.seed = seed
 
         self.mpc = self._get_mpc()
@@ -374,11 +375,18 @@ class SkillGraphPlanner(object):
 
         return best_sr_pair
 
-    def create_target_state(self, state_reward_pairs):
+    def create_target_state(self, state_reward_pairs, recompute=False):
+
+        def _get_intrinsic_reward(s):
+            return self.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
+
         best_state = None
         max_intrinsic_reward = -np.inf
 
         for state, intrinsic_reward in state_reward_pairs:
+
+            if recompute:
+                intrinsic_reward = _get_intrinsic_reward(state)
             
             if intrinsic_reward > max_intrinsic_reward:
                 best_state = state
@@ -513,7 +521,7 @@ class SkillGraphPlanner(object):
          conservative. Second, we consider all the events ever discovered, but that could be too aggressive since
          we may not have enough data to correctly estimate its closest node in the graph. Therefore, we try to be
          aggressive, but temper it with the requirement that we have seen that event a small number of times. """
-        nodes = list(set(self.mdp.get_all_target_events_ever()))
+        nodes = list(set(self.mdp.get_all_target_events_ever())) + [self.mdp.get_start_state_salient_event()]
         nodes_with_enough_data = [node for node in nodes if len(node.trigger_points) >= min_number_of_points]
         return nodes_with_enough_data
 
@@ -854,7 +862,7 @@ class SkillGraphPlanner(object):
             return A[np.random.randint(A.shape[0], size=num_rows), :].squeeze()
 
         if len(src_vertices) > 0 and len(dest_vertices) > 0:
-            distance_matrix = self.single_sample_vf_based_distances(src_vertices, dest_vertices)
+            distance_matrix = self.single_sample_vf_based_distances(src_vertices, dest_vertices, self.use_vf_distances)
             min_array = np.argwhere(distance_matrix == np.min(distance_matrix)).squeeze()
 
             if len(min_array.shape) > 1 and min_array.shape[0] > 1:
@@ -862,7 +870,7 @@ class SkillGraphPlanner(object):
 
             return src_vertices[min_array[0]], dest_vertices[min_array[1]]
 
-    def single_sample_vf_based_distances(self, src_vertices, dest_vertices, use_vf=False):  # TODO: Test
+    def single_sample_vf_based_distances(self, src_vertices, dest_vertices, use_vf):  # TODO: Test
         def sample(vertex):
             effect = vertex.trigger_points if isinstance(vertex, SalientEvent) else vertex.effect_set
             states = [s.features() if not isinstance(s, np.ndarray) else s for s in effect]
