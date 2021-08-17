@@ -56,17 +56,18 @@ class PlanGraph(object):
         assert isinstance(state, (State, np.ndarray)), f"{type(state)}"
         assert isinstance(nodes, list), f"{type(nodes)}"
 
-        unconnected_nodes = []
         start_nodes = self._get_available_options(state)
 
         # If there are no options from the current state, all nodes are unconnected
         if len(start_nodes) == 0:
             return nodes
 
+        unconnected_nodes = []
+
+        # A goal_node is unconnected if there is *no* start_node that connects to it
         for goal_node in nodes:
-            for start_node in start_nodes:
-                if not self.does_path_exist_between_nodes(start_node, goal_node):
-                    unconnected_nodes.append(goal_node)
+            if all([not self.does_path_exist_between_nodes(s, goal_node) for s in start_nodes]):
+                unconnected_nodes.append(goal_node)
 
         return unconnected_nodes
 
