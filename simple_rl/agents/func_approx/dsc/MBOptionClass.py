@@ -506,10 +506,10 @@ class ModelBasedOption(object):
 
     def train_one_class_svm(self, nu=0.1):  # TODO: Implement gamma="auto" for thundersvm
         positive_feature_matrix = self.construct_feature_matrix(self.positive_examples)
-        self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+        self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="auto")
         self.pessimistic_classifier.fit(positive_feature_matrix)
 
-        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10.)
+        self.optimistic_classifier = OneClassSVM(kernel="rbf", nu=nu/10., gamma="auto")
         self.optimistic_classifier.fit(positive_feature_matrix)
 
     def train_two_class_classifier(self, nu=0.1):
@@ -533,7 +533,7 @@ class ModelBasedOption(object):
         positive_training_examples = X[training_predictions == 1]
 
         if positive_training_examples.shape[0] > 0:
-            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu)
+            self.pessimistic_classifier = OneClassSVM(kernel="rbf", nu=nu, gamma="auto")
             self.pessimistic_classifier.fit(positive_training_examples)
 
     def is_eligible_for_off_policy_triggers(self):
