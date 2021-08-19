@@ -269,12 +269,6 @@ class SkillGraphPlanner(object):
     def salient_event_discovery_run_loop(self, planner_goal_vertex, episode):
         """ Single episode rollout of graph extrapolation. """
 
-        def _get_intrinsic_reward(s):
-            return self.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
-
-        def _features(s):
-            return s.features().astype(np.float32, copy=False)
-
         step = 0
         state = deepcopy(self.mdp.cur_state)
 
@@ -293,15 +287,12 @@ class SkillGraphPlanner(object):
             best_sr_pair = extrapolation_func(episode, step)
             return best_sr_pair
 
-        intrinsic_reward = _get_intrinsic_reward(state)
+        intrinsic_reward = self.exploration_agent.get_intrinsic_reward(state.features())
         nominal_sr_pair = (state, intrinsic_reward)
         return nominal_sr_pair
 
     def model_free_extrapolation(self, episode, step_number):
         """ Single episodic rollout of the exploration policy to extend the graph. """
-
-        def _get_intrinsic_reward(s):
-            return self.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
 
         def _features(s):
             return s.features().astype(np.float32, copy=False)
@@ -320,7 +311,7 @@ class SkillGraphPlanner(object):
         for step in range(step_budget):
             action = self.exploration_agent.act(_features(state))
             reward, next_state = self.mdp.execute_agent_action(action)
-            intrinsic_reward = _get_intrinsic_reward(next_state)
+            intrinsic_reward = self.exploration_agent.get_intrinsic_reward(next_state.features())
             
             # [RND] Done flag is always false for the intrinsic value function
             # [RND] Setting the extrinsic reward to zero to only engage the intrinsic value head of RND value function
@@ -377,16 +368,13 @@ class SkillGraphPlanner(object):
 
     def create_target_state(self, state_reward_pairs, recompute=False):
 
-        def _get_intrinsic_reward(s):
-            return self.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
-
         best_state = None
         max_intrinsic_reward = -np.inf
 
         for state, intrinsic_reward in state_reward_pairs:
 
             if recompute:
-                intrinsic_reward = _get_intrinsic_reward(state)
+                intrinsic_reward = self.exploration_agent.get_intrinsic_reward(state.features())
             
             if intrinsic_reward > max_intrinsic_reward:
                 best_state = state
@@ -508,7 +496,7 @@ class SkillGraphPlanner(object):
             states = [s.features() if isinstance(s, State) else s for s in state_set]
             states = np.array([s for s in states if s.shape == (self.mdp.state_space_size(),)])
             # scores = self.exploration_agent.value_function(states)
-            scores = self.exploration_agent.rnd.get_reward(states).cpu().numpy()  # TODO
+            scores = self.exploration_agent.batched_get_intrinsic_reward(states)
         else:
             states = random.sample(state_set, k=min(len(state_set), 10))
             states = [_features(s) if isinstance(s, State) else s for s in states]

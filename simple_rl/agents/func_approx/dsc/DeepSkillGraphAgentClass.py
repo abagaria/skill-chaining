@@ -384,7 +384,7 @@ class DeepSkillGraphAgent(object):
         self.warm_start_exploration_agent(transitions)
 
     def warm_start_exploration_agent(self, transitions):
-        def _get_intrinsic_reward(s):
+        def _get_intrinsic_reward(s):  # TODO: Do not access the rnd module directly
             return self.planning_agent.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
 
         next_states = [trans[-1] for trans in transitions]

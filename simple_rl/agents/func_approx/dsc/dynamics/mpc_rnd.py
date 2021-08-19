@@ -16,11 +16,13 @@ from simple_rl.agents.func_approx.dsc.dynamics.dynamics_model import DynamicsMod
 from simple_rl.agents.func_approx.dsc.dynamics.replay_buffer import ReplayBuffer
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.rnd.RNDRewardLearner import RND
+from simple_rl.agents.func_approx.rnd.GMMRewardLearner import GMM
 
 
 class MPCRND:
-    def __init__(self, mdp, state_size, action_size, device, multithread=False):
+    def __init__(self, mdp, state_size, action_size, reward_module, device, multithread=False):
         assert isinstance(mdp, GoalDirectedMDP)
+        assert reward_module in ("rnd", "gmm"), reward_module
 
         self.mdp = mdp
         self.device = device
@@ -41,14 +43,19 @@ class MPCRND:
         else:
             self.workers = 0
 
-        # RND Parameters
-        self.rnd = RND(mdp.state_space_size(),
-                         lr=1e-4,
-                         n_epochs=1,
-                         batch_size=64,
-                         device=device,
-                         update_interval=2048,
-                         use_reward_norm=True)
+        if reward_module == "rnd":
+            self.rnd = RND(mdp.state_space_size(),
+                             lr=1e-4,
+                             n_epochs=1,
+                             batch_size=64,
+                             device=device,
+                             update_interval=2048,
+                             use_reward_norm=True)
+        else:
+            self.rnd = GMM(use_reward_norm=True,
+                           update_interval=2000,
+                           use_position_subset=True,
+                           buffer_size=10000)
 
     def load_data(self):
         self.dataset = self._preprocess_data()
@@ -199,8 +206,8 @@ class MPCRND:
 
     def batched_get_intrinsic_reward(self, states):
         assert isinstance(states, (np.ndarray, torch.tensor)), type(states)
-        intrinsic_reward = self.rnd.get_reward(states).mean().item()
-        return intrinsic_reward
+        intrinsic_rewards = self.rnd.get_reward(states)
+        return intrinsic_rewards.detach().cpu().numpy()
 
 
 class RolloutDataset(Dataset):

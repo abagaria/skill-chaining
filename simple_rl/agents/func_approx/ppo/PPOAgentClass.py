@@ -74,6 +74,20 @@ class PPOAgent(object):
         if self.maintain_replay_buffer:
             self.replay_buffer.add(obs, action, reward, next_obs, done)
 
+    def get_intrinsic_reward(self, next_state):
+        """ Intrinsic reward computation for a single input state. """
+        assert self.use_rnd_for_exploration
+
+        normalized_next_state = next_state[None, ...]
+        intrinsic_reward = self.rnd.get_reward(normalized_next_state).item()
+        return intrinsic_reward
+
+    def batched_get_intrinsic_reward(self, states):
+        """ Get the intrinsic reward associated with a batch of states. """
+        assert isinstance(states, np.ndarray), type(states)
+        intrinsic_rewards = self.rnd.get_reward(states)
+        return intrinsic_rewards.detach().cpu().numpy()
+
     def get_batched_qvalues(self, states):
         if isinstance(states, np.ndarray):
             states = torch.from_numpy(states).float()
