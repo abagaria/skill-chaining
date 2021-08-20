@@ -17,12 +17,13 @@ from simple_rl.agents.func_approx.dsc.dynamics.replay_buffer import ReplayBuffer
 from simple_rl.mdp.GoalDirectedMDPClass import GoalDirectedMDP
 from simple_rl.agents.func_approx.rnd.RNDRewardLearner import RND
 from simple_rl.agents.func_approx.rnd.GMMRewardLearner import GMM
+from simple_rl.agents.func_approx.rnd.KDERewardLearner import KDE
 
 
 class MPCRND:
     def __init__(self, mdp, state_size, action_size, reward_module, device, multithread=False):
         assert isinstance(mdp, GoalDirectedMDP)
-        assert reward_module in ("rnd", "gmm"), reward_module
+        assert reward_module in ("rnd", "gmm", "kde"), reward_module
 
         self.mdp = mdp
         self.device = device
@@ -52,8 +53,13 @@ class MPCRND:
                              device=device,
                              update_interval=2048,
                              use_reward_norm=True)
-        else:
+        elif reward_module == "gmm":
             self.rnd = GMM(use_reward_norm=True,
+                           update_interval=1000,
+                           use_position_subset=True,
+                           buffer_size=10000)
+        else:
+            self.rnd = KDE(use_reward_norm=True,
                            update_interval=1000,
                            use_position_subset=True,
                            buffer_size=10000)
