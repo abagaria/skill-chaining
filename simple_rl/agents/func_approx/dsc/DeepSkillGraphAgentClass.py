@@ -381,11 +381,12 @@ class DeepSkillGraphAgent(object):
         for _ in range(self.dsc_agent.max_steps):
             transition = self.take_random_action()
             transitions.append(transition)
+
         self.warm_start_exploration_agent(transitions)
 
     def warm_start_exploration_agent(self, transitions):
         def _get_intrinsic_reward(s):  # TODO: Do not access the rnd module directly
-            return self.planning_agent.exploration_agent.rnd.get_reward(s.features()[None, ...]).detach().cpu().numpy()[0]
+            return self.planning_agent.exploration_agent.get_intrinsic_reward(s.features())
 
         next_states = [trans[-1] for trans in transitions]
         rewards = [_get_intrinsic_reward(sp) for sp in next_states]
@@ -471,6 +472,7 @@ if __name__ == "__main__":
     parser.add_argument("--extrapolator", type=str, default="model-based")
     parser.add_argument("--rnd_version", type=str, default="vf", help="How to compute RND expansion scores")
     parser.add_argument("--use_vf_distances", action="store_true", default=False, help="Use VF for nearest node choice")
+    parser.add_argument("--reward_module", type=str, default="rnd")
     args = parser.parse_args()
 
     if args.env == "point-reacher":
@@ -542,6 +544,7 @@ if __name__ == "__main__":
                                 experiment_name=args.experiment_name,
                                 seed=args.seed,
                                 use_vf=args.use_vf,
+                                reward_module=args.reward_module,
                                 rnd_version=args.rnd_version,
                                 extrapolator=args.extrapolator,
                                 use_vf_distances=args.use_vf_distances)

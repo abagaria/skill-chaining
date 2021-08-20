@@ -22,7 +22,8 @@ from simple_rl.agents.func_approx.ppo.PPOAgentClass import PPOAgent, make_chunke
 
 
 class SkillGraphPlanner(object):
-    def __init__(self, *, mdp, chainer, use_vf, use_vf_distances, extrapolator, rnd_version, experiment_name, seed):
+    def __init__(self, *, mdp, chainer, use_vf, use_vf_distances, extrapolator,
+                 rnd_version, reward_module, experiment_name, seed):
         """
         The Skill Graph Planning Agent uses graph search to get to target states given
         during test time. If the goal state is in a salient event already known to the agent,
@@ -35,6 +36,7 @@ class SkillGraphPlanner(object):
             seed (int)
         """
         self.mdp = mdp
+        self.reward_module = reward_module
         self.chainer = chainer  # type: ModelBasedSkillChaining
         self.use_vf = use_vf
         self.extrapolator = extrapolator
@@ -63,6 +65,7 @@ class SkillGraphPlanner(object):
                             lr=1e-4)
 
         return MPCRND(mdp=self.mdp,
+                      reward_module=self.reward_module,
                       state_size=self.mdp.state_space_size(),
                       action_size=self.mdp.action_space_size(),
                       device=self.chainer.device,

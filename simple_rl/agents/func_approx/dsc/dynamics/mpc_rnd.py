@@ -28,6 +28,7 @@ class MPCRND:
         self.device = device
         self.state_size = state_size
         self.action_size = action_size
+        self.reward_module = reward_module
 
         self.is_trained = False
         self.trained_options = []
@@ -53,7 +54,7 @@ class MPCRND:
                              use_reward_norm=True)
         else:
             self.rnd = GMM(use_reward_norm=True,
-                           update_interval=2000,
+                           update_interval=1000,
                            use_position_subset=True,
                            buffer_size=10000)
 
@@ -199,7 +200,6 @@ class MPCRND:
 
     def get_intrinsic_reward(self, next_state):
         """ Intrinsic reward computation for a single input state. """
-
         normalized_next_state = next_state[None, ...]
         intrinsic_reward = self.rnd.get_reward(normalized_next_state).item()
         return intrinsic_reward

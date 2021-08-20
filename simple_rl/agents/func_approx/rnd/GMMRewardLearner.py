@@ -1,4 +1,5 @@
 import time
+import torch
 import numpy as np
 from collections import deque
 from sklearn.mixture import GaussianMixture
@@ -18,10 +19,15 @@ class GMM:
         if use_reward_norm:
             self.reward_rms = RunningMeanStd()
 
+        self.num_updates = 0
         self.name = "gmm-reward-module"
 
     def get_reward(self, states):
-        assert isinstance(states, np.ndarray), f"{type(states)}"
+        tensor_type = isinstance(states, torch.Tensor)
+        device = states.device if tensor_type else None
+        
+        if tensor_type:
+            states = states.detach().cpu().numpy()
 
         if self.use_position_subset:
             states = self.get_state_subset(states)
@@ -32,6 +38,9 @@ class GMM:
         if self.use_reward_norm:
             rewards /= np.sqrt(self.reward_rms.var)
 
+        if tensor_type:
+            rewards = torch.FloatTensor(rewards).to(device)
+
         return rewards
 
     def update(self, state):
@@ -41,8 +50,9 @@ class GMM:
             state = self.get_state_subset(state)
 
         self.memory.append(state)
+        self.num_updates += 1
 
-        if len(self.memory) >= self.update_interval:
+        if self.num_updates % self.update_interval == 0:
             states = np.array(self.memory)
             self.train(states)
 
@@ -74,6 +84,4 @@ class GMM:
 
         if len(states.shape) == 1:
             return states[:2]
-        if states.shape[0] == 1:
-            return states[0, :2]
         return states[:, :2]
