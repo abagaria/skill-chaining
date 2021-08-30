@@ -38,3 +38,6 @@ class ReplayBuffer:
                      rew=self.rew_buf[idxs],
                      done=self.done_buf[idxs])
         return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in batch.items()}
+
+    def __len__(self):
+        return self.size

@@ -146,11 +146,56 @@ class MPC:
         costs = -1. * rewards
         return costs
 
+    def tensor_cost(self, states, goals):
+        # States is N, K, D
+        # Goals is N, K, 2
+        # Output cost vector should have shape N, K
+        distances = torch.norm(states[:, :, :2] - goals[:, :, :2], dim=-1)
+        # distances[distances <= self.mdp.goal_tolerance] = 0.
+        return distances
+
+    def batched_simulate(self, states, num_rollouts, num_steps):
+        assert isinstance(states, torch.Tensor), states
+        assert len(states.shape) == 2, states.shape
+        assert states.shape[1] == self.state_size, states.shape
+
+        action_seq_shape = (states.shape[0], num_rollouts, num_steps, self.action_size)
+        torch_actions = 2. * torch.rand(action_seq_shape, device=self.device) - 1.
+
+        # Create a state tensor of shape (N, D, num_rollouts)
+        # Repeat magic:
+        # https://stackoverflow.com/questions/57896357/how-to-repeat-tensor-in-a-specific-new-dimension-in-pytorch
+        torch_states = states.to(self.device).unsqueeze(1).repeat(1, num_rollouts, 1)
+        state_tensor_shape = torch_states.shape
+        assert state_tensor_shape == (states.shape[0], num_rollouts, self.state_size)
+
+        goal = torch.FloatTensor([[8., 0.]]).to(self.device)
+        goals = goal.unsqueeze(0).repeat(states.shape[0], num_rollouts, 1)
+        costs = torch.zeros(states.shape[0], num_rollouts, num_steps)
+
+        for i in range(num_steps):
+            actions = torch_actions[:, :, i, :]  # tensor of shape N, K, D
+
+            prediction = self.model.predict_next_state(torch_states.reshape(-1, self.state_size),
+                                                       actions.reshape(-1, self.action_size))
+
+            assert prediction.shape == (states.shape[0] * num_rollouts, self.state_size)
+
+            torch_states = prediction.reshape(state_tensor_shape)
+
+            assert torch_states.shape == (states.shape[0], num_rollouts, self.state_size), torch_states.shape
+            assert goals.shape == (states.shape[0], num_rollouts, 2), goals.shape
+
+            costs[:, :, i] = self.tensor_cost(torch_states, goals)
+
+        return torch_states, torch_actions, costs
+
     def simulate(self, s, goal, num_rollouts=14000, num_steps=7):
         """ Perform N simulations of length H. """
 
+        s = s.features() if not isinstance(s, np.ndarray) else s
         torch_actions = 2 * torch.rand((num_rollouts, num_steps, self.action_size), device=self.device) - 1
-        torch_states = torch.tensor(s.features(), device=self.device).repeat(num_rollouts, 1)
+        torch_states = torch.tensor(s, device=self.device).repeat(num_rollouts, 1)
         pred = torch.zeros((num_rollouts, self.state_size, num_steps), device=self.device)
         
         goals = np.repeat([goal], num_rollouts, axis=0)
