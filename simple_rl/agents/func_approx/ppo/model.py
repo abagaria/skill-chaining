@@ -73,3 +73,17 @@ def fc_model(obs_size, action_size):
     ortho_init(vf[4], gain=1)
 
     return pfrl.nn.Branched(policy, vf)
+
+def atari_ram_model(obs_size, action_size):
+    return torch.nn.Sequential(
+            nn.Linear(obs_size, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, action_size),
+            nn.Tanh(),
+            pfrl.nn.Branched(
+                SoftmaxCategoricalHead(),
+                nn.Linear(action_size, 1)
+            )
+        )

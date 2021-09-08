@@ -51,10 +51,16 @@ class RND:
         # TODO: Discount the rewards with their time indices (in RND torch implementation)
         assert self.use_reward_norm, f"use_reward_norm={self.use_reward_norm}"
 
-        if len(episodic_rewards) > 0:
-            mean = np.mean(episodic_rewards)
-            std = np.std(episodic_rewards)
-            size = len(episodic_rewards)
+        num_steps = len(episodic_rewards)
+        gammas = np.power(0.95 * np.ones(num_steps), np.arange(0, num_steps))
+        discounted_rewards = gammas * episodic_rewards
+
+        assert len(discounted_rewards) == len(episodic_rewards)
+
+        if len(discounted_rewards) > 0:
+            mean = np.mean(discounted_rewards)
+            std = np.std(discounted_rewards)
+            size = len(discounted_rewards)
 
             self.reward_rms.update_from_moments(mean, std ** 2, size)
 

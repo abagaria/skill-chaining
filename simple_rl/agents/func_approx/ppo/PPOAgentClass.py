@@ -1,13 +1,16 @@
 import ipdb
 import pfrl
+import pickle
 import argparse
 from pfrl.agents import PPO
 from copy import deepcopy
 from simple_rl.agents.func_approx.td3.utils import *
-from simple_rl.agents.func_approx.ppo.model import fc_model
+from simple_rl.agents.func_approx.ppo.model import fc_model, atari_ram_model
 from simple_rl.agents.func_approx.rnd.RNDRewardLearner import RND
 from simple_rl.agents.func_approx.td3.replay_buffer import ReplayBuffer
 from simple_rl.tasks.d4rl_ant_maze.D4RLAntMazeMDPClass import D4RLAntMazeMDP
+from simple_rl.tasks.montezuma.MRRAMMDPClass import MontezumaRAMMDP
+from simple_rl.agents.func_approx.dsc.utils import make_chunked_intrinsic_reward_plot
 
 
 class PPOAgent(object):
@@ -18,7 +21,7 @@ class PPOAgent(object):
                  update_interval=2048,
                  batchsize=64,
                  epochs=4,
-                 device_id=0,
+                 device_id=-1,
                  maintain_replay_buffer=False,
                  use_rnd_for_exploration=False):
 
@@ -27,7 +30,7 @@ class PPOAgent(object):
         self.use_rnd_for_exploration = use_rnd_for_exploration
         self.device = torch.device(f"cuda:{device_id}" if device_id > -1 else "cpu")
 
-        self.model = fc_model(obs_size, action_size)
+        self.model = atari_ram_model(obs_size, action_size)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, eps=1e-5)
 
         # Normalize observations based on their empirical mean and variance
@@ -46,16 +49,16 @@ class PPOAgent(object):
                          entropy_coef=1e-3,  # Taken from RND paper (in pfrl, this is 0)
                          standardize_advantages=True,
                          gamma=0.995,
-                         lambd=0.97
+                         lambd=0.95
         )
 
         if use_rnd_for_exploration:
             self.rnd = RND(obs_size,
-                           lr=1e-4,
-                           n_epochs=1,
-                           batch_size=64,
+                           lr=lr,
+                           n_epochs=4,
+                           batch_size=batchsize,
                            device=self.device,
-                           update_interval=2048,
+                           update_interval=update_interval,
                            use_reward_norm=True)
 
         # Maintaining a replay buffer for visualizations -- not used by the PPO agent
@@ -135,9 +138,6 @@ def train(agent, mdp, episodes, steps, experiment_name, starting_episode=0):
     per_episode_durations = []
     per_episode_intrinsic_rewards = []
 
-    visited_x_positions = []
-    visited_y_positions = []
-
     for episode in range(starting_episode, starting_episode + episodes):
         mdp.reset()
         state = deepcopy(mdp.cur_state)
@@ -152,15 +152,19 @@ def train(agent, mdp, episodes, steps, experiment_name, starting_episode=0):
             reward, next_state = mdp.execute_agent_action(action)
             intrinsic_reward = _get_intrinsic_reward(next_state)
 
-            agent.step(_features(state), action, intrinsic_reward, _features(next_state), next_state.is_terminal())
+            if episode > 0:
+                agent.step(
+                    _features(state),
+                   action,
+                    (2 * reward) + intrinsic_reward,
+                   _features(next_state),
+                   next_state.is_terminal()
+                )
 
             score += reward
             state = next_state
             intrinsic_score += intrinsic_reward
             episodic_rewards.append(intrinsic_score)
-
-            visited_x_positions.append(next_state.position[0])
-            visited_y_positions.append(next_state.position[1])
 
             if state.is_terminal():
                 break
@@ -173,18 +177,16 @@ def train(agent, mdp, episodes, steps, experiment_name, starting_episode=0):
         per_episode_durations.append(step)
         per_episode_intrinsic_rewards.append(intrinsic_score)
 
-        print(f"Episode: {episode} | Intrinsic Reward: {intrinsic_score} | Var: {agent.rnd.reward_rms.var} | Final State: {final_state}")
+        print(f"Episode: {episode} | Step: {step} | Score: {score} | Intrinsic Reward: {intrinsic_score} | Var: {agent.rnd.reward_rms.var} | Final State: {final_state}")
 
-        if episode % 100 == 0:
+        if episode > 0 and episode % 50 == 0:
             if hasattr(agent, "replay_buffer"):
                 max_int = make_chunked_vf_plot(agent, experiment_name, episode)
                 print(f"Max intrinsic value: {max_int}")
+                make_chunked_intrinsic_reward_plot(agent, mdp, episode, experiment_name, False)
 
-            plt.figure()
-            plt.scatter(visited_x_positions, visited_y_positions, alpha=0.3)
-            plt.title(f"Episode {episode}")
-            plt.savefig(f"value_function_plots/{experiment_name}/visited_states_episode_{episode}.png")
-            plt.close()
+        with open(f"{experiment_name}/log_file.pkl", "wb+") as f:
+            pickle.dump(per_episode_scores, f)
 
     return per_episode_scores, per_episode_durations, per_episode_intrinsic_rewards
 
@@ -192,11 +194,12 @@ def train(agent, mdp, episodes, steps, experiment_name, starting_episode=0):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
-    parser.add_argument("--render", type=bool, help="render environment training", default=False)
+    parser.add_argument("--render", action="store_true", help="render environment training", default=False)
     parser.add_argument("--episodes", type=int, help="number of training episodes", default=200)
     parser.add_argument("--steps", type=int, help="number of steps per episode", default=200)
     parser.add_argument("--device", type=str, help="cuda/cpu", default="cpu")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--env", type=str)
     args = parser.parse_args()
 
     log_dir = create_log_dir(args.experiment_name)
@@ -206,15 +209,21 @@ if __name__ == "__main__":
     create_log_dir("value_function_plots/{}".format(args.experiment_name))
     create_log_dir("initiation_set_plots/{}".format(args.experiment_name))
 
-    mdp = D4RLAntMazeMDP(seed=args.seed,
-                         goal_state=None,
-                         maze_size="umaze",
-                         render=args.render,
-                         dense_reward=False)
+    if args.env == "ant-u-maze":
+        mdp = D4RLAntMazeMDP(seed=args.seed,
+                             goal_state=None,
+                             maze_size="umaze",
+                             render=args.render,
+                             dense_reward=False)
+    elif args.env == "montezuma":
+        mdp = MontezumaRAMMDP(render=args.render, seed=args.seed)
+    else:
+        raise NotImplementedError(args.env)
 
     agent = PPOAgent(obs_size=mdp.state_space_size(),
                      action_size=mdp.action_space_size(),
                      maintain_replay_buffer=True,
-                     lr=3e-4, use_rnd_for_exploration=True)
+                     lr=1e-4, use_rnd_for_exploration=True,
+                     batchsize=1024)
 
     pes, ped, pei = train(agent, mdp, args.episodes, args.steps, args.experiment_name)

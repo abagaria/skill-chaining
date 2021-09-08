@@ -1009,9 +1009,9 @@ def chunked_inference(func, data, device=torch.device("cuda"), chunk_size=1000):
 
     return values
 
-def make_chunked_intrinsic_reward_plot(solver, overall_mdp, episode=None, experiment_name=""):
+def make_chunked_intrinsic_reward_plot(solver, overall_mdp, episode=None, experiment_name="", plt_lim=True):
     if hasattr(solver.replay_buffer, "next_state"):
-        next_states = solver.replay_buffer.next_state
+        next_states = solver.replay_buffer.next_state[:solver.replay_buffer.size, :]
     else:
         next_states = solver.replay_buffer.obs2_buf
     rewards = chunked_inference(solver.rnd.get_reward, next_states, device=solver.device)
@@ -1027,8 +1027,9 @@ def make_chunked_intrinsic_reward_plot(solver, overall_mdp, episode=None, experi
     x_low_lim, y_low_lim = overall_mdp.get_x_y_low_lims()
     x_high_lim, y_high_lim = overall_mdp.get_x_y_high_lims()
 
-    plt.xlim((x_low_lim, x_high_lim))
-    plt.ylim((y_low_lim, y_high_lim))
+    if plt_lim:
+        plt.xlim((x_low_lim, x_high_lim))
+        plt.ylim((y_low_lim, y_high_lim))
 
     plt.savefig(f"value_function_plots/{experiment_name}/rnd_reward_map_episode_{episode}.png")
     plt.close()
